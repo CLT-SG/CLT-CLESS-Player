@@ -1,4 +1,4 @@
-# Cless Player
+# CLESS Player
 
 Cless Player is a web desktop application built with ElectronJS, designed to provide a seamless experience for interacting with the Cless Server. This application wraps web functionality into a native desktop environment for improved usability and performance.
 
