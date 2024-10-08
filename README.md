@@ -18,17 +18,17 @@ Follow these steps to install and start the Cless Player:
 1. Install Electron globally:
    ```bash
    npm install -g electron
-   ```bash
+   ```
 
 2. Install project dependencies:
    ```bash
    npm install
-   ```bash
+   ```
 
 3. Start the application:
    ```bash
    npm start
-   ```bash
+   ```
 
 ## Building the Application
 
@@ -38,23 +38,23 @@ To build the application and compile it into an executable for different platfor
 - **Windows x64:**
    ```bash
    npm run win64
-   ```bash
+   ```
 
 - **Windows x86:**
    ```bash
    npm run win32
-   ```bash
+   ```
 
 ### For Ubuntu:
 - **Ubuntu x64:**
    ```bash
    npm run ubuntu64
-   ```bash
+   ```
 
 - **Ubuntu x86:**
    ```bash
    npm run ubuntu32
-   ```bash
+   ```
 
 ## Contributing
 Contributions are welcome! If you find any issues or have suggestions for improvements, feel free to create a pull request or open an issue in this repository.
