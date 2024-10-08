@@ -63,4 +63,4 @@ Contributions are welcome! If you find any issues or have suggestions for improv
 This project is licensed under the [MIT License](LICENSE).
 
 ## Contact
-For any inquiries, reach out to us at [support@clessplayer.com](mailto:support@clessplayer.com).
+For any inquiries, reach out to us at www.closed-loop.biz
