@@ -8,8 +8,8 @@ Cless Player is a web desktop application built with ElectronJS, designed to pro
 - ElectronJS-based desktop application for enhanced web server interaction
 
 ## Requirements
-- [Node.js](https://nodejs.org/) (v14.x or later)
-- [Electron](https://www.electronjs.org/)
+- [Node.js](https://nodejs.org/) (v20.x or later)
+- [Electron](https://www.electronjs.org/) (v22.x)
 
 ## Installation
 
