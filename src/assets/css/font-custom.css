@@ -1,0 +1,628 @@
+/* ARIAL FONT 
+
+CONVERT TTF TO WOFF ONLINE 
+https://transfonter.org/
+
+DOWNLOAD TTF FONTS
+https://freefontsdownload.net/
+
+*/
+
+@font-face {
+    font-family: 'Arial Italic';
+    src: url('fonts/Arial-ItalicMT.woff2') format('woff2'), url('fonts/Arial-ItalicMT.woff') format('woff');
+    font-weight: normal;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Bold';
+    src: url('fonts/Arial-BoldMT.woff2') format('woff2'), url('fonts/Arial-BoldMT.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Bold Italic';
+    src: url('fonts/Arial-BoldItalicMT.woff2') format('woff2'), url('fonts/Arial-BoldItalicMT.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Black';
+    src: url('fonts/Arial-Black.woff2') format('woff2'), url('fonts/Arial-Black.woff') format('woff');
+    font-weight: 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial';
+    src: url('fonts/ArialMT.woff2') format('woff2'), url('fonts/ArialMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Narrow';
+    src: url('fonts/ArialNarrow.woff2') format('woff2'), url('fonts/ArialNarrow.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Narrow Bold Italic';
+    src: url('fonts/ArialNarrow-BoldItalic.woff2') format('woff2'), url('fonts/ArialNarrow-BoldItalic.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Narrow Bold';
+    src: url('fonts/ArialNarrow-Bold.woff2') format('woff2'), url('fonts/ArialNarrow-Bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arial Narrow Italic';
+    src: url('fonts/ArialNarrow-Italic.woff2') format('woff2'), url('fonts/ArialNarrow-Italic.woff') format('woff');
+    font-weight: normal;
+    font-style: italic;
+    font-display: swap;
+}
+
+
+/* CUSTOM */
+
+@font-face {
+    font-family: 'Agent Orange';
+    src: url('fonts/AgentOrange.woff2') format('woff2'), url('fonts/AgentOrange.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Alba';
+    src: url('fonts/Alba.woff2') format('woff2'), url('fonts/Alba.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Alba Super';
+    src: url('fonts/AlbaSuper.woff2') format('woff2'), url('fonts/AlbaSuper.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Alba Matter';
+    src: url('fonts/AlbaMatter.woff2') format('woff2'), url('fonts/AlbaMatter.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arabic Transparent';
+    src: url('fonts/ArabicTransparent.woff2') format('woff2'), url('fonts/ArabicTransparent.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Arabic Transparent Bold';
+    src: url('fonts/ArabicTransparent-Bold.woff2') format('woff2'), url('fonts/ArabicTransparent-Bold.woff') format('woff');
+    font-weight: bold;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Black';
+    src: url('fonts/Avenir-Black.woff2') format('woff2'), url('fonts/Avenir-Black.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Book';
+    src: url('fonts/Avenir-Book.woff2') format('woff2'), url('fonts/Avenir-Book.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Heavy';
+    src: url('fonts/Avenir-Heavy.woff2') format('woff2'), url('fonts/Avenir-Heavy.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Light';
+    src: url('fonts/Avenir-Light.woff2') format('woff2'), url('fonts/Avenir-Light.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Medium';
+    src: url('fonts/Avenir-Medium.woff2') format('woff2'), url('fonts/Avenir-Medium.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Avenir Black';
+    src: url('fonts/Avenir-Black.woff2') format('woff2'), url('fonts/Avenir-Black.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'BrushScript Regular';
+    src: url('fonts/BrushScriptRegularSWFTE.woff2') format('woff2'), url('fonts/BrushScriptRegularSWFTE.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'BrushScript';
+    src: url('fonts/BrushScript.woff2') format('woff2'), url('fonts/BrushScript.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Baskerville';
+    src: url('fonts/Baskerville.woff2') format('woff2'), url('fonts/Baskerville.woff') format('woff');
+    font-weight: 100;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Baskerville Bold Italic';
+    src: url('fonts/BaskervilleBold-Italic.woff2') format('woff2'), url('fonts/BaskervilleBold-Italic.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Baskerville Black Italic';
+    src: url('fonts/BaskervilleBT-BoldItalic.woff2') format('woff2'), url('fonts/BaskervilleBT-BoldItalic.woff') format('woff');
+    font-weight: bold;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Baskerville Light Italic';
+    src: url('fonts/Baskerville-LightItalic.woff2') format('woff2'), url('fonts/Baskerville-LightItalic.woff') format('woff');
+    font-weight: 300;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Broadway';
+    src: url('fonts/Broadway-Regular.woff2') format('woff2'), url('fonts/Broadway-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Bauhaus Italic';
+    src: url('fonts/Bauhaus-Italic.woff2') format('woff2'), url('fonts/Bauhaus-Italic.woff') format('woff');
+    font-weight: 100;
+    font-style: italic;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Alfredo Heavy Hollow';
+    src: url('fonts/AlfredosDance.woff2') format('woff2'), url('fonts/AlfredosDance.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Stencil';
+    src: url('fonts/Stencil.woff2') format('woff2'), url('fonts/Stencil.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Stencil Std';
+    src: url('fonts/StencilStd.woff2') format('woff2'), url('fonts/StencilStd.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Black Italic';
+    src: url('fonts/Montserrat-BlackItalic.woff2') format('woff2'), url('fonts/Montserrat-BlackItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Bold';
+    src: url('fonts/Montserrat-Bold.woff2') format('woff2'), url('fonts/Montserrat-Bold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Bold Italic';
+    src: url('fonts/Montserrat-BoldItalic.woff2') format('woff2'), url('fonts/Montserrat-BoldItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Black';
+    src: url('fonts/Montserrat-Black.woff2') format('woff2'), url('fonts/Montserrat-Black.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat ExtraBold';
+    src: url('fonts/Montserrat-ExtraBold.woff2') format('woff2'), url('fonts/Montserrat-ExtraBold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat ExtraBold Italic';
+    src: url('fonts/Montserrat-ExtraBoldItalic.woff2') format('woff2'), url('fonts/Montserrat-ExtraBoldItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Light';
+    src: url('fonts/Montserrat-Light.woff2') format('woff2'), url('fonts/Montserrat-Light.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Italic';
+    src: url('fonts/Montserrat-Italic.woff2') format('woff2'), url('fonts/Montserrat-Italic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat ExtraLight Italic';
+    src: url('fonts/Montserrat-ExtraLightItalic.woff2') format('woff2'), url('fonts/Montserrat-ExtraLightItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat ExtraLight';
+    src: url('fonts/Montserrat-ExtraLight.woff2') format('woff2'), url('fonts/Montserrat-ExtraLight.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Light Italic';
+    src: url('fonts/Montserrat-LightItalic.woff2') format('woff2'), url('fonts/Montserrat-LightItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Medium Italic';
+    src: url('fonts/Montserrat-MediumItalic.woff2') format('woff2'), url('fonts/Montserrat-MediumItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat';
+    src: url('fonts/Montserrat-Regular.woff2') format('woff2'), url('fonts/Montserrat-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat SemiBold';
+    src: url('fonts/Montserrat-SemiBold.woff2') format('woff2'), url('fonts/Montserrat-SemiBold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat SemiBold Italic';
+    src: url('fonts/Montserrat-SemiBoldItalic.woff2') format('woff2'), url('fonts/Montserrat-SemiBoldItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Medium';
+    src: url('fonts/Montserrat-Medium.woff2') format('woff2'), url('fonts/Montserrat-Medium.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat Thin';
+    src: url('fonts/Montserrat-Thin.woff2') format('woff2'), url('fonts/Montserrat-Thin.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Montserrat ThinItalic';
+    src: url('fonts/Montserrat-ThinItalic.woff2') format('woff2'), url('fonts/Montserrat-ThinItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Times New Roman';
+    src: url('fonts/TimesNewRomanPSMT.woff2') format('woff2'), url('fonts/TimesNewRomanPSMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Times New Roman Bold Italic';
+    src: url('fonts/TimesNewRomanPS-BoldItalicMT.woff2') format('woff2'), url('fonts/TimesNewRomanPS-BoldItalicMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Times New Roman Bold';
+    src: url('fonts/TimesNewRomanPS-BoldMT.woff2') format('woff2'), url('fonts/TimesNewRomanPS-BoldMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Times New Roman Regular';
+    src: url('fonts/TimesNewRomanPS-ItalicMT.woff2') format('woff2'), url('fonts/TimesNewRomanPS-ItalicMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ColonnaMT';
+    src: url('fonts/ColonnaMT.woff2') format('woff2'), url('fonts/ColonnaMT.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'ChunkFive';
+    src: url('fonts/ChunkFive.woff2') format('woff2'), url('fonts/ChunkFive.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Castellar';
+    src: url('fonts/Castellar.woff2') format('woff2'), url('fonts/Castellar.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Casper Bold';
+    src: url('fonts/Casper-Bold.woff2') format('woff2'), url('fonts/Casper-Bold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Tahoma';
+    src: url('fonts/Tahoma.woff2') format('woff2'), url('fonts/Tahoma.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Tahoma Bold';
+    src: url('fonts/Tahoma-Bold.woff2') format('woff2'), url('fonts/Tahoma-Bold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Calibri Italic';
+    src: url('fonts/Calibri-Italic.woff2') format('woff2'), url('fonts/Calibri-Italic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Calibri Bold';
+    src: url('fonts/Calibri-Bold.woff2') format('woff2'), url('fonts/Calibri-Bold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Verdana Bold Italic';
+    src: url('fonts/Verdana-BoldItalic.woff2') format('woff2'), url('fonts/Verdana-BoldItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'StoneSans Italic';
+    src: url('fonts/StoneSansItalic.woff2') format('woff2'), url('fonts/StoneSansItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Verdana Italic';
+    src: url('fonts/Verdana-Italic.woff2') format('woff2'), url('fonts/Verdana-Italic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Franklin Gothic Heavy';
+    src: url('fonts/FranklinGothic-Heavy.woff2') format('woff2'), url('fonts/FranklinGothic-Heavy.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Impacted';
+    src: url('fonts/Impacted.woff2') format('woff2'), url('fonts/Impacted.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Casper';
+    src: url('fonts/Casper.woff2') format('woff2'), url('fonts/Casper.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Franklin Gothic Heavy Italic';
+    src: url('fonts/FranklinGothic-HeavyItalic.woff2') format('woff2'), url('fonts/FranklinGothic-HeavyItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Stone';
+    src: url('fonts/Stone.woff2') format('woff2'), url('fonts/Stone.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Calibri';
+    src: url('fonts/Calibri.woff2') format('woff2'), url('fonts/Calibri.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Verdana Bold';
+    src: url('fonts/Verdana-Bold.woff2') format('woff2'), url('fonts/Verdana-Bold.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Verdana Italic TTF';
+    src: url('fonts/Verdana-Italic.woff2') format('woff2'), url('fonts/Verdana-Italic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Stone Italic';
+    src: url('fonts/StoneItalic.woff2') format('woff2'), url('fonts/StoneItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'CandySniper';
+    src: url('fonts/CandySniper.woff2') format('woff2'), url('fonts/CandySniper.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Monkey';
+    src: url('fonts/Monkey.woff2') format('woff2'), url('fonts/Monkey.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'Calibri Bold Italic';
+    src: url('fonts/Calibri-BoldItalic.woff2') format('woff2'), url('fonts/Calibri-BoldItalic.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}

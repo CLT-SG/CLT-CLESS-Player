@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="us">
+
+<head>
+    <meta charset="utf-8">
+    <title>eCLESS Player</title>
+    <script>
+        if (typeof module === 'object') {
+            window.module = module
+            module = undefined
+        }
+    </script>
+    <!-- Latest compiled and minified CSS -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/bootstrap.min.js"></script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+        }
+
+        .note {
+            text-align: center;
+            height: 80px;
+            background: -webkit-linear-gradient(left, #0072ff, #8811c5);
+            color: #fff;
+            font-weight: bold;
+            line-height: 80px;
+        }
+
+        .form-content {
+            padding: 5%;
+            border: 1px solid #ced4da;
+            margin-bottom: 2%;
+        }
+
+        .btnSubmit {
+            border: none;
+            border-radius: 1.5rem;
+            padding: 1%;
+            width: 20%;
+            cursor: pointer;
+            background: #0062cc;
+            color: #fff;
+        }
+    </style>
+    <script>
+        var ipcRenderer = window.ipcRenderer
+        var remote = window.remote
+        var path = window.path
+        var os = window.os
+        var config = window.config
+        var win = remote.getCurrentWebContents()
+        var homedir = os.homedir()
+    </script>
+</head>
+
+<body>
+    <div class="container register-form" style="margin-top:10%;">
+        <div class="form">
+            <div class="note">
+                <p>CLESS PLAYER - CONFIGURATION</p>
+            </div>
+
+            <div class="form-content">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>CLESS Server Address</div>
+                            <input type="text" id="hostserver" class="form-control" value="" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Digital Signage ID</div>
+                            <input type="text" id="dsid" class="form-control" value="" type="number" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Mode</div>
+                            <select class="form-control" id="mode">
+                                <option value="online">online</option>
+                                <option value="offline">offline</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Cors Proxy</div>
+                            <select class="form-control" id="corsproxy">
+                                <option value="Y">Enable</option>
+                                <option value="N">Disable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Auto Startup</div>
+                            <select class="form-control" id="autostartup">
+                                <option value="Y">Enable</option>
+                                <option value="N">Disable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>License key</div>
+                            <input type="text" id="serialkey" class="form-control" value="" />
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btnSubmit" id="home">Exit</button>
+                <button type="button" class="btnSubmit" id="save">Save</button>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    $('#hostserver').val(config.hostserver)
+    $('#dsid').val(config.id)
+    $('#mode  option[value="' + config.mode + '"]').prop("selected", true)
+    $('#corsproxy  option[value="' + config.corsproxy + '"]').prop("selected", true)
+    $('#autostartup  option[value="' + config.autostartup + '"]').prop("selected", true)
+    //$('#autostart').val(config.autostartup)
+    $('#serialkey').val(config.serialkey)
+
+    $('#save').on('click', app_config)
+    $('#home').on('click', function () {
+        appname = ipcRenderer.send('app-reload')
+    })
+
+    function app_config() {
+        var hostaddress = $('#hostserver').val()
+        var dsid = $('#dsid').val()
+        var mode = $('#mode').find(":selected").val()
+        var corsproxy = $('#corsproxy').find(":selected").val()
+        var autostartup = $('#autostartup').find(":selected").val()
+        var serialkey = $('#serialkey').val()
+        var argsObj = []
+        argsObj.hostaddress = hostaddress
+        argsObj.dsid = dsid
+        argsObj.mode = mode
+        argsObj.corsproxy = corsproxy
+        argsObj.autostartup = autostartup
+        argsObj.serialkey = serialkey
+        if (typeof (require) != "undefined") {
+            appname = ipcRenderer.send('app-configsave', argsObj)
+        } else {
+            console.log('electron required')
+        }
+    }
+</script>
+
+</html>

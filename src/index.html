@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>eCLess Player</title>
+
+    <script>
+      if (typeof module === 'object') {
+        window.module = module
+        module = undefined
+      }
+    </script>
+
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <link rel="stylesheet" href="assets/css/style.css" />
+    <link rel="stylesheet" href="assets/css/font-custom.css" />
+    <link rel="stylesheet" href="assets/css/jquery.dataTables.min.css" />
+    <style>
+      table.dataTable thead .sorting {
+        background-image: url('assets/images/sort_both.png');
+      }
+      
+      table.dataTable thead .sorting_asc {
+        background-image: url('assets/images/sort_asc.png') !important;
+      }
+      
+      table.dataTable thead .sorting_desc {
+        background-image: url('assets/images/sort_desc.png') !important;
+      }
+      
+      table.dataTable thead .sorting_asc_disabled {
+        background-image: url('assets/images/sort_asc_disabled.png');
+      }
+      
+      table.dataTable thead .sorting_desc_disabled {
+        background-image: url('assets/images/sort_desc_disabled.png');
+      }
+    </style>
+    <link href="assets/css/video-js.min.css" rel="stylesheet" />
+    <script type="text/javascript">
+      try {
+        var asd = 'gasd'
+        var ipcRenderer = window.ipcRenderer
+        var remote = window.remote
+      
+        var log = window.log
+        var convert = window.xmljs
+        var now = new Date()
+        var datetime = window.datetime
+        var meridiem = window.meridiem
+        var ordinal = window.ordinal
+        datetime.plugin(meridiem)
+        datetime.plugin(ordinal)
+        var path = window.path
+        var os = window.os
+        var fs = window.fs
+        var dns = window.dns
+        var isReachable = window.isReachable
+      
+        var homedir = os.homedir()
+        var config = window.config
+        var logdir = window.logdir
+        var datelog = datetime.format(now, 'YYYY-MM-DD')
+        log.transports.file.file = logdir + datelog + '.log'
+        var hostserver = config.hostserver
+        var dsid = config.id
+        var mode = config.mode
+      } catch (e) {
+        log.warn('error module : ' + e)
+      }
+    </script>
+    <!-- https://github.com/videojs -->
+    <script src="assets/js/jquery.min.js"></script>
+    <!-- http://pagination.js.org// -->
+    <script src="assets/js/pagination.min.js"></script>
+    <!-- https://github.com/aamirafridi/jQuery.Marquee -->
+    <script src="assets/js/jquery.marquee.min.js"></script>
+    <!-- https://github.com/videojs -->
+    <script src="assets/js/videojs.min.js"></script>
+    <!-- https://github.com/videojs/http-streaming -->
+    <script src="assets/js/videojs-http-streaming.min.js"></script>
+    <!-- https://github.com/bilibili/flv.js -->
+    <script src="assets/js/flv.min.js"></script>
+    <!-- https://github.com/bilibili/flv.js -->
+    <script src="assets/js/videojs-flvjs.min.js"></script>
+    <!-- https://github.com/ilkkao/capture-video-frame -->
+    <script src="assets/js/capture-video-frame.js"></script>
+    <!-- Socket IO from cpanel -->
+    <script src="https://localhost:9000/socket.io/socket.io.js"></script>
+    <script src="assets/js/socketio-cpanel.js"></script>
+    <script src="assets/js/layoutxml.js"></script>
+    <script src="assets/js/looplayout.js"></script>
+    <script src="assets/js/slot-media.js"></script>
+    <script src="assets/js/slot-text.js"></script>
+    <script src="assets/js/slot-html.js"></script>
+    <script src="assets/js/slot-datetime.js"></script>
+    <script src="assets/js/slot-table.js"></script>
+    <script src="assets/js/slot-tickerscrollerfader.js"></script>
+  </head>
+
+  <body></body>
+
+  <script>
+    try {
+      // Initialize the document when it's ready
+      $(document).ready(function () {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid)) // Parse and retrieve data from local storage
+        if (mode == 'offline') {
+          log.info('Mode: offline') // Log the offline mode
+          if (resultOffline) {
+            playofflineds(resultOffline) // Play offline data if available
+          }
+        } else {
+          playcheckNetwork(resultOffline) // Check the network for online mode
+        }
+      })
+    
+      // Function to fetch XML data from the server
+      function getxml() {
+        var serverAdd = config.hostserver // Get the server address from the configuration
+        log.info('Mode: online') // Log the online mode
+    
+        if (refreshTimeout) {
+          clearTimeout(refreshTimeout) // Clear the refresh timeout if it exists
+        }
+    
+        // Set up proxy if enabled
+        var urlServer = serverAdd + '/' + dsid + '/ds.xml' // Create the URL for fetching XML data
+        if (config.corsproxy == 'Y') {
+          urlServer = 'https://corsproxy.io/?' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml') // Use CORS proxy if enabled
+        }
+    
+        $.ajax({
+          url: urlServer, // Specify the URL for the AJAX request
+          type: 'GET', // Use the GET method
+          timeout: 5000, // Set a timeout of 5 seconds for the request
+          success: function (data) {
+            log.info('GET XML: OK') // Log a successful XML retrieval
+            if (typeof data === 'string') {
+              log.warn('get xml : unable to read or ddata was string format : ' + data, urlServer)
+              location.href = 'offline.html' // Redirect to offline.html if data is a string
+              remote.getCurrentWindow().focus() // Focus on the current window
+            } else {
+              // Read DS XML
+              var xmlText = new XMLSerializer().serializeToString(data) // Serialize XML data to text
+              var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText // Create a well-formed XML string
+              var result2 = convert.xml2json(xml, {
+                compact: false,
+                spaces: 4,
+                trim: false
+              }) // Convert XML to JSON
+              result2 = JSON.parse(result2) // Parse the JSON result
+              playonlineds(result2) // Play the online data
+              localStorage.setItem(dsid, JSON.stringify(result2)) // Store the data in local storage
+            }
+          },
+          error: function (xhr, textStatus, errorThrown) {
+            log.warn('GET XML: Failed: ' + textStatus) // Log a failed XML retrieval
+            var resultOffline = JSON.parse(localStorage.getItem(textStatus)) // Parse and retrieve data from local storage
+            log.info('GET XML: Recheck network again in 5 seconds: ' + textStatus) // Log a recheck of the network in 5 seconds
+            setTimeout(getxml, 5000) // Retry fetching XML data after 5 seconds
+          }
+        })
+      }
+    
+      var currentlytID
+      var layoutURLList = []
+      var layoutIDList = []
+      var isLoopLyt = false // layout loop check global
+    
+      // Function to play online data
+      function playonlineds(online) {
+        if (online['elements'][0]['elements'][0]['name'] == 'loop') {
+          // Check if it's a loop layout
+          isLoopLyt = true // Set the loop layout flag to true
+          online = online['elements'][0]['elements'][0]['elements'] // Access the elements of the loop layout
+    
+          $.when
+            .apply(
+              $,
+              $.map(online, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'] // Get the layout URL
+                var layoutID = layoutURL.split('layout/') // Extract the layout ID from the URL
+                layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/')) // Extract the layout ID
+                layoutURLList.push(layoutURL) // Add the layout URL to the list
+                layoutIDList.push(layoutID) // Add the layout ID to the list
+                loopArr.push(layoutxml) // Add the layout data to the loop array
+    
+                // Use proxy if enabled
+                if (config.corsproxy == 'Y') {
+                  layoutURL = 'https://corsproxy.io/?' + encodeURIComponent(layoutURL) // Use CORS proxy if enabled
+                }
+    
+                return $.ajax({
+                  url: layoutURL, // Specify the URL for the AJAX request
+                  type: 'GET', // Use the GET method
+                  success: function (data) {
+                    log.info('GET Loop XML: OK') // Log a successful loop XML retrieval
+                    if (typeof data === 'string') {
+                      log.warn('get xml : unable to read or data was string format : ' + data, layoutURL)
+                      location.href = 'offline.html' // Redirect to offline.html if data is a string
+                      remote.getCurrentWindow().focus() // Focus on the current window
+                    } else {
+                      // Read DS XML
+                      var xmlText = new XMLSerializer().serializeToString(data) // Serialize XML data to text
+                      var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText // Create a well-formed XML string
+                      var xmlJSON = convert.xml2json(xml, {
+                        compact: false,
+                        spaces: 4
+                      }) // Convert XML to JSON
+                      xmlJSON = JSON.parse(xmlJSON) // Parse the JSON result
+                      localStorage.setItem('layout-' + layoutID, JSON.stringify(xmlJSON)) // Store the layout data in local storage
+                      localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(xmlJSON)) // Store the offline layout data in local storage
+                      var lytname = xmlJSON['elements']['0']['attributes']['layout'] // Get the layout name
+                      var lytslotlist = xmlJSON['elements']['0']['elements']['0']['elements']['0']['elements'] // Access the slot list
+    
+                      lytslotlist.forEach(function (slot, index) {
+                        var slotid = slot['attributes']['id'] // Get the slot ID
+                        if (slot['attributes']['name']) {
+                          var slotname = slot['attributes']['name'] // Get the slot name
+                          var slottype = slot['name'] // Get the slot type
+                          var slotlistobj = new Object() // Create a slot list object
+                          slotlistobj.layoutid = layoutID // Set the layout ID
+                          slotlistobj.layoutname = lytname // Set the layout name
+                          slotlistobj.slottype = slottype // Set the slot type
+                          slotlistobj.slotid = 'slot-' + slotid // Set the slot ID
+                          slotlistobj.slotname = slotname // Set the slot name
+                          slotnameList.push(slotlistobj) // Add the slot list object to the list
+                        }
+                      })
+                    }
+                  },
+                  error: function (xhr, textStatus, errorThrown) {
+                    log.warn('GET Loop XML: Failed: ' + xhr.responseText) // Log a failed loop XML retrieval
+                    return
+                  }
+                })
+              })
+            )
+            .then(function () {
+              // All layout XML has been stored, and then start to play the first layout
+              log.info('Online mode: All layout loop XML has been stored') // Log the storage of all loop XML
+              log.info('Online mode: Start to play the first layout loop') // Log the start of playing the first layout
+              playcurrentLayout(loopArr[0]) // Play the current layout
+            })
+        } else {
+          // If it's a single layout
+          updatelayout(online) // Update the layout
+        }
+      }
+    
+      var offlinemode = false
+    
+      // Function to play offline data
+      function playofflineds(result2) {
+        offlinemode = true // Set the offline mode flag to true
+        if (result2['elements'][0]['elements'][0]['name'] == 'loop') {
+          // Check if it's a loop layout
+          // Cpanel check if playing loop
+          isLoopLyt = true // Set the loop layout flag to true
+          result2 = result2['elements'][0]['elements'][0]['elements'] // Access the elements of the loop layout
+    
+          $.when
+            .apply(
+              $,
+              $.map(result2, function (layoutxml, oindex) {
+                layoutURL = layoutxml['attributes']['url'] // Get the layout URL
+                layoutID = layoutURL.split('layout/') // Extract the layout ID from the URL
+                layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/')) // Extract the layout ID
+                layoutURLList.push(layoutURL) // Add the layout URL to the list
+                layoutIDList.push(layoutID) // Add the layout ID to the list
+                loopArr.push(layoutxml) // Add the layout data to the loop array
+                var lytname = layoutxml['attributes']['name'] // Get the layout name
+                layoutxml = JSON.parse(localStorage.getItem('layout-' + layoutID)) // Parse and retrieve layout data from local storage
+                localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(layoutxml)) // Store the offline layout data in local storage
+                var lytslotlist = layoutxml['elements']['0']['elements']['0']['elements']['0']['elements'] // Access the slot list
+    
+                return lytslotlist.forEach(function (slot, index) {
+                  var slotid = slot['attributes']['id'] // Get the slot ID
+                  if (slot['attributes']['name']) {
+                    var slotname = slot['attributes']['name'] // Get the slot name
+                    var slottype = slot['name'] // Get the slot type
+                    var slotlistobj = new Object() // Create a slot list object
+                    slotlistobj.layoutid = layoutID // Set the layout ID
+                    slotlistobj.layoutname = lytname // Set the layout name
+                    slotlistobj.slottype = slottype // Set the slot type
+                    slotlistobj.slotid = 'slot-' + slotid // Set the slot ID
+                    slotlistobj.slotname = slotname // Set the slot name
+                    slotnameList.push(slotlistobj) // Add the slot list object to the list
+                  }
+                })
+              })
+            )
+            .then(function () {
+              // All layout XML has been stored, and then start to play the first layout
+              log.info('Offline mode: All layout loop XML has been stored') // Log the storage of all loop XML
+              log.info('Offline mode: Start to play the first layout loop') // Log the start of playing the first layout
+              playcurrentLayout(loopArr[0]) // Play the current layout
+            })
+        } else {
+          // If it's a single layout
+          getLayoutXML(result2) // Get the layout XML
+        }
+      }
+    
+      // Check the network status and display a message if it's offline
+      const playcheckNetwork = async (resultoffline) => {
+        // Get the server address from the config
+        const serverAddress = await config.hostserver
+        // Split the server address to extract the hostname
+        const hostname = serverAddress.split('/')[2]
+        // Log the hostname
+        log.info('server name:', hostname)
+        // Check the server status using isReachable()
+        const serverStatus = await isReachable(serverAddress)
+        if (serverStatus) {
+          // Connection is OK, log a message and get the XML data
+          log.warn('connection : ok')
+          getxml()
+        } else {
+          // Connection failed, log a message and display a network error message
+          log.warn('connection : failed')
+          // Resize the window to fullscreen
+          //remote.getCurrentWindow().setBounds({
+          //    y: 0,
+          //    x: 0,
+          //    width: screen.width,
+          //    height: screen.height
+          //})
+          // Create a countdown message
+          const countdownMessage = $('<div class="no-network"></div>')
+          $('body').append(countdownMessage)
+          // Set a countdown timer
+          let countDown = 15
+          const countdownTimeout = setInterval(() => {
+            countDown -= 1
+            // Update the countdown message
+            countdownMessage.html(`Please check network connection. Auto close : ${countDown} sec`)
+            // If the countdown reaches 0, remove the message and proceed with the offline behavior
+            if (countDown === 0) {
+              countdownMessage.remove()
+              clearInterval(countdownTimeout)
+              playofflineds(resultoffline)
+            }
+          }, 1500)
+          // Add a fade-in/out animation to the countdown message
+          fadeLoop('.no-network', 3000)
+          // Schedule the next network check
+          keepcheckNetwork()
+        }
+      }
+    
+      // Continuously check the network status and retry if offline
+      const keepcheckNetwork = async () => {
+        // Get the server address from the config
+        const serverAddress = await config.hostserver
+        // Split the server address to extract the hostname
+        const hostname = serverAddress.split('/')[2]
+        // Log the hostname
+        log.info('server name:', hostname)
+        // Check the server status using isReachable()
+        const serverStatus = await isReachable(serverAddress)
+        if (serverStatus) {
+          // Connection is OK, log a message and get the XML data
+          log.warn('connection : ok')
+          getxml()
+        } else {
+          // Connection failed, log a message and retry after 10 seconds
+          log.warn('connection : failed and retry')
+          setTimeout(keepcheckNetwork, 10000)
+        }
+      }
+    } catch (e) {
+      log.warn('error module : ' + e)
+    }
+  </script>
+</html>
