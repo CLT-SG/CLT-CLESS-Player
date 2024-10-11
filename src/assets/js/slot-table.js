@@ -10,16 +10,15 @@ var tableStyleVAlign
 
 var pagerow = []
 var pageAutoInterval = []
-var pageLengthTime
-var pageincrease = 1
-var checkpage = true
+var pageLengthTime = []
+var pageincrease = []
+var checkpage = []
 
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
-    console.log(slotattr)
     //create table
     var tableid = slotattr['id']
-    pageLengthTime = parseInt(slotattr['pageflip']) * 1000
+    pageLengthTime[tableid] = parseInt(slotattr['pageflip']) * 1000
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
     var tableStylefontName = slotattr['font']
@@ -144,7 +143,7 @@ var colFaderloop = new Array()
 function tableNorecords(slotitem, slotid, slotattr) {
     //create table
     var tableid = slotattr['id']
-    pageLengthTime = parseInt(slotattr['pageflip']) * 1000
+    pageLengthTime[tableid] = 9999 * 1000
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
     var tableStylefontName = slotattr['font']
@@ -194,6 +193,10 @@ function tableNorecords(slotitem, slotid, slotattr) {
 
 function tableRecord(slotitem, index, table) {
     var tableid = table['id']
+    pagerow[tableid] = [] // set page row array with table id
+    pageincrease[tableid] = 1
+    checkpage[tableid] = true
+
     var mediaLocalPath = homedir + '/clessapp/res/'
 
     $('.slot-table-' + tableid).append('<tbody class="slot-tbody-' + tableid + '"></tbody>')
@@ -428,16 +431,16 @@ function tableRecord(slotitem, index, table) {
 
     //store all data to pagerow object
     $('.slot-tbody-' + tableid).find('tr').each(function (i, row) {
-        return pagerow.push(row)
+        return pagerow[tableid].push(row)
     })
 
-    if (pagerow.length != 0) {
+    if (pagerow[tableid].length != 0) {
         var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight)
         maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'))
         maxrows = maxrows - 1
         var pagination = $('#pagination-' + tableid)
         pagination.pagination({
-            dataSource: pagerow,
+            dataSource: pagerow[tableid],
             pageSize: parseInt(maxrows),
             showPageNumbers: false,
             showNavigator: false,
@@ -449,28 +452,28 @@ function tableRecord(slotitem, index, table) {
         })
 
         //change page element if got update
-        if (checkpage == true) {
-            checkpage = false
+        if (checkpage[tableid] == true) {
+            checkpage[tableid] = false
             pagination.pagination('go', 1)
-            $('.pagination-pages').html('<div>Page ' + pageincrease + '/' + pagination.pagination('getTotalPage') + '</div>')
+            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
         } else {
-            $('.pagination-pages').html('<div>Page ' + pageincrease + '/' + pagination.pagination('getTotalPage') + '</div>')
-            pagination.pagination('go', pageincrease)
+            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
+            pagination.pagination('go', pageincrease[tableid])
         }
 
         //auto page flip
         pageAutoInterval[tableid] = setInterval(function () {
-            pageincrease += 1
+            pageincrease[tableid] += 1
             var totalpage = pagination.pagination('getTotalPage') || 1
-            if (pageincrease > totalpage) {
-                pageincrease = 1
+            if (pageincrease[tableid] > totalpage) {
+                pageincrease[tableid] = 1
                 pagination.pagination('go', 1)
             } else {
                 pagination.pagination('next')
             }
 
             //refresh page
-            $('.pagination-pages').html('<div>Page ' + pageincrease + '/' + pagination.pagination('getTotalPage') + '</div>')
-        }, pageLengthTime)
+            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
+        }, pageLengthTime[tableid])
     }
 }

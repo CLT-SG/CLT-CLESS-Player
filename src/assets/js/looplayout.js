@@ -33,6 +33,7 @@ function playcurrentLayout(xmlData) {
   for (var i = 0; i < pageAutoInterval.length; i++) {
     clearInterval(pageAutoInterval[i]);
   }
+  
   $('#main').html('') //reset whole page html
   if (loopTimeout) { //clear loopTimeout to reset
     clearTimeout(loopTimeout)
