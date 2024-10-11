@@ -35,7 +35,7 @@ function tableFunc(slotitem, index, slotattr) {
     var headStylefontSize = slotitem[0]['attributes']['fontsize']
     bodyRowHeight = slotattr['bodyrowHeight']
 
-    //create pagination page at bottom
+    //create pagination page at the top
     $('#slot-' + index).append('<div class="clearfix"><div class="pagination-pages"></div></div>')
 
     //create table element
@@ -435,45 +435,56 @@ function tableRecord(slotitem, index, table) {
     })
 
     if (pagerow[tableid].length != 0) {
-        var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight)
-        maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'))
-        maxrows = maxrows - 1
-        var pagination = $('#pagination-' + tableid)
-        pagination.pagination({
-            dataSource: pagerow[tableid],
-            pageSize: parseInt(maxrows),
-            showPageNumbers: false,
-            showNavigator: false,
-            showPrevious: false,
-            showNext: false,
-            callback: function (data, pagi) {
-                $('.slot-tbody-' + tableid).html(data)
-            }
-        })
+        var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight);
+        maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+        maxrows = maxrows - 1;
+        var pagination = $('#pagination-' + tableid);
+        var totalRows = pagerow[tableid].length;  // Total number of rows
+        var pageSize = parseInt(maxrows);
 
-        //change page element if got update
-        if (checkpage[tableid] == true) {
-            checkpage[tableid] = false
-            pagination.pagination('go', 1)
-            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
+        // Check if there's only one page of data
+        if (totalRows <= pageSize) {
+            pagination.hide();  // Hide pagination if only 1 page
+            $('#slot-' + tableid).find('.pagination-pages').hide()
+            $('#pagination-' + tableid).hide()
+            $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
         } else {
-            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
-            pagination.pagination('go', pageincrease[tableid])
-        }
+            pagination.pagination({
+                dataSource: pagerow[tableid],
+                pageSize: pageSize,
+                showPageNumbers: false,
+                showNavigator: false,
+                showPrevious: false,
+                showNext: false,
+                callback: function (data, pagi) {
+                    $('.slot-tbody-' + tableid).html(data);
+                }
+            });
 
-        //auto page flip
-        pageAutoInterval[tableid] = setInterval(function () {
-            pageincrease[tableid] += 1
-            var totalpage = pagination.pagination('getTotalPage') || 1
-            if (pageincrease[tableid] > totalpage) {
-                pageincrease[tableid] = 1
-                pagination.pagination('go', 1)
+            // Change page element if got update
+            if (checkpage[tableid] == true) {
+                checkpage[tableid] = false;
+                pagination.pagination('go', 1);
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
             } else {
-                pagination.pagination('next')
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+                pagination.pagination('go', pageincrease[tableid]);
             }
 
-            //refresh page
-            $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>')
-        }, pageLengthTime[tableid])
+            // Auto page flip
+            pageAutoInterval[tableid] = setInterval(function () {
+                pageincrease[tableid] += 1;
+                var totalpage = pagination.pagination('getTotalPage') || 1;
+                if (pageincrease[tableid] > totalpage) {
+                    pageincrease[tableid] = 1;
+                    pagination.pagination('go', 1);
+                } else {
+                    pagination.pagination('next');
+                }
+
+                // Refresh page
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+            }, pageLengthTime[tableid]);
+        }
     }
 }
