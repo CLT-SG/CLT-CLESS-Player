@@ -128,7 +128,7 @@
         // Set up proxy if enabled
         var urlServer = serverAdd + '/' + dsid + '/ds.xml' // Create the URL for fetching XML data
         if (config.corsproxy == 'Y') {
-          urlServer = 'https://corsproxy.io/?' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml') // Use CORS proxy if enabled
+          urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml') // Use CORS proxy if enabled
         }
     
         $.ajax({
@@ -189,7 +189,7 @@
     
                 // Use proxy if enabled
                 if (config.corsproxy == 'Y') {
-                  layoutURL = 'https://corsproxy.io/?' + encodeURIComponent(layoutURL) // Use CORS proxy if enabled
+                  layoutURL = 'https://corsproxy.io/?url=' + encodeURIComponent(layoutURL) // Use CORS proxy if enabled
                 }
     
                 return $.ajax({

@@ -101,7 +101,7 @@
       return new Promise(async (resolve, reject) => {
           //proxy setup
           var urlServer = config.hostserver + '/counter.xml'
-          if (config.corsproxy == 'Y') urlServer = 'https://corsproxy.io/?' + encodeURIComponent(config.hostserver + '/counter.xml')
+          if (config.corsproxy == 'Y') urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(config.hostserver + '/counter.xml')
 
           $.ajax({ //get list of counter at counter.xml 
               url: urlServer,

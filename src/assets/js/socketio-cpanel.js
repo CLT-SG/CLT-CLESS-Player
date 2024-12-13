@@ -18,7 +18,7 @@ socket.on('updatelayout', function (msg) {
     var layoutid = msg['id']
     
     var urlServer =config.hostserver + '/layout/' + layoutid + '/ds.xml'
-    if (config.corsproxy == 'Y') urlServer = 'https://corsproxy.io/?'+ encodeURIComponent(config.hostserver + '/layout/' + layoutid + '/ds.xml')
+    if (config.corsproxy == 'Y') urlServer = 'https://corsproxy.io/?url='+ encodeURIComponent(config.hostserver + '/layout/' + layoutid + '/ds.xml')
     var layoutURL = urlServer
     if (!isLoopLyt) { // save xml to layout
         clearTimeout(refreshTimeout)
