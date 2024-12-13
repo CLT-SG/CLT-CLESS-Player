@@ -81,7 +81,7 @@ try {
             const readConfig = () => {
                 return new Promise((resolve, reject) => {
                     fs.readFile(appdir + '/config.js', async function (err, data) {
-                        if (err) { log.error(err); throw err}
+                        if (err) { log.error(err); throw err }
                         log.info('Config file check successfully')
                         //any configure varialble is founded or updated before this
                         if (data.includes('var hostserver')) hostserver_update = "var hostserver = '" + config.hostserver + "'; // cless server url\r\n"
@@ -151,8 +151,8 @@ try {
     const config = require(appdir + '/config')
 
     if (!gotTheLock) {
-                log.info('User trying to run multiple app. One instance only')
-                app.exit()
+        log.info('User trying to run multiple app. One instance only')
+        app.exit()
     } else {
 
         //RUN WINDOWS AT STARTU
@@ -358,8 +358,9 @@ try {
             win.webContents.on("window1-did-fail-load", function (evt, errcode, errname) {
                 log.error("did-fail-load : " + errcode + "/ ", errname)
                 if (errcode != -3 || errcode != -27) {
+                    log.info('CLESS Player relaunch success.')
+                    app.exit()
                     app.relaunch()
-                    app.quit()
                 }
             })
 
@@ -367,8 +368,9 @@ try {
             win2.webContents.on("window2-did-fail-load", function (evt, errcode, errname) {
                 log.error("did-fail-load : " + errcode + "/ ", errname)
                 if (errcode != -3 || errcode != -27) {
+                    log.info('CLESS Player relaunch success.')
+                    app.exit()
                     app.relaunch()
-                    app.quit()
                 }
             })
 
@@ -386,13 +388,15 @@ try {
             //APPS CRASH
             win.webContents.on('crashed', (e, killed) => {
                 log.error("window1-crashed : " + e + " / Killed : " + killed)
+                log.info('CLESS Player relaunch success.')
+                app.exit()
                 app.relaunch()
-                app.quit()
             })
             win2.webContents.on('crashed', (e, killed) => {
                 log.error("window2-crashed : " + e + " / Killed : " + killed)
+                log.info('CLESS Player relaunch success.')
+                app.exit()
                 app.relaunch()
-                app.quit()
             })
             //CLEAR CACHE AND COOKIE EVERY STARTUP
             var ses = win.webContents.session
@@ -478,7 +482,7 @@ try {
 
             //reload app
             ipcMain.once('app-reload', (event, logs) => {
-                log.info('CLESS Player relaunch.')
+                log.info('CLESS Player relaunch via API Panel.')
                 app.exit()
                 app.relaunch()
             })
@@ -588,6 +592,7 @@ try {
                         dialog.showMessageBox(null, options).then((data) => {
                             log.info('Dialog show message: ', data)
                             if (data.response == 0) {
+                                log.info('CLESS Player relaunch success.')
                                 app.exit()
                                 app.relaunch()
                             }
@@ -619,10 +624,18 @@ try {
 
         app.on('render-process-gone', (event, webContents, details) => {
             log.error(' render-process-gone : ', details)
+            if (details.reason == "oom") {
+                log.info('CLESS Player relaunch success.')
+                app.exit()
+                app.relaunch()
+            }
         })
 
         app.on('render-process-crashed', (event, webContents, killed) => {
             log.error(' render-process-gone : ', killed)
+            log.info('CLESS Player relaunch success.')
+            app.exit()
+            app.relaunch()
         })
     }
 } catch (ex) {
@@ -686,6 +699,7 @@ try {
             }
             dialog.showMessageBox(null, options).then((data) => {
                 if (data.response == 0) {
+                    log.info('CLESS Player relaunch success.')
                     app.exit()
                     app.relaunch()
                 }
