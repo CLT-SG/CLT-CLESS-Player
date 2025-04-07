@@ -148,141 +148,143 @@ function getLayoutXML(result2) {
         })
     }
 
-    //slots
-    lytslotlist.forEach(function (slot, index) {
-        var slotid = slot['attributes']['id']
-        var slotbgColor = slot['attributes']['bgcolor']
-        var slottop = slot['attributes']['top']
-        var slotleft = slot['attributes']['left']
-        var slotwidth = slot['attributes']['width']
-        var slotheight = slot['attributes']['height']
-        var slotlayer = index
-        var slottransparent = slot['attributes']['transparent']
-        var slotitem = slot['elements']
+    if (lytslotlist && lytslotlist.length > 0) {
+        //slots
+        lytslotlist.forEach(function (slot, index) {
+            var slotid = slot['attributes']['id']
+            var slotbgColor = slot['attributes']['bgcolor']
+            var slottop = slot['attributes']['top']
+            var slotleft = slot['attributes']['left']
+            var slotwidth = slot['attributes']['width']
+            var slotheight = slot['attributes']['height']
+            var slotlayer = index
+            var slottransparent = slot['attributes']['transparent']
+            var slotitem = slot['elements']
 
-        //if slot name found
-        if (isLoopLyt == false) {
-            if (slot['attributes']['name']) {
-                var slotname = slot['attributes']['name']
-                var slottype = slot['name']
-                var slotlistobj = new Object()
-                slotlistobj.layoutid = layoutID
-                slotlistobj.layoutname = lytname
-                slotlistobj.slottype = slottype
-                slotlistobj.slotid = 'slot-' + slotid
-                slotlistobj.slotname = slotname
-                slotnameList.push(slotlistobj)
-            }
-        }
-
-        var slotele = '<div id="slot-' + slotid + '" class="main-slot mslot-' + slot['name'] + '" ></div>'
-        if (slot['attributes']['enabled'] == 'Y') {
-            //render every slot to body
-            $('#main').append(slotele)
-            //customize slot
-            if (lytautoscale == 'Y') {
-                var demoWidth = (slotwidth / lywidth * 100)
-                var demoHeight = (slotheight / lyheight * 100)
-                var demoTop = (slottop / lywidth * 100)
-                var demoLeft = (slotleft / lyheight * 100)
-                var windowsscreenx = $(document).width()
-                var windowsscreeny = $(document).height()
-                demoWidth = ((windowsscreenx / 100) * demoWidth)
-                demoHeight = ((windowsscreeny / 100) * demoHeight)
-                demoTop = ((windowsscreeny / 100) * demoTop)
-                demoLeft = ((windowsscreenx / 100) * demoLeft)
-
-                $('#slot-' + slotid).css({
-                    "z-index": parseInt(slotlayer),
-                    "position": "absolute",
-                    "top": demoTop + "px",
-                    "left": demoLeft + "px",
-                    "width": demoWidth + "px",
-                    "height": demoHeight + "px",
-                    "cursor": "none"
-                })
-            } else {
-                $('#slot-' + slotid).css({
-                    "z-index": parseInt(slotlayer),
-                    "position": "absolute",
-                    "top": slottop + "px",
-                    "left": slotleft + "px",
-                    "width": slotwidth + "px",
-                    "height": slotheight + "px",
-                    "cursor": "none"
-                })
+            //if slot name found
+            if (isLoopLyt == false) {
+                if (slot['attributes']['name']) {
+                    var slotname = slot['attributes']['name']
+                    var slottype = slot['name']
+                    var slotlistobj = new Object()
+                    slotlistobj.layoutid = layoutID
+                    slotlistobj.layoutname = lytname
+                    slotlistobj.slottype = slottype
+                    slotlistobj.slotid = 'slot-' + slotid
+                    slotlistobj.slotname = slotname
+                    slotnameList.push(slotlistobj)
+                }
             }
 
-            //if this not table then follow the background color
-            if (slot['name'] != 'table') {
-                if (slottransparent == 'Y') {
+            var slotele = '<div id="slot-' + slotid + '" class="main-slot mslot-' + slot['name'] + '" ></div>'
+            if (slot['attributes']['enabled'] == 'Y') {
+                //render every slot to body
+                $('#main').append(slotele)
+                //customize slot
+                if (lytautoscale == 'Y') {
+                    var demoWidth = (slotwidth / lywidth * 100)
+                    var demoHeight = (slotheight / lyheight * 100)
+                    var demoTop = (slottop / lywidth * 100)
+                    var demoLeft = (slotleft / lyheight * 100)
+                    var windowsscreenx = $(document).width()
+                    var windowsscreeny = $(document).height()
+                    demoWidth = ((windowsscreenx / 100) * demoWidth)
+                    demoHeight = ((windowsscreeny / 100) * demoHeight)
+                    demoTop = ((windowsscreeny / 100) * demoTop)
+                    demoLeft = ((windowsscreenx / 100) * demoLeft)
+
                     $('#slot-' + slotid).css({
-                        "background": 'none',
+                        "z-index": parseInt(slotlayer),
+                        "position": "absolute",
+                        "top": demoTop + "px",
+                        "left": demoLeft + "px",
+                        "width": demoWidth + "px",
+                        "height": demoHeight + "px",
+                        "cursor": "none"
                     })
                 } else {
                     $('#slot-' + slotid).css({
-                        "background": slotbgColor,
+                        "z-index": parseInt(slotlayer),
+                        "position": "absolute",
+                        "top": slottop + "px",
+                        "left": slotleft + "px",
+                        "width": slotwidth + "px",
+                        "height": slotheight + "px",
+                        "cursor": "none"
                     })
                 }
-            }
 
-            //customize text slot when available
-            textCustomFunc(slot, slotid)
-            //slot statements
-            //media slot
-            if (slot['name'] == 'media') {
-                mediaFunc(slotitem, slotid, mediapath)
-            } //text slot
-            else if (slot['name'] == 'text') {
-                textFunc(slotitem, slotid, index)
-            } //ticker slot
-            else if (slot['name'] == 'ticker') {
-                tickerFunc(slot, slotid)
-            } //scroller slot
-            else if (slot['name'] == 'scroller') {
-                scrollerFunc(slot, slotid)
-            } //text fader slot
-            else if (slot['name'] == 'fader') {
-                faderFunc(slot, slotid)
-            } //date slot 
-            else if (slot['name'] == 'date') {
-                dateFunc(slot, slotid)
-            } //time slot 
-            else if (slot['name'] == 'time') {
-                timeFunc(slot, slotid)
-            } //html slot
-            else if (slot['name'] == 'html') {
-                htmlFunc(slotitem, slotid)
-            } //table slot
-            else if (slot['name'] == 'table') {
-                if (tablefirstrun) {
-                    var tableRecordList = result2['elements']['0']['elements']['1']['elements']
-                    if (!tableRecordList[0]['elements']) {
-                        tableNorecords(slotitem, slotid, slot['attributes'])
-                        return
+                //if this not table then follow the background color
+                if (slot['name'] != 'table') {
+                    if (slottransparent == 'Y') {
+                        $('#slot-' + slotid).css({
+                            "background": 'none',
+                        })
+                    } else {
+                        $('#slot-' + slotid).css({
+                            "background": slotbgColor,
+                        })
                     }
-                    tableFunc(slotitem, slotid, slot['attributes'])
                 }
-            }
 
-            //else if (slot['name'] == 'records') {
-            //    tableRecord(slotitem, slotid)
-            //}
-        }
-        //check if table record available
-        //table record
-        if (index === lytslotlist.length - 1) {
-            if (result2['elements']['0']['elements']['1']) {
-                var tableRecordList = result2['elements']['0']['elements']['1']['elements']
-                if (tableRecordList && !tableRecordList[0]['elements']) return
-                if (tableRecordList) {
-                    tableRecordList.forEach(function (records, tindex) {
-                        tableRecord(records['elements'], slotid, records['attributes'])
-                    })
+                //customize text slot when available
+                textCustomFunc(slot, slotid)
+                //slot statements
+                //media slot
+                if (slot['name'] == 'media') {
+                    mediaFunc(slotitem, slotid, mediapath)
+                } //text slot
+                else if (slot['name'] == 'text') {
+                    textFunc(slotitem, slotid, index)
+                } //ticker slot
+                else if (slot['name'] == 'ticker') {
+                    tickerFunc(slot, slotid)
+                } //scroller slot
+                else if (slot['name'] == 'scroller') {
+                    scrollerFunc(slot, slotid)
+                } //text fader slot
+                else if (slot['name'] == 'fader') {
+                    faderFunc(slot, slotid)
+                } //date slot 
+                else if (slot['name'] == 'date') {
+                    dateFunc(slot, slotid)
+                } //time slot 
+                else if (slot['name'] == 'time') {
+                    timeFunc(slot, slotid)
+                } //html slot
+                else if (slot['name'] == 'html') {
+                    htmlFunc(slotitem, slotid)
+                } //table slot
+                else if (slot['name'] == 'table') {
+                    if (tablefirstrun) {
+                        var tableRecordList = result2['elements']['0']['elements']['1']['elements']
+                        if (!tableRecordList[0]['elements']) {
+                            tableNorecords(slotitem, slotid, slot['attributes'])
+                            return
+                        }
+                        tableFunc(slotitem, slotid, slot['attributes'])
+                    }
+                }
+
+                //else if (slot['name'] == 'records') {
+                //    tableRecord(slotitem, slotid)
+                //}
+            }
+            //check if table record available
+            //table record
+            if (index === lytslotlist.length - 1) {
+                if (result2['elements']['0']['elements']['1']) {
+                    var tableRecordList = result2['elements']['0']['elements']['1']['elements']
+                    if (tableRecordList && !tableRecordList[0]['elements']) return
+                    if (tableRecordList) {
+                        tableRecordList.forEach(function (records, tindex) {
+                            tableRecord(records['elements'], slotid, records['attributes'])
+                        })
+                    }
                 }
             }
-        }
-    })
+        })
+    }
 }
 
 
