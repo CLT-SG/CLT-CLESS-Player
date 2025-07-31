@@ -16,6 +16,8 @@
     <!-- Latest compiled and minified JavaScript -->
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/js/bootstrap.min.js"></script>
+    <!-- Enhanced configuration loader -->
+    <script src="assets/js/config-loader.js"></script>
     <style>
         html,
         body {
@@ -56,6 +58,61 @@
         var config = window.config
         var win = remote.getCurrentWebContents()
         var homedir = os.homedir()
+        
+        // Wait for configuration to load
+        window.addEventListener('configLoaded', function(event) {
+            console.log('eCLESS: Configuration loaded for configure window -', event.detail.source)
+            console.log('eCLESS: Configuration data:', event.detail.config)
+            populateForm()
+        })
+        
+        // Load configuration on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if config is already loaded
+            if (window.configLoader && window.configLoader.config) {
+                console.log('eCLESS: Configuration already loaded, populating form')
+                populateForm()
+            } else {
+                console.log('eCLESS: Waiting for configuration to load...')
+            }
+        })
+        
+        function populateForm() {
+            if (!config || !window.configLoader || !window.configLoader.config) {
+                console.warn('eCLESS: No configuration available for form population')
+                setTimeout(populateForm, 500) // Retry after 500ms
+                return
+            }
+            
+            var configData = window.configLoader.getAll()
+            console.log('eCLESS: Populating form with config:', configData)
+            
+            $('#hostserver').val(configData.hostserver || '')
+            $('#dsid').val(configData.id || '')
+            $('#mode option[value="' + (configData.mode || 'online') + '"]').prop("selected", true)
+            $('#corsproxy option[value="' + (configData.corsproxy || 'N') + '"]').prop("selected", true)
+            
+            // Handle both old and new autostartup formats
+            var autostartupValue
+            if (configData.autoStartup !== undefined) {
+                // New format (boolean)
+                autostartupValue = configData.autoStartup ? 'Y' : 'N'
+            } else {
+                // Legacy format (string)
+                autostartupValue = configData.autostartup || 'Y'
+            }
+            $('#autostartup option[value="' + autostartupValue + '"]').prop("selected", true)
+            
+            $('#serialkey').val(configData.serialkey || '')
+            
+            console.log('eCLESS: Form populated successfully with values:')
+            console.log('  - Host server:', configData.hostserver)
+            console.log('  - DS ID:', configData.id)
+            console.log('  - Mode:', configData.mode)
+            console.log('  - CORS Proxy:', configData.corsproxy)
+            console.log('  - Auto startup:', autostartupValue)
+            console.log('  - Serial key:', configData.serialkey ? '***' + configData.serialkey.slice(-8) : 'empty')
+        }
     </script>
 </head>
 
@@ -121,14 +178,8 @@
     </div>
 </body>
 <script>
-    $('#hostserver').val(config.hostserver)
-    $('#dsid').val(config.id)
-    $('#mode  option[value="' + config.mode + '"]').prop("selected", true)
-    $('#corsproxy  option[value="' + config.corsproxy + '"]').prop("selected", true)
-    $('#autostartup  option[value="' + config.autostartup + '"]').prop("selected", true)
-    //$('#autostart').val(config.autostartup)
-    $('#serialkey').val(config.serialkey)
-
+    // Form population moved to populateForm() function above
+    
     $('#save').on('click', app_config)
     $('#home').on('click', function () {
         appname = ipcRenderer.send('app-reload')
@@ -141,15 +192,59 @@
         var corsproxy = $('#corsproxy').find(":selected").val()
         var autostartup = $('#autostartup').find(":selected").val()
         var serialkey = $('#serialkey').val()
-        var argsObj = []
-        argsObj.hostaddress = hostaddress
-        argsObj.dsid = dsid
-        argsObj.mode = mode
-        argsObj.corsproxy = corsproxy
-        argsObj.autostartup = autostartup
-        argsObj.serialkey = serialkey
-        if (typeof (require) != "undefined") {
-            appname = ipcRenderer.send('app-configsave', argsObj)
+        
+        console.log('eCLESS: Saving configuration with values:')
+        console.log('  - Host server:', hostaddress)
+        console.log('  - DS ID:', dsid)
+        console.log('  - Mode:', mode)
+        console.log('  - CORS Proxy:', corsproxy)
+        console.log('  - Auto startup:', autostartup)
+        console.log('  - Serial key:', serialkey ? '***' + serialkey.slice(-8) : 'empty')
+        
+        // Create configuration object matching main process expectations
+        var argsObj = {
+            // Main process expects these exact property names
+            hostaddress: hostaddress,  // NOT hostserver
+            dsid: dsid,
+            mode: mode,
+            corsproxy: corsproxy,
+            autostartup: autostartup,
+            serialkey: serialkey,
+            
+            // Enhanced settings - preserve existing values or use defaults
+            brightness: (window.configLoader && window.configLoader.config) ? window.configLoader.config.brightness || 75 : 75,
+            fullscreenMode: (window.configLoader && window.configLoader.config) ? window.configLoader.config.fullscreenMode !== undefined ? window.configLoader.config.fullscreenMode : true : true,
+            screenTimeout: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenTimeout || 0 : 0,
+            updateInterval: (window.configLoader && window.configLoader.config) ? window.configLoader.config.updateInterval || 30 : 30,  
+            logLevel: (window.configLoader && window.configLoader.config) ? window.configLoader.config.logLevel || 'info' : 'info',
+            
+            // Preserve complex settings if they exist
+            displaySettings: (window.configLoader && window.configLoader.config && window.configLoader.config.displaySettings) ? window.configLoader.config.displaySettings : {
+                resolution: "auto",
+                orientation: "landscape", 
+                colorProfile: "default",
+                powerManagement: true
+            },
+            networkSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.networkSettings) ? window.configLoader.config.networkSettings : {
+                autoConnect: true,
+                preferredInterface: "auto"
+            },
+            mediaSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.mediaSettings) ? window.configLoader.config.mediaSettings : {
+                defaultVolume: 50,
+                autoPlay: true,
+                loopMedia: true
+            },
+            systemSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.systemSettings) ? window.configLoader.config.systemSettings : {
+                enableRemoteControl: true,
+                allowShutdown: true,
+                enableSystemInfo: true
+            }
+        }
+        
+        console.log('eCLESS: Configuration object to save:', argsObj)
+        
+        if (typeof(require) != "undefined") {
+            ipcRenderer.send('app-configsave', argsObj)
         } else {
             console.log('electron required')
         }

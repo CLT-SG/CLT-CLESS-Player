@@ -1,4 +1,4 @@
-var loopArr = []
+// Global variable loopArr is declared in index.html
 var loopXMLCurIndex = 1
 var loopTimeout = null
 

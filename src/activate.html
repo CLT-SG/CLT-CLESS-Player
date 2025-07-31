@@ -16,6 +16,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/jquery.min.js"></script>
+  <!-- Enhanced configuration loader -->
+  <script src="assets/js/config-loader.js"></script>
 
   <script>
     try {
@@ -28,11 +30,25 @@
       var config = window.config
       var macaddress = window.macaddress
       var QRCode = window.QRCode
-      var hostserver = config.hostserver
-      var dsid = config.id
-      var mode = config.mode
+      
+      // Enhanced configuration variables
+      var hostserver, dsid, mode
+      
+      // Wait for config to load
+      window.addEventListener('configLoaded', function(event) {
+        hostserver = config.hostserver
+        dsid = config.id
+        mode = config.mode
+        console.log('eCLESS: Configuration loaded for activation window -', event.detail.source)
+      })
+      
+      // Fallback for immediate access
+      hostserver = config.hostserver
+      dsid = config.id
+      mode = config.mode
+      
     } catch (e) {
-      log.warn('error module : ' + e)
+      console.warn('error loading configuration: ' + e)
     }
   </script>
   <style>
