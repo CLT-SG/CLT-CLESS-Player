@@ -39,6 +39,10 @@
     }
   </style>
   <link href="assets/css/video-js.min.css" rel="stylesheet" />
+  
+  <!-- Enhanced configuration loader (supports both config.js and config.json) -->
+  <script src="assets/js/config-loader.js"></script>
+  
   <script type="text/javascript">
     try {
       var asd = 'gasd'
@@ -60,15 +64,36 @@
       var isReachable = window.isReachable
 
       var homedir = os.homedir()
+      
+      // Enhanced configuration loading
       var config = window.config
       var logdir = window.logdir
       var datelog = datetime.format(now, 'YYYY-MM-DD')
       log.transports.file.file = logdir + datelog + '.log'
-      var hostserver = config.hostserver
-      var dsid = config.id
-      var mode = config.mode
+      
+      // Configuration values (will be available after config loads)
+      var hostserver, dsid, mode
+      
+      // Wait for config to load before using values
+      window.addEventListener('configLoaded', function(event) {
+        hostserver = config.hostserver
+        dsid = config.id
+        mode = config.mode
+        console.log('eCLESS: Configuration loaded for main player -', event.detail.source)
+        
+        // Initialize application with loaded config
+        if (typeof initializeWithConfig === 'function') {
+          initializeWithConfig()
+        }
+      })
+      
+      // Fallback for immediate access (may be undefined until config loads)
+      hostserver = config.hostserver
+      dsid = config.id
+      mode = config.mode
+      
     } catch (e) {
-      log.warn('error module : ' + e)
+      console.warn('error loading configuration: ' + e)
     }
   </script>
   <!-- https://github.com/videojs -->
@@ -104,15 +129,27 @@
 
 <script>
   try {
-    // Initialize the document when it's ready
-    $(document).ready(function () {
-      var resultOffline = JSON.parse(localStorage.getItem(dsid)) // Parse and retrieve data from local storage
-      if (mode == 'offline') {
-        log.info('Mode: offline') // Log the offline mode
-        if (resultOffline) {
-          playofflineds(resultOffline) // Play offline data if available
-        }
-      } else {
+    
+    // Function to initialize app with loaded configuration
+    function initializeWithConfig() {
+      console.log('eCLESS: Initializing application with configuration')
+      console.log('eCLESS: Server:', hostserver, 'ID:', dsid, 'Mode:', mode)
+      
+      // Now safe to use config values
+      startApplication()
+    }
+    
+    // Main application startup function
+    function startApplication() {
+      // Initialize the document when it's ready
+      $(document).ready(function () {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid)) // Parse and retrieve data from local storage
+        if (mode == 'offline') {
+          console.log('eCLESS: Mode - offline') // Log the offline mode
+          if (resultOffline) {
+            playofflineds(resultOffline) // Play offline data if available
+          }
+        } else {
         playcheckNetwork(resultOffline) // Check the network for online mode
       }
     })
@@ -168,9 +205,13 @@
       })
     }
 
+    // Global variables for layout management
     var currentlytID
     var layoutURLList = []
     var layoutIDList = []
+    var loopArr = []
+    var slotnameList = []
+    var refreshTimeout
     var isLoopLyt = false // layout loop check global
 
     // Function to play online data
@@ -384,8 +425,15 @@
         setTimeout(keepcheckNetwork, 10000)
       }
     }
+    } // Close startApplication function
+    
+    // If config is already loaded, start immediately
+    if (window.configLoader && window.configLoader.config) {
+      initializeWithConfig()
+    }
+    
   } catch (e) {
-    log.warn('error module : ' + e)
+    console.warn('error in main application: ' + e)
   }
 </script>
 

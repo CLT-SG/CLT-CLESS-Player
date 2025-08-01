@@ -16,6 +16,8 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
   <link rel="stylesheet" href="assets/css/style.css">
   <script src="assets/js/jquery.min.js"></script>
+  <!-- Enhanced configuration loader -->
+  <script src="assets/js/config-loader.js"></script>
   <style>
     body {
       background-image: url("assets/images/ezgif.com-video-to-gif.gif");
@@ -84,40 +86,71 @@
     var path = window.path
     var os = window.os
     var config = window.config
-    var hostserver = config.hostserver
-    var dsid = config.id
-    var mode = config.mode
+    
+    // Enhanced configuration variables
+    var hostserver, dsid, mode
+    
+    // Wait for config to load
+    window.addEventListener('configLoaded', function(event) {
+      hostserver = config.hostserver
+      dsid = config.id
+      mode = config.mode
+      console.log('eCLESS: Configuration loaded for second window -', event.detail.source)
+      
+      // Update display with loaded config
+      updateDisplay()
+    })
+    
+    // Fallback for immediate access
+    hostserver = config.hostserver
+    dsid = config.id
+    mode = config.mode
+    
   } catch (e) {
-    log.warn('error module : ' + e)
+    console.warn('error loading configuration: ' + e)
   }
 </script>
 <script>
   try {
-    var render = `<div class="clessinfo-parent">
-    <div class="title">eCLESS Player</div>
-  <div><div class="desc">Version :</div><div class="result"> ${remote.app.getVersion()}</div><div>
-  <div><div class="desc">CLESS Server Website :</div><div class="result"> ${config.hostserver}</div><div>
-  <div><div class="desc">Digital Signage ID :</div><div class="result"> ${config.id} </div><div>
-  <div><div class="desc">Mode :</div><div class="result"> ${config.mode}</div><div>
-  </div>
-  <img class="loading-img" src="assets/images/loading.gif">
-  `
-    //$('body').html(render)
-    $('.bottom').html('eCless Player Version : ' + remote.app.getVersion())
-    if (mode == 'offline') {
-      $('.bottom').css({
-        'background-color': 'rgb(255, 16, 16)',
-      })
-    }
-    $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode)
-    setTimeout(function () {
-      $('.bottom').html('Server : ' + config.hostserver)
-      setTimeout(() => {
-        ipcRenderer.send('openwindow')
+    
+    function updateDisplay() {
+      if (!config || !remote) return
+      
+      var render = `<div class="clessinfo-parent">
+        <div class="title">eCLESS Player</div>
+      <div><div class="desc">Version :</div><div class="result"> ${remote.app.getVersion()}</div><div>
+      <div><div class="desc">CLESS Server Website :</div><div class="result"> ${config.hostserver}</div><div>
+      <div><div class="desc">Digital Signage ID :</div><div class="result"> ${config.id} </div><div>
+      <div><div class="desc">Mode :</div><div class="result"> ${config.mode}</div><div>
+      </div>
+      <img class="loading-img" src="assets/images/loading.gif">
+      `
+      //$('body').html(render)
+      $('.bottom').html('eCless Player Version : ' + remote.app.getVersion())
+      
+      if (mode == 'offline') {
+        $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode + ' | Offline Mode')
+      } else {
+        $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode)
+        setTimeout(function () {
+          $('.bottom').html('Server : ' + config.hostserver)
+        }, 3000)
+      }
+      
+      setTimeout(function () {
+        if (typeof(ipcRenderer) != "undefined") {
+          ipcRenderer.send('openwindow')
+        }
       }, 3000)
-    }, 3000)
+    }
+    
+    // Initialize display with current config (if available)
+    if (window.configLoader && window.configLoader.config) {
+      updateDisplay()
+    }
+    
   } catch (e) {
-    log.warn('error module : ' + e)
+    console.warn('error in second window: ' + e)
   }
 </script>
 

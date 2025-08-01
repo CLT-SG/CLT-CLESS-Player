@@ -39,6 +39,11 @@
     log.transports.file.file = logdir + datelog + '.log'
 
     var cpuInfo
+    var memoryInfo
+    var diskInfo
+    var networkInfo
+    var displayInfo
+    var systemInfo
 
     //websoctify for novnc
     var ipaddress = ip.address()
@@ -152,7 +157,155 @@
     })
 
     app.get('/api/deviceinfo', function (req, res) {
-        res.end(cpuInfo)
+        res.json({
+            cpu: cpuInfo ? JSON.parse(cpuInfo) : null,
+            memory: memoryInfo,
+            disk: diskInfo,
+            network: networkInfo,
+            display: displayInfo,
+            system: systemInfo
+        })
+    })
+
+    app.get('/api/system/memory', function (req, res) {
+        res.json(memoryInfo || {})
+    })
+
+    app.get('/api/system/disk', function (req, res) {
+        res.json(diskInfo || {})
+    })
+
+    app.get('/api/system/network', function (req, res) {
+        res.json(networkInfo || {})
+    })
+
+    app.get('/api/system/display', function (req, res) {
+        res.json(displayInfo || {})
+    })
+
+    app.get('/api/system/full-info', function (req, res) {
+        res.json({
+            cpu: cpuInfo ? JSON.parse(cpuInfo) : null,
+            memory: memoryInfo,
+            disk: diskInfo,
+            network: networkInfo,
+            display: displayInfo,
+            system: systemInfo,
+            timestamp: new Date().toISOString()
+        })
+    })
+
+    // Display control endpoints
+    app.get('/api/display/brightness/:level', function (req, res) {
+        const level = parseInt(req.params.level)
+        if (level >= 0 && level <= 100) {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (electronID) {
+                electronID.emit("set-brightness", { level: level })
+                res.json({ success: true, brightness: level })
+            } else {
+                res.status(400).json({ error: 'eCLESS client not connected' })
+            }
+        } else {
+            res.status(400).json({ error: 'Brightness level must be between 0 and 100' })
+        }
+    })
+
+    app.get('/api/display/power/:state', function (req, res) {
+        const state = req.params.state.toLowerCase()
+        if (state === 'on' || state === 'off') {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (electronID) {
+                electronID.emit("set-display-power", { state: state })
+                res.json({ success: true, power: state })
+            } else {
+                res.status(400).json({ error: 'eCLESS client not connected' })
+            }
+        } else {
+            res.status(400).json({ error: 'Power state must be "on" or "off"' })
+        }
+    })
+
+    // Configuration endpoints
+    app.post('/api/config/save', function (req, res) {
+        try {
+            const config = req.body
+            const configPath = path.join(appdir, 'config.json')
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+            
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (electronID) {
+                electronID.emit("config-updated", config)
+            }
+            
+            res.json({ success: true, message: 'Configuration saved' })
+        } catch (error) {
+            log.warn('Config save error: ' + error)
+            res.status(500).json({ error: 'Failed to save configuration' })
+        }
+    })
+
+    app.get('/api/config/load', function (req, res) {
+        try {
+            const configPath = path.join(appdir, 'config.json')
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                res.json(config)
+            } else {
+                res.json({ message: 'No configuration file found' })
+            }
+        } catch (error) {
+            log.warn('Config load error: ' + error)
+            res.status(500).json({ error: 'Failed to load configuration' })
+        }
+    })
+
+    // System monitoring endpoint
+    app.get('/api/system/monitor', function (req, res) {
+        si.currentLoad()
+            .then(load => {
+                si.mem()
+                    .then(mem => {
+                        si.fsSize()
+                            .then(disks => {
+                                si.networkStats()
+                                    .then(network => {
+                                        res.json({
+                                            cpu: {
+                                                load: load.currentLoad,
+                                                loadUser: load.currentLoadUser,
+                                                loadSystem: load.currentLoadSystem
+                                            },
+                                            memory: {
+                                                total: mem.total,
+                                                free: mem.free,
+                                                used: mem.used,
+                                                usage: ((mem.used / mem.total) * 100).toFixed(2)
+                                            },
+                                            disk: disks.map(disk => ({
+                                                filesystem: disk.fs,
+                                                size: disk.size,
+                                                used: disk.used,
+                                                available: disk.available,
+                                                usage: disk.use
+                                            })),
+                                            network: network.map(net => ({
+                                                interface: net.iface,
+                                                rx_bytes: net.rx_bytes,
+                                                tx_bytes: net.tx_bytes,
+                                                rx_sec: net.rx_sec,
+                                                tx_sec: net.tx_sec
+                                            })),
+                                            timestamp: new Date().toISOString()
+                                        })
+                                    })
+                                    .catch(err => res.status(500).json({ error: 'Network stats error: ' + err }))
+                            })
+                            .catch(err => res.status(500).json({ error: 'Disk stats error: ' + err }))
+                    })
+                    .catch(err => res.status(500).json({ error: 'Memory stats error: ' + err }))
+            })
+            .catch(err => res.status(500).json({ error: 'CPU stats error: ' + err }))
     })
 
     app.use(express.static(__dirname + '//src'))
@@ -291,6 +444,45 @@
             }
         })
 
+        //handle brightness control
+        socket.on('set-brightness', (msg) => {
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    electronID.emit("set-brightness", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel set-brightness: ' + err)
+                return err
+            }
+        })
+
+        //handle display power control
+        socket.on('set-display-power', (msg) => {
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    electronID.emit("set-display-power", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel set-display-power: ' + err)
+                return err
+            }
+        })
+
+        //handle configuration updates
+        socket.on('update-config', (msg) => {
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    electronID.emit("update-config", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel update-config: ' + err)
+                return err
+            }
+        })
+
         //restart pc
 
 
@@ -304,24 +496,129 @@
         console.log(`Express server listening on port ${port}`)
     })
 
-    si.cpu()
-        .then(data => {
-            cpuInfo = JSON.stringify(data)
+    // Initial system information gathering
+    async function gatherSystemInfo() {
+        try {
+            // CPU Information
+            const cpu = await si.cpu()
+            cpuInfo = JSON.stringify(cpu)
             log.info('cpu : ' + cpuInfo)
-        })
-        .catch(error => {
-            cpuInfo = error
-            log.warn('cpu error: ' + cpuInfo)
-        })
+
+            // Memory Information
+            const memory = await si.mem()
+            memoryInfo = {
+                total: memory.total,
+                free: memory.free,
+                used: memory.used,
+                active: memory.active,
+                available: memory.available,
+                swaptotal: memory.swaptotal,
+                swapused: memory.swapused,
+                swapfree: memory.swapfree
+            }
+            log.info('memory : ' + JSON.stringify(memoryInfo))
+
+            // Disk Information
+            const disks = await si.fsSize()
+            diskInfo = disks.map(disk => ({
+                filesystem: disk.fs,
+                type: disk.type,
+                size: disk.size,
+                used: disk.used,
+                available: disk.available,
+                usage: disk.use,
+                mount: disk.mount
+            }))
+            log.info('disk : ' + JSON.stringify(diskInfo))
+
+            // Network Information
+            const networkInterfaces = await si.networkInterfaces()
+            networkInfo = networkInterfaces.map(net => ({
+                iface: net.iface,
+                ifaceName: net.ifaceName,
+                ip4: net.ip4,
+                ip6: net.ip6,
+                mac: net.mac,
+                internal: net.internal,
+                virtual: net.virtual,
+                operstate: net.operstate,
+                type: net.type,
+                duplex: net.duplex,
+                mtu: net.mtu,
+                speed: net.speed
+            }))
+            log.info('network : ' + JSON.stringify(networkInfo))
+
+            // Display Information
+            const graphics = await si.graphics()
+            displayInfo = {
+                controllers: graphics.controllers.map(ctrl => ({
+                    vendor: ctrl.vendor,
+                    model: ctrl.model,
+                    bus: ctrl.bus,
+                    vram: ctrl.vram,
+                    vramDynamic: ctrl.vramDynamic
+                })),
+                displays: graphics.displays.map(display => ({
+                    vendor: display.vendor,
+                    model: display.model,
+                    main: display.main,
+                    builtin: display.builtin,
+                    connection: display.connection,
+                    sizex: display.sizex,
+                    sizey: display.sizey,
+                    pixeldepth: display.pixeldepth,
+                    resolutionx: display.resolutionx,
+                    resolutiony: display.resolutiony,
+                    currentResX: display.currentResX,
+                    currentResY: display.currentResY,
+                    positionX: display.positionX,
+                    positionY: display.positionY
+                }))
+            }
+            log.info('display : ' + JSON.stringify(displayInfo))
+
+            // System Information
+            const system = await si.system()
+            const osInfo = await si.osInfo()
+            systemInfo = {
+                manufacturer: system.manufacturer,
+                model: system.model,
+                version: system.version,
+                serial: system.serial,
+                uuid: system.uuid,
+                sku: system.sku,
+                os: {
+                    platform: osInfo.platform,
+                    distro: osInfo.distro,
+                    release: osInfo.release,
+                    codename: osInfo.codename,
+                    kernel: osInfo.kernel,
+                    arch: osInfo.arch,
+                    hostname: osInfo.hostname,
+                    fqdn: osInfo.fqdn,
+                    codepage: osInfo.codepage,
+                    logofile: osInfo.logofile,
+                    serial: osInfo.serial,
+                    build: osInfo.build,
+                    servicepack: osInfo.servicepack,
+                    uefi: osInfo.uefi
+                }
+            }
+            log.info('system : ' + JSON.stringify(systemInfo))
+
+        } catch (error) {
+            log.warn('System info gathering error: ' + error)
+        }
+    }
+
+    // Initial gather
+    gatherSystemInfo()
+
+    // Update system information periodically
     setInterval(function () {
-        si.cpu()
-            .then(data =>
-                cpuInfo = JSON.stringify(data)
-            )
-            .catch(error =>
-                cpuInfo = error
-            )
-    }, 10000)
+        gatherSystemInfo()
+    }, 30000) // Update every 30 seconds
 
     module.exports = server
 

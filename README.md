@@ -1,19 +1,41 @@
-# CLESS Player
+# eCLESS Player - Enhanced Digital Signage Solution
 
-Cless Player is a web desktop application built with ElectronJS, designed to provide a seamless experience for interacting with the Cless Server. This application wraps web functionality into a native desktop environment for improved usability and performance.
+eCLESS Player is a powerful digital signage application built with ElectronJS, designed to provide comprehensive content management and system monitoring capabilities. This enhanced version includes advanced control panel features, real-time system monitoring, and remote management capabilities.
 
 ## Features
-- Cross-platform support for Windows and Ubuntu
-- Easy setup and configuration
-- ElectronJS-based desktop application for enhanced web server interaction
+
+### Core Features
+- Cross-platform support for Windows, Linux, and macOS
+- Digital signage content management
+- Real-time layout and media control
+- Remote VNC access for system management
+- ElectronJS-based desktop application
+
+### Enhanced Control Panel Features ✨
+- **Real-time System Monitoring**: CPU, memory, disk, and network usage
+- **Display Control**: Brightness adjustment and power management
+- **System Configuration**: Auto-startup, fullscreen mode, and timeout settings
+- **Comprehensive Device Information**: Hardware details, network interfaces, and display information
+- **Configuration Management**: Save/load system configurations
+- **Advanced Notifications**: Real-time alerts and status updates
+- **Multi-monitor Support**: Display information for multiple screens
+
+### API Enhancements
+- RESTful API for system control and monitoring
+- Socket.IO for real-time communication
+- Configuration management endpoints
+- Display control APIs
+- Comprehensive system information endpoints
 
 ## Requirements
-- [Node.js](https://nodejs.org/) (v20.x or later)
+- [Node.js](https://nodejs.org/) (v16.x or later)
 - [Electron](https://www.electronjs.org/) (v22.x)
+- VNC server (x11vnc) for remote display access
+- Modern web browser for control panel access
 
 ## Installation
 
-Follow these steps to install and start the Cless Player:
+### Quick Setup
 
 1. Install Electron globally:
    ```bash
@@ -29,6 +51,94 @@ Follow these steps to install and start the Cless Player:
    ```bash
    npm start
    ```
+
+### Advanced Setup with System Integration
+
+Use the included administration script for comprehensive setup:
+
+```bash
+# Make the script executable
+chmod +x admin.sh
+
+# Run the administration menu
+./admin.sh
+
+# Or run specific setup tasks
+./admin.sh 1  # Setup directories and dependencies
+./admin.sh 4  # Install systemd service
+```
+
+## Usage
+
+### Accessing the Control Panel
+
+1. Start the eCLESS Player application
+2. Open a web browser and navigate to: `https://localhost:9000`
+3. Use the enhanced control panel to:
+   - Monitor system performance in real-time
+   - Control display settings (brightness, power)
+   - Manage content layouts and media
+   - Configure system settings
+   - Access remote desktop via VNC
+
+### Control Panel Sections
+
+#### Remote Control
+- Refresh display content
+- Restart application
+- System reboot/shutdown
+- VNC remote desktop access (885x500px window)
+
+#### Display Control
+- Real-time brightness adjustment (0-100%)
+- Display power on/off control
+- Multi-monitor display information
+
+#### System Configuration
+- Auto-startup on boot settings
+- Fullscreen mode toggle
+- Screen timeout configuration
+- Update interval settings
+- Log level selection
+- Save/load configuration profiles
+
+#### System Monitoring
+- Real-time CPU usage with progress bars
+- Memory usage tracking
+- Disk usage visualization
+- Network activity monitoring
+- Auto-refreshing data every 30 seconds
+
+#### Enhanced Device Information
+- Comprehensive CPU details
+- Memory and swap information
+- System manufacturer and model
+- Operating system details
+- Network interface status
+- Display resolution and position
+- Storage usage with visual indicators
+
+### API Usage
+
+The enhanced control panel provides a comprehensive REST API:
+
+```bash
+# Get comprehensive system information
+curl https://localhost:9000/api/system/full-info
+
+# Set display brightness
+curl https://localhost:9000/api/display/brightness/75
+
+# Get real-time monitoring data
+curl https://localhost:9000/api/system/monitor
+
+# Save configuration
+curl -X POST https://localhost:9000/api/config/save \
+     -H "Content-Type: application/json" \
+     -d '{"autoStartup": true, "brightness": 75}'
+```
+
+See [CONTROL_PANEL_API.md](CONTROL_PANEL_API.md) for complete API documentation.
 
 ## Building the Application
 
