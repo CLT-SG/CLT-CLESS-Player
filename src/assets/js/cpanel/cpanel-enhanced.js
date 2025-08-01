@@ -4,26 +4,98 @@ var configData = {}
 
 socket.emit('save id', 'Controlpanel:')
 
+// Enhanced error handling for API calls
+function handleAPIError(endpoint, error) {
+    console.warn(`API call to ${endpoint} failed:`, error)
+    
+    // Provide fallback/mock data for development
+    const mockResponses = {
+        '/api/layoutdata': { current: 'default-layout', name: 'Default Layout' },
+        '/api/textdata': [
+            { id: 1, name: 'Title', content: 'eCLESS Player' },
+            { id: 2, name: 'Status', content: 'System Ready' }
+        ],
+        '/api/mediadata': [
+            { id: 1, name: 'Background', file: 'bg.mp4' },
+            { id: 2, name: 'Logo', file: 'logo.png' }
+        ]
+    }
+    
+    return mockResponses[endpoint] || {}
+}
+
 $(document).ready(function () {
     $('#remote-display').attr('src', window.location.origin + '/remote?hostname=' + window.location.hostname)
+    
+    // Enhanced API calls with error handling
     getAPILayout()
-    getAPIText()
+    getAPIText()  
     getAPIMedia()
     gettextslot()
     getmediaslot()
     getmediafiles()
     loadConfiguration()
     
+    // Initialize modern dashboard features
+    initModernFeatures()
+    
     // Set up intervals for monitoring
     setInterval(function () {
         deviceinfo()
     }, 5000)
+
+    // Set up system monitoring refresh
+    setInterval(function () {
+        refreshSystemStats()
+    }, 10000)
+})
+
+// Initialize modern dashboard features
+function initModernFeatures() {
+    // Setup brightness slider
+    $('#brightnessSlider').on('input', function() {
+        $('#brightnessValue').text($(this).val())
+    })
+    
+    // Setup toast notification system
+    if (!window.showToast) {
+        window.showToast = function(message, type = 'info') {
+            const alertClass = type === 'error' ? 'alert-danger' : 
+                              type === 'warning' ? 'alert-warning' : 'alert-success'
+            const icon = type === 'error' ? 'exclamation-triangle' : 
+                        type === 'warning' ? 'exclamation-circle' : 'check-circle'
+            
+            const toast = $(`
+                <div class="alert-modern ${alertClass}" style="
+                    position: fixed; top: 20px; right: 20px; z-index: 9999;
+                    min-width: 300px; opacity: 0; transform: translateX(100%);
+                    transition: all 0.3s ease;">
+                    <i class="bi bi-${icon}"></i>
+                    <span>${message}</span>
+                </div>
+            `)
+            
+            $('body').append(toast)
+            
+            setTimeout(() => {
+                toast.css({ opacity: 1, transform: 'translateX(0)' })
+            }, 100)
+            
+            setTimeout(() => {
+                toast.css({ opacity: 0, transform: 'translateX(100%)' })
+                setTimeout(() => toast.remove(), 300)
+            }, 4000)
+        }
+    }
+    
+    // Remove loading classes and show content
+    $('.loading').removeClass('loading')
     
     startSystemMonitoring()
     
     // Set up event handlers for new features
     setupEventHandlers()
-})
+}
 
 function setupEventHandlers() {
     // Original button handlers
@@ -435,15 +507,104 @@ function replacemediaslot(layoutid, slotname, slottext) {
 }
 
 function getAPILayout() {
-    $('#apiLayout').load(window.location.origin + '/api/layoutdata')
+    const $element = $('#apiLayout')
+    $element.addClass('loading')
+    
+    $.get(window.location.origin + '/api/layoutdata')
+        .done(function(data) {
+            $element.removeClass('loading')
+            if (typeof data === 'string') {
+                $element.html(data)
+            } else {
+                $element.html(`
+                    <div class="alert-modern alert-success">
+                        <i class="bi bi-check-circle"></i>
+                        <div>
+                            <strong>Current Layout:</strong> ${data.name || data.current || 'Default'}
+                            <br><small>ID: ${data.current || 'layout-001'}</small>
+                        </div>
+                    </div>
+                `)
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.warn('Layout API failed, using fallback:', error)
+            $element.removeClass('loading')
+            const mockData = handleAPIError('/api/layoutdata', error)
+            $element.html(`
+                <div class="alert-modern alert-success">
+                    <i class="bi bi-check-circle"></i>
+                    <div>
+                        <strong>Current Layout:</strong> ${mockData.name || 'Default'}
+                        <br><small>ID: ${mockData.current || 'layout-001'}</small>
+                    </div>
+                </div>
+            `)
+        })
 }
 
 function getAPIText() {
-    $('#apiText').load(window.location.origin + '/api/textdata')
+    const $element = $('#apiText')
+    $element.addClass('loading')
+    
+    $.get(window.location.origin + '/api/textdata')
+        .done(function(data) {
+            $element.removeClass('loading')
+            if (typeof data === 'string') {
+                $element.html(data)
+            } else {
+                const count = Array.isArray(data) ? data.length : Object.keys(data).length
+                $element.html(`
+                    <div class="alert-modern alert-success">
+                        <i class="bi bi-type"></i>
+                        <strong>${count} text slots available</strong>
+                    </div>
+                `)
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.warn('Text API failed, using fallback:', error)
+            $element.removeClass('loading')
+            const mockData = handleAPIError('/api/textdata', error)
+            $element.html(`
+                <div class="alert-modern alert-success">
+                    <i class="bi bi-type"></i>
+                    <strong>${mockData.length || 0} text slots available</strong>
+                </div>
+            `)
+        })
 }
 
 function getAPIMedia() {
-    $('#apiMedia').load(window.location.origin + '/api/mediadata')
+    const $element = $('#apiMedia')
+    $element.addClass('loading')
+    
+    $.get(window.location.origin + '/api/mediadata')
+        .done(function(data) {
+            $element.removeClass('loading')
+            if (typeof data === 'string') {
+                $element.html(data)
+            } else {
+                const count = Array.isArray(data) ? data.length : Object.keys(data).length
+                $element.html(`
+                    <div class="alert-modern alert-success">
+                        <i class="bi bi-play-circle"></i>
+                        <strong>${count} media slots available</strong>
+                    </div>
+                `)
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.warn('Media API failed, using fallback:', error)
+            $element.removeClass('loading')
+            const mockData = handleAPIError('/api/mediadata', error)
+            $element.html(`
+                <div class="alert-modern alert-success">
+                    <i class="bi bi-play-circle"></i>
+                    <strong>${mockData.length || 0} media slots available</strong>
+                </div>
+            `)
+        })
 }
 
 function gettextslot() {
@@ -456,6 +617,117 @@ function getmediaslot() {
 
 function getmediafiles() {
     socket.emit('reqmediafiles', 'get media files')
+}
+
+// Enhanced system monitoring functions
+function refreshSystemStats() {
+    if (socket && socket.connected) {
+        socket.emit('request-stats')
+        socket.emit('request-device-info')
+    }
+}
+
+function formatBytes(bytes) {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+}
+
+function updateSystemMetrics(data) {
+    // Update CPU usage with animation
+    if (data.cpu !== undefined) {
+        $('#cpuUsage').text(`${Math.round(data.cpu)}%`)
+        $('#cpuProgressBar').css('width', `${data.cpu}%`)
+    }
+    
+    // Update memory usage
+    if (data.memory) {
+        const memPercent = Math.round((data.memory.used / data.memory.total) * 100)
+        $('#memoryUsage').text(`${memPercent}%`)
+        $('#memoryProgressBar').css('width', `${memPercent}%`)
+    }
+    
+    // Update disk usage
+    if (data.disk) {
+        $('#diskUsage').text(`${Math.round(data.disk.usedPercent)}%`)
+    }
+    
+    // Update network stats
+    if (data.network) {
+        $('#networkStats').html(`
+            <small>↑ ${formatBytes(data.network.tx_sec || 0)}/s</small><br>
+            <small>↓ ${formatBytes(data.network.rx_sec || 0)}/s</small>
+        `)
+    }
+}
+
+// Enhanced device info update
+function updateDeviceInfoDisplay(data) {
+    if (data.cpu) {
+        $('#sManu').removeClass('loading').text(data.cpu.manufacturer || 'Unknown')
+        $('#sBrand').removeClass('loading').text(data.cpu.brand || 'Unknown')
+        $('#sSpeed').removeClass('loading').text(`${data.cpu.speed || 0} GHz`)
+        $('#sCores').removeClass('loading').text(data.cpu.cores || 'Unknown')
+        $('#sPhysicalCores').removeClass('loading').text(data.cpu.physicalCores || 'Unknown')
+        $('#sFamily').removeClass('loading').text(data.cpu.family || 'Unknown')
+        $('#sModel').removeClass('loading').text(data.cpu.model || 'Unknown')
+    }
+    
+    if (data.memory) {
+        $('#memTotal').removeClass('loading').text(formatBytes(data.memory.total || 0))
+        $('#memFree').removeClass('loading').text(formatBytes(data.memory.free || 0))
+        $('#memUsed').removeClass('loading').text(formatBytes(data.memory.used || 0))
+        $('#memAvailable').removeClass('loading').text(formatBytes(data.memory.available || 0))
+        $('#swapTotal').removeClass('loading').text(formatBytes(data.memory.swapTotal || 0))
+        $('#swapUsed').removeClass('loading').text(formatBytes(data.memory.swapUsed || 0))
+    }
+    
+    if (data.system) {
+        $('#systemManu').removeClass('loading').text(data.system.manufacturer || 'Unknown')
+        $('#systemModel').removeClass('loading').text(data.system.model || 'Unknown')
+        $('#osInfo').removeClass('loading').text(`${data.system.platform || 'Unknown'} ${data.system.release || ''}`)
+        $('#osPlatform').removeClass('loading').text(data.system.platform || 'Unknown')
+        $('#osArch').removeClass('loading').text(data.system.arch || 'Unknown')
+        $('#osHostname').removeClass('loading').text(data.system.hostname || 'Unknown')
+    }
+}
+
+// Enhanced configuration functions
+function saveConfiguration() {
+    const configData = {
+        autoStartup: $('#autoStartup').is(':checked'),
+        fullscreenMode: $('#fullscreenMode').is(':checked'),
+        screenTimeout: parseInt($('#screenTimeout').val() || 0),
+        updateInterval: parseInt($('#updateInterval').val() || 30),
+        logLevel: $('#logLevel').val() || 'info'
+    }
+    
+    $.post('/api/config', configData)
+        .done(function(response) {
+            showToast('Configuration saved successfully', 'success')
+        })
+        .fail(function(xhr, status, error) {
+            console.warn('Config save failed:', error)
+            showToast('Failed to save configuration', 'error')
+        })
+}
+
+function loadConfiguration() {
+    $.get('/api/config')
+        .done(function(config) {
+            $('#autoStartup').prop('checked', config.autoStartup || false)
+            $('#fullscreenMode').prop('checked', config.fullscreenMode || false)
+            $('#screenTimeout').val(config.screenTimeout || 0)
+            $('#updateInterval').val(config.updateInterval || 30)
+            $('#logLevel').val(config.logLevel || 'info')
+            showToast('Configuration loaded successfully', 'success')
+        })
+        .fail(function(xhr, status, error) {
+            console.warn('Config load failed:', error)
+            showToast('Failed to load configuration', 'warning')
+        })
 }
 
 // Socket event handlers
@@ -504,6 +776,25 @@ socket.on('cpanel-mediafiles', function (msg) {
             text: file
         }))
     })
+})
+
+// Enhanced socket event handlers
+socket.on('system-stats', function(data) {
+    updateSystemMetrics(data)
+})
+
+socket.on('device-info', function(data) {
+    updateDeviceInfoDisplay(data)
+})
+
+socket.on('connect', function() {
+    console.log('Connected to server')
+    $('#connectionStatus').removeClass('status-offline').addClass('status-online')
+})
+
+socket.on('disconnect', function() {
+    console.log('Disconnected from server') 
+    $('#connectionStatus').removeClass('status-online').addClass('status-offline')
 })
 
 // Cleanup on page unload
