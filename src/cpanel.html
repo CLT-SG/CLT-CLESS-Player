@@ -1,528 +1,983 @@
-<html lang="us">
+<html lang="en">
 
 <head>
     <meta charset="utf-8">
-    <title>eCLESS Player</title>
-    <script type="text/javascript" src="assets/js/cpanel/module.min.js"></script>
-    <!-- Enhanced configuration loader -->
-    <script src="assets/js/config-loader.js"></script>
-    <!-- Latest compiled and minified CSS -->
-    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eCLESS Player Dashboard</title>
 
-    <!-- Latest compiled and minified JavaScript -->
+    <!-- Preload critical resources -->
+    <link rel="preload" href="assets/css/bootstrap.min.css" as="style">
+    <link rel="preload" href="assets/js/jquery.min.js" as="script">
+
+    <!-- CSS -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+
+    <!-- JavaScript - Load require.js first -->
+    <script type="text/javascript" src="assets/js/cpanel/require.min.js"></script>
+    <script type="text/javascript" src="assets/js/cpanel/module.min.js"></script>
+    <script src="assets/js/config-loader-browser.js"></script>
     <script type="text/javascript" src="/socket.io/socket.io.js"></script>
     <script type="text/javascript" src="assets/js/jquery.min.js"></script>
     <script type="text/javascript" src="assets/js/bootstrap.min.js"></script>
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- Error handler for graceful degradation -->
+    <script src="assets/js/cpanel/error-handler.js"></script>
     <style>
+        :root {
+            --primary-color: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary-color: #f8fafc;
+            --accent-color: #0ea5e9;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1e293b;
+            --light-color: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+            --border-radius: 0.75rem;
+            --border-radius-sm: 0.5rem;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             height: 100%;
-            width: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--text-primary);
         }
 
-        .note {
-            text-align: center;
-            height: 80px;
-            background: -webkit-linear-gradient(left, #0072ff, #8811c5);
-            color: #fff;
-            font-weight: bold;
-            line-height: 80px;
-        }
-
-        .title {
-            text-align: left;
-            font-size: 20px;
-            color: black;
-            font-weight: bold;
-            line-height: 30px;
-            width: auto;
-        }
-
-        .form-content {
-            padding: 5%;
-            border: 1px solid #ced4da;
-            margin-bottom: 2%;
-        }
-
-        .ebutton {
-            border: none;
-            border-radius: 1.5rem;
-            padding: 1%;
-            cursor: pointer;
-            background: #0062cc;
-            color: #fff;
-        }
-
-        .ebutton:hover {
-            border: none;
-            border-radius: 1.5rem;
-            padding: 1%;
-            cursor: pointer;
-            background: #5884b3;
-            color: #fff;
-        }
-        .layout-name {
-            font-weight:bold;
-        }
-        .card {
-            border: 1px solid #dee2e6;
-            border-radius: 0.375rem;
-            margin-bottom: 1rem;
-        }
-        .card-header {
-            padding: 0.5rem 1rem;
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-            font-weight: bold;
-        }
-        .card-body {
+        .dashboard-container {
+            min-height: 100vh;
+            background: var(--secondary-color);
             padding: 1rem;
         }
-        .progress {
-            height: 20px;
-            background-color: #e9ecef;
-            border-radius: 0.375rem;
+
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            border-radius: var(--border-radius);
+            color: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
             overflow: hidden;
         }
-        .progress-bar {
-            background-color: #0062cc;
-            transition: width 0.6s ease;
+
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="50" r="0.5" fill="white" opacity="0.05"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            pointer-events: none;
         }
+
+        .dashboard-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dashboard-subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin: 0;
+            font-weight: 400;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 2rem;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--light-color);
+        }
+
+        .card-icon {
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            border-radius: var(--border-radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .modern-btn {
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+            border: none;
+            border-radius: var(--border-radius-sm);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.25rem;
+            text-decoration: none;
+            font-size: 0.95rem;
+        }
+
+        .modern-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-md);
+            color: white;
+        }
+
+        .modern-btn.btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+        }
+
+        .modern-btn.btn-warning {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+        }
+
+        .modern-btn.btn-success {
+            background: linear-gradient(135deg, var(--success-color), #059669);
+        }
+
+        .modern-btn.btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .remote-display {
+            width: 100%;
+            height: 400px;
+            border-radius: var(--border-radius-sm);
+            border: 2px solid var(--border-color);
+            background: var(--light-color);
+            margin-top: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .form-control {
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 0.75rem;
+            font-size: 0.95rem;
+            transition: var(--transition);
+            width: 100%;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+            outline: none;
+        }
+
         .form-control-range {
             width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--light-color);
+            outline: none;
             margin: 0.5rem 0;
         }
-        .form-check-input {
-            margin-left: 0.5rem;
+
+        .form-control-range::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: var(--shadow-sm);
         }
-        .table-striped tbody tr:nth-of-type(odd) {
-            background-color: rgba(0,0,0,.05);
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
         }
-        .network-interface {
-            background-color: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 0.375rem;
-            padding: 0.75rem;
+
+        .metric-card {
+            background: var(--light-color);
+            border-radius: var(--border-radius-sm);
+            padding: 1.5rem;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-color);
             margin-bottom: 0.5rem;
         }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .progress-modern {
+            height: 8px;
+            background: var(--light-color);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+
+        .progress-bar-modern {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            border-radius: 4px;
+            transition: width 0.6s ease;
+            position: relative;
+        }
+
         .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.85rem;
+            font-weight: 500;
         }
+
         .status-online {
-            background-color: #28a745;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
         }
+
         .status-offline {
-            background-color: #dc3545;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
         }
-        .metric-value {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #0062cc;
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
         }
-        .alert {
-            padding: 0.75rem 1.25rem;
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .info-table th,
+        .info-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .info-table th {
+            font-weight: 600;
+            color: var(--text-primary);
+            background: var(--light-color);
+        }
+
+        .info-table td {
+            color: var(--text-secondary);
+        }
+
+        .alert-modern {
+            padding: 1rem 1.5rem;
+            border-radius: var(--border-radius-sm);
+            border: none;
             margin-bottom: 1rem;
-            border: 1px solid transparent;
-            border-radius: 0.375rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
         }
+
         .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border-left: 4px solid var(--success-color);
         }
+
         .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger-color);
+            border-left: 4px solid var(--danger-color);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+            align-items: stretch;
+        }
+
+        .input-group .form-control {
+            flex: 1;
+        }
+
+        .input-group .modern-btn {
+            white-space: nowrap;
+        }
+
+        .select-modern {
+            background: white;
+            border: 2px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 0.75rem;
+            font-size: 0.95rem;
+            transition: var(--transition);
+            width: 100%;
+            margin-bottom: 0.5rem;
+        }
+
+        .select-modern:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgb(99 102 241 / 0.1);
+            outline: none;
+        }
+
+        .network-interface {
+            background: var(--light-color);
+            border: 1px solid var(--border-color);
+            border-radius: var(--border-radius-sm);
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 1024px) and (min-width: 769px) {
+
+            /* Tablet view - 2 columns */
+            .dashboard-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-container {
+                padding: 0.5rem;
+            }
+
+            .dashboard-header {
+                padding: 1.5rem 1rem;
+            }
+
+            .dashboard-title {
+                font-size: 2rem;
+            }
+
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .dashboard-card {
+                padding: 1.5rem;
+            }
+
+            .control-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .remote-display {
+                height: 250px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .dashboard-title {
+                font-size: 1.75rem;
+            }
+
+            .dashboard-subtitle {
+                font-size: 1rem;
+            }
+
+            .control-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .modern-btn {
+                width: 100%;
+                justify-content: center;
+                margin: 0.25rem 0;
+            }
+        }
+
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --secondary-color: #0f172a;
+                --light-color: #1e293b;
+                --border-color: #334155;
+                --text-primary: #f1f5f9;
+                --text-secondary: #94a3b8;
+            }
+
+            .dashboard-card {
+                background: #1e293b;
+                border-color: #334155;
+            }
+
+            .form-control,
+            .select-modern {
+                background: #1e293b;
+                border-color: #334155;
+                color: var(--text-primary);
+            }
+
+            .info-table th {
+                background: #334155;
+            }
+        }
+
+        /* Loading animations */
+        .loading {
+            background: linear-gradient(90deg, var(--light-color) 25%, rgba(255, 255, 255, 0.5) 50%, var(--light-color) 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        /* Hover effects for interactive elements */
+        .dashboard-card:hover .card-icon {
+            transform: scale(1.05);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
         }
     </style>
-    <script type="text/javascript" src="assets/js/cpanel/require.min.js"></script>
+    </div>
+    </body>
+    <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
+
+</html>
 </head>
 
 <body>
-    <div class="container register-form">
-        <div class="form">
-            <div class="note">
-                <p>eCLESS PLAYER - CONTROL PANEL</p>
-            </div>
-            <div class="form-content">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <div class="title">
-                                <p>Remote control</p>
-                            </div>
-                            <button type="button" class="btnRestart ebutton" id="refresh">Refresh</button>
-                            <button type="button" class="btnReboot ebutton" id="restartapp">Restart App</button>
-                            <button type="button" class="btnReboot ebutton" id="reboot">Reboot</button>
-                            <button type="button" class="btnShutdown ebutton" id="shutdown">Shutdown</button>
-                            <div style="width:885px;height:500px;">
-                                <iframe id="remote-display" width="100%" height="100%"></iframe>
-                            </div>
-                        </div>
+    <div class="dashboard-container">
+        <!-- Dashboard Header -->
+        <header class="dashboard-header">
+            <h1 class="dashboard-title">
+                <i class="bi bi-display"></i>
+                eCLESS Player Dashboard
+            </h1>
+            <p class="dashboard-subtitle">Advanced Control Panel & System Monitor</p>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- On View Section -->
+            <div class="dashboard-card" style="grid-column: 1 / -2;">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-controller"></i>
                     </div>
+                    <h2 class="card-title">On View</h2>
+                </div>
+                <div class="remote-display" style="height: 350px;">
+                    <iframe id="remote-display" width="100%" height="100%"
+                        style="border: none; border-radius: var(--border-radius-sm);"></iframe>
+                </div>
+            </div>
+
+            <!-- Remote Control Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-brightness-high"></i>
+                    </div>
+                    <h2 class="card-title">Display Control</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-secondary" id="refresh">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Refresh
+                    </button>
+                    <button type="button" class="modern-btn" id="restartapp">
+                        <i class="bi bi-bootstrap-reboot"></i>
+                        Restart App
+                    </button>
+                    <button type="button" class="modern-btn btn-warning" id="reboot">
+                        <i class="bi bi-power"></i>
+                        Reboot
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="shutdown">
+                        <i class="bi bi-power"></i>
+                        Shutdown
+                    </button>
                 </div>
             </div>
 
             <!-- Display Control Section -->
-            <div class="form-content">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <div class="title">
-                                <p>Display Control</p>
-                            </div>
-                            <div class="form-group">
-                                <label for="brightnessSlider">Brightness: <span id="brightnessValue">50</span>%</label>
-                                <input type="range" id="brightnessSlider" class="form-control-range" min="0" max="100" value="50">
-                            </div>
-                            <div class="form-group">
-                                <button type="button" class="ebutton" id="displayOn">Display On</button>
-                                <button type="button" class="ebutton" id="displayOff">Display Off</button>
-                            </div>
-                            <div id="displayInfo" class="mt-3">
-                                <strong>Display Information:</strong>
-                                <div id="displayDetails"></div>
-                            </div>
-                        </div>
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-brightness-high"></i>
                     </div>
+                    <h2 class="card-title">Display Control</h2>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="brightnessSlider">
+                        Brightness: <span id="brightnessValue" class="metric-value" style="font-size: 1rem;">50</span>%
+                    </label>
+                    <input type="range" id="brightnessSlider" class="form-control-range" min="0" max="100" value="50">
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="displayOn">
+                        <i class="bi bi-display"></i>
+                        Display On
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="displayOff">
+                        <i class="bi bi-display"></i>
+                        Display Off
+                    </button>
+                </div>
+                <div id="displayInfo" class="mt-3">
+                    <strong>Display Information:</strong>
+                    <div id="displayDetails" class="loading">Loading display information...</div>
                 </div>
             </div>
 
             <!-- System Configuration Section -->
-            <div class="form-content">
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <h2 class="card-title">System Configuration</h2>
+                </div>
                 <div class="row">
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <div class="form-group">
-                            <div class="title">
-                                <p>System Configuration</p>
-                            </div>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="autoStartup">Auto Start on Boot:</label>
-                                        <input type="checkbox" id="autoStartup" class="form-check-input">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="fullscreenMode">Fullscreen Mode:</label>
-                                        <input type="checkbox" id="fullscreenMode" class="form-check-input">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="screenTimeout">Screen Timeout (minutes):</label>
-                                        <input type="number" id="screenTimeout" class="form-control" value="0" min="0" max="1440">
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label for="updateInterval">Update Interval (seconds):</label>
-                                        <input type="number" id="updateInterval" class="form-control" value="30" min="10" max="3600">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="logLevel">Log Level:</label>
-                                        <select id="logLevel" class="form-control">
-                                            <option value="error">Error</option>
-                                            <option value="warn">Warning</option>
-                                            <option value="info" selected>Info</option>
-                                            <option value="debug">Debug</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="button" class="ebutton" id="saveConfig">Save Configuration</button>
-                            <button type="button" class="ebutton" id="loadConfig">Load Configuration</button>
+                            <label class="form-label">
+                                <input type="checkbox" id="autoStartup" style="margin-right: 0.5rem;">
+                                Auto Start on Boot
+                            </label>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- System Monitoring Section -->
-            <div class="form-content">
-                <div class="row">
-                    <div class="col-md-12">
                         <div class="form-group">
-                            <div class="title">
-                                <p>System Monitoring</p>
-                            </div>
-                            <button type="button" class="ebutton" id="refreshMonitoring">Refresh Data</button>
-                            <div class="row mt-3">
-                                <div class="col-md-3">
-                                    <div class="card">
-                                        <div class="card-header"><strong>CPU Usage</strong></div>
-                                        <div class="card-body">
-                                            <div id="cpuUsage">Loading...</div>
-                                            <div class="progress mt-2">
-                                                <div id="cpuProgressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="card">
-                                        <div class="card-header"><strong>Memory Usage</strong></div>
-                                        <div class="card-body">
-                                            <div id="memoryUsage">Loading...</div>
-                                            <div class="progress mt-2">
-                                                <div id="memoryProgressBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="card">
-                                        <div class="card-header"><strong>Disk Usage</strong></div>
-                                        <div class="card-body">
-                                            <div id="diskUsage">Loading...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="card">
-                                        <div class="card-header"><strong>Network</strong></div>
-                                        <div class="card-body">
-                                            <div id="networkStats">Loading...</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <label class="form-label">
+                                <input type="checkbox" id="fullscreenMode" style="margin-right: 0.5rem;">
+                                Fullscreen Mode
+                            </label>
                         </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Change DS ID -->
-            <div class="form-content">
-                <div class="form-content">
-                    <div class="row">
-                        <div class="col-ld-6">
-                            <div class="form-group">
-                                <div class="title">
-                                    <p>Change Layout</p>
-                                    <div id="apiLayout">
-                                    </div><br />
-                                <div class="form-group">
-                                    <div class="input-group">
-                                        <input type="text" id="updateLytInput" class="form-control"
-                                            placeholder="Enter Layout ID" value="" />
-                                        <button type="button" class="btnUpdateLyt ebutton">Replace</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Trigger Text Slot -->
-            <div class="form-content">
-                <div class="form-content">
-                    <div class="row">
-                        <div class="col-ld-6">
-                            <div class="form-group">
-                                <div class="title">
-                                    <p>Trigger Text</p>
-                                    <div id="apiText">
-                                    </div>
-                                </div><br />
-                                <div class="form-group">
-                                    <div class="input-group col-xs-2">
-                                        <select class="form-select" id="replaceTextList">
-                                            <option selected>Open this to select text slot. Slot Name | Slot Text</option>
-                                        </select>
-                                    </div><br />
-                                    <div class="input-group">
-                                        <input type="text" id="replaceTextInput" class="form-control"
-                                            placeholder="Enter Text" value="" />
-                                        <button type="button" class="btnReplaceText ebutton">Replace</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Trigger Media Slot -->
-                <div class="form-content">
-                    <div class="row">
-                        <div class="col-ld-6">
-                            <div class="form-group">
-                                <div class="title">
-                                    <p>Trigger Media</p>
-                                    <div id="apiMedia"></div>
-                                </div><br />
-                                <div class="form-group">
-                                    <div class="input-group">
-                                        <select class="form-select" id="replaceMediaList">
-                                            <option selected>Open this to select media slot. Slot Name | Slot Text</option>
-                                        </select>
-                                    </div><br />
-                                    <div class="input-group">
-                                        <select class="form-select" id="mediaFilesList">
-                                            <option selected>Open this to select media filename</option>
-                                        </select>
-                                        <button type="button" class="btnReplaceMedia ebutton">Replace</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Device information -->
-            <div class="form-content">
-                <div class="row">
-                    <div class="col-md-12">
                         <div class="form-group">
-                            <div class="title">
-                                <p>Device Information</p>
-                            </div>
-                            
-                            <!-- CPU Information -->
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="title">
-                                        <p>CPU</p>
-                                    </div>
-                                    <table class="table table-striped">
-                                        <tbody>
-                                            <tr>
-                                                <td><strong>Manufacturer</strong></td>
-                                                <td><div id="sManu">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Brand</strong></td>
-                                                <td><div id="sBrand">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Speed</strong></td>
-                                                <td><div id="sSpeed">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Cores</strong></td>
-                                                <td><div id="sCores">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Physical Cores</strong></td>
-                                                <td><div id="sPhysicalCores">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Family</strong></td>
-                                                <td><div id="sFamily">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Model</strong></td>
-                                                <td><div id="sModel">Loading...</div></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                                
-                                <!-- Memory Information -->
-                                <div class="col-md-6">
-                                    <div class="title">
-                                        <p>Memory</p>
-                                    </div>
-                                    <table class="table table-striped">
-                                        <tbody>
-                                            <tr>
-                                                <td><strong>Total RAM</strong></td>
-                                                <td><div id="memTotal">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Free RAM</strong></td>
-                                                <td><div id="memFree">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Used RAM</strong></td>
-                                                <td><div id="memUsed">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Available RAM</strong></td>
-                                                <td><div id="memAvailable">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Swap Total</strong></td>
-                                                <td><div id="swapTotal">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Swap Used</strong></td>
-                                                <td><div id="swapUsed">Loading...</div></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <!-- System Information -->
-                            <div class="row mt-4">
-                                <div class="col-md-6">
-                                    <div class="title">
-                                        <p>System Information</p>
-                                    </div>
-                                    <table class="table table-striped">
-                                        <tbody>
-                                            <tr>
-                                                <td><strong>Manufacturer</strong></td>
-                                                <td><div id="systemManu">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Model</strong></td>
-                                                <td><div id="systemModel">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Operating System</strong></td>
-                                                <td><div id="osInfo">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Platform</strong></td>
-                                                <td><div id="osPlatform">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Architecture</strong></td>
-                                                <td><div id="osArch">Loading...</div></td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>Hostname</strong></td>
-                                                <td><div id="osHostname">Loading...</div></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                <!-- Network Information -->
-                                <div class="col-md-6">
-                                    <div class="title">
-                                        <p>Network Interfaces</p>
-                                    </div>
-                                    <div id="networkInterfaces">Loading...</div>
-                                </div>
-                            </div>
-
-                            <!-- Display Information -->
-                            <div class="row mt-4">
-                                <div class="col-md-12">
-                                    <div class="title">
-                                        <p>Display Information</p>
-                                    </div>
-                                    <div id="displayInfoTable">Loading...</div>
-                                </div>
-                            </div>
-
-                            <!-- Disk Information -->
-                            <div class="row mt-4">
-                                <div class="col-md-12">
-                                    <div class="title">
-                                        <p>Storage Information</p>
-                                    </div>
-                                    <div id="diskInfoTable">Loading...</div>
-                                </div>
-                            </div>
+                            <label class="form-label" for="screenTimeout">Screen Timeout (minutes):</label>
+                            <input type="number" id="screenTimeout" class="form-control" value="0" min="0" max="1440">
                         </div>
                     </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="updateInterval">Update Interval (seconds):</label>
+                            <input type="number" id="updateInterval" class="form-control" value="30" min="10"
+                                max="3600">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="logLevel">Log Level:</label>
+                            <select id="logLevel" class="select-modern">
+                                <option value="error">Error</option>
+                                <option value="warn">Warning</option>
+                                <option value="info" selected>Info</option>
+                                <option value="debug">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="saveConfig">
+                        <i class="bi bi-check-circle"></i>
+                        Save Configuration
+                    </button>
+                    <button type="button" class="modern-btn btn-secondary" id="loadConfig">
+                        <i class="bi bi-upload"></i>
+                        Load Configuration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Layout Management Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-layout-text-window"></i>
+                    </div>
+                    <h2 class="card-title">Layout Management</h2>
+                </div>
+                <div id="apiLayout" class="mb-3 loading">Loading layout information...</div>
+                <div class="input-group">
+                    <input type="text" id="updateLytInput" class="form-control" placeholder="Enter Layout ID" value="">
+                    <button type="button" class="modern-btn btnUpdateLyt">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+            </div>
+
+            <!-- Text Management Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-type"></i>
+                    </div>
+                    <h2 class="card-title">Text Management</h2>
+                </div>
+                <div id="apiText" class="mb-3 loading">Loading text slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceTextList">
+                        <option selected>Select text slot - Slot Name | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="replaceTextInput" class="form-control" placeholder="Enter Text" value="">
+                    <button type="button" class="modern-btn btnReplaceText">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+            </div>
+
+            <!-- Media Management Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-play-circle"></i>
+                    </div>
+                    <h2 class="card-title">Media Management</h2>
+                </div>
+                <div id="apiMedia" class="mb-3 loading">Loading media slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceMediaList">
+                        <option selected>Select media slot - Slot Name | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <select class="select-modern" id="mediaFilesList" style="margin-bottom: 0;">
+                        <option selected>Select media filename</option>
+                    </select>
+                    <button type="button" class="modern-btn btnReplaceMedia">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
                 </div>
             </div>
         </div>
+
+        <!-- System Monitoring Section -->
+        <div class="dashboard-card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <h2 class="card-title">System Monitoring</h2>
+            </div>
+            <button type="button" class="modern-btn btn-secondary" id="refreshMonitoring">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh Data
+            </button>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="cpuUsage">0%</div>
+                    <div class="metric-label">CPU Usage</div>
+                    <div class="progress-modern">
+                        <div id="cpuProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="memoryUsage">0%</div>
+                    <div class="metric-label">Memory Usage</div>
+                    <div class="progress-modern">
+                        <div id="memoryProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="diskUsage">Loading...</div>
+                    <div class="metric-label">Disk Usage</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="networkStats">Loading...</div>
+                    <div class="metric-label">Network</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Information Section -->
+        <div class="dashboard-card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                <h2 class="card-title">Device Information</h2>
+            </div>
+
+            <div class="row">
+                <!-- CPU Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-cpu"></i>
+                        CPU Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Manufacturer</th>
+                                <td>
+                                    <div id="sManu" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Brand</th>
+                                <td>
+                                    <div id="sBrand" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Speed</th>
+                                <td>
+                                    <div id="sSpeed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Cores</th>
+                                <td>
+                                    <div id="sCores" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Physical Cores</th>
+                                <td>
+                                    <div id="sPhysicalCores" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Family</th>
+                                <td>
+                                    <div id="sFamily" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Model</th>
+                                <td>
+                                    <div id="sModel" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Memory Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-memory"></i>
+                        Memory Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Total RAM</th>
+                                <td>
+                                    <div id="memTotal" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Free RAM</th>
+                                <td>
+                                    <div id="memFree" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Used RAM</th>
+                                <td>
+                                    <div id="memUsed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Available RAM</th>
+                                <td>
+                                    <div id="memAvailable" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Swap Total</th>
+                                <td>
+                                    <div id="swapTotal" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Swap Used</th>
+                                <td>
+                                    <div id="swapUsed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- System Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-pc-display"></i>
+                        System Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Manufacturer</th>
+                                <td>
+                                    <div id="systemManu" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Model</th>
+                                <td>
+                                    <div id="systemModel" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Operating System</th>
+                                <td>
+                                    <div id="osInfo" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Platform</th>
+                                <td>
+                                    <div id="osPlatform" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Architecture</th>
+                                <td>
+                                    <div id="osArch" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Hostname</th>
+                                <td>
+                                    <div id="osHostname" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Network Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-wifi"></i>
+                        Network Interfaces
+                    </h3>
+                    <div id="networkInterfaces" class="loading">Loading network information...</div>
+                </div>
+            </div>
+
+            <!-- Display Information -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-display"></i>
+                        Display Information
+                    </h3>
+                    <div id="displayInfoTable" class="loading">Loading display information...</div>
+                </div>
+            </div>
+
+            <!-- Storage Information -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-hdd"></i>
+                        Storage Information
+                    </h3>
+                    <div id="diskInfoTable" class="loading">Loading storage information...</div>
+                </div>
+            </div>
+        </div>
+    </div>
     </div>
 </body>
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>

@@ -79,6 +79,10 @@
     //set socketio
     app.set('socketio', io)
 
+    app.get('/favicon.ico', function (req, res) {
+        res.status(204).end() // No content response for favicon
+    })
+
     app.get('/', function (req, res) {
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate"); // HTTP 1.1.
         res.setHeader("Pragma", "no-cache"); // HTTP 1.0.
@@ -156,6 +160,58 @@
         })
     })
 
+    // Data endpoints for dashboard
+    app.get('/api/layoutdata', function (req, res) {
+        // Return layout data - this would typically come from a database or file
+        res.json({
+            layouts: [
+                { id: 'layout1', name: 'Main Layout', active: true },
+                { id: 'layout2', name: 'Secondary Layout', active: false },
+                { id: 'layout3', name: 'Tertiary Layout', active: false }
+            ],
+            currentLayout: 'layout1'
+        })
+    })
+
+    app.get('/api/textdata', function (req, res) {
+        // Return text slot data
+        res.json({
+            textSlots: [
+                { slotName: 'title', slotText: 'Welcome to eCLESS Player' },
+                { slotName: 'subtitle', slotText: 'Digital Signage Solution' },
+                { slotName: 'footer', slotText: 'Powered by eCLESS Technology' }
+            ]
+        })
+    })
+
+    app.get('/api/mediadata', function (req, res) {
+        // Return media slot data and scan for media files
+        var mediaSlots = [
+            { slotName: 'video1', slotText: 'sample-video.mp4' },
+            { slotName: 'image1', slotText: 'sample-image.jpg' },
+            { slotName: 'audio1', slotText: 'sample-audio.mp3' }
+        ]
+        
+        var mediaFiles = []
+        try {
+            const mediaDir = appdir + '/res'
+            if (fs.existsSync(mediaDir)) {
+                mediaFiles = fs.readdirSync(mediaDir).filter(file => {
+                    // Filter common media file extensions
+                    const ext = path.extname(file).toLowerCase()
+                    return ['.mp4', '.avi', '.mov', '.jpg', '.jpeg', '.png', '.gif', '.mp3', '.wav', '.pdf'].includes(ext)
+                })
+            }
+        } catch (error) {
+            log.warn('Media files scan error: ' + error)
+        }
+        
+        res.json({
+            mediaSlots: mediaSlots,
+            availableFiles: mediaFiles
+        })
+    })
+
     app.get('/api/deviceinfo', function (req, res) {
         res.json({
             cpu: cpuInfo ? JSON.parse(cpuInfo) : null,
@@ -227,6 +283,46 @@
     })
 
     // Configuration endpoints
+    app.get('/api/config', function (req, res) {
+        try {
+            const configPath = path.join(appdir, 'config.json')
+            if (fs.existsSync(configPath)) {
+                const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+                res.json(config)
+            } else {
+                // Return default configuration
+                res.json({
+                    autoStartup: false,
+                    fullscreenMode: false,
+                    screenTimeout: 0,
+                    updateInterval: 30,
+                    logLevel: 'info'
+                })
+            }
+        } catch (error) {
+            log.warn('Config load error: ' + error)
+            res.status(500).json({ error: 'Failed to load configuration' })
+        }
+    })
+
+    app.post('/api/config', function (req, res) {
+        try {
+            const config = req.body
+            const configPath = path.join(appdir, 'config.json')
+            fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+            
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (electronID) {
+                electronID.emit("config-updated", config)
+            }
+            
+            res.json({ success: true, message: 'Configuration saved' })
+        } catch (error) {
+            log.warn('Config save error: ' + error)
+            res.status(500).json({ error: 'Failed to save configuration' })
+        }
+    })
+
     app.post('/api/config/save', function (req, res) {
         try {
             const config = req.body
