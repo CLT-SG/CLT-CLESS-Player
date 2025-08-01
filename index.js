@@ -71,7 +71,7 @@ async function performConfigMigration() {
         // Create new enhanced config.json based on existing settings
         const newConfig = {
             // Legacy settings from config.js
-            hostserver: oldConfig.hostserver || 'http://cless4.closed-loop.biz/demo',
+            hostserver: oldConfig.hostserver || 'https://cless4.closed-loop.biz/demo',
             id: oldConfig.id || '10',
             mode: oldConfig.mode || 'online',
             corsproxy: oldConfig.corsproxy || 'N',
@@ -181,7 +181,7 @@ async function performConfigMigration() {
 // Create default config.json
 async function createDefaultConfigJson() {
     const defaultConfig = {
-        hostserver: 'http://cless4.closed-loop.biz/demo',
+        hostserver: 'https://cless4.closed-loop.biz/demo',
         id: '10',
         mode: 'online',
         corsproxy: 'N',
@@ -303,7 +303,7 @@ try {
             log.error(appdir + '/config.js', err)
         } else {
             const config = require(appdir + '/config')
-            var hostserver_update = "var hostserver = 'http://cless4.closed-loop.biz/demo'; // cless server url\r\n"
+            var hostserver_update = "var hostserver = 'https://cless4.closed-loop.biz/demo'; // cless server url\r\n"
             var dsid_update = "var id = '10'; // ds id\r\n"
             var mode_update = "var mode = 'online'; // offline or online\r\n"
             var corsproxy_update = "var corsproxy = 'N'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n"
@@ -1062,7 +1062,7 @@ try {
         })
     }
     fs.writeFile(appdir + '/config.js',
-        "var hostserver = 'http://cless4.closed-loop.biz/demo'; // cless server url\r\n" +
+        "var hostserver = 'https://cless4.closed-loop.biz/demo'; // cless server url\r\n" +
         "var id = '10'; // ds id\r\n" +
         "var mode = 'online'; // offline or online\r\n" +
         "var corsproxy = 'N'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n" +

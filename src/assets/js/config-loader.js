@@ -63,7 +63,7 @@ class ConfigLoader {
                 // Convert to new format structure for compatibility
                 this.config = {
                     // Legacy settings
-                    hostserver: oldConfig.hostserver || 'http://cless4.closed-loop.biz/demo',
+                    hostserver: oldConfig.hostserver || 'https://cless4.closed-loop.biz/demo',
                     id: oldConfig.id || '10',
                     mode: oldConfig.mode || 'online',
                     corsproxy: oldConfig.corsproxy || 'N',
@@ -110,7 +110,7 @@ class ConfigLoader {
      */
     getDefaultConfig() {
         return {
-            hostserver: 'http://cless4.closed-loop.biz/demo',
+            hostserver: 'https://cless4.closed-loop.biz/demo',
             id: '10',
             mode: 'online',
             corsproxy: 'N',

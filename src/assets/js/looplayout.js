@@ -1,6 +1,25 @@
-// Global variable loopArr is declared in index.html
+// Global variables for layout management
+var loopArr = []
+var layoutURLList = []
+var layoutIDList = []
 var loopXMLCurIndex = 1
 var loopTimeout = null
+
+// Global timeout and interval arrays (initialized if not already defined)
+var textTimeout = textTimeout || []
+var mediaTimeout = mediaTimeout || []
+var colImageTimeout = colImageTimeout || []
+var colFaderTimeout = colFaderTimeout || []
+var pageAutoInterval = pageAutoInterval || []
+
+// Additional global variables (should be defined in main HTML files)
+var currentlytID = currentlytID || ''
+var dsid = dsid || ''
+var isLoopLyt = isLoopLyt || false
+
+// Additional global arrays used by layoutxml.js when isLoopLyt is true
+var pagerow = pagerow || []
+var videoJSPlayer = videoJSPlayer || []
 
 function loopNextLayout() {
   if (loopXMLCurIndex >= loopArr.length) {
@@ -13,6 +32,9 @@ function loopNextLayout() {
 }
 
 function playcurrentLayout(xmlData) {
+  // Set loop layout flag since we're in loop mode
+  isLoopLyt = true
+  
   //clear textTimeout slot-text.js
   for (var i = 0; i < textTimeout.length; i++) {
     clearTimeout(textTimeout[i]);
@@ -37,7 +59,7 @@ function playcurrentLayout(xmlData) {
   $('#main').html('') //reset whole page html
   if (loopTimeout) { //clear loopTimeout to reset
     clearTimeout(loopTimeout)
-    loopTimeout - new Array()
+    loopTimeout = null
   }
   var layoutURL = xmlData['attributes']['url']
   currentlytID = layoutURL.split("layout/")
