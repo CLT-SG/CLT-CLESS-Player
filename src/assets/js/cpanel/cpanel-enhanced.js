@@ -52,10 +52,6 @@ $(document).ready(function () {
 
 // Initialize modern dashboard features
 function initModernFeatures() {
-    // Setup brightness slider
-    $('#brightnessSlider').on('input', function() {
-        $('#brightnessValue').text($(this).val())
-    })
     
     // Setup toast notification system
     if (!window.showToast) {
@@ -135,13 +131,6 @@ function setupEventHandlers() {
     })
 
     // New enhanced handlers
-    // Brightness control
-    $('#brightnessSlider').on('input', function() {
-        var value = $(this).val()
-        $('#brightnessValue').text(value)
-        setBrightness(value)
-    })
-
     // Display power control
     $('#displayOn').click(function() {
         setDisplayPower('on')
@@ -370,7 +359,6 @@ function saveConfiguration() {
         screenTimeout: parseInt($('#screenTimeout').val()) || 0,
         updateInterval: parseInt($('#updateInterval').val()) || 30,
         logLevel: $('#logLevel').val(),
-        brightness: parseInt($('#brightnessSlider').val()) || 50,
         timestamp: new Date().toISOString()
     }
 
@@ -403,8 +391,6 @@ function loadConfiguration() {
                 $('#updateInterval').val(data.updateInterval || 30)
                 $('#logLevel').val(data.logLevel || 'info')
                 if (data.brightness) {
-                    $('#brightnessSlider').val(data.brightness)
-                    $('#brightnessValue').text(data.brightness)
                 }
                 showAlert('success', 'Configuration loaded successfully')
             }
