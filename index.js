@@ -517,15 +517,12 @@ try {
 
             win = new BrowserWindow({
                 x: 0,
-                //y: -10000,
-                //width: 0,
-                //height: 0,
-                y: 0,
-                width: 1600,
-                height: 900,
+                y: -10000,
+                width: 0,
+                height: 0,
                 backgroundColor: '#000000',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -551,8 +548,8 @@ try {
                 width: 0,
                 height: 900,
                 backgroundColor: '#302d2d',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -576,7 +573,7 @@ try {
             require('@electron/remote/main').enable(win.webContents)
             require('@electron/remote/main').enable(win2.webContents)
 
-            /*var clessAutoLaunch = new AutoLaunch({
+            var clessAutoLaunch = new AutoLaunch({
                 name: 'Cless Player',
                 path: '/Applications/Minecraft.app',
             })
@@ -587,7 +584,7 @@ try {
             } else {
                 log.info('Disabled auto-startup')
                 clessAutoLaunch.disable()
-            }*/
+            }
 
             win.on('closed', () => {
                 log.info('Closing window 1')
@@ -620,15 +617,15 @@ try {
             })
 
             //hide menu bar
-            //win.setSkipTaskbar(true)
-            //win.setAlwaysOnTop(true)
-            //win2.setSkipTaskbar(true)
-            //win2.setAlwaysOnTop(true)
-            //win.setMenuBarVisibility(false)
-            //win2.setMenuBarVisibility(false)
+            win.setSkipTaskbar(true)
+            win.setAlwaysOnTop(true)
+            win2.setSkipTaskbar(true)
+            win2.setAlwaysOnTop(true)
+            win.setMenuBarVisibility(false)
+            win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
-            //win.setMenu(null)
-            //win2.setMenu(null)
+            win.setMenu(null)
+            win2.setMenu(null)
 
             //APPS CRASH
             win.webContents.on('crashed', (e, killed) => {
