@@ -1,7 +1,18 @@
 # eCLESS Player Control Panel API Enhancement
 
 ## Overview
-This document describes the enhanced API endpoints and features added to the eCLESS Player Control Panel for improved system monitoring, display control, and configuration management.
+Thi#### GET /api/display/screen/:state
+Controls screen on/off toggle with audio muting.
+
+**Parameters:**
+- `state`: "on" or "off"
+
+**Response:**
+```json
+{
+  "success": true,
+  "screen": "off"
+}escribes the enhanced API endpoints and features added to the eCLESS Player Control Panel for improved system monitoring, display control, and configuration management.
 
 ## New API Endpoints
 
@@ -70,7 +81,7 @@ Sets the display brightness level (0-100).
 ```json
 {
   "success": true,
-  "brightness": 75
+  "screen": "off"
 }
 ```
 
@@ -101,7 +112,7 @@ Saves system configuration.
   "screenTimeout": 30,
   "updateInterval": 30,
   "logLevel": "info",
-  "brightness": 75,
+  "screenOnOff": true,
   "timestamp": "2025-07-31T10:30:45.123Z"
 }
 ```
@@ -117,7 +128,7 @@ Loads saved system configuration.
   "screenTimeout": 30,
   "updateInterval": 30,
   "logLevel": "info",
-  "brightness": 75,
+  "screenOnOff": true,
   "timestamp": "2025-07-31T10:30:45.123Z"
 }
 ```
@@ -132,7 +143,7 @@ Loads saved system configuration.
 - Auto-refreshing data every 30 seconds
 
 ### Display Control Panel
-- Brightness slider with real-time adjustment
+- Screen on/off toggle with audio control
 - Display power on/off controls
 - Display information showing resolution, position, and connection type
 - Support for multiple monitors
@@ -157,10 +168,10 @@ Loads saved system configuration.
 
 ### New Events
 
-#### set-brightness
-Controls display brightness.
+#### set-screen-toggle
+Controls screen on/off toggle with audio muting.
 ```javascript
-socket.emit('set-brightness', { level: 75 })
+socket.emit('set-screen-toggle', { state: 'off' })
 ```
 
 #### set-display-power
@@ -197,7 +208,7 @@ socket.emit('update-config', configObject)
 - `displayDiskInfo()`: Renders disk usage information
 
 #### Display Control
-- `setBrightness(level)`: Sets display brightness
+- `setScreenToggle(state)`: Controls screen on/off toggle
 - `setDisplayPower(state)`: Controls display power
 
 #### Configuration Management
@@ -210,9 +221,9 @@ socket.emit('update-config', configObject)
 
 ## Usage Examples
 
-### Setting Display Brightness via API
+### Setting Screen Toggle via API
 ```bash
-curl -X GET "http://localhost:9000/api/display/brightness/75"
+curl -X GET "http://localhost:9000/api/display/screen/off"
 ```
 
 ### Getting System Monitoring Data
@@ -224,7 +235,7 @@ curl -X GET "http://localhost:9000/api/system/monitor"
 ```bash
 curl -X POST "http://localhost:9000/api/config/save" \
   -H "Content-Type: application/json" \
-  -d '{"autoStartup": true, "brightness": 75}'
+  -d '{"autoStartup": true, "screenOnOff": true}'
 ```
 
 ## Installation and Setup

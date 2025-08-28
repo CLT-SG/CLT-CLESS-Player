@@ -212,7 +212,7 @@
             serialkey: serialkey,
             
             // Enhanced settings - preserve existing values or use defaults
-            brightness: (window.configLoader && window.configLoader.config) ? window.configLoader.config.brightness || 75 : 75,
+            screenOnOff: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenOnOff !== undefined ? window.configLoader.config.screenOnOff : true : true,
             fullscreenMode: (window.configLoader && window.configLoader.config) ? window.configLoader.config.fullscreenMode !== undefined ? window.configLoader.config.fullscreenMode : true : true,
             screenTimeout: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenTimeout || 0 : 0,
             updateInterval: (window.configLoader && window.configLoader.config) ? window.configLoader.config.updateInterval || 30 : 30,  

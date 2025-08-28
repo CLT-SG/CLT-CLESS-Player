@@ -252,18 +252,47 @@
     })
 
     // Display control endpoints
-    app.get('/api/display/brightness/:level', function (req, res) {
-        const level = parseInt(req.params.level)
-        if (level >= 0 && level <= 100) {
-            var electronID = io.sockets.sockets.get(userID['eCLESS'])
-            if (electronID) {
-                electronID.emit("set-brightness", { level: level })
-                res.json({ success: true, brightness: level })
+    app.get('/api/display/screen/:state', function (req, res) {
+        const state = req.params.state.toLowerCase()
+        if (state === 'on' || state === 'off') {
+            // For testing, let's execute the mute/unmute commands directly
+            const { exec } = require('child_process')
+            
+            if (state === 'off') {
+                // Mute audio
+                exec('amixer set Master mute', (error, stdout, stderr) => {
+                    if (error) {
+                        console.warn('Failed to mute audio:', error)
+                    } else {
+                        console.log('Audio muted successfully')
+                    }
+                })
             } else {
-                res.status(400).json({ error: 'eCLESS client not connected' })
+                // Unmute audio
+                exec('amixer set Master unmute', (error, stdout, stderr) => {
+                    if (error) {
+                        console.warn('Failed to unmute audio:', error)
+                    } else {
+                        console.log('Audio unmuted successfully')
+                    }
+                })
             }
+
+            // Try to emit to Electron main process if connection exists
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            console.log('userID mapping:', userID)
+            console.log('Looking for eCLESS socket ID:', userID['eCLESS'])
+            console.log('Found electronID:', !!electronID)
+            if (electronID) {
+                electronID.emit("set-screen-toggle", { state: state })
+                console.log('Sent screen toggle event to Electron main process')
+            } else {
+                console.log('No Electron socket connection found, only executed audio commands')
+            }
+            
+            res.json({ success: true, screen: state })
         } else {
-            res.status(400).json({ error: 'Brightness level must be between 0 and 100' })
+            res.status(400).json({ error: 'Screen state must be "on" or "off"' })
         }
     })
 
@@ -540,15 +569,15 @@
             }
         })
 
-        //handle brightness control
-        socket.on('set-brightness', (msg) => {
+        //handle screen toggle control
+        socket.on('set-screen-toggle', (msg) => {
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
                 if (electronID) {
-                    electronID.emit("set-brightness", msg)
+                    electronID.emit("set-screen-toggle", msg)
                 }
             } catch (err) {
-                log.warn('cpanel set-brightness: ' + err)
+                log.warn('cpanel set-screen-toggle: ' + err)
                 return err
             }
         })

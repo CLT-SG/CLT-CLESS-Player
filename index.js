@@ -21,6 +21,7 @@ const si = require('systeminformation')
 const {
     exec
 } = require('child_process')
+const io = require('socket.io-client')
 
 const server = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
@@ -34,6 +35,9 @@ log.transports.file.file = logdir + datelog + '.log'
 //One instance process check
 let win = null
 let win2 = null
+let blackScreenWin = null
+let isMuted = false
+let previousVolume = 1.0
 
 //disable security warning
 delete process.env.ELECTRON_ENABLE_SECURITY_WARNINGS
@@ -84,7 +88,7 @@ async function performConfigMigration() {
             screenTimeout: 0,
             updateInterval: 30,
             logLevel: 'info',
-            brightness: 75,
+            screenOnOff: true,
 
             // Display settings
             displaySettings: {
@@ -157,7 +161,7 @@ async function performConfigMigration() {
                    `Original config.js has been backed up as config.js.backup\n\n` +
                    `New features available:\n` +
                    `• Enhanced system monitoring\n` +
-                   `• Display brightness control\n` +
+                   `• Screen on/off toggle with sound control\n` +
                    `• Advanced configuration management\n` +
                    `• Real-time system information\n\n` +
                    `Access the enhanced control panel at: https://localhost:9000\n\n` +
@@ -192,7 +196,7 @@ async function createDefaultConfigJson() {
         screenTimeout: 0,
         updateInterval: 30,
         logLevel: 'info',
-        brightness: 75,
+        screenOnOff: true,
         displaySettings: {
             resolution: 'auto',
             orientation: 'landscape',
@@ -260,7 +264,7 @@ function loadConfiguration() {
                 screenTimeout: 0,
                 updateInterval: 30,
                 logLevel: 'info',
-                brightness: 75
+                screenOnOff: true
             }
         }
 
@@ -268,6 +272,176 @@ function loadConfiguration() {
     } catch (error) {
         log.error('Error loading configuration:', error)
         return null
+    }
+}
+
+// Screen toggle functionality
+function createBlackScreenWindow() {
+    console.log('createBlackScreenWindow called')
+    log.info('Creating black screen windows')
+    const displays = screen.getAllDisplays()
+    console.log('Found displays:', displays.length)
+    
+    displays.forEach((display, index) => {
+        console.log(`Creating black screen for display ${index}:`, display.bounds)
+        const blackWin = new BrowserWindow({
+            width: display.bounds.width,
+            height: display.bounds.height,
+            x: display.bounds.x,
+            y: display.bounds.y,
+            fullscreen: true,
+            frame: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true
+            }
+        })
+
+        blackWin.loadFile(path.join(__dirname, 'src', 'black-screen.html'))
+        blackWin.setIgnoreMouseEvents(false)
+        
+        if (index === 0) {
+            blackScreenWin = blackWin // Store reference to primary screen window
+            console.log('Set primary black screen window reference')
+        }
+        
+        blackWin.on('closed', () => {
+            if (blackWin === blackScreenWin) {
+                blackScreenWin = null
+            }
+        })
+        
+        console.log(`Black screen window ${index} created`)
+    })
+    
+    log.info('Black screen windows created')
+}
+
+function closeBlackScreenWindow() {
+    console.log('closeBlackScreenWindow called, blackScreenWin:', !!blackScreenWin)
+    log.info('Closing black screen windows')
+    
+    if (blackScreenWin) {
+        blackScreenWin.close()
+        blackScreenWin = null
+        console.log('Primary black screen window closed')
+        
+        // Close all black screen windows
+        BrowserWindow.getAllWindows().forEach(window => {
+            if (window.webContents.getURL().includes('black-screen.html')) {
+                console.log('Closing additional black screen window')
+                window.close()
+            }
+        })
+    }
+    
+    log.info('Black screen windows closed')
+}
+
+function muteSystem() {
+    if (process.platform === 'win32') {
+        // Windows mute command using win-audio
+        exec('win-audio mute', (error) => {
+            if (error) {
+                log.warn('Failed to mute system audio on Windows using win-audio:', error)
+                // Fallback method for Windows
+                exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
+                    if (error) {
+                        log.warn('Failed to mute system audio on Windows (fallback):', error)
+                    } else {
+                        isMuted = true
+                        log.info('System audio muted on Windows (fallback)')
+                    }
+                })
+            } else {
+                isMuted = true
+                log.info('System audio muted on Windows using win-audio')
+            }
+        })
+    } else if (process.platform === 'linux') {
+        // Linux mute command using alsamixer
+        exec('amixer sset Master mute', (error) => {
+            if (error) {
+                log.warn('Failed to mute system audio on Linux using amixer:', error)
+                // Fallback for PulseAudio
+                exec('pactl set-sink-mute @DEFAULT_SINK@ 1', (error) => {
+                    if (error) {
+                        log.warn('Failed to mute system audio on Linux (fallback):', error)
+                    } else {
+                        isMuted = true
+                        log.info('System audio muted on Linux (PulseAudio fallback)')
+                    }
+                })
+            } else {
+                isMuted = true
+                log.info('System audio muted on Linux using amixer')
+            }
+        })
+    }
+}
+
+function unmuteSystem() {
+    if (process.platform === 'win32') {
+        // Windows unmute command using win-audio
+        exec('win-audio unmute', (error) => {
+            if (error) {
+                log.warn('Failed to unmute system audio on Windows using win-audio:', error)
+                // Fallback method for Windows
+                exec('powershell "Set-AudioDevice -PlaybackMute 0"', (error) => {
+                    if (error) {
+                        log.warn('Failed to unmute system audio on Windows (fallback):', error)
+                    } else {
+                        isMuted = false
+                        log.info('System audio unmuted on Windows (fallback)')
+                    }
+                })
+            } else {
+                isMuted = false
+                log.info('System audio unmuted on Windows using win-audio')
+            }
+        })
+    } else if (process.platform === 'linux') {
+        // Linux unmute command using alsamixer
+        exec('amixer sset Master unmute', (error) => {
+            if (error) {
+                log.warn('Failed to unmute system audio on Linux using amixer:', error)
+                // Fallback for PulseAudio
+                exec('pactl set-sink-mute @DEFAULT_SINK@ 0', (error) => {
+                    if (error) {
+                        log.warn('Failed to unmute system audio on Linux (fallback):', error)
+                    } else {
+                        isMuted = false
+                        log.info('System audio unmuted on Linux (PulseAudio fallback)')
+                    }
+                })
+            } else {
+                isMuted = false
+                log.info('System audio unmuted on Linux using amixer')
+            }
+        })
+    }
+}
+
+function handleScreenToggle(state) {
+    console.log('handleScreenToggle called with state:', state)
+    log.info('handleScreenToggle called with state:', state)
+    
+    if (state === 'off' || state === false) {
+        // Screen off: show black overlay and mute sound
+        console.log('Turning screen OFF - creating black overlay and muting audio')
+        createBlackScreenWindow()
+        muteSystem()
+        log.info('Screen toggled OFF: black overlay displayed and audio muted')
+    } else {
+        // Screen on: close black overlay and unmute sound
+        console.log('Turning screen ON - removing black overlay and unmuting audio')
+        closeBlackScreenWindow()
+        if (isMuted) {
+            unmuteSystem()
+        }
+        log.info('Screen toggled ON: black overlay removed and audio unmuted')
     }
 }
 
@@ -521,8 +695,8 @@ try {
                 width: 0,
                 height: 0,
                 backgroundColor: '#000000',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -548,8 +722,8 @@ try {
                 width: 0,
                 height: 900,
                 backgroundColor: '#302d2d',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -617,12 +791,12 @@ try {
             })
 
             //hide menu bar
-            win.setSkipTaskbar(true)
-            win.setAlwaysOnTop(true)
-            win2.setSkipTaskbar(true)
-            win2.setAlwaysOnTop(true)
-            win.setMenuBarVisibility(false)
-            win2.setMenuBarVisibility(false)
+            //win.setSkipTaskbar(true)
+            //win.setAlwaysOnTop(true)
+            //win2.setSkipTaskbar(true)
+            //win2.setAlwaysOnTop(true)
+            //win.setMenuBarVisibility(false)
+            //win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -847,7 +1021,7 @@ try {
                     screenTimeout: args['screenTimeout'] || 0,
                     updateInterval: args['updateInterval'] || 30,
                     logLevel: args['logLevel'] || 'info',
-                    brightness: args['brightness'] || 75,
+                    screenOnOff: args['screenOnOff'] !== undefined ? args['screenOnOff'] : true,
                     displaySettings: args['displaySettings'] || {
                         resolution: 'auto',
                         orientation: 'landscape',
@@ -912,23 +1086,114 @@ try {
 
             // Enhanced IPC handlers for new control panel features
             
-            // Handle brightness control from control panel
-            ipcMain.on('set-brightness', (event, args) => {
-                log.info('Brightness control request:', args)
-                // You can add platform-specific brightness control here
-                // For now, we'll just log and acknowledge
-                if (process.platform === 'win32') {
-                    // Windows brightness control could be implemented here
-                } else if (process.platform === 'linux') {
-                    // Linux brightness control using xrandr
-                    exec(`xrandr --output HDMI-1 --brightness ${args.level / 100}`, (error, stdout, stderr) => {
+            // Handle screen on/off toggle with sound control
+            ipcMain.on('set-screen-toggle', (event, args) => {
+                log.info('Screen toggle request:', args)
+                console.log('Screen toggle request received:', args)
+                handleScreenToggle(args.state)
+            })
+
+            // Socket.io client connection to cpanel server
+            console.log('Attempting to connect to socket.io server...')
+            const socketClient = io('https://localhost:9000', {
+                rejectUnauthorized: false // For self-signed certificates
+            })
+
+            socketClient.on('connect', () => {
+                log.info('Connected to cpanel socket.io server')
+                console.log('Connected to cpanel socket.io server')
+                console.log('Socket ID:', socketClient.id)
+                // Identify this connection as the eCLESS electron client
+                socketClient.emit('save id', 'eCLESS:electron-main-process')
+                console.log('Sent save id event with eCLESS:electron-main-process')
+            })
+
+            socketClient.on('disconnect', () => {
+                log.info('Disconnected from cpanel socket.io server')
+                console.log('Disconnected from cpanel socket.io server')
+            })
+
+            socketClient.on('connect_error', (error) => {
+                log.warn('Socket.io connection error:', error)
+                console.warn('Socket.io connection error:', error)
+            })
+
+            // Socket.io event handlers for screen toggle
+            socketClient.on('set-screen-toggle', (data) => {
+                log.info('Received screen toggle via socket:', data)
+                console.log('Received screen toggle via socket:', data)
+                console.log('Data state:', data.state)
+                handleScreenToggle(data.state)
+            })
+
+            // Test all socket events with debugging
+            socketClient.onAny((eventName, ...args) => {
+                console.log('Received socket event:', eventName, 'with args:', args)
+                log.info('Received socket event:', eventName, 'with args:', args)
+            })
+
+            socketClient.on('set-display-power', (data) => {
+                log.info('Received display power control via socket:', data)
+                console.log('Received display power control via socket:', data)
+                if (process.platform === 'linux') {
+                    const command = data.state === 'on' ? 'xset dpms force on' : 'xset dpms force off'
+                    exec(command, (error, stdout, stderr) => {
                         if (error) {
-                            log.warn('Brightness control error:', error)
+                            log.warn('Display power control error:', error)
                         } else {
-                            log.info('Brightness set to:', args.level)
+                            log.info('Display power set to:', data.state)
                         }
                     })
                 }
+            })
+
+            socketClient.on('update-config', (data) => {
+                log.info('Received config update via socket:', data)
+                console.log('Received config update via socket:', data)
+                try {
+                    const configPath = path.join(appdir, 'config.json')
+                    const currentConfig = loadConfiguration() || {}
+                    const updatedConfig = { ...currentConfig, ...data, timestamp: new Date().toISOString() }
+                    
+                    fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2))
+                    log.info('Configuration updated successfully via socket')
+                } catch (error) {
+                    log.error('Error updating configuration via socket:', error)
+                }
+            })
+
+            // Handle other socket events as needed
+            socketClient.on('replacetextslot', (data) => {
+                log.info('Received replacetextslot via socket:', data)
+                // Handle text slot replacement
+            })
+
+            socketClient.on('replacemediaslot', (data) => {
+                log.info('Received replacemediaslot via socket:', data)
+                // Handle media slot replacement
+            })
+
+            socketClient.on('updatelayout', (data) => {
+                log.info('Received updatelayout via socket:', data)
+                // Handle layout update
+            })
+
+            socketClient.on('refresh-ecless', (data) => {
+                log.info('Received refresh-ecless via socket:', data)
+                // Handle refresh command
+                if (win) {
+                    win.reload()
+                }
+                if (win2) {
+                    win2.reload()
+                }
+            })
+
+            socketClient.on('restart-ecless', (data) => {
+                log.info('Received restart-ecless via socket:', data)
+                // Handle restart command
+                app.relaunch()
+                app.exit()
             })
 
             // Handle display power control
