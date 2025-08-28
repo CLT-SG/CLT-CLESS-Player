@@ -23,6 +23,16 @@ const {
 } = require('child_process')
 const io = require('socket.io-client')
 
+// Windows audio control (only available on Windows)
+let winAudio = null
+try {
+    if (process.platform === 'win32') {
+        winAudio = require('win-audio')
+    }
+} catch (error) {
+    console.log('win-audio package not available (not on Windows or not installed)')
+}
+
 const server = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
@@ -340,26 +350,106 @@ function closeBlackScreenWindow() {
     log.info('Black screen windows closed')
 }
 
+function getCurrentVolume() {
+    return new Promise((resolve, reject) => {
+        if (process.platform === 'win32') {
+            if (winAudio) {
+                try {
+                    const currentVolume = winAudio.speaker.get()
+                    resolve(currentVolume)
+                } catch (error) {
+                    log.warn('Failed to get current volume using win-audio:', error)
+                    resolve(0.8) // Default fallback
+                }
+            } else {
+                resolve(0.8) // Default fallback when win-audio not available
+            }
+        } else if (process.platform === 'linux') {
+            exec('amixer get Master | grep -o "[0-9]*%" | head -n1', (error, stdout) => {
+                if (error) {
+                    log.warn('Failed to get current volume on Linux:', error)
+                    resolve(0.8) // Default fallback
+                } else {
+                    const volumeMatch = stdout.trim().match(/(\d+)%/)
+                    const volumePercent = volumeMatch ? parseInt(volumeMatch[1]) : 80
+                    resolve(volumePercent / 100) // Convert to 0-1 range
+                }
+            })
+        } else if (process.platform === 'darwin') {
+            exec('osascript -e "output volume of (get volume settings)"', (error, stdout) => {
+                if (error) {
+                    log.warn('Failed to get current volume on macOS:', error)
+                    resolve(0.8) // Default fallback
+                } else {
+                    const volume = parseInt(stdout.trim()) / 100 // Convert from 0-100 to 0-1
+                    resolve(volume)
+                }
+            })
+        } else {
+            resolve(0.8) // Default fallback for unknown platforms
+        }
+    })
+}
+
 function muteSystem() {
+    // Store current volume before muting
+    getCurrentVolume().then(currentVolume => {
+        if (currentVolume > 0) {
+            previousVolume = currentVolume
+            log.info(`Stored current volume: ${previousVolume}`)
+        }
+    }).catch(error => {
+        log.warn('Failed to get current volume:', error)
+    })
+    
     if (process.platform === 'win32') {
-        // Windows mute command using win-audio
-        exec('win-audio mute', (error) => {
-            if (error) {
-                log.warn('Failed to mute system audio on Windows using win-audio:', error)
-                // Fallback method for Windows
+        // Windows mute using win-audio package
+        if (winAudio) {
+            try {
+                winAudio.speaker.set(0) // Set volume to 0 (mute)
+                isMuted = true
+                log.info('System audio muted on Windows using win-audio package')
+            } catch (error) {
+                log.warn('Failed to mute system audio on Windows using win-audio package:', error)
+                // Fallback to PowerShell command
                 exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
                     if (error) {
-                        log.warn('Failed to mute system audio on Windows (fallback):', error)
+                        log.warn('Failed to mute system audio on Windows (PowerShell fallback):', error)
+                        // Alternative PowerShell approach
+                        exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                            if (error) {
+                                log.warn('Failed to mute system audio on Windows (alternative):', error)
+                            } else {
+                                isMuted = true
+                                log.info('System audio muted on Windows (alternative method)')
+                            }
+                        })
                     } else {
                         isMuted = true
-                        log.info('System audio muted on Windows (fallback)')
+                        log.info('System audio muted on Windows (PowerShell fallback)')
                     }
                 })
-            } else {
-                isMuted = true
-                log.info('System audio muted on Windows using win-audio')
             }
-        })
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
+                if (error) {
+                    log.warn('Failed to mute system audio on Windows (PowerShell):', error)
+                    // Alternative PowerShell approach using SendKeys to simulate mute key
+                    exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                        if (error) {
+                            log.warn('Failed to mute system audio on Windows (alternative):', error)
+                        } else {
+                            isMuted = true
+                            log.info('System audio muted on Windows (alternative method)')
+                        }
+                    })
+                } else {
+                    isMuted = true
+                    log.info('System audio muted on Windows (PowerShell)')
+                }
+            })
+        }
     } else if (process.platform === 'linux') {
         // Linux mute command using alsamixer
         exec('amixer sset Master mute', (error) => {
@@ -379,29 +469,70 @@ function muteSystem() {
                 log.info('System audio muted on Linux using amixer')
             }
         })
+    } else if (process.platform === 'darwin') {
+        // macOS mute command
+        exec('osascript -e "set volume output muted true"', (error) => {
+            if (error) {
+                log.warn('Failed to mute system audio on macOS:', error)
+            } else {
+                isMuted = true
+                log.info('System audio muted on macOS')
+            }
+        })
     }
 }
 
 function unmuteSystem() {
     if (process.platform === 'win32') {
-        // Windows unmute command using win-audio
-        exec('win-audio unmute', (error) => {
-            if (error) {
-                log.warn('Failed to unmute system audio on Windows using win-audio:', error)
-                // Fallback method for Windows
+        // Windows unmute using win-audio package
+        if (winAudio) {
+            try {
+                // Restore previous volume or set to a reasonable default
+                const restoreVolume = previousVolume > 0 ? previousVolume : 0.8
+                winAudio.speaker.set(restoreVolume)
+                isMuted = false
+                log.info(`System audio unmuted on Windows using win-audio package (volume: ${restoreVolume})`)
+            } catch (error) {
+                log.warn('Failed to unmute system audio on Windows using win-audio package:', error)
+                // Fallback to PowerShell command
                 exec('powershell "Set-AudioDevice -PlaybackMute 0"', (error) => {
                     if (error) {
-                        log.warn('Failed to unmute system audio on Windows (fallback):', error)
+                        log.warn('Failed to unmute system audio on Windows (PowerShell fallback):', error)
+                        // Alternative PowerShell approach
+                        exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                            if (error) {
+                                log.warn('Failed to unmute system audio on Windows (alternative):', error)
+                            } else {
+                                isMuted = false
+                                log.info('System audio unmuted on Windows (alternative method)')
+                            }
+                        })
                     } else {
                         isMuted = false
-                        log.info('System audio unmuted on Windows (fallback)')
+                        log.info('System audio unmuted on Windows (PowerShell fallback)')
                     }
                 })
-            } else {
-                isMuted = false
-                log.info('System audio unmuted on Windows using win-audio')
             }
-        })
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec('powershell "Set-AudioDevice -PlaybackMute 0"', (error) => {
+                if (error) {
+                    log.warn('Failed to unmute system audio on Windows (PowerShell):', error)
+                    // Alternative PowerShell approach using SendKeys to simulate mute key toggle
+                    exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                        if (error) {
+                            log.warn('Failed to unmute system audio on Windows (alternative):', error)
+                        } else {
+                            isMuted = false
+                            log.info('System audio unmuted on Windows (alternative method)')
+                        }
+                    })
+                } else {
+                    isMuted = false
+                    log.info('System audio unmuted on Windows (PowerShell)')
+                }
+            })
+        }
     } else if (process.platform === 'linux') {
         // Linux unmute command using alsamixer
         exec('amixer sset Master unmute', (error) => {
@@ -419,6 +550,16 @@ function unmuteSystem() {
             } else {
                 isMuted = false
                 log.info('System audio unmuted on Linux using amixer')
+            }
+        })
+    } else if (process.platform === 'darwin') {
+        // macOS unmute command
+        exec('osascript -e "set volume output muted false"', (error) => {
+            if (error) {
+                log.warn('Failed to unmute system audio on macOS:', error)
+            } else {
+                isMuted = false
+                log.info('System audio unmuted on macOS')
             }
         })
     }

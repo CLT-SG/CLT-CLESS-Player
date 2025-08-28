@@ -44,6 +44,9 @@
         "systeminformation": "^5.23.5",
         "xml-js": "^1.6.11"
     },
+    "optionalDependencies": {
+        "win-audio": "^3.0.5"
+    },
     "devDependencies": {
         "electron": "^22.3.9",
         "electron-builder": "^22.3.3"
