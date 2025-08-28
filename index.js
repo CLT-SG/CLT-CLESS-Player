@@ -918,8 +918,9 @@ try {
             win = new BrowserWindow({
                 x: 0,
                 y: -10000,
-                width: 0,
-                height: 0,
+                y: 0,
+                width: 900,
+                height: 900,
                 backgroundColor: '#000000',
                 //alwaysOnTop: true,
                 //autoHideMenuBar: true,
