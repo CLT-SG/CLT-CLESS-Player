@@ -1126,27 +1126,6 @@ try {
                 handleScreenToggle(data.state)
             })
 
-            // Test all socket events with debugging
-            socketClient.onAny((eventName, ...args) => {
-                console.log('Received socket event:', eventName, 'with args:', args)
-                log.info('Received socket event:', eventName, 'with args:', args)
-            })
-
-            socketClient.on('set-display-power', (data) => {
-                log.info('Received display power control via socket:', data)
-                console.log('Received display power control via socket:', data)
-                if (process.platform === 'linux') {
-                    const command = data.state === 'on' ? 'xset dpms force on' : 'xset dpms force off'
-                    exec(command, (error, stdout, stderr) => {
-                        if (error) {
-                            log.warn('Display power control error:', error)
-                        } else {
-                            log.info('Display power set to:', data.state)
-                        }
-                    })
-                }
-            })
-
             socketClient.on('update-config', (data) => {
                 log.info('Received config update via socket:', data)
                 console.log('Received config update via socket:', data)
@@ -1194,21 +1173,6 @@ try {
                 // Handle restart command
                 app.relaunch()
                 app.exit()
-            })
-
-            // Handle display power control
-            ipcMain.on('set-display-power', (event, args) => {
-                log.info('Display power control request:', args)
-                if (process.platform === 'linux') {
-                    const command = args.state === 'on' ? 'xset dpms force on' : 'xset dpms force off'
-                    exec(command, (error, stdout, stderr) => {
-                        if (error) {
-                            log.warn('Display power control error:', error)
-                        } else {
-                            log.info('Display power set to:', args.state)
-                        }
-                    })
-                }
             })
 
             // Handle configuration updates from control panel

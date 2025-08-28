@@ -297,21 +297,6 @@
         }
     })
 
-    app.get('/api/display/power/:state', function (req, res) {
-        const state = req.params.state.toLowerCase()
-        if (state === 'on' || state === 'off') {
-            var electronID = io.sockets.sockets.get(userID['eCLESS'])
-            if (electronID) {
-                electronID.emit("set-display-power", { state: state })
-                res.json({ success: true, power: state })
-            } else {
-                res.status(400).json({ error: 'eCLESS client not connected' })
-            }
-        } else {
-            res.status(400).json({ error: 'Power state must be "on" or "off"' })
-        }
-    })
-
     // Configuration endpoints
     app.get('/api/config', function (req, res) {
         try {
@@ -584,19 +569,6 @@
                 }
             } catch (err) {
                 log.warn('cpanel set-screen-toggle: ' + err)
-                return err
-            }
-        })
-
-        //handle display power control
-        socket.on('set-display-power', (msg) => {
-            try {
-                var electronSocketId = userID['eCLESS']
-                if (electronSocketId) {
-                    io.to(electronSocketId).emit("set-display-power", msg)
-                }
-            } catch (err) {
-                log.warn('cpanel set-display-power: ' + err)
                 return err
             }
         })

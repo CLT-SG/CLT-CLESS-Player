@@ -131,24 +131,31 @@ function setupEventHandlers() {
     })
 
     // New enhanced handlers
-    // Screen toggle control
+    // Screen toggle control with one-time click protection
     $('#screenOn').click(function() {
         console.log('Screen ON button clicked');
-        setScreenToggle('on')
+        // Check if button is already disabled to prevent multiple clicks
+        if ($(this).prop('disabled')) {
+            console.log('Screen ON button is disabled, ignoring click');
+            return;
+        }
+        // Disable both buttons immediately to prevent multiple clicks
+        $('#screenOn').prop('disabled', true).addClass('btn-loading');
+        $('#screenOff').prop('disabled', true);
+        setScreenToggle('on');
     })
 
     $('#screenOff').click(function() {
         console.log('Screen OFF button clicked');
-        setScreenToggle('off')
-    })
-
-    // Display power control
-    $('#displayOn').click(function() {
-        setDisplayPower('on')
-    })
-
-    $('#displayOff').click(function() {
-        setDisplayPower('off')
+        // Check if button is already disabled to prevent multiple clicks
+        if ($(this).prop('disabled')) {
+            console.log('Screen OFF button is disabled, ignoring click');
+            return;
+        }
+        // Disable both buttons immediately to prevent multiple clicks
+        $('#screenOff').prop('disabled', true).addClass('btn-loading');
+        $('#screenOn').prop('disabled', true);
+        setScreenToggle('off');
     })
 
     // Configuration handlers
@@ -331,25 +338,18 @@ function refreshSystemMonitoring() {
     })
 }
 
-// Display control functions
-
-function setDisplayPower(state) {
-    $.ajax({
-        type: 'get',
-        url: `/api/display/power/${state}`,
-        success: function (data) {
-            if (data.success) {
-                showAlert('success', `Display ${state === 'on' ? 'turned on' : 'turned off'}`)
-            }
-        },
-        error: function () {
-            showAlert('danger', `Failed to turn display ${state}`)
-        }
-    })
-}
+// Screen control functions
 
 function setScreenToggle(state) {
     console.log('setScreenToggle called with state:', state)
+    
+    const screenOnBtn = $('#screenOn')
+    const screenOffBtn = $('#screenOff')
+    
+    // Show loading state on the clicked button
+    const clickedBtn = state === 'on' ? screenOnBtn : screenOffBtn
+    clickedBtn.addClass('loading')
+    
     $.ajax({
         type: 'get',
         url: `/api/display/screen/${state}`,
@@ -357,21 +357,33 @@ function setScreenToggle(state) {
             console.log('Screen toggle success:', data)
             if (data.success) {
                 showAlert('success', `Screen ${state === 'on' ? 'turned on' : 'turned off'}`)
-                // Update UI to reflect the new state
+                
+                // Update button states based on new screen state
                 if (state === 'off') {
-                    $('#screenOn').removeClass('btn-secondary').addClass('btn-success')
-                    $('#screenOff').removeClass('btn-success').addClass('btn-secondary')
+                    // Screen is now OFF - disable screen off button, enable screen on button
+                    screenOffBtn.prop('disabled', true).removeClass('btn-danger loading').addClass('btn-secondary')
+                    screenOnBtn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-success')
                     if (window.showToast) showToast('Screen turned off - Black overlay displayed and audio muted', 'info')
                 } else {
-                    $('#screenOff').removeClass('btn-secondary').addClass('btn-danger')
-                    $('#screenOn').removeClass('btn-danger').addClass('btn-success')
+                    // Screen is now ON - disable screen on button, enable screen off button
+                    screenOnBtn.prop('disabled', true).removeClass('btn-success loading').addClass('btn-secondary')
+                    screenOffBtn.prop('disabled', false).removeClass('btn-secondary').addClass('btn-danger')
                     if (window.showToast) showToast('Screen turned on - Black overlay removed and audio unmuted', 'success')
                 }
+            } else {
+                // Re-enable both buttons on failure
+                screenOnBtn.prop('disabled', false).removeClass('loading')
+                screenOffBtn.prop('disabled', false).removeClass('loading')
+                showAlert('danger', `Failed to toggle screen: ${data.message || 'Unknown error'}`)
             }
         },
         error: function (xhr, status, error) {
             console.error('Screen toggle failed:', status, error, xhr.responseText)
             showAlert('danger', `Failed to turn screen ${state}: ${error}`)
+            
+            // Re-enable both buttons on error
+            screenOnBtn.prop('disabled', false).removeClass('loading')
+            screenOffBtn.prop('disabled', false).removeClass('loading')
         }
     })
 }
