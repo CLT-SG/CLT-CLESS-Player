@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Off</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000000;
+            overflow: hidden;
+            cursor: none;
+        }
+        
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #000000;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+        
+        .message {
+            color: #333;
+            font-family: Arial, sans-serif;
+            font-size: 24px;
+            text-align: center;
+            opacity: 0.3;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="overlay">
+        <!--<div class="message">Screen Off</div>-->
+    </div>
+    
+    <script>
+        // Prevent context menu
+        document.addEventListener('contextmenu', e => e.preventDefault());
+        
+        // Disable text selection
+        document.addEventListener('selectstart', e => e.preventDefault());
+        
+        // Hide cursor after a short delay
+        setTimeout(() => {
+            document.body.style.cursor = 'none';
+        }, 1000);
+        
+        // Log when black screen is displayed
+        console.log('Black screen overlay active');
+    </script>
+</body>
+</html>

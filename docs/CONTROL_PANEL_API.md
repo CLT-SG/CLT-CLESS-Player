@@ -1,7 +1,7 @@
 # eCLESS Player Control Panel API Enhancement
 
 ## Overview
-This document describes the enhanced API endpoints and features added to the eCLESS Player Control Panel for improved system monitoring, display control, and configuration management.
+This document describes the enhanced API endpoints and features added to the eCLESS Player Control Panel for improved system monitoring, audio-based screen control, volume management, and configuration management.
 
 ## New API Endpoints
 
@@ -58,24 +58,10 @@ Returns real-time system monitoring data including CPU load, memory usage, disk 
 }
 ```
 
-### Display Control
+### Audio-Based Screen Control
 
-#### GET /api/display/brightness/:level
-Sets the display brightness level (0-100).
-
-**Parameters:**
-- `level`: Integer between 0 and 100
-
-**Response:**
-```json
-{
-  "success": true,
-  "brightness": 75
-}
-```
-
-#### GET /api/display/power/:state
-Controls display power state.
+#### GET /api/display/screen/:state
+Controls screen on/off toggle with audio muting and black screen overlay.
 
 **Parameters:**
 - `state`: "on" or "off"
@@ -84,7 +70,65 @@ Controls display power state.
 ```json
 {
   "success": true,
-  "power": "on"
+  "screen": "off"
+}
+```
+
+**Behavior:**
+- **Screen OFF**: Mutes system audio and displays full-screen black overlay
+- **Screen ON**: Unmutes system audio and removes black overlay
+- Cross-platform audio control (Linux: amixer/PulseAudio, Windows: win-audio/PowerShell, macOS: osascript)
+
+### Volume Control
+
+#### GET /api/volume/mute
+Mutes system audio.
+
+**Response:**
+```json
+{
+  "success": true,
+  "action": "mute"
+}
+```
+
+#### GET /api/volume/unmute
+Unmutes system audio.
+
+**Response:**
+```json
+{
+  "success": true,
+  "action": "unmute"
+}
+```
+
+#### POST /api/volume/set
+Sets system volume level.
+
+**Request Body:**
+```json
+{
+  "volume": 75
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "volume": 75
+}
+```
+
+#### GET /api/volume/get
+Requests current volume level (response sent via Socket.IO).
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Volume request sent"
 }
 ```
 
@@ -101,7 +145,7 @@ Saves system configuration.
   "screenTimeout": 30,
   "updateInterval": 30,
   "logLevel": "info",
-  "brightness": 75,
+  "screenOnOff": true,
   "timestamp": "2025-07-31T10:30:45.123Z"
 }
 ```
@@ -117,7 +161,7 @@ Loads saved system configuration.
   "screenTimeout": 30,
   "updateInterval": 30,
   "logLevel": "info",
-  "brightness": 75,
+  "screenOnOff": true,
   "timestamp": "2025-07-31T10:30:45.123Z"
 }
 ```
@@ -131,11 +175,18 @@ Loads saved system configuration.
 - Network activity monitoring
 - Auto-refreshing data every 30 seconds
 
-### Display Control Panel
-- Brightness slider with real-time adjustment
-- Display power on/off controls
-- Display information showing resolution, position, and connection type
-- Support for multiple monitors
+### Audio-Based Screen Control Panel
+- Screen on/off toggle with audio muting and black screen overlay
+- Visual feedback with button state management
+- One-time click protection to prevent multiple simultaneous requests
+- Cross-platform audio control support
+
+### Volume Control Panel
+- Mute/Unmute buttons with visual state indicators
+- Volume slider with real-time adjustment (0-100%)
+- Current volume display with percentage feedback
+- Debounced slider input to prevent API spam
+- Auto-detection of current volume level on page load
 
 ### System Configuration Panel
 - Auto-startup configuration
@@ -155,19 +206,44 @@ Loads saved system configuration.
 
 ## Socket.IO Events
 
-### New Events
+### Screen Control Events
 
-#### set-brightness
-Controls display brightness.
+#### set-screen-toggle
+Controls screen on/off toggle with audio muting and black screen overlay.
 ```javascript
-socket.emit('set-brightness', { level: 75 })
+socket.emit('set-screen-toggle', { state: 'off' })
 ```
 
-#### set-display-power
-Controls display power state.
+### Volume Control Events
+
+#### set-volume-mute
+Controls system audio muting.
 ```javascript
-socket.emit('set-display-power', { state: 'on' })
+socket.emit('set-volume-mute', { action: 'mute' })
+socket.emit('set-volume-mute', { action: 'unmute' })
 ```
+
+#### set-volume-level
+Sets system volume level.
+```javascript
+socket.emit('set-volume-level', { volume: 75 })
+```
+
+#### get-volume-level
+Requests current volume level.
+```javascript
+socket.emit('get-volume-level', { requestId: Date.now() })
+```
+
+#### volume-level-response
+Response event with current volume level.
+```javascript
+socket.on('volume-level-response', function(data) {
+  console.log('Current volume:', data.volume + '%')
+})
+```
+
+### Configuration Events
 
 #### update-config
 Updates system configuration.
@@ -187,32 +263,86 @@ socket.emit('update-config', configObject)
 
 ## JavaScript Enhancements
 
-### New Functions
+## JavaScript Enhancements
 
-#### System Monitoring
+### Audio-Based Screen Control Functions
+- `setScreenToggle(state)`: Controls screen on/off toggle with audio muting and black screen overlay
+- `handleScreenToggle(state)`: Main process handler for screen toggle functionality
+- `muteSystem()`: Cross-platform system audio muting
+- `unmuteSystem()`: Cross-platform system audio unmuting
+- `createBlackScreenWindow()`: Creates full-screen black overlay window
+- `closeBlackScreenWindow()`: Removes black screen overlay
+
+### Volume Control Functions
+- `setVolumeMute()`: Mutes system audio with UI feedback
+- `setVolumeUnmute()`: Unmutes system audio with UI feedback
+- `setVolumeLevel(volume)`: Sets system volume level (0-100)
+- `getCurrentVolumeLevel()`: Requests current volume level
+- `setSystemVolume(volumePercent)`: Main process volume control function
+- `getCurrentVolume()`: Cross-platform volume detection
+
+### System Monitoring Functions
 - `startSystemMonitoring()`: Initializes real-time monitoring
 - `refreshSystemMonitoring()`: Updates monitoring data
 - `displayNetworkInterfaces()`: Renders network interface information
 - `displayDisplayInfo()`: Renders display information
 - `displayDiskInfo()`: Renders disk usage information
 
-#### Display Control
-- `setBrightness(level)`: Sets display brightness
-- `setDisplayPower(state)`: Controls display power
-
-#### Configuration Management
+### Configuration Management Functions
 - `saveConfiguration()`: Saves current configuration
 - `loadConfiguration()`: Loads saved configuration
 
-#### Utility Functions
+### Utility Functions
 - `formatBytes(bytes)`: Formats byte values to human-readable format
 - `showAlert(type, message)`: Shows user notifications
 
+## Cross-Platform Audio Support
+
+### Windows Audio Control
+- **Primary Method**: win-audio package for native system audio control
+- **Fallback Methods**: 
+  - PowerShell `Set-AudioDevice` commands
+  - SendKeys method for mute key simulation
+- **Volume Management**: Direct volume level control with preservation
+- **Installation**: win-audio package installed as optional dependency
+
+### Linux Audio Control
+- **Primary Method**: amixer commands for ALSA audio control
+- **Fallback Method**: PulseAudio pactl commands
+- **Volume Management**: Percentage-based volume control
+- **Compatibility**: Works with most Linux distributions
+
+### macOS Audio Control
+- **Method**: osascript AppleScript commands
+- **Volume Management**: Native macOS volume control
+- **Compatibility**: macOS 10.10+ supported
+
 ## Usage Examples
 
-### Setting Display Brightness via API
+### Setting Screen Toggle via API
 ```bash
-curl -X GET "http://localhost:9000/api/display/brightness/75"
+# Turn screen off (mute audio + black overlay)
+curl -X GET "http://localhost:9000/api/display/screen/off"
+
+# Turn screen on (unmute audio + remove overlay)
+curl -X GET "http://localhost:9000/api/display/screen/on"
+```
+
+### Volume Control via API
+```bash
+# Mute system audio
+curl -X GET "http://localhost:9000/api/volume/mute"
+
+# Unmute system audio
+curl -X GET "http://localhost:9000/api/volume/unmute"
+
+# Set volume to 75%
+curl -X POST "http://localhost:9000/api/volume/set" \
+  -H "Content-Type: application/json" \
+  -d '{"volume": 75}'
+
+# Get current volume level
+curl -X GET "http://localhost:9000/api/volume/get"
 ```
 
 ### Getting System Monitoring Data
@@ -224,16 +354,23 @@ curl -X GET "http://localhost:9000/api/system/monitor"
 ```bash
 curl -X POST "http://localhost:9000/api/config/save" \
   -H "Content-Type: application/json" \
-  -d '{"autoStartup": true, "brightness": 75}'
+  -d '{"autoStartup": true, "screenOnOff": true}'
 ```
 
 ## Installation and Setup
 
-1. The enhanced control panel uses the existing dependencies
-2. Replace the cpanel.html with the enhanced version
-3. Update cpanel.js with the new API endpoints
-4. Include the cpanel-enhanced.js file
-5. Restart the application
+1. The enhanced control panel uses the existing dependencies plus optional win-audio package
+2. Install dependencies: `npm install` (win-audio will be installed on Windows automatically)
+3. Replace the cpanel.html with the enhanced version including volume controls
+4. Update cpanel.js with the new API endpoints for volume control
+5. Include the enhanced cpanel-enhanced.js file with volume control functions
+6. Update index.js with cross-platform audio control functions
+7. Restart the application
+
+### Dependencies
+- **Required**: All existing dependencies
+- **Optional**: win-audio package (Windows only, installed automatically)
+- **Cross-platform**: Works on Windows, Linux, and macOS
 
 ## Browser Compatibility
 - Chrome/Chromium (recommended)
@@ -244,7 +381,9 @@ curl -X POST "http://localhost:9000/api/config/save" \
 ## Security Considerations
 - All API endpoints require access to the local network (port 9000)
 - Configuration data is stored locally in JSON format
-- Display control commands are sent via Socket.IO for real-time response
+- Audio and screen control commands are sent via Socket.IO for real-time response
+- Volume control commands require system-level audio permissions
+- Cross-platform audio commands use appropriate system APIs
 
 ## Future Enhancements
 - Remote desktop control integration
@@ -253,3 +392,19 @@ curl -X POST "http://localhost:9000/api/config/save" \
 - Performance graphs and historical data
 - Mobile-responsive design
 - Multi-language support
+- Audio device selection
+- Volume level presets
+- Audio equalizer controls
+- Multiple monitor support for screen control
+
+## Changelog
+
+### Version 2.2.1 - Audio-Based Screen Control
+- **BREAKING CHANGE**: Removed traditional display power controls
+- Added audio-based screen toggle with black screen overlay
+- Implemented cross-platform audio control (Windows/Linux/macOS)
+- Added win-audio package support for Windows
+- Added comprehensive volume control functionality
+- Enhanced button state management with one-time click protection
+- Improved error handling and fallback methods
+- Added real-time volume level detection and control

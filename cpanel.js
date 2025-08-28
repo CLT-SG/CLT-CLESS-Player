@@ -38,6 +38,9 @@
     const datelog = datetime.format(now, 'YYYY-MM-DD')
     log.transports.file.file = logdir + datelog + '.log'
 
+    // Debug function for development-only logging
+    const debug = process.env.NODE_ENV === 'development' ? log.debug : () => {}
+
     var cpuInfo
     var memoryInfo
     var diskInfo
@@ -252,33 +255,94 @@
     })
 
     // Display control endpoints
-    app.get('/api/display/brightness/:level', function (req, res) {
-        const level = parseInt(req.params.level)
-        if (level >= 0 && level <= 100) {
-            var electronID = io.sockets.sockets.get(userID['eCLESS'])
-            if (electronID) {
-                electronID.emit("set-brightness", { level: level })
-                res.json({ success: true, brightness: level })
+    app.get('/api/display/screen/:state', function (req, res) {
+        const state = req.params.state.toLowerCase()
+        if (state === 'on' || state === 'off') {
+            // For testing, let's execute the mute/unmute commands directly
+            const { exec } = require('child_process')
+            
+            if (state === 'off') {
+                // Mute audio
+                exec('amixer set Master mute', (error, stdout, stderr) => {
+                    if (error) {
+                        console.warn('Failed to mute audio:', error)
+                    } else {
+                        debug('Audio muted successfully')
+                    }
+                })
             } else {
-                res.status(400).json({ error: 'eCLESS client not connected' })
+                // Unmute audio
+                exec('amixer set Master unmute', (error, stdout, stderr) => {
+                    if (error) {
+                        console.warn('Failed to unmute audio:', error)
+                    } else {
+                        debug('Audio unmuted successfully')
+                    }
+                })
             }
+
+            // Try to emit to Electron main process if connection exists
+            var electronSocketId = userID['eCLESS']
+            debug('userID mapping:', userID)
+            debug('Looking for eCLESS socket ID:', electronSocketId)
+            
+            if (electronSocketId) {
+                // Use Socket.IO 4.x syntax to emit to specific socket
+                io.to(electronSocketId).emit("set-screen-toggle", { state: state })
+                debug('Sent screen toggle event to Electron main process via socket ID:', electronSocketId)
+            } else {
+                debug('No Electron socket connection found, only executed audio commands')
+            }
+            
+            res.json({ success: true, screen: state })
         } else {
-            res.status(400).json({ error: 'Brightness level must be between 0 and 100' })
+            res.status(400).json({ error: 'Screen state must be "on" or "off"' })
         }
     })
 
-    app.get('/api/display/power/:state', function (req, res) {
-        const state = req.params.state.toLowerCase()
-        if (state === 'on' || state === 'off') {
-            var electronID = io.sockets.sockets.get(userID['eCLESS'])
-            if (electronID) {
-                electronID.emit("set-display-power", { state: state })
-                res.json({ success: true, power: state })
+    // Volume control endpoints
+    app.get('/api/volume/mute', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("set-volume-mute", { action: 'mute' })
+            res.json({ success: true, action: 'mute' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
+        }
+    })
+
+    app.get('/api/volume/unmute', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("set-volume-mute", { action: 'unmute' })
+            res.json({ success: true, action: 'unmute' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
+        }
+    })
+
+    app.post('/api/volume/set', function (req, res) {
+        const volume = req.body.volume
+        if (volume >= 0 && volume <= 100) {
+            var electronSocketId = userID['eCLESS']
+            if (electronSocketId) {
+                io.to(electronSocketId).emit("set-volume-level", { volume: volume })
+                res.json({ success: true, volume: volume })
             } else {
                 res.status(400).json({ error: 'eCLESS client not connected' })
             }
         } else {
-            res.status(400).json({ error: 'Power state must be "on" or "off"' })
+            res.status(400).json({ error: 'Volume must be between 0 and 100' })
+        }
+    })
+
+    app.get('/api/volume/get', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("get-volume-level", { requestId: Date.now() })
+            res.json({ success: true, message: 'Volume request sent' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
         }
     })
 
@@ -416,10 +480,15 @@
         //save user id to specific pc
         socket.on('save id', (msg) => {
             var clientid = msg.substr(0, msg.indexOf(':'))
+            debug('Received save id event:', msg)
+            debug('Parsed clientid:', clientid)
+            debug('Socket ID for this connection:', socket.id)
             if (clientid == 'eCLESS') {
                 userID[clientid] = socket.id
+                debug('Saved eCLESS socket mapping:', userID[clientid])
             } else {
                 userID[clientip] = socket.id
+                debug('Saved IP socket mapping for', clientip, ':', userID[clientip])
             }
         })
 
@@ -472,7 +541,7 @@
                     //handling error
                     if (err) {
                         log.warn('Unable to scan directory: ' + err)
-                        return console.log('Unable to scan directory: ' + err)
+                        return debug('Unable to scan directory: ' + err)
                     }
                     //listing all files using forEach
                     files.forEach(function (file, index) {
@@ -540,28 +609,65 @@
             }
         })
 
-        //handle brightness control
-        socket.on('set-brightness', (msg) => {
+        //handle screen toggle control
+        socket.on('set-screen-toggle', (msg) => {
             try {
-                var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                if (electronID) {
-                    electronID.emit("set-brightness", msg)
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-screen-toggle", msg)
                 }
             } catch (err) {
-                log.warn('cpanel set-brightness: ' + err)
+                log.warn('cpanel set-screen-toggle: ' + err)
                 return err
             }
         })
 
-        //handle display power control
-        socket.on('set-display-power', (msg) => {
+        //handle volume control
+        socket.on('set-volume-mute', (msg) => {
             try {
-                var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                if (electronID) {
-                    electronID.emit("set-display-power", msg)
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-volume-mute", msg)
                 }
             } catch (err) {
-                log.warn('cpanel set-display-power: ' + err)
+                log.warn('cpanel set-volume-mute: ' + err)
+                return err
+            }
+        })
+
+        socket.on('set-volume-level', (msg) => {
+            try {
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-volume-level", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel set-volume-level: ' + err)
+                return err
+            }
+        })
+
+        socket.on('get-volume-level', (msg) => {
+            try {
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("get-volume-level", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel get-volume-level: ' + err)
+                return err
+            }
+        })
+
+        //handle volume level response from Electron
+        socket.on('volume-level-response', (msg) => {
+            try {
+                debug('Received volume level response from Electron:', msg)
+                // Broadcast to all control panel clients
+                socket.broadcast.emit('volume-level-response', msg)
+                log.info('Volume level response broadcasted to control panels:', msg)
+            } catch (err) {
+                log.warn('cpanel volume-level-response: ' + err)
                 return err
             }
         })
@@ -589,7 +695,7 @@
 
     server.listen(port, () => {
         log.info(`Express server listening on port ${port}`)
-        console.log(`Express server listening on port ${port}`)
+        log.info(`Express server listening on port ${port}`)
     })
 
     // Initial system information gathering

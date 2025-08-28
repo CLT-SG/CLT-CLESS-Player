@@ -21,19 +21,45 @@ const si = require('systeminformation')
 const {
     exec
 } = require('child_process')
+const io = require('socket.io-client')
+
+// Windows audio control (only available on Windows)
+let winAudio = null
+try {
+    if (process.platform === 'win32') {
+        winAudio = require('win-audio')
+    }
+} catch (error) {
+    debug('win-audio package not available (not on Windows or not installed)')
+}
 
 const server = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
-const now = new Date()
 const date = require('date-and-time')
-const datelog = date.format(now, 'YYYY-MM-DD')
-var log = require('electron-log')
-log.transports.file.file = logdir + datelog + '.log'
+const log = require('electron-log')
+// Always use current date for log file name
+log.transports.file.getFile = () => {
+    const now = new Date();
+    return logdir + date.format(now, 'YYYY-MM-DD') + '.log';
+};
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB max file size
+log.transports.console.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+// Set log levels based on environment
+const isDebug = process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true';
+log.transports.file.level = isDebug ? 'debug' : 'info';
+log.transports.console.level = isDebug ? 'debug' : 'warn';
+
+// Optimize console logging
+const debug = isDebug ? log.debug : () => {} // Disable debug logs in production
 
 //One instance process check
 let win = null
 let win2 = null
+let blackScreenWin = null
+let isMuted = false
+let previousVolume = 1.0
 
 //disable security warning
 delete process.env.ELECTRON_ENABLE_SECURITY_WARNINGS
@@ -84,7 +110,7 @@ async function performConfigMigration() {
             screenTimeout: 0,
             updateInterval: 30,
             logLevel: 'info',
-            brightness: 75,
+            screenOnOff: true,
 
             // Display settings
             displaySettings: {
@@ -157,7 +183,7 @@ async function performConfigMigration() {
                    `Original config.js has been backed up as config.js.backup\n\n` +
                    `New features available:\n` +
                    `• Enhanced system monitoring\n` +
-                   `• Display brightness control\n` +
+                   `• Screen on/off toggle with sound control\n` +
                    `• Advanced configuration management\n` +
                    `• Real-time system information\n\n` +
                    `Access the enhanced control panel at: https://localhost:9000\n\n` +
@@ -192,7 +218,7 @@ async function createDefaultConfigJson() {
         screenTimeout: 0,
         updateInterval: 30,
         logLevel: 'info',
-        brightness: 75,
+        screenOnOff: true,
         displaySettings: {
             resolution: 'auto',
             orientation: 'landscape',
@@ -260,7 +286,7 @@ function loadConfiguration() {
                 screenTimeout: 0,
                 updateInterval: 30,
                 logLevel: 'info',
-                brightness: 75
+                screenOnOff: true
             }
         }
 
@@ -268,6 +294,381 @@ function loadConfiguration() {
     } catch (error) {
         log.error('Error loading configuration:', error)
         return null
+    }
+}
+
+// Screen toggle functionality
+function createBlackScreenWindow() {
+    debug('createBlackScreenWindow called')
+    log.info('Creating black screen windows')
+    const displays = screen.getAllDisplays()
+    debug('Found displays:', displays.length)
+    
+    displays.forEach((display, index) => {
+        debug(`Creating black screen for display ${index}:`, display.bounds)
+        const blackWin = new BrowserWindow({
+            width: display.bounds.width,
+            height: display.bounds.height,
+            x: display.bounds.x,
+            y: display.bounds.y,
+            fullscreen: true,
+            frame: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true
+            }
+        })
+
+        blackWin.loadFile(path.join(__dirname, 'src', 'black-screen.html'))
+        blackWin.setIgnoreMouseEvents(false)
+        
+        if (index === 0) {
+            blackScreenWin = blackWin // Store reference to primary screen window
+            debug('Set primary black screen window reference')
+        }
+        
+        blackWin.on('closed', () => {
+            if (blackWin === blackScreenWin) {
+                blackScreenWin = null
+            }
+        })
+        
+        debug(`Black screen window ${index} created`)
+    })
+    
+    log.info('Black screen windows created')
+}
+
+function closeBlackScreenWindow() {
+    debug('closeBlackScreenWindow called, blackScreenWin:', !!blackScreenWin)
+    log.info('Closing black screen windows')
+    
+    if (blackScreenWin) {
+        blackScreenWin.close()
+        blackScreenWin = null
+        debug('Primary black screen window closed')
+        
+        // Close all black screen windows
+        BrowserWindow.getAllWindows().forEach(window => {
+            if (window.webContents.getURL().includes('black-screen.html')) {
+                debug('Closing additional black screen window')
+                window.close()
+            }
+        })
+    }
+    
+    log.info('Black screen windows closed')
+}
+
+function getCurrentVolume() {
+    return new Promise((resolve, reject) => {
+        if (process.platform === 'win32') {
+            if (winAudio) {
+                try {
+                    const currentVolume = winAudio.speaker.get()
+                    resolve(currentVolume)
+                } catch (error) {
+                    log.warn('Failed to get current volume using win-audio:', error)
+                    resolve(0.8) // Default fallback
+                }
+            } else {
+                resolve(0.8) // Default fallback when win-audio not available
+            }
+        } else if (process.platform === 'linux') {
+            exec('amixer get Master | grep -o "[0-9]*%" | head -n1', (error, stdout) => {
+                if (error) {
+                    log.warn('Failed to get current volume on Linux:', error)
+                    resolve(0.8) // Default fallback
+                } else {
+                    const volumeMatch = stdout.trim().match(/(\d+)%/)
+                    const volumePercent = volumeMatch ? parseInt(volumeMatch[1]) : 80
+                    resolve(volumePercent / 100) // Convert to 0-1 range
+                }
+            })
+        } else if (process.platform === 'darwin') {
+            exec('osascript -e "output volume of (get volume settings)"', (error, stdout) => {
+                if (error) {
+                    log.warn('Failed to get current volume on macOS:', error)
+                    resolve(0.8) // Default fallback
+                } else {
+                    const volume = parseInt(stdout.trim()) / 100 // Convert from 0-100 to 0-1
+                    resolve(volume)
+                }
+            })
+        } else {
+            resolve(0.8) // Default fallback for unknown platforms
+        }
+    })
+}
+
+function muteSystem() {
+    // Store current volume before muting
+    getCurrentVolume().then(currentVolume => {
+        if (currentVolume > 0) {
+            previousVolume = currentVolume
+            log.info(`Stored current volume: ${previousVolume}`)
+        }
+    }).catch(error => {
+        log.warn('Failed to get current volume:', error)
+    })
+    
+    if (process.platform === 'win32') {
+        // Windows mute using win-audio package
+        if (winAudio) {
+            try {
+                winAudio.speaker.set(0) // Set volume to 0 (mute)
+                isMuted = true
+                debug('System audio muted on Windows using win-audio package')
+            } catch (error) {
+                log.warn('Failed to mute system audio on Windows using win-audio package:', error.message)
+                // Fallback to PowerShell command
+                exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
+                    if (error) {
+                        log.warn('Failed to mute system audio on Windows (PowerShell fallback):', error.message)
+                        // Alternative PowerShell approach
+                        exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                            if (error) {
+                                log.warn('Failed to mute system audio on Windows (alternative):', error.message)
+                            } else {
+                                isMuted = true
+                                debug('System audio muted on Windows (alternative method)')
+                            }
+                        })
+                    } else {
+                        isMuted = true
+                        debug('System audio muted on Windows (PowerShell fallback)')
+                    }
+                })
+            }
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
+                if (error) {
+                    log.warn('Failed to mute system audio on Windows (PowerShell):', error)
+                    // Alternative PowerShell approach using SendKeys to simulate mute key
+                    exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                        if (error) {
+                            log.warn('Failed to mute system audio on Windows (alternative):', error)
+                        } else {
+                            isMuted = true
+                            log.info('System audio muted on Windows (alternative method)')
+                        }
+                    })
+                } else {
+                    isMuted = true
+                    log.info('System audio muted on Windows (PowerShell)')
+                }
+            })
+        }
+    } else if (process.platform === 'linux') {
+        // Linux mute command using alsamixer
+        exec('amixer sset Master mute', (error) => {
+            if (error) {
+                log.warn('Failed to mute system audio on Linux using amixer:', error.message)
+                // Fallback for PulseAudio
+                exec('pactl set-sink-mute @DEFAULT_SINK@ 1', (error) => {
+                    if (error) {
+                        log.warn('Failed to mute system audio on Linux (fallback):', error.message)
+                    } else {
+                        isMuted = true
+                        debug('System audio muted on Linux (PulseAudio fallback)')
+                    }
+                })
+            } else {
+                isMuted = true
+                debug('System audio muted on Linux using amixer')
+            }
+        })
+    } else if (process.platform === 'darwin') {
+        // macOS mute command
+        exec('osascript -e "set volume output muted true"', (error) => {
+            if (error) {
+                log.warn('Failed to mute system audio on macOS:', error)
+            } else {
+                isMuted = true
+                log.info('System audio muted on macOS')
+            }
+        })
+    }
+}
+
+function unmuteSystem() {
+    if (process.platform === 'win32') {
+        // Windows unmute using win-audio package
+        if (winAudio) {
+            try {
+                // Restore previous volume or set to a reasonable default
+                const restoreVolume = previousVolume > 0 ? previousVolume : 0.8
+                winAudio.speaker.set(restoreVolume)
+                isMuted = false
+                log.info(`System audio unmuted on Windows using win-audio package (volume: ${restoreVolume})`)
+            } catch (error) {
+                log.warn('Failed to unmute system audio on Windows using win-audio package:', error)
+                // Fallback to PowerShell command
+                exec('powershell "Set-AudioDevice -PlaybackMute 0"', (error) => {
+                    if (error) {
+                        log.warn('Failed to unmute system audio on Windows (PowerShell fallback):', error)
+                        // Alternative PowerShell approach
+                        exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                            if (error) {
+                                log.warn('Failed to unmute system audio on Windows (alternative):', error)
+                            } else {
+                                isMuted = false
+                                log.info('System audio unmuted on Windows (alternative method)')
+                            }
+                        })
+                    } else {
+                        isMuted = false
+                        log.info('System audio unmuted on Windows (PowerShell fallback)')
+                    }
+                })
+            }
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec('powershell "Set-AudioDevice -PlaybackMute 0"', (error) => {
+                if (error) {
+                    log.warn('Failed to unmute system audio on Windows (PowerShell):', error)
+                    // Alternative PowerShell approach using SendKeys to simulate mute key toggle
+                    exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
+                        if (error) {
+                            log.warn('Failed to unmute system audio on Windows (alternative):', error)
+                        } else {
+                            isMuted = false
+                            log.info('System audio unmuted on Windows (alternative method)')
+                        }
+                    })
+                } else {
+                    isMuted = false
+                    log.info('System audio unmuted on Windows (PowerShell)')
+                }
+            })
+        }
+    } else if (process.platform === 'linux') {
+        // Linux unmute command using alsamixer
+        exec('amixer sset Master unmute', (error) => {
+            if (error) {
+                log.warn('Failed to unmute system audio on Linux using amixer:', error)
+                // Fallback for PulseAudio
+                exec('pactl set-sink-mute @DEFAULT_SINK@ 0', (error) => {
+                    if (error) {
+                        log.warn('Failed to unmute system audio on Linux (fallback):', error)
+                    } else {
+                        isMuted = false
+                        log.info('System audio unmuted on Linux (PulseAudio fallback)')
+                    }
+                })
+            } else {
+                isMuted = false
+                log.info('System audio unmuted on Linux using amixer')
+            }
+        })
+    } else if (process.platform === 'darwin') {
+        // macOS unmute command
+        exec('osascript -e "set volume output muted false"', (error) => {
+            if (error) {
+                log.warn('Failed to unmute system audio on macOS:', error)
+            } else {
+                isMuted = false
+                log.info('System audio unmuted on macOS')
+            }
+        })
+    }
+}
+
+function setSystemVolume(volumePercent) {
+    const volume = volumePercent / 100 // Convert to 0-1 range
+    log.info(`Setting system volume to ${volumePercent}%`)
+    
+    if (process.platform === 'win32') {
+        // Windows volume control using win-audio package
+        if (winAudio) {
+            try {
+                winAudio.speaker.set(volume)
+                previousVolume = volume
+                debug(`System volume set to ${volumePercent}% on Windows using win-audio`)
+            } catch (error) {
+                log.warn('Failed to set system volume on Windows using win-audio:', error.message)
+                // Fallback to PowerShell
+                exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
+                    if (error) {
+                        log.warn('Failed to set system volume on Windows (PowerShell fallback):', error.message)
+                        // Alternative method using VBScript
+                        exec(`powershell "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]175)"`, (error) => {
+                            if (error) {
+                                log.warn('Failed to set system volume on Windows (alternative):', error.message)
+                            } else {
+                                debug(`System volume adjusted on Windows (alternative method)`)
+                            }
+                        })
+                    } else {
+                        previousVolume = volume
+                        debug(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                    }
+                })
+            }
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
+                if (error) {
+                    log.warn('Failed to set system volume on Windows (PowerShell):', error.message)
+                } else {
+                    previousVolume = volume
+                    debug(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                }
+            })
+        }
+    } else if (process.platform === 'linux') {
+        // Linux volume control using amixer
+        exec(`amixer sset Master ${volumePercent}%`, (error) => {
+            if (error) {
+                log.warn('Failed to set system volume on Linux using amixer:', error.message)
+                // Fallback for PulseAudio
+                exec(`pactl set-sink-volume @DEFAULT_SINK@ ${volumePercent}%`, (error) => {
+                    if (error) {
+                        log.warn('Failed to set system volume on Linux (PulseAudio fallback):', error.message)
+                    } else {
+                        previousVolume = volume
+                        debug(`System volume set to ${volumePercent}% on Linux (PulseAudio)`)
+                    }
+                })
+            } else {
+                previousVolume = volume
+                debug(`System volume set to ${volumePercent}% on Linux using amixer`)
+            }
+        })
+    } else if (process.platform === 'darwin') {
+        // macOS volume control
+        exec(`osascript -e "set volume output volume ${volumePercent}"`, (error) => {
+            if (error) {
+                log.warn('Failed to set system volume on macOS:', error.message)
+            } else {
+                previousVolume = volume
+                debug(`System volume set to ${volumePercent}% on macOS`)
+            }
+        })
+    }
+}
+
+function handleScreenToggle(state) {
+    debug('handleScreenToggle called with state:', state)
+    log.info('Screen toggle requested:', state)
+    
+    if (state === 'off' || state === false) {
+        // Screen off: show black overlay and mute sound
+        debug('Turning screen OFF - creating black overlay and muting audio')
+        createBlackScreenWindow()
+        muteSystem()
+        log.info('Screen toggled OFF: black overlay displayed and audio muted')
+    } else {
+        // Screen on: close black overlay and unmute sound
+        debug('Turning screen ON - removing black overlay and unmuting audio')
+        closeBlackScreenWindow()
+        if (isMuted) {
+            unmuteSystem()
+        }
+        log.info('Screen toggled ON: black overlay removed and audio unmuted')
     }
 }
 
@@ -378,8 +779,7 @@ try {
         }
     })
 } catch (err) {
-    console.log(err)
-    log.error(err)
+    log.error('Error in main process initialization:', err)
 }
 
 try {
@@ -521,8 +921,8 @@ try {
                 width: 0,
                 height: 0,
                 backgroundColor: '#000000',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -548,8 +948,8 @@ try {
                 width: 0,
                 height: 900,
                 backgroundColor: '#302d2d',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -617,12 +1017,12 @@ try {
             })
 
             //hide menu bar
-            win.setSkipTaskbar(true)
-            win.setAlwaysOnTop(true)
-            win2.setSkipTaskbar(true)
-            win2.setAlwaysOnTop(true)
-            win.setMenuBarVisibility(false)
-            win2.setMenuBarVisibility(false)
+            //win.setSkipTaskbar(true)
+            //win.setAlwaysOnTop(true)
+            //win2.setSkipTaskbar(true)
+            //win2.setAlwaysOnTop(true)
+            //win.setMenuBarVisibility(false)
+            //win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -714,7 +1114,7 @@ try {
             ipcMain.once('app-savelog', (event, logs) => {
                 var logtype = logs[0]
                 var logtext = logs[1]
-                console.log(`${logtype} :  ${logtext}`)
+                debug(`${logtype} :  ${logtext}`)
                 if (logtype == 'warn') {
                     log.warn(logtext)
                 } else {
@@ -847,7 +1247,7 @@ try {
                     screenTimeout: args['screenTimeout'] || 0,
                     updateInterval: args['updateInterval'] || 30,
                     logLevel: args['logLevel'] || 'info',
-                    brightness: args['brightness'] || 75,
+                    screenOnOff: args['screenOnOff'] !== undefined ? args['screenOnOff'] : true,
                     displaySettings: args['displaySettings'] || {
                         resolution: 'auto',
                         orientation: 'landscape',
@@ -912,38 +1312,117 @@ try {
 
             // Enhanced IPC handlers for new control panel features
             
-            // Handle brightness control from control panel
-            ipcMain.on('set-brightness', (event, args) => {
-                log.info('Brightness control request:', args)
-                // You can add platform-specific brightness control here
-                // For now, we'll just log and acknowledge
-                if (process.platform === 'win32') {
-                    // Windows brightness control could be implemented here
-                } else if (process.platform === 'linux') {
-                    // Linux brightness control using xrandr
-                    exec(`xrandr --output HDMI-1 --brightness ${args.level / 100}`, (error, stdout, stderr) => {
-                        if (error) {
-                            log.warn('Brightness control error:', error)
-                        } else {
-                            log.info('Brightness set to:', args.level)
-                        }
-                    })
+            // Handle screen on/off toggle with sound control
+            ipcMain.on('set-screen-toggle', (event, args) => {
+                log.info('Screen toggle request via IPC:', args.state)
+                debug('Screen toggle request received:', args)
+                handleScreenToggle(args.state)
+            })
+
+            // Socket.io client connection to cpanel server
+            debug('Attempting to connect to socket.io server...')
+            const socketClient = io('https://localhost:9000', {
+                rejectUnauthorized: false // For self-signed certificates
+            })
+
+            socketClient.on('connect', () => {
+                log.info('Connected to cpanel socket.io server')
+                debug('Socket ID:', socketClient.id)
+                // Identify this connection as the eCLESS electron client
+                socketClient.emit('save id', 'eCLESS:electron-main-process')
+                debug('Sent save id event with eCLESS:electron-main-process')
+            })
+
+            socketClient.on('disconnect', () => {
+                log.info('Disconnected from cpanel socket.io server')
+            })
+
+            socketClient.on('connect_error', (error) => {
+                log.warn('Socket.io connection error:', error.message)
+            })
+
+            // Socket.io event handlers for screen toggle
+            socketClient.on('set-screen-toggle', (data) => {
+                log.info('Received screen toggle via socket:', data.state)
+                debug('Screen toggle data:', data)
+                handleScreenToggle(data.state)
+            })
+
+            // Socket.io event handlers for volume control
+            socketClient.on('set-volume-mute', (data) => {
+                log.info('Received volume mute via socket:', data.action)
+                if (data.action === 'mute') {
+                    muteSystem()
+                } else if (data.action === 'unmute') {
+                    unmuteSystem()
                 }
             })
 
-            // Handle display power control
-            ipcMain.on('set-display-power', (event, args) => {
-                log.info('Display power control request:', args)
-                if (process.platform === 'linux') {
-                    const command = args.state === 'on' ? 'xset dpms force on' : 'xset dpms force off'
-                    exec(command, (error, stdout, stderr) => {
-                        if (error) {
-                            log.warn('Display power control error:', error)
-                        } else {
-                            log.info('Display power set to:', args.state)
-                        }
+            socketClient.on('set-volume-level', (data) => {
+                log.info('Received volume level via socket:', data.volume + '%')
+                setSystemVolume(data.volume)
+            })
+
+            socketClient.on('get-volume-level', (data) => {
+                debug('Received get volume level via socket:', data)
+                getCurrentVolume().then(volume => {
+                    // Send volume back to control panel
+                    socketClient.emit('volume-level-response', { 
+                        requestId: data.requestId, 
+                        volume: Math.round(volume * 100) 
                     })
+                }).catch(error => {
+                    log.warn('Failed to get volume level:', error.message)
+                })
+            })
+
+            socketClient.on('update-config', (data) => {
+                log.info('Received config update via socket')
+                debug('Config update data:', data)
+                try {
+                    const configPath = path.join(appdir, 'config.json')
+                    const currentConfig = loadConfiguration() || {}
+                    const updatedConfig = { ...currentConfig, ...data, timestamp: new Date().toISOString() }
+                    
+                    fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2))
+                    log.info('Configuration updated successfully via socket')
+                } catch (error) {
+                    log.error('Error updating configuration via socket:', error)
                 }
+            })
+
+            // Handle other socket events as needed
+            socketClient.on('replacetextslot', (data) => {
+                log.info('Received replacetextslot via socket:', data)
+                // Handle text slot replacement
+            })
+
+            socketClient.on('replacemediaslot', (data) => {
+                log.info('Received replacemediaslot via socket:', data)
+                // Handle media slot replacement
+            })
+
+            socketClient.on('updatelayout', (data) => {
+                log.info('Received updatelayout via socket:', data)
+                // Handle layout update
+            })
+
+            socketClient.on('refresh-ecless', (data) => {
+                log.info('Received refresh-ecless via socket:', data)
+                // Handle refresh command
+                if (win) {
+                    win.reload()
+                }
+                if (win2) {
+                    win2.reload()
+                }
+            })
+
+            socketClient.on('restart-ecless', (data) => {
+                log.info('Received restart-ecless via socket:', data)
+                // Handle restart command
+                app.relaunch()
+                app.exit()
             })
 
             // Handle configuration updates from control panel

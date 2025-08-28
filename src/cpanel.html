@@ -700,19 +700,46 @@
                 </div>
                 <div class="card-header mt-4">
                     <div class="card-icon">
-                        <i class="bi bi-brightness-high"></i>
+                        <i class="bi bi-display"></i>
                     </div>
-                    <h2 class="card-title">Display Control</h2>
+                    <h2 class="card-title">Screen Control</h2>
                 </div>
                 <div class="control-grid">
-                    <button type="button" class="modern-btn btn-success" id="displayOn">
+                    <button type="button" class="modern-btn btn-success" id="screenOn">
                         <i class="bi bi-display"></i>
-                        Display On
+                        Screen On
                     </button>
-                    <button type="button" class="modern-btn btn-danger" id="displayOff">
-                        <i class="bi bi-display"></i>
-                        Display Off
+                    <button type="button" class="modern-btn btn-danger" id="screenOff">
+                        <i class="bi bi-display-fill"></i>
+                        Screen Off
                     </button>
+                </div>
+                <div class="card-header mt-4">
+                    <div class="card-icon">
+                        <i class="bi bi-volume-up-fill"></i>
+                    </div>
+                    <h2 class="card-title">Volume Control</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-warning" id="volumeMute">
+                        <i class="bi bi-volume-mute-fill"></i>
+                        Mute
+                    </button>
+                    <button type="button" class="modern-btn btn-info" id="volumeUnmute">
+                        <i class="bi bi-volume-up-fill"></i>
+                        Unmute
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <label class="form-label d-flex justify-content-between">
+                        <span><i class="bi bi-volume-down"></i> Volume Level</span>
+                        <span id="volumeDisplay">50%</span>
+                    </label>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-volume-off"></i>
+                        <input type="range" class="form-range flex-grow-1" id="volumeSlider" min="0" max="100" value="50" step="1">
+                        <i class="bi bi-volume-up"></i>
+                    </div>
                 </div>
             </div>
 

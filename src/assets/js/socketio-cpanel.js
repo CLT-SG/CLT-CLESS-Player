@@ -1,6 +1,6 @@
 var socket = io('https://localhost:9000')
 
-socket.emit('save id', 'eCLESS:')
+socket.emit('save id', 'eCLESS-RENDERER:renderer-process')
 
 //refresh ecless
 socket.on('refresh-ecless', function (msg) {
