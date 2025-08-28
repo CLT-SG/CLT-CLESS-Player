@@ -279,13 +279,14 @@
             }
 
             // Try to emit to Electron main process if connection exists
-            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            var electronSocketId = userID['eCLESS']
             console.log('userID mapping:', userID)
-            console.log('Looking for eCLESS socket ID:', userID['eCLESS'])
-            console.log('Found electronID:', !!electronID)
-            if (electronID) {
-                electronID.emit("set-screen-toggle", { state: state })
-                console.log('Sent screen toggle event to Electron main process')
+            console.log('Looking for eCLESS socket ID:', electronSocketId)
+            
+            if (electronSocketId) {
+                // Use Socket.IO 4.x syntax to emit to specific socket
+                io.to(electronSocketId).emit("set-screen-toggle", { state: state })
+                console.log('Sent screen toggle event to Electron main process via socket ID:', electronSocketId)
             } else {
                 console.log('No Electron socket connection found, only executed audio commands')
             }
@@ -445,10 +446,15 @@
         //save user id to specific pc
         socket.on('save id', (msg) => {
             var clientid = msg.substr(0, msg.indexOf(':'))
+            console.log('Received save id event:', msg)
+            console.log('Parsed clientid:', clientid)
+            console.log('Socket ID for this connection:', socket.id)
             if (clientid == 'eCLESS') {
                 userID[clientid] = socket.id
+                console.log('Saved eCLESS socket mapping:', userID[clientid])
             } else {
                 userID[clientip] = socket.id
+                console.log('Saved IP socket mapping for', clientip, ':', userID[clientip])
             }
         })
 
@@ -572,9 +578,9 @@
         //handle screen toggle control
         socket.on('set-screen-toggle', (msg) => {
             try {
-                var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                if (electronID) {
-                    electronID.emit("set-screen-toggle", msg)
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-screen-toggle", msg)
                 }
             } catch (err) {
                 log.warn('cpanel set-screen-toggle: ' + err)
@@ -585,9 +591,9 @@
         //handle display power control
         socket.on('set-display-power', (msg) => {
             try {
-                var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                if (electronID) {
-                    electronID.emit("set-display-power", msg)
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-display-power", msg)
                 }
             } catch (err) {
                 log.warn('cpanel set-display-power: ' + err)
