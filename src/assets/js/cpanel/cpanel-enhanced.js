@@ -2,6 +2,9 @@ var socket = io()
 var systemMonitoringInterval
 var configData = {}
 
+// Debug function for development-only logging  
+const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind(console) : () => {}
+
 socket.emit('save id', 'Controlpanel:')
 
 // Enhanced error handling for API calls
@@ -136,10 +139,10 @@ function setupEventHandlers() {
     // New enhanced handlers
     // Screen toggle control with one-time click protection
     $('#screenOn').click(function() {
-        console.log('Screen ON button clicked');
+        debug('Screen ON button clicked');
         // Check if button is already disabled to prevent multiple clicks
         if ($(this).prop('disabled')) {
-            console.log('Screen ON button is disabled, ignoring click');
+            debug('Screen ON button is disabled, ignoring click');
             return;
         }
         // Disable both buttons immediately to prevent multiple clicks
@@ -149,10 +152,10 @@ function setupEventHandlers() {
     })
 
     $('#screenOff').click(function() {
-        console.log('Screen OFF button clicked');
+        debug('Screen OFF button clicked');
         // Check if button is already disabled to prevent multiple clicks
         if ($(this).prop('disabled')) {
-            console.log('Screen OFF button is disabled, ignoring click');
+            debug('Screen OFF button is disabled, ignoring click');
             return;
         }
         // Disable both buttons immediately to prevent multiple clicks
@@ -163,18 +166,18 @@ function setupEventHandlers() {
 
     // Volume control handlers
     $('#volumeMute').click(function() {
-        console.log('Volume MUTE button clicked');
+        debug('Volume MUTE button clicked');
         if ($(this).prop('disabled')) {
-            console.log('Volume MUTE button is disabled, ignoring click');
+            debug('Volume MUTE button is disabled, ignoring click');
             return;
         }
         setVolumeMute();
     })
 
     $('#volumeUnmute').click(function() {
-        console.log('Volume UNMUTE button clicked');
+        debug('Volume UNMUTE button clicked');
         if ($(this).prop('disabled')) {
-            console.log('Volume UNMUTE button is disabled, ignoring click');
+            debug('Volume UNMUTE button is disabled, ignoring click');
             return;
         }
         setVolumeUnmute();
@@ -259,7 +262,7 @@ function deviceinfo() {
             }
         },
         error: function () {
-            console.log('Error fetching device info')
+            console.warn('Error fetching device info')
         }
     })
 }
@@ -370,7 +373,7 @@ function refreshSystemMonitoring() {
             $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
         },
         error: function () {
-            console.log('Error fetching monitoring data')
+            console.warn('Error fetching monitoring data')
         }
     })
 }
@@ -378,7 +381,7 @@ function refreshSystemMonitoring() {
 // Screen control functions
 
 function setScreenToggle(state) {
-    console.log('setScreenToggle called with state:', state)
+    debug('setScreenToggle called with state:', state)
     
     const screenOnBtn = $('#screenOn')
     const screenOffBtn = $('#screenOff')
@@ -391,7 +394,7 @@ function setScreenToggle(state) {
         type: 'get',
         url: `/api/display/screen/${state}`,
         success: function (data) {
-            console.log('Screen toggle success:', data)
+            debug('Screen toggle success:', data)
             if (data.success) {
                 showAlert('success', `Screen ${state === 'on' ? 'turned on' : 'turned off'}`)
                 
@@ -436,7 +439,7 @@ function setVolumeMute() {
         type: 'get',
         url: '/api/volume/mute',
         success: function (data) {
-            console.log('Volume mute success:', data)
+            debug('Volume mute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio muted')
                 muteBtn.removeClass('loading btn-warning').addClass('btn-secondary').prop('disabled', true)
@@ -462,7 +465,7 @@ function setVolumeUnmute() {
         type: 'get',
         url: '/api/volume/unmute',
         success: function (data) {
-            console.log('Volume unmute success:', data)
+            debug('Volume unmute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio unmuted')
                 unmuteBtn.removeClass('loading btn-info').addClass('btn-secondary').prop('disabled', true)
@@ -487,7 +490,7 @@ function setVolumeLevel(volume) {
         contentType: 'application/json',
         data: JSON.stringify({ volume: volume }),
         success: function (data) {
-            console.log('Volume level set success:', data)
+            debug('Volume level set success:', data)
             if (data.success) {
                 if (window.showToast) showToast(`Volume set to ${volume}%`, 'info')
             }
@@ -504,7 +507,7 @@ function getCurrentVolumeLevel() {
         type: 'get',
         url: '/api/volume/get',
         success: function (data) {
-            console.log('Get volume request sent:', data)
+            debug('Get volume request sent:', data)
         },
         error: function (xhr, status, error) {
             console.error('Get volume failed:', status, error)
@@ -557,7 +560,7 @@ function loadConfiguration() {
             }
         },
         error: function () {
-            console.log('No configuration found or error loading')
+            debug('No configuration found or error loading')
         }
     })
 }
@@ -935,18 +938,18 @@ socket.on('device-info', function(data) {
 })
 
 socket.on('connect', function() {
-    console.log('Connected to server')
+    debug('Connected to server')
     $('#connectionStatus').removeClass('status-offline').addClass('status-online')
 })
 
 socket.on('disconnect', function() {
-    console.log('Disconnected from server') 
+    debug('Disconnected from server') 
     $('#connectionStatus').removeClass('status-online').addClass('status-offline')
 })
 
 // Volume control socket handler
 socket.on('volume-level-response', function(data) {
-    console.log('Received volume level response:', data)
+    debug('Received volume level response:', data)
     if (data.volume !== undefined) {
         $('#volumeSlider').val(data.volume)
         $('#volumeDisplay').text(data.volume + '%')

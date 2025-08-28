@@ -30,17 +30,29 @@ try {
         winAudio = require('win-audio')
     }
 } catch (error) {
-    console.log('win-audio package not available (not on Windows or not installed)')
+    debug('win-audio package not available (not on Windows or not installed)')
 }
 
 const server = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
-const now = new Date()
 const date = require('date-and-time')
-const datelog = date.format(now, 'YYYY-MM-DD')
-var log = require('electron-log')
-log.transports.file.file = logdir + datelog + '.log'
+const log = require('electron-log')
+// Always use current date for log file name
+log.transports.file.getFile = () => {
+    const now = new Date();
+    return logdir + date.format(now, 'YYYY-MM-DD') + '.log';
+};
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB max file size
+log.transports.console.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
+// Set log levels based on environment
+const isDebug = process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true';
+log.transports.file.level = isDebug ? 'debug' : 'info';
+log.transports.console.level = isDebug ? 'debug' : 'warn';
+
+// Optimize console logging
+const debug = isDebug ? log.debug : () => {} // Disable debug logs in production
 
 //One instance process check
 let win = null
@@ -287,13 +299,13 @@ function loadConfiguration() {
 
 // Screen toggle functionality
 function createBlackScreenWindow() {
-    console.log('createBlackScreenWindow called')
+    debug('createBlackScreenWindow called')
     log.info('Creating black screen windows')
     const displays = screen.getAllDisplays()
-    console.log('Found displays:', displays.length)
+    debug('Found displays:', displays.length)
     
     displays.forEach((display, index) => {
-        console.log(`Creating black screen for display ${index}:`, display.bounds)
+        debug(`Creating black screen for display ${index}:`, display.bounds)
         const blackWin = new BrowserWindow({
             width: display.bounds.width,
             height: display.bounds.height,
@@ -314,7 +326,7 @@ function createBlackScreenWindow() {
         
         if (index === 0) {
             blackScreenWin = blackWin // Store reference to primary screen window
-            console.log('Set primary black screen window reference')
+            debug('Set primary black screen window reference')
         }
         
         blackWin.on('closed', () => {
@@ -323,25 +335,25 @@ function createBlackScreenWindow() {
             }
         })
         
-        console.log(`Black screen window ${index} created`)
+        debug(`Black screen window ${index} created`)
     })
     
     log.info('Black screen windows created')
 }
 
 function closeBlackScreenWindow() {
-    console.log('closeBlackScreenWindow called, blackScreenWin:', !!blackScreenWin)
+    debug('closeBlackScreenWindow called, blackScreenWin:', !!blackScreenWin)
     log.info('Closing black screen windows')
     
     if (blackScreenWin) {
         blackScreenWin.close()
         blackScreenWin = null
-        console.log('Primary black screen window closed')
+        debug('Primary black screen window closed')
         
         // Close all black screen windows
         BrowserWindow.getAllWindows().forEach(window => {
             if (window.webContents.getURL().includes('black-screen.html')) {
-                console.log('Closing additional black screen window')
+                debug('Closing additional black screen window')
                 window.close()
             }
         })
@@ -408,25 +420,25 @@ function muteSystem() {
             try {
                 winAudio.speaker.set(0) // Set volume to 0 (mute)
                 isMuted = true
-                log.info('System audio muted on Windows using win-audio package')
+                debug('System audio muted on Windows using win-audio package')
             } catch (error) {
-                log.warn('Failed to mute system audio on Windows using win-audio package:', error)
+                log.warn('Failed to mute system audio on Windows using win-audio package:', error.message)
                 // Fallback to PowerShell command
                 exec('powershell "Set-AudioDevice -PlaybackMute 1"', (error) => {
                     if (error) {
-                        log.warn('Failed to mute system audio on Windows (PowerShell fallback):', error)
+                        log.warn('Failed to mute system audio on Windows (PowerShell fallback):', error.message)
                         // Alternative PowerShell approach
                         exec('powershell "(New-Object -ComObject WScript.Shell).SendKeys([char]173)"', (error) => {
                             if (error) {
-                                log.warn('Failed to mute system audio on Windows (alternative):', error)
+                                log.warn('Failed to mute system audio on Windows (alternative):', error.message)
                             } else {
                                 isMuted = true
-                                log.info('System audio muted on Windows (alternative method)')
+                                debug('System audio muted on Windows (alternative method)')
                             }
                         })
                     } else {
                         isMuted = true
-                        log.info('System audio muted on Windows (PowerShell fallback)')
+                        debug('System audio muted on Windows (PowerShell fallback)')
                     }
                 })
             }
@@ -454,19 +466,19 @@ function muteSystem() {
         // Linux mute command using alsamixer
         exec('amixer sset Master mute', (error) => {
             if (error) {
-                log.warn('Failed to mute system audio on Linux using amixer:', error)
+                log.warn('Failed to mute system audio on Linux using amixer:', error.message)
                 // Fallback for PulseAudio
                 exec('pactl set-sink-mute @DEFAULT_SINK@ 1', (error) => {
                     if (error) {
-                        log.warn('Failed to mute system audio on Linux (fallback):', error)
+                        log.warn('Failed to mute system audio on Linux (fallback):', error.message)
                     } else {
                         isMuted = true
-                        log.info('System audio muted on Linux (PulseAudio fallback)')
+                        debug('System audio muted on Linux (PulseAudio fallback)')
                     }
                 })
             } else {
                 isMuted = true
-                log.info('System audio muted on Linux using amixer')
+                debug('System audio muted on Linux using amixer')
             }
         })
     } else if (process.platform === 'darwin') {
@@ -575,24 +587,24 @@ function setSystemVolume(volumePercent) {
             try {
                 winAudio.speaker.set(volume)
                 previousVolume = volume
-                log.info(`System volume set to ${volumePercent}% on Windows using win-audio`)
+                debug(`System volume set to ${volumePercent}% on Windows using win-audio`)
             } catch (error) {
-                log.warn('Failed to set system volume on Windows using win-audio:', error)
+                log.warn('Failed to set system volume on Windows using win-audio:', error.message)
                 // Fallback to PowerShell
                 exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
                     if (error) {
-                        log.warn('Failed to set system volume on Windows (PowerShell fallback):', error)
+                        log.warn('Failed to set system volume on Windows (PowerShell fallback):', error.message)
                         // Alternative method using VBScript
                         exec(`powershell "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]175)"`, (error) => {
                             if (error) {
-                                log.warn('Failed to set system volume on Windows (alternative):', error)
+                                log.warn('Failed to set system volume on Windows (alternative):', error.message)
                             } else {
-                                log.info(`System volume adjusted on Windows (alternative method)`)
+                                debug(`System volume adjusted on Windows (alternative method)`)
                             }
                         })
                     } else {
                         previousVolume = volume
-                        log.info(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                        debug(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
                     }
                 })
             }
@@ -600,10 +612,10 @@ function setSystemVolume(volumePercent) {
             // win-audio not available, use PowerShell fallback
             exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
                 if (error) {
-                    log.warn('Failed to set system volume on Windows (PowerShell):', error)
+                    log.warn('Failed to set system volume on Windows (PowerShell):', error.message)
                 } else {
                     previousVolume = volume
-                    log.info(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                    debug(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
                 }
             })
         }
@@ -611,47 +623,47 @@ function setSystemVolume(volumePercent) {
         // Linux volume control using amixer
         exec(`amixer sset Master ${volumePercent}%`, (error) => {
             if (error) {
-                log.warn('Failed to set system volume on Linux using amixer:', error)
+                log.warn('Failed to set system volume on Linux using amixer:', error.message)
                 // Fallback for PulseAudio
                 exec(`pactl set-sink-volume @DEFAULT_SINK@ ${volumePercent}%`, (error) => {
                     if (error) {
-                        log.warn('Failed to set system volume on Linux (PulseAudio fallback):', error)
+                        log.warn('Failed to set system volume on Linux (PulseAudio fallback):', error.message)
                     } else {
                         previousVolume = volume
-                        log.info(`System volume set to ${volumePercent}% on Linux (PulseAudio)`)
+                        debug(`System volume set to ${volumePercent}% on Linux (PulseAudio)`)
                     }
                 })
             } else {
                 previousVolume = volume
-                log.info(`System volume set to ${volumePercent}% on Linux using amixer`)
+                debug(`System volume set to ${volumePercent}% on Linux using amixer`)
             }
         })
     } else if (process.platform === 'darwin') {
         // macOS volume control
         exec(`osascript -e "set volume output volume ${volumePercent}"`, (error) => {
             if (error) {
-                log.warn('Failed to set system volume on macOS:', error)
+                log.warn('Failed to set system volume on macOS:', error.message)
             } else {
                 previousVolume = volume
-                log.info(`System volume set to ${volumePercent}% on macOS`)
+                debug(`System volume set to ${volumePercent}% on macOS`)
             }
         })
     }
 }
 
 function handleScreenToggle(state) {
-    console.log('handleScreenToggle called with state:', state)
-    log.info('handleScreenToggle called with state:', state)
+    debug('handleScreenToggle called with state:', state)
+    log.info('Screen toggle requested:', state)
     
     if (state === 'off' || state === false) {
         // Screen off: show black overlay and mute sound
-        console.log('Turning screen OFF - creating black overlay and muting audio')
+        debug('Turning screen OFF - creating black overlay and muting audio')
         createBlackScreenWindow()
         muteSystem()
         log.info('Screen toggled OFF: black overlay displayed and audio muted')
     } else {
         // Screen on: close black overlay and unmute sound
-        console.log('Turning screen ON - removing black overlay and unmuting audio')
+        debug('Turning screen ON - removing black overlay and unmuting audio')
         closeBlackScreenWindow()
         if (isMuted) {
             unmuteSystem()
@@ -767,8 +779,7 @@ try {
         }
     })
 } catch (err) {
-    console.log(err)
-    log.error(err)
+    log.error('Error in main process initialization:', err)
 }
 
 try {
@@ -1103,7 +1114,7 @@ try {
             ipcMain.once('app-savelog', (event, logs) => {
                 var logtype = logs[0]
                 var logtext = logs[1]
-                console.log(`${logtype} :  ${logtext}`)
+                debug(`${logtype} :  ${logtext}`)
                 if (logtype == 'warn') {
                     log.warn(logtext)
                 } else {
@@ -1303,48 +1314,43 @@ try {
             
             // Handle screen on/off toggle with sound control
             ipcMain.on('set-screen-toggle', (event, args) => {
-                log.info('Screen toggle request:', args)
-                console.log('Screen toggle request received:', args)
+                log.info('Screen toggle request via IPC:', args.state)
+                debug('Screen toggle request received:', args)
                 handleScreenToggle(args.state)
             })
 
             // Socket.io client connection to cpanel server
-            console.log('Attempting to connect to socket.io server...')
+            debug('Attempting to connect to socket.io server...')
             const socketClient = io('https://localhost:9000', {
                 rejectUnauthorized: false // For self-signed certificates
             })
 
             socketClient.on('connect', () => {
                 log.info('Connected to cpanel socket.io server')
-                console.log('Connected to cpanel socket.io server')
-                console.log('Socket ID:', socketClient.id)
+                debug('Socket ID:', socketClient.id)
                 // Identify this connection as the eCLESS electron client
                 socketClient.emit('save id', 'eCLESS:electron-main-process')
-                console.log('Sent save id event with eCLESS:electron-main-process')
+                debug('Sent save id event with eCLESS:electron-main-process')
             })
 
             socketClient.on('disconnect', () => {
                 log.info('Disconnected from cpanel socket.io server')
-                console.log('Disconnected from cpanel socket.io server')
             })
 
             socketClient.on('connect_error', (error) => {
-                log.warn('Socket.io connection error:', error)
-                console.warn('Socket.io connection error:', error)
+                log.warn('Socket.io connection error:', error.message)
             })
 
             // Socket.io event handlers for screen toggle
             socketClient.on('set-screen-toggle', (data) => {
-                log.info('Received screen toggle via socket:', data)
-                console.log('Received screen toggle via socket:', data)
-                console.log('Data state:', data.state)
+                log.info('Received screen toggle via socket:', data.state)
+                debug('Screen toggle data:', data)
                 handleScreenToggle(data.state)
             })
 
             // Socket.io event handlers for volume control
             socketClient.on('set-volume-mute', (data) => {
-                log.info('Received volume mute via socket:', data)
-                console.log('Received volume mute via socket:', data)
+                log.info('Received volume mute via socket:', data.action)
                 if (data.action === 'mute') {
                     muteSystem()
                 } else if (data.action === 'unmute') {
@@ -1353,14 +1359,12 @@ try {
             })
 
             socketClient.on('set-volume-level', (data) => {
-                log.info('Received volume level via socket:', data)
-                console.log('Received volume level via socket:', data)
+                log.info('Received volume level via socket:', data.volume + '%')
                 setSystemVolume(data.volume)
             })
 
             socketClient.on('get-volume-level', (data) => {
-                log.info('Received get volume level via socket:', data)
-                console.log('Received get volume level via socket:', data)
+                debug('Received get volume level via socket:', data)
                 getCurrentVolume().then(volume => {
                     // Send volume back to control panel
                     socketClient.emit('volume-level-response', { 
@@ -1368,13 +1372,13 @@ try {
                         volume: Math.round(volume * 100) 
                     })
                 }).catch(error => {
-                    log.warn('Failed to get volume level:', error)
+                    log.warn('Failed to get volume level:', error.message)
                 })
             })
 
             socketClient.on('update-config', (data) => {
-                log.info('Received config update via socket:', data)
-                console.log('Received config update via socket:', data)
+                log.info('Received config update via socket')
+                debug('Config update data:', data)
                 try {
                     const configPath = path.join(appdir, 'config.json')
                     const currentConfig = loadConfiguration() || {}

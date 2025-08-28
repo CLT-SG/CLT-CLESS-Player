@@ -38,6 +38,9 @@
     const datelog = datetime.format(now, 'YYYY-MM-DD')
     log.transports.file.file = logdir + datelog + '.log'
 
+    // Debug function for development-only logging
+    const debug = process.env.NODE_ENV === 'development' ? log.debug : () => {}
+
     var cpuInfo
     var memoryInfo
     var diskInfo
@@ -264,7 +267,7 @@
                     if (error) {
                         console.warn('Failed to mute audio:', error)
                     } else {
-                        console.log('Audio muted successfully')
+                        debug('Audio muted successfully')
                     }
                 })
             } else {
@@ -273,22 +276,22 @@
                     if (error) {
                         console.warn('Failed to unmute audio:', error)
                     } else {
-                        console.log('Audio unmuted successfully')
+                        debug('Audio unmuted successfully')
                     }
                 })
             }
 
             // Try to emit to Electron main process if connection exists
             var electronSocketId = userID['eCLESS']
-            console.log('userID mapping:', userID)
-            console.log('Looking for eCLESS socket ID:', electronSocketId)
+            debug('userID mapping:', userID)
+            debug('Looking for eCLESS socket ID:', electronSocketId)
             
             if (electronSocketId) {
                 // Use Socket.IO 4.x syntax to emit to specific socket
                 io.to(electronSocketId).emit("set-screen-toggle", { state: state })
-                console.log('Sent screen toggle event to Electron main process via socket ID:', electronSocketId)
+                debug('Sent screen toggle event to Electron main process via socket ID:', electronSocketId)
             } else {
-                console.log('No Electron socket connection found, only executed audio commands')
+                debug('No Electron socket connection found, only executed audio commands')
             }
             
             res.json({ success: true, screen: state })
@@ -477,15 +480,15 @@
         //save user id to specific pc
         socket.on('save id', (msg) => {
             var clientid = msg.substr(0, msg.indexOf(':'))
-            console.log('Received save id event:', msg)
-            console.log('Parsed clientid:', clientid)
-            console.log('Socket ID for this connection:', socket.id)
+            debug('Received save id event:', msg)
+            debug('Parsed clientid:', clientid)
+            debug('Socket ID for this connection:', socket.id)
             if (clientid == 'eCLESS') {
                 userID[clientid] = socket.id
-                console.log('Saved eCLESS socket mapping:', userID[clientid])
+                debug('Saved eCLESS socket mapping:', userID[clientid])
             } else {
                 userID[clientip] = socket.id
-                console.log('Saved IP socket mapping for', clientip, ':', userID[clientip])
+                debug('Saved IP socket mapping for', clientip, ':', userID[clientip])
             }
         })
 
@@ -538,7 +541,7 @@
                     //handling error
                     if (err) {
                         log.warn('Unable to scan directory: ' + err)
-                        return console.log('Unable to scan directory: ' + err)
+                        return debug('Unable to scan directory: ' + err)
                     }
                     //listing all files using forEach
                     files.forEach(function (file, index) {
@@ -659,7 +662,7 @@
         //handle volume level response from Electron
         socket.on('volume-level-response', (msg) => {
             try {
-                console.log('Received volume level response from Electron:', msg)
+                debug('Received volume level response from Electron:', msg)
                 // Broadcast to all control panel clients
                 socket.broadcast.emit('volume-level-response', msg)
                 log.info('Volume level response broadcasted to control panels:', msg)
@@ -692,7 +695,7 @@
 
     server.listen(port, () => {
         log.info(`Express server listening on port ${port}`)
-        console.log(`Express server listening on port ${port}`)
+        log.info(`Express server listening on port ${port}`)
     })
 
     // Initial system information gathering
