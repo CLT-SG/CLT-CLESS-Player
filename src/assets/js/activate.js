@@ -236,9 +236,55 @@ function activate() {
 
   console.log('Attempting activation with key:', key)
   
-  // Here you would typically send the key to your activation service
-  // For now, we'll just show a success message
-  alert(`License key submitted: ${key}\n\nPlease ensure you've configured the key in the control panel at https://${localIP}:9000`)
+  // Save the serial key to configuration and restart the application
+  const configData = {
+    serialkey: key,
+    timestamp: new Date().toISOString()
+  }
+  
+  // First, save the configuration
+  fetch('https://localhost:9000/api/config/save', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(configData)
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      alert(`License key submitted: ${key}\n\nThe application will now restart to apply the new license.`)
+      
+      // Then restart the application
+      fetch('https://localhost:9000/api/restartapp')
+        .then(() => {
+          console.log('Application restart initiated')
+          // Close the activation window after a short delay
+          setTimeout(() => {
+            try {
+              if (remote && remote.getCurrentWindow) {
+                remote.getCurrentWindow().close()
+              } else {
+                window.close()
+              }
+            } catch (error) {
+              console.error('Error closing window:', error)
+              window.close()
+            }
+          }, 1000)
+        })
+        .catch(error => {
+          console.error('Error restarting application:', error)
+          alert('License key saved, but failed to restart application. Please restart manually.')
+        })
+    } else {
+      alert('Failed to save license key. Please try again.')
+    }
+  })
+  .catch(error => {
+    console.error('Error saving license key:', error)
+    alert('Failed to save license key. Please check your connection and try again.')
+  })
 }
 
 // Cancel function

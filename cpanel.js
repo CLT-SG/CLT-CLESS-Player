@@ -389,16 +389,31 @@
 
     app.post('/api/config/save', function (req, res) {
         try {
-            const config = req.body
+            const newConfig = req.body
             const configPath = path.join(appdir, 'config.json')
-            fs.writeFileSync(configPath, JSON.stringify(config, null, 2))
+            
+            // Read existing configuration
+            let existingConfig = {}
+            if (fs.existsSync(configPath)) {
+                const configFileContent = fs.readFileSync(configPath, 'utf8')
+                existingConfig = JSON.parse(configFileContent)
+            }
+            
+            // Merge new configuration with existing configuration
+            const mergedConfig = { ...existingConfig, ...newConfig }
+            
+            // Update timestamp
+            mergedConfig.timestamp = new Date().toISOString()
+            
+            // Write merged configuration back to file
+            fs.writeFileSync(configPath, JSON.stringify(mergedConfig, null, 2))
             
             var electronID = io.sockets.sockets.get(userID['eCLESS'])
             if (electronID) {
-                electronID.emit("config-updated", config)
+                electronID.emit("config-updated", mergedConfig)
             }
             
-            res.json({ success: true, message: 'Configuration saved' })
+            res.json({ success: true, message: 'Configuration saved', config: mergedConfig })
         } catch (error) {
             log.warn('Config save error: ' + error)
             res.status(500).json({ error: 'Failed to save configuration' })
