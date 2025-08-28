@@ -565,6 +565,80 @@ function unmuteSystem() {
     }
 }
 
+function setSystemVolume(volumePercent) {
+    const volume = volumePercent / 100 // Convert to 0-1 range
+    log.info(`Setting system volume to ${volumePercent}%`)
+    
+    if (process.platform === 'win32') {
+        // Windows volume control using win-audio package
+        if (winAudio) {
+            try {
+                winAudio.speaker.set(volume)
+                previousVolume = volume
+                log.info(`System volume set to ${volumePercent}% on Windows using win-audio`)
+            } catch (error) {
+                log.warn('Failed to set system volume on Windows using win-audio:', error)
+                // Fallback to PowerShell
+                exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
+                    if (error) {
+                        log.warn('Failed to set system volume on Windows (PowerShell fallback):', error)
+                        // Alternative method using VBScript
+                        exec(`powershell "$obj = New-Object -ComObject WScript.Shell; $obj.SendKeys([char]175)"`, (error) => {
+                            if (error) {
+                                log.warn('Failed to set system volume on Windows (alternative):', error)
+                            } else {
+                                log.info(`System volume adjusted on Windows (alternative method)`)
+                            }
+                        })
+                    } else {
+                        previousVolume = volume
+                        log.info(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                    }
+                })
+            }
+        } else {
+            // win-audio not available, use PowerShell fallback
+            exec(`powershell "Set-AudioDevice -PlaybackVolume ${volumePercent}"`, (error) => {
+                if (error) {
+                    log.warn('Failed to set system volume on Windows (PowerShell):', error)
+                } else {
+                    previousVolume = volume
+                    log.info(`System volume set to ${volumePercent}% on Windows (PowerShell)`)
+                }
+            })
+        }
+    } else if (process.platform === 'linux') {
+        // Linux volume control using amixer
+        exec(`amixer sset Master ${volumePercent}%`, (error) => {
+            if (error) {
+                log.warn('Failed to set system volume on Linux using amixer:', error)
+                // Fallback for PulseAudio
+                exec(`pactl set-sink-volume @DEFAULT_SINK@ ${volumePercent}%`, (error) => {
+                    if (error) {
+                        log.warn('Failed to set system volume on Linux (PulseAudio fallback):', error)
+                    } else {
+                        previousVolume = volume
+                        log.info(`System volume set to ${volumePercent}% on Linux (PulseAudio)`)
+                    }
+                })
+            } else {
+                previousVolume = volume
+                log.info(`System volume set to ${volumePercent}% on Linux using amixer`)
+            }
+        })
+    } else if (process.platform === 'darwin') {
+        // macOS volume control
+        exec(`osascript -e "set volume output volume ${volumePercent}"`, (error) => {
+            if (error) {
+                log.warn('Failed to set system volume on macOS:', error)
+            } else {
+                previousVolume = volume
+                log.info(`System volume set to ${volumePercent}% on macOS`)
+            }
+        })
+    }
+}
+
 function handleScreenToggle(state) {
     console.log('handleScreenToggle called with state:', state)
     log.info('handleScreenToggle called with state:', state)
@@ -1265,6 +1339,37 @@ try {
                 console.log('Received screen toggle via socket:', data)
                 console.log('Data state:', data.state)
                 handleScreenToggle(data.state)
+            })
+
+            // Socket.io event handlers for volume control
+            socketClient.on('set-volume-mute', (data) => {
+                log.info('Received volume mute via socket:', data)
+                console.log('Received volume mute via socket:', data)
+                if (data.action === 'mute') {
+                    muteSystem()
+                } else if (data.action === 'unmute') {
+                    unmuteSystem()
+                }
+            })
+
+            socketClient.on('set-volume-level', (data) => {
+                log.info('Received volume level via socket:', data)
+                console.log('Received volume level via socket:', data)
+                setSystemVolume(data.volume)
+            })
+
+            socketClient.on('get-volume-level', (data) => {
+                log.info('Received get volume level via socket:', data)
+                console.log('Received get volume level via socket:', data)
+                getCurrentVolume().then(volume => {
+                    // Send volume back to control panel
+                    socketClient.emit('volume-level-response', { 
+                        requestId: data.requestId, 
+                        volume: Math.round(volume * 100) 
+                    })
+                }).catch(error => {
+                    log.warn('Failed to get volume level:', error)
+                })
             })
 
             socketClient.on('update-config', (data) => {

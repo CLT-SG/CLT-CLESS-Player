@@ -297,6 +297,52 @@
         }
     })
 
+    // Volume control endpoints
+    app.get('/api/volume/mute', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("set-volume-mute", { action: 'mute' })
+            res.json({ success: true, action: 'mute' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
+        }
+    })
+
+    app.get('/api/volume/unmute', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("set-volume-mute", { action: 'unmute' })
+            res.json({ success: true, action: 'unmute' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
+        }
+    })
+
+    app.post('/api/volume/set', function (req, res) {
+        const volume = req.body.volume
+        if (volume >= 0 && volume <= 100) {
+            var electronSocketId = userID['eCLESS']
+            if (electronSocketId) {
+                io.to(electronSocketId).emit("set-volume-level", { volume: volume })
+                res.json({ success: true, volume: volume })
+            } else {
+                res.status(400).json({ error: 'eCLESS client not connected' })
+            }
+        } else {
+            res.status(400).json({ error: 'Volume must be between 0 and 100' })
+        }
+    })
+
+    app.get('/api/volume/get', function (req, res) {
+        var electronSocketId = userID['eCLESS']
+        if (electronSocketId) {
+            io.to(electronSocketId).emit("get-volume-level", { requestId: Date.now() })
+            res.json({ success: true, message: 'Volume request sent' })
+        } else {
+            res.status(400).json({ error: 'eCLESS client not connected' })
+        }
+    })
+
     // Configuration endpoints
     app.get('/api/config', function (req, res) {
         try {
@@ -569,6 +615,56 @@
                 }
             } catch (err) {
                 log.warn('cpanel set-screen-toggle: ' + err)
+                return err
+            }
+        })
+
+        //handle volume control
+        socket.on('set-volume-mute', (msg) => {
+            try {
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-volume-mute", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel set-volume-mute: ' + err)
+                return err
+            }
+        })
+
+        socket.on('set-volume-level', (msg) => {
+            try {
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("set-volume-level", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel set-volume-level: ' + err)
+                return err
+            }
+        })
+
+        socket.on('get-volume-level', (msg) => {
+            try {
+                var electronSocketId = userID['eCLESS']
+                if (electronSocketId) {
+                    io.to(electronSocketId).emit("get-volume-level", msg)
+                }
+            } catch (err) {
+                log.warn('cpanel get-volume-level: ' + err)
+                return err
+            }
+        })
+
+        //handle volume level response from Electron
+        socket.on('volume-level-response', (msg) => {
+            try {
+                console.log('Received volume level response from Electron:', msg)
+                // Broadcast to all control panel clients
+                socket.broadcast.emit('volume-level-response', msg)
+                log.info('Volume level response broadcasted to control panels:', msg)
+            } catch (err) {
+                log.warn('cpanel volume-level-response: ' + err)
                 return err
             }
         })

@@ -39,6 +39,9 @@ $(document).ready(function () {
     // Initialize modern dashboard features
     initModernFeatures()
     
+    // Initialize volume controls
+    getCurrentVolumeLevel()
+    
     // Set up intervals for monitoring
     setInterval(function () {
         deviceinfo()
@@ -156,6 +159,40 @@ function setupEventHandlers() {
         $('#screenOff').prop('disabled', true).addClass('btn-loading');
         $('#screenOn').prop('disabled', true);
         setScreenToggle('off');
+    })
+
+    // Volume control handlers
+    $('#volumeMute').click(function() {
+        console.log('Volume MUTE button clicked');
+        if ($(this).prop('disabled')) {
+            console.log('Volume MUTE button is disabled, ignoring click');
+            return;
+        }
+        setVolumeMute();
+    })
+
+    $('#volumeUnmute').click(function() {
+        console.log('Volume UNMUTE button clicked');
+        if ($(this).prop('disabled')) {
+            console.log('Volume UNMUTE button is disabled, ignoring click');
+            return;
+        }
+        setVolumeUnmute();
+    })
+
+    // Volume slider handler with debouncing
+    let volumeTimeout;
+    $('#volumeSlider').on('input', function() {
+        const volume = $(this).val();
+        $('#volumeDisplay').text(volume + '%');
+        
+        // Clear previous timeout
+        clearTimeout(volumeTimeout);
+        
+        // Set new timeout to avoid too many API calls
+        volumeTimeout = setTimeout(() => {
+            setVolumeLevel(volume);
+        }, 300); // 300ms delay
     })
 
     // Configuration handlers
@@ -384,6 +421,93 @@ function setScreenToggle(state) {
             // Re-enable both buttons on error
             screenOnBtn.prop('disabled', false).removeClass('loading')
             screenOffBtn.prop('disabled', false).removeClass('loading')
+        }
+    })
+}
+
+// Volume control functions
+function setVolumeMute() {
+    const muteBtn = $('#volumeMute')
+    const unmuteBtn = $('#volumeUnmute')
+    
+    muteBtn.addClass('loading').prop('disabled', true)
+    
+    $.ajax({
+        type: 'get',
+        url: '/api/volume/mute',
+        success: function (data) {
+            console.log('Volume mute success:', data)
+            if (data.success) {
+                showAlert('success', 'Audio muted')
+                muteBtn.removeClass('loading btn-warning').addClass('btn-secondary').prop('disabled', true)
+                unmuteBtn.removeClass('btn-secondary').addClass('btn-info').prop('disabled', false)
+                if (window.showToast) showToast('System audio muted', 'info')
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Volume mute failed:', status, error)
+            showAlert('danger', `Failed to mute audio: ${error}`)
+            muteBtn.removeClass('loading').prop('disabled', false)
+        }
+    })
+}
+
+function setVolumeUnmute() {
+    const muteBtn = $('#volumeMute')
+    const unmuteBtn = $('#volumeUnmute')
+    
+    unmuteBtn.addClass('loading').prop('disabled', true)
+    
+    $.ajax({
+        type: 'get',
+        url: '/api/volume/unmute',
+        success: function (data) {
+            console.log('Volume unmute success:', data)
+            if (data.success) {
+                showAlert('success', 'Audio unmuted')
+                unmuteBtn.removeClass('loading btn-info').addClass('btn-secondary').prop('disabled', true)
+                muteBtn.removeClass('btn-secondary').addClass('btn-warning').prop('disabled', false)
+                if (window.showToast) showToast('System audio unmuted', 'success')
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Volume unmute failed:', status, error)
+            showAlert('danger', `Failed to unmute audio: ${error}`)
+            unmuteBtn.removeClass('loading').prop('disabled', false)
+        }
+    })
+}
+
+function setVolumeLevel(volume) {
+    $('#volumeDisplay').text(volume + '%')
+    
+    $.ajax({
+        type: 'post',
+        url: '/api/volume/set',
+        contentType: 'application/json',
+        data: JSON.stringify({ volume: volume }),
+        success: function (data) {
+            console.log('Volume level set success:', data)
+            if (data.success) {
+                if (window.showToast) showToast(`Volume set to ${volume}%`, 'info')
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Volume level set failed:', status, error)
+            showAlert('danger', `Failed to set volume: ${error}`)
+        }
+    })
+}
+
+function getCurrentVolumeLevel() {
+    $.ajax({
+        type: 'get',
+        url: '/api/volume/get',
+        success: function (data) {
+            console.log('Get volume request sent:', data)
+        },
+        error: function (xhr, status, error) {
+            console.error('Get volume failed:', status, error)
         }
     })
 }
@@ -818,6 +942,15 @@ socket.on('connect', function() {
 socket.on('disconnect', function() {
     console.log('Disconnected from server') 
     $('#connectionStatus').removeClass('status-online').addClass('status-offline')
+})
+
+// Volume control socket handler
+socket.on('volume-level-response', function(data) {
+    console.log('Received volume level response:', data)
+    if (data.volume !== undefined) {
+        $('#volumeSlider').val(data.volume)
+        $('#volumeDisplay').text(data.volume + '%')
+    }
 })
 
 // Cleanup on page unload
