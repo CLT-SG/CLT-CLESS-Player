@@ -47,6 +47,13 @@
     var networkInfo
     var displayInfo
     var systemInfo
+    var dataUsageInfo = {
+        daily: { download: 0, upload: 0, date: new Date().toDateString() },
+        monthly: { download: 0, upload: 0, month: new Date().getMonth(), year: new Date().getFullYear() },
+        total: { download: 0, upload: 0 },
+        lastReset: new Date().toISOString(),
+        interfaces: {}
+    }
 
     //websoctify for novnc
     var ipaddress = ip.address()
@@ -445,6 +452,9 @@
                             .then(disks => {
                                 si.networkStats()
                                     .then(network => {
+                                        // Update data usage tracking
+                                        updateDataUsage(network)
+                                        
                                         res.json({
                                             cpu: {
                                                 load: load.currentLoad,
@@ -471,6 +481,27 @@
                                                 rx_sec: net.rx_sec,
                                                 tx_sec: net.tx_sec
                                             })),
+                                            dataUsage: {
+                                                daily: {
+                                                    download: dataUsageInfo.daily.download,
+                                                    upload: dataUsageInfo.daily.upload,
+                                                    total: dataUsageInfo.daily.download + dataUsageInfo.daily.upload,
+                                                    date: dataUsageInfo.daily.date
+                                                },
+                                                monthly: {
+                                                    download: dataUsageInfo.monthly.download,
+                                                    upload: dataUsageInfo.monthly.upload,
+                                                    total: dataUsageInfo.monthly.download + dataUsageInfo.monthly.upload,
+                                                    month: dataUsageInfo.monthly.month,
+                                                    year: dataUsageInfo.monthly.year
+                                                },
+                                                total: {
+                                                    download: dataUsageInfo.total.download,
+                                                    upload: dataUsageInfo.total.upload,
+                                                    total: dataUsageInfo.total.download + dataUsageInfo.total.upload,
+                                                    lastReset: dataUsageInfo.lastReset
+                                                }
+                                            },
                                             timestamp: new Date().toISOString()
                                         })
                                     })
@@ -481,6 +512,43 @@
                     .catch(err => res.status(500).json({ error: 'Memory stats error: ' + err }))
             })
             .catch(err => res.status(500).json({ error: 'CPU stats error: ' + err }))
+    })
+
+    // Data usage management endpoint
+    app.get('/api/system/data-usage', function (req, res) {
+        res.json({
+            daily: {
+                download: dataUsageInfo.daily.download,
+                upload: dataUsageInfo.daily.upload,
+                total: dataUsageInfo.daily.download + dataUsageInfo.daily.upload,
+                date: dataUsageInfo.daily.date
+            },
+            monthly: {
+                download: dataUsageInfo.monthly.download,
+                upload: dataUsageInfo.monthly.upload,
+                total: dataUsageInfo.monthly.download + dataUsageInfo.monthly.upload,
+                month: dataUsageInfo.monthly.month,
+                year: dataUsageInfo.monthly.year
+            },
+            total: {
+                download: dataUsageInfo.total.download,
+                upload: dataUsageInfo.total.upload,
+                total: dataUsageInfo.total.download + dataUsageInfo.total.upload,
+                lastReset: dataUsageInfo.lastReset
+            }
+        })
+    })
+
+    // Data usage reset endpoint
+    app.post('/api/system/data-usage/reset', function (req, res) {
+        try {
+            const { type } = req.body
+            resetDataUsage(type)
+            res.json({ success: true, message: `Data usage ${type || 'all'} has been reset` })
+        } catch (error) {
+            log.warn('Data usage reset error: ' + error)
+            res.status(500).json({ error: 'Failed to reset data usage' })
+        }
     })
 
     app.use(express.static(__dirname + '//src'))
@@ -713,6 +781,96 @@
         log.info(`Express server listening on port ${port}`)
     })
 
+    // Data usage tracking functions
+    function updateDataUsage(networkStats) {
+        try {
+            const now = new Date()
+            const currentDate = now.toDateString()
+            const currentMonth = now.getMonth()
+            const currentYear = now.getFullYear()
+
+            // Reset daily usage if it's a new day
+            if (dataUsageInfo.daily.date !== currentDate) {
+                dataUsageInfo.daily = { download: 0, upload: 0, date: currentDate }
+            }
+
+            // Reset monthly usage if it's a new month
+            if (dataUsageInfo.monthly.month !== currentMonth || dataUsageInfo.monthly.year !== currentYear) {
+                dataUsageInfo.monthly = { download: 0, upload: 0, month: currentMonth, year: currentYear }
+            }
+
+            networkStats.forEach(stat => {
+                const interfaceName = stat.iface
+                
+                // Initialize interface tracking if not exists
+                if (!dataUsageInfo.interfaces[interfaceName]) {
+                    dataUsageInfo.interfaces[interfaceName] = {
+                        lastRx: stat.rx_bytes || 0,
+                        lastTx: stat.tx_bytes || 0,
+                        lastUpdate: now.toISOString()
+                    }
+                    return
+                }
+
+                const lastInterface = dataUsageInfo.interfaces[interfaceName]
+                const rxDiff = (stat.rx_bytes || 0) - lastInterface.lastRx
+                const txDiff = (stat.tx_bytes || 0) - lastInterface.lastTx
+
+                // Only add positive differences (handles counter resets)
+                if (rxDiff > 0 && txDiff > 0 && rxDiff < 1e12 && txDiff < 1e12) { // Sanity check
+                    // Update daily usage
+                    dataUsageInfo.daily.download += rxDiff
+                    dataUsageInfo.daily.upload += txDiff
+
+                    // Update monthly usage
+                    dataUsageInfo.monthly.download += rxDiff
+                    dataUsageInfo.monthly.upload += txDiff
+
+                    // Update total usage
+                    dataUsageInfo.total.download += rxDiff
+                    dataUsageInfo.total.upload += txDiff
+                }
+
+                // Update last known values
+                lastInterface.lastRx = stat.rx_bytes || 0
+                lastInterface.lastTx = stat.tx_bytes || 0
+                lastInterface.lastUpdate = now.toISOString()
+            })
+
+        } catch (error) {
+            debug('Error updating data usage:', error)
+        }
+    }
+
+    function resetDataUsage(type = 'all') {
+        const now = new Date()
+        
+        switch (type) {
+            case 'daily':
+                dataUsageInfo.daily = { download: 0, upload: 0, date: now.toDateString() }
+                break
+            case 'monthly':
+                dataUsageInfo.monthly = { download: 0, upload: 0, month: now.getMonth(), year: now.getFullYear() }
+                break
+            case 'total':
+                dataUsageInfo.total = { download: 0, upload: 0 }
+                dataUsageInfo.lastReset = now.toISOString()
+                break
+            case 'all':
+            default:
+                dataUsageInfo = {
+                    daily: { download: 0, upload: 0, date: now.toDateString() },
+                    monthly: { download: 0, upload: 0, month: now.getMonth(), year: now.getFullYear() },
+                    total: { download: 0, upload: 0 },
+                    lastReset: now.toISOString(),
+                    interfaces: {}
+                }
+                break
+        }
+        
+        log.info(`Data usage ${type} has been reset`)
+    }
+
     // Initial system information gathering
     async function gatherSystemInfo() {
         try {
@@ -831,11 +989,35 @@
 
     // Initial gather
     gatherSystemInfo()
+    
+    // Initialize data usage tracking
+    async function initializeDataUsageTracking() {
+        try {
+            const networkStats = await si.networkStats()
+            updateDataUsage(networkStats)
+            log.info('Data usage tracking initialized')
+        } catch (error) {
+            log.warn('Data usage tracking initialization error: ' + error)
+        }
+    }
+    
+    // Initialize data usage tracking after a short delay
+    setTimeout(initializeDataUsageTracking, 5000)
 
     // Update system information periodically
     setInterval(function () {
         gatherSystemInfo()
     }, 30000) // Update every 30 seconds
+    
+    // Update data usage tracking more frequently
+    setInterval(async function () {
+        try {
+            const networkStats = await si.networkStats()
+            updateDataUsage(networkStats)
+        } catch (error) {
+            debug('Data usage tracking update error: ' + error)
+        }
+    }, 10000) // Update every 10 seconds
 
     module.exports = server
 

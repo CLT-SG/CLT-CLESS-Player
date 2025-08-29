@@ -52,22 +52,6 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
    npm start
    ```
 
-### Advanced Setup with System Integration
-
-Use the included administration script for comprehensive setup:
-
-```bash
-# Make the script executable
-chmod +x admin.sh
-
-# Run the administration menu
-./admin.sh
-
-# Or run specific setup tasks
-./admin.sh 1  # Setup directories and dependencies
-./admin.sh 4  # Install systemd service
-```
-
 ## Usage
 
 ### Accessing the Control Panel
@@ -76,7 +60,7 @@ chmod +x admin.sh
 2. Open a web browser and navigate to: `https://localhost:9000`
 3. Use the enhanced control panel to:
    - Monitor system performance in real-time
-   - Control display settings (brightness, power)
+   - Control display settings (display, content)
    - Manage content layouts and media
    - Configure system settings
    - Access remote desktop via VNC

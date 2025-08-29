@@ -211,6 +211,19 @@ function setupEventHandlers() {
     $('#refreshMonitoring').click(function() {
         refreshSystemMonitoring()
     })
+    
+    // Data usage reset handlers
+    $('#resetDailyUsage').click(function() {
+        resetDataUsage('daily')
+    })
+    
+    $('#resetMonthlyUsage').click(function() {
+        resetDataUsage('monthly')
+    })
+    
+    $('#resetTotalUsage').click(function() {
+        resetDataUsage('all')
+    })
 }
 
 // Enhanced system information display
@@ -371,9 +384,60 @@ function refreshSystemMonitoring() {
                 }
             })
             $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
+            
+            // Data Usage Stats
+            if (data.dataUsage) {
+                updateDataUsageDisplay(data.dataUsage)
+            }
         },
         error: function () {
             console.warn('Error fetching monitoring data')
+        }
+    })
+}
+
+// Data usage display function
+function updateDataUsageDisplay(dataUsage) {
+    // Update metric cards
+    $('#dataUsageDaily').html(formatBytes(dataUsage.daily.total))
+    $('#dataUsageMonthly').html(formatBytes(dataUsage.monthly.total))
+    $('#dataUsageTotal').html(formatBytes(dataUsage.total.total))
+    
+    // Update detailed breakdown
+    $('#dailyDownload').text(formatBytes(dataUsage.daily.download))
+    $('#dailyUpload').text(formatBytes(dataUsage.daily.upload))
+    $('#monthlyTotal').text(formatBytes(dataUsage.monthly.total))
+    $('#totalUsage').text(formatBytes(dataUsage.total.total))
+}
+
+// Data usage reset function
+function resetDataUsage(type) {
+    if (!confirm(`Are you sure you want to reset ${type} data usage? This action cannot be undone.`)) {
+        return
+    }
+    
+    $.ajax({
+        type: 'POST',
+        url: '/api/system/data-usage/reset',
+        data: JSON.stringify({ type: type }),
+        contentType: 'application/json',
+        success: function (data) {
+            if (data.success) {
+                if (window.showToast) {
+                    showToast(data.message, 'success')
+                }
+                // Refresh monitoring to show updated values
+                refreshSystemMonitoring()
+            } else {
+                if (window.showToast) {
+                    showToast('Failed to reset data usage', 'error')
+                }
+            }
+        },
+        error: function () {
+            if (window.showToast) {
+                showToast('Error resetting data usage', 'error')
+            }
         }
     })
 }
