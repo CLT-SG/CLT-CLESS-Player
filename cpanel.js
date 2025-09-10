@@ -563,11 +563,14 @@
         //save user id to specific pc
         socket.on('save id', (msg) => {
             var clientid = msg.substr(0, msg.indexOf(':'))
+            console.log('=== CPANEL: save id received ===', msg)
+            console.log('=== CPANEL: parsed clientid ===', clientid)
             debug('Received save id event:', msg)
             debug('Parsed clientid:', clientid)
             debug('Socket ID for this connection:', socket.id)
             if (clientid == 'eCLESS') {
                 userID[clientid] = socket.id
+                console.log('=== CPANEL: eCLESS client registered ===', socket.id)
                 debug('Saved eCLESS socket mapping:', userID[clientid])
             } else {
                 userID[clientip] = socket.id
@@ -577,10 +580,18 @@
 
         //cpanel req for text slot
         socket.on('reqtextslot', (msg) => {
+            console.log('=== CPANEL: reqtextslot received ===')
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                electronID.emit("gettextslot", "hi eCLESS")
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding gettextslot to eCLESS ===')
+                    electronID.emit("gettextslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqtextslot')
+                }
             } catch (err) {
+                console.log('=== CPANEL: Error in reqtextslot ===', err)
                 log.warn('cpanel reqtextslot: ' + err)
                 return err
             }
@@ -590,24 +601,36 @@
         socket.on('replace-text', (msg) => {
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                var slotname = msg['slotname']
-                var slottext = msg['text']
-                electronID.emit("replacetextslot", {
-                    "slotname": slotname,
-                    "slottext": slottext
-                })
+                if (electronID) {
+                    var slotname = msg['slotname']
+                    var slottext = msg['text']
+                    electronID.emit("replacetextslot", {
+                        "slotname": slotname,
+                        "slottext": slottext
+                    })
+                } else {
+                    log.warn('eCLESS client not connected for replace-text')
+                }
             } catch (err) {
                 log.warn('cpanel replace-text: ' + err)
                 return err
             }
         })
 
-        //cpanel req for text slot
+        //cpanel req for media slot
         socket.on('reqmediaslot', (msg) => {
+            console.log('=== CPANEL: reqmediaslot received ===')
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                electronID.emit("getmediaslot", "hi eCLESS")
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getmediaslot to eCLESS ===')
+                    electronID.emit("getmediaslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqmediaslot')
+                }
             } catch (err) {
+                console.log('=== CPANEL: Error in reqmediaslot ===', err)
                 log.warn('cpanel reqmediaslot: ' + err)
                 return err
             }
@@ -617,19 +640,31 @@
         socket.on('reqmediafiles', (msg) => {
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                electronID.emit("getmediaslot", "hi eCLESS")
+                if (electronID) {
+                    electronID.emit("getmediaslot", "hi eCLESS")
+                }
                 var mediafiles = []
-                //passsing directoryPath and callback function
+                //passing directoryPath and callback function
                 fs.readdir(appdir + '/res', function (err, files) {
                     //handling error
                     if (err) {
                         log.warn('Unable to scan directory: ' + err)
-                        return debug('Unable to scan directory: ' + err)
+                        debug('Unable to scan directory: ' + err)
+                        // Send empty array even if there's an error
+                        socket.emit('cpanel-mediafiles', mediafiles)
+                        return
                     }
+                    
+                    // If no files, send empty array immediately
+                    if (files.length === 0) {
+                        socket.emit('cpanel-mediafiles', mediafiles)
+                        return
+                    }
+                    
                     //listing all files using forEach
                     files.forEach(function (file, index) {
                         mediafiles.push(file)
-                        // Do whatever you want to do with the file
+                        // Send response after processing the last file
                         if (index === files.length - 1) {
                             socket.emit('cpanel-mediafiles', mediafiles)
                         }
@@ -645,27 +680,35 @@
         socket.on('replace-media', (msg) => {
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                var slotname = msg['slotname']
-                var slotfilename = msg['filename']
-                electronID.emit("replacemediaslot", {
-                    "slotname": slotname,
-                    "slottext": slotfilename,
-                    "resfolder": appdir + '/res',
-                })
+                if (electronID) {
+                    var slotname = msg['slotname']
+                    var slotfilename = msg['filename']
+                    electronID.emit("replacemediaslot", {
+                        "slotname": slotname,
+                        "slottext": slotfilename,
+                        "resfolder": appdir + '/res',
+                    })
+                } else {
+                    log.warn('eCLESS client not connected for replace-media')
+                }
             } catch (err) {
                 log.warn('cpanel replace-media: ' + err)
                 return err
             }
         })
 
-        //cpanel req to replace media slot
+        //cpanel req to replace layout
         socket.on('replace-layout', (msg) => {
             try {
                 var electronID = io.sockets.sockets.get(userID['eCLESS'])
-                var layoutid = msg['id']
-                electronID.emit("updatelayout", {
-                    "id": layoutid
-                })
+                if (electronID) {
+                    var layoutid = msg['id']
+                    electronID.emit("updatelayout", {
+                        "id": layoutid
+                    })
+                } else {
+                    log.warn('eCLESS client not connected for replace-layout')
+                }
             } catch (err) {
                 log.warn('cpanel replace-layout : ' + err)
                 return err
@@ -674,19 +717,27 @@
 
         //get text slot list
         socket.on('textslot-list', (msg) => {
+            console.log('=== CPANEL: textslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
             try {
-                socket.broadcast.emit('cpanel-textslot', msg)
+                io.emit('cpanel-textslot', msg)
+                console.log('=== CPANEL: cpanel-textslot emitted to all clients ===')
             } catch (err) {
+                console.log('=== CPANEL: Error in textslot-list ===', err)
                 log.warn('cpanel textslot-list: ' + err)
                 return err
             }
         })
 
-        //get text slot list
+        //get media slot list
         socket.on('mediaslot-list', (msg) => {
+            console.log('=== CPANEL: mediaslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
             try {
-                socket.broadcast.emit('cpanel-mediaslot', msg)
+                io.emit('cpanel-mediaslot', msg)
+                console.log('=== CPANEL: cpanel-mediaslot emitted to all clients ===')
             } catch (err) {
+                console.log('=== CPANEL: Error in mediaslot-list ===', err)
                 log.warn('cpanel mediaslot-list: ' + err)
                 return err
             }

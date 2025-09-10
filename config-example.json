@@ -1,0 +1,42 @@
+{
+  "hostserver": "https://cless4.closed-loop.biz/demo",
+  "id": "206",
+  "mode": "online",
+  "corsproxy": "N",
+  "serialkey": "3a9f5e706cfeffb4a52649b0bb57ad1e546a8d25093b70e9fc3e4e76aa26f502",
+  "timeout": 10000,
+  "autoStartup": true,
+  "fullscreenMode": true,
+  "screenTimeout": 0,
+  "updateInterval": 30,
+  "logLevel": "debug",
+  "screenOnOff": true,
+  "displaySettings": {
+    "resolution": "auto",
+    "orientation": "landscape",
+    "colorProfile": "default",
+    "powerManagement": true
+  },
+  "networkSettings": {
+    "autoConnect": true,
+    "preferredInterface": "auto",
+    "retryAttempts": 3,
+    "retryDelay": 5000
+  },
+  "mediaSettings": {
+    "defaultVolume": 50,
+    "autoPlay": true,
+    "loopMedia": true,
+    "hardwareAcceleration": true
+  },
+  "systemSettings": {
+    "enableRemoteControl": true,
+    "allowShutdown": true,
+    "enableSystemInfo": true,
+    "enableVNC": true,
+    "vncPort": 5900,
+    "cpanelPort": 9000
+  },
+  "timestamp": "2025-08-28T10:38:09.284Z",
+  "version": "2.0.14"
+}

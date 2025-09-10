@@ -1,3 +1,4 @@
+console.log('=== CONTROL PANEL: Starting initialization ===')
 var socket = io()
 var systemMonitoringInterval
 var configData = {}
@@ -5,6 +6,7 @@ var configData = {}
 // Debug function for development-only logging  
 const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind(console) : () => {}
 
+console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
 socket.emit('save id', 'Controlpanel:')
 
 // Enhanced error handling for API calls
@@ -822,14 +824,17 @@ function getAPIMedia() {
 }
 
 function gettextslot() {
+    console.log('=== CONTROL PANEL: Requesting text slots ===')
     socket.emit('reqtextslot', 'get text slot')
 }
 
 function getmediaslot() {
+    console.log('=== CONTROL PANEL: Requesting media slots ===')
     socket.emit('reqmediaslot', 'get media slot')
 }
 
 function getmediafiles() {
+    console.log('=== CONTROL PANEL: Requesting media files ===')
     socket.emit('reqmediafiles', 'get media files')
 }
 
@@ -949,13 +954,13 @@ socket.on('cpanel-textslot', function (msg) {
     $('#replaceTextList').empty()
     $('#replaceTextList').append($('<option>', {
         value: '',
-        text: 'Open this to select text slot. Slot Name | Slot Text'
+        text: 'Open this to select text slot. [Layout Name - ID] Slot Name (Type) | Slot Text'
     }))
     
     msg.forEach(function(slot) {
         $('#replaceTextList').append($('<option>', {
             value: slot.name,
-            text: `${slot.name} | ${slot.text}`,
+            text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | ${slot.text}`,
             class: slot.layoutid
         }))
     })
@@ -965,13 +970,13 @@ socket.on('cpanel-mediaslot', function (msg) {
     $('#replaceMediaList').empty()
     $('#replaceMediaList').append($('<option>', {
         value: '',
-        text: 'Open this to select media slot. Slot Name | Slot Text'
+        text: 'Open this to select media slot. [Layout Name - ID] Slot Name | Slot Text'
     }))
     
     msg.forEach(function(slot) {
         $('#replaceMediaList').append($('<option>', {
             value: slot.name,
-            text: `${slot.name} | ${slot.text}`,
+            text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} | ${slot.text}`,
             class: slot.layoutid
         }))
     })
@@ -1002,11 +1007,13 @@ socket.on('device-info', function(data) {
 })
 
 socket.on('connect', function() {
+    console.log('=== CONTROL PANEL: Connected to server ===')
     debug('Connected to server')
     $('#connectionStatus').removeClass('status-offline').addClass('status-online')
 })
 
 socket.on('disconnect', function() {
+    console.log('=== CONTROL PANEL: Disconnected from server ===')
     debug('Disconnected from server') 
     $('#connectionStatus').removeClass('status-online').addClass('status-offline')
 })
