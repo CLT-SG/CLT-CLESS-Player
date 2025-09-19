@@ -132,6 +132,40 @@ Requests current volume level (response sent via Socket.IO).
 }
 ```
 
+### Screenshot Capture
+
+#### GET /api/screenshot
+Captures a screenshot of the main Electron window and returns it as base64-encoded PNG data.
+
+**Response:**
+```json
+{
+  "success": true,
+  "screenshot": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA...",
+  "timestamp": "2025-09-19T14:30:45.123Z"
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Window not available for screenshot capture"
+}
+```
+
+**Features:**
+- **Real-time Capture**: On-demand window screenshot functionality
+- **Base64 Encoding**: PNG format encoded as base64 for easy web integration
+- **Error Handling**: Robust error handling for window access failures
+- **HTTPS Endpoint**: Secure access via localhost HTTPS connection
+- **JSON Response**: Structured response format for programmatic access
+
+**Usage Example:**
+```bash
+curl -k https://localhost:9000/api/screenshot
+```
+
 ### Configuration Management
 
 #### POST /api/config/save
@@ -319,6 +353,48 @@ socket.emit('update-config', configObject)
 
 ## Usage Examples
 
+### Screenshot Capture via API
+```bash
+# Capture window screenshot
+curl -k https://localhost:9000/api/screenshot
+
+# Save screenshot to PNG file (requires jq)
+curl -k https://localhost:9000/api/screenshot | jq -r '.screenshot' | base64 -d > screenshot.png
+
+# Alternative: Save screenshot to PNG file (without jq dependency)
+curl -k https://localhost:9000/api/screenshot | grep -o '"screenshot":"[^"]*"' | cut -d'"' -f4 | base64 -d > screenshot.png
+
+# Save with timestamp filename
+curl -k https://localhost:9000/api/screenshot | jq -r '.screenshot' | base64 -d > "screenshot_$(date +%Y%m%d_%H%M%S).png"
+```
+
+### JavaScript Integration
+```javascript
+// Frontend usage for screenshot capture
+fetch('https://localhost:9000/api/screenshot', {
+  method: 'GET',
+  headers: { 'Accept': 'application/json' }
+})
+.then(response => response.json())
+.then(data => {
+  if (data.success) {
+    // Display screenshot in HTML img element
+    document.getElementById('screenshot').src = data.screenshot;
+    
+    // Or download as file
+    const link = document.createElement('a');
+    link.href = data.screenshot;
+    link.download = 'electron-window-screenshot.png';
+    link.click();
+  } else {
+    console.error('Screenshot capture failed:', data.error);
+  }
+})
+.catch(error => {
+  console.error('Screenshot API error:', error);
+});
+```
+
 ### Setting Screen Toggle via API
 ```bash
 # Turn screen off (mute audio + black overlay)
@@ -399,7 +475,10 @@ curl -X POST "http://localhost:9000/api/config/save" \
 
 ## Changelog
 
-### Version 2.2.1 - Audio-Based Screen Control
+### Version 2.2.1 - Audio-Based Screen Control & Screenshot API
+- **NEW FEATURE**: Added screenshot capture API endpoint at `/api/screenshot`
+- **NEW FEATURE**: Real-time window screenshot capture with base64 PNG encoding
+- **NEW FEATURE**: Enhanced window reference architecture for screenshot access
 - **BREAKING CHANGE**: Removed traditional display power controls
 - Added audio-based screen toggle with black screen overlay
 - Implemented cross-platform audio control (Windows/Linux/macOS)

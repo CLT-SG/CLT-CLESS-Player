@@ -1,4 +1,5 @@
-(async function () {
+module.exports = function(electronWindow = null) {
+return (async function () {
     const express = require('express')
     var https = require('https')
     const shutdown = require('electron-shutdown-command')
@@ -259,6 +260,47 @@
             system: systemInfo,
             timestamp: new Date().toISOString()
         })
+    })
+
+    // Screenshot endpoint
+    app.get('/api/screenshot', function (req, res) {
+        log.info('Screenshot API endpoint called')
+        
+        try {
+            if (!electronWindow) {
+                log.warn('Screenshot failed: Electron window not available')
+                return res.status(500).json({ 
+                    error: 'Electron window not available',
+                    success: false 
+                })
+            }
+
+            // Capture screenshot of the main Electron window
+            electronWindow.capturePage().then(nativeImage => {
+                const dataURL = nativeImage.toDataURL()
+                const base64Data = dataURL.split(',')[1] // Remove the data:image/png;base64, prefix
+                
+                log.info('Screenshot captured successfully')
+                res.json({
+                    success: true,
+                    screenshot: base64Data,
+                    format: 'png',
+                    timestamp: new Date().toISOString()
+                })
+            }).catch(error => {
+                log.error('Screenshot capture error:', error)
+                res.status(500).json({ 
+                    error: 'Failed to capture screenshot: ' + error.message,
+                    success: false 
+                })
+            })
+        } catch (error) {
+            log.error('Screenshot API error:', error)
+            res.status(500).json({ 
+                error: 'Internal server error: ' + error.message,
+                success: false 
+            })
+        }
     })
 
     // Display control endpoints
@@ -1070,6 +1112,7 @@
         }
     }, 10000) // Update every 10 seconds
 
-    module.exports = server
+    return server
 
 }())
+}
