@@ -33,7 +33,7 @@ try {
     debug('win-audio package not available (not on Windows or not installed)')
 }
 
-const server = require('./cpanel')
+const createCpanelServer = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
 const date = require('date-and-time')
@@ -74,21 +74,38 @@ async function performConfigMigration() {
     const migrationFlagPath = path.join(appdir, '.migration-v2-complete')
 
     try {
-        // Check if migration has already been completed
-        if (fs.existsSync(migrationFlagPath)) {
-            log.info('Configuration migration already completed')
+        // Check if migration has already been completed AND config.json actually exists
+        if (fs.existsSync(migrationFlagPath) && fs.existsSync(configJsonPath)) {
+            log.info('Configuration migration already completed and config.json exists')
             return
+        }
+
+        // If migration flag exists but config.json is missing, we need to recreate it
+        if (fs.existsSync(migrationFlagPath) && !fs.existsSync(configJsonPath)) {
+            log.warn('Migration flag exists but config.json is missing - recreating config.json')
+            // Remove the incomplete migration flag so we can retry
+            fs.unlinkSync(migrationFlagPath)
         }
 
         // Check if old config.js exists
         if (!fs.existsSync(configJsPath)) {
             log.info('No existing config.js found, creating new config.json')
             await createDefaultConfigJson()
-            fs.writeFileSync(migrationFlagPath, new Date().toISOString())
+            fs.writeFileSync(migrationFlagPath, JSON.stringify({
+                completedAt: new Date().toISOString(),
+                migratedFrom: 'default',
+                version: '2.0.14'
+            }, null, 2))
             return
         }
 
         log.info('Starting configuration migration from config.js to config.json')
+
+        // Ensure appdir exists before proceeding
+        if (!fs.existsSync(appdir)) {
+            log.info('Creating clessapp directory')
+            fs.mkdirSync(appdir, { recursive: true })
+        }
 
         // Load existing config.js
         delete require.cache[require.resolve(configJsPath)] // Clear cache
@@ -170,6 +187,15 @@ async function performConfigMigration() {
             version: '2.0.14'
         }, null, 2))
 
+        // Delete original config.js after successful migration
+        try {
+            fs.unlinkSync(configJsPath)
+            log.info('Original config.js deleted after successful migration')
+        } catch (deleteError) {
+            log.warn('Failed to delete original config.js:', deleteError.message)
+            // Don't fail the migration if deletion fails - backup exists
+        }
+
         log.info('Configuration migration completed successfully')
 
         // Show migration success dialog
@@ -180,14 +206,14 @@ async function performConfigMigration() {
             title: 'Configuration Migration',
             message: 'Configuration has been successfully migrated to the new format.',
             detail: `Your settings have been migrated from config.js to config.json with enhanced features.\n\n` +
-                   `Original config.js has been backed up as config.js.backup\n\n` +
+                   `Original config.js has been backed up as config.js.backup and the original file has been removed.\n\n` +
                    `New features available:\n` +
                    `• Enhanced system monitoring\n` +
                    `• Screen on/off toggle with sound control\n` +
                    `• Advanced configuration management\n` +
                    `• Real-time system information\n\n` +
                    `Access the enhanced control panel at: https://localhost:9000\n\n` +
-                   `Copyright © 2000-${date.format(now, 'YYYY')} by Closed-loop Technology Pte Ltd.`
+                   `Copyright © 2000-${new Date().getFullYear()} by Closed-loop Technology Pte Ltd.`
         }
 
         if (app.isReady()) {
@@ -206,52 +232,70 @@ async function performConfigMigration() {
 
 // Create default config.json
 async function createDefaultConfigJson() {
-    const defaultConfig = {
-        hostserver: 'https://cless4.closed-loop.biz/demo',
-        id: '10',
-        mode: 'online',
-        corsproxy: 'N',
-        serialkey: '1d74f3eda4dd9d1065a6216c84c27d67301779b76996dc867f4403d48f9ad91e',
-        timeout: 10000,
-        autoStartup: true,
-        fullscreenMode: true,
-        screenTimeout: 0,
-        updateInterval: 30,
-        logLevel: 'info',
-        screenOnOff: true,
-        displaySettings: {
-            resolution: 'auto',
-            orientation: 'landscape',
-            colorProfile: 'default',
-            powerManagement: true
-        },
-        networkSettings: {
-            autoConnect: true,
-            preferredInterface: 'auto',
-            retryAttempts: 3,
-            retryDelay: 5000
-        },
-        mediaSettings: {
-            defaultVolume: 50,
-            autoPlay: true,
-            loopMedia: true,
-            hardwareAcceleration: true
-        },
-        systemSettings: {
-            enableRemoteControl: true,
-            allowShutdown: true,
-            enableSystemInfo: true,
-            enableVNC: true,
-            vncPort: 5900,
-            cpanelPort: 9000
-        },
-        timestamp: new Date().toISOString(),
-        version: '2.0.14'
-    }
+    try {
+        // Ensure appdir exists
+        if (!fs.existsSync(appdir)) {
+            log.info('Creating clessapp directory for default config')
+            fs.mkdirSync(appdir, { recursive: true })
+        }
 
-    const configJsonPath = path.join(appdir, 'config.json')
-    fs.writeFileSync(configJsonPath, JSON.stringify(defaultConfig, null, 2))
-    log.info('Default config.json created')
+        const defaultConfig = {
+            hostserver: 'https://cless4.closed-loop.biz/demo',
+            id: '10',
+            mode: 'online',
+            corsproxy: 'N',
+            serialkey: '1d74f3eda4dd9d1065a6216c84c27d67301779b76996dc867f4403d48f9ad91e',
+            timeout: 10000,
+            autoStartup: true,
+            fullscreenMode: true,
+            screenTimeout: 0,
+            updateInterval: 30,
+            logLevel: 'info',
+            screenOnOff: true,
+            displaySettings: {
+                resolution: 'auto',
+                orientation: 'landscape',
+                colorProfile: 'default',
+                powerManagement: true
+            },
+            networkSettings: {
+                autoConnect: true,
+                preferredInterface: 'auto',
+                retryAttempts: 3,
+                retryDelay: 5000
+            },
+            mediaSettings: {
+                defaultVolume: 50,
+                autoPlay: true,
+                loopMedia: true,
+                hardwareAcceleration: true
+            },
+            systemSettings: {
+                enableRemoteControl: true,
+                allowShutdown: true,
+                enableSystemInfo: true,
+                enableVNC: true,
+                vncPort: 5900,
+                cpanelPort: 9000
+            },
+            timestamp: new Date().toISOString(),
+            version: '2.0.14'
+        }
+
+        const configJsonPath = path.join(appdir, 'config.json')
+        fs.writeFileSync(configJsonPath, JSON.stringify(defaultConfig, null, 2))
+        log.info('Default config.json created successfully at: ' + configJsonPath)
+        
+        // Verify the file was created
+        if (fs.existsSync(configJsonPath)) {
+            log.info('Verified: config.json file exists and is readable')
+        } else {
+            throw new Error('Failed to create config.json - file does not exist after write operation')
+        }
+    } catch (error) {
+        log.error('Error creating default config.json:', error)
+        throw error
+    }
 }
 
 // Function to load configuration (supports both old and new formats)
@@ -694,7 +738,7 @@ try {
     }
 
     //create config.json migration and update system
-    ;(async () => {
+    (async () => {
         await performConfigMigration()
     })()
 
@@ -1493,6 +1537,14 @@ try {
                         clearInterval(checkScreens)
                     }
                 }, 1000)
+            }
+
+            // Initialize cpanel server with window reference
+            try {
+                const server = await createCpanelServer(win)
+                log.info('Cpanel server initialized with window reference')
+            } catch (error) {
+                log.error('Failed to initialize cpanel server:', error)
             }
         })
 
