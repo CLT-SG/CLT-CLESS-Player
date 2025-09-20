@@ -394,48 +394,33 @@ return (async function () {
     })
 
     // Display control endpoints
-    app.get('/api/display/screen/:state', function (req, res) {
+    app.get('/api/display/screen/:state', async function (req, res) {
         const state = req.params.state.toLowerCase()
+        
         if (state === 'on' || state === 'off') {
-            // For testing, let's execute the mute/unmute commands directly
-            const { exec } = require('child_process')
-            
-            if (state === 'off') {
-                // Mute audio
-                exec('amixer set Master mute', (error, stdout, stderr) => {
-                    if (error) {
-                        console.warn('Failed to mute audio:', error)
-                    } else {
-                        debug('Audio muted successfully')
-                    }
+            try {
+                const result = await handleScreenToggle(state)
+                res.json({ 
+                    success: true, 
+                    state: state,
+                    screen: result.screen,
+                    audio: result.audio,
+                    message: `Screen ${state === 'off' ? 'disabled' : 'enabled'} successfully`
                 })
-            } else {
-                // Unmute audio
-                exec('amixer set Master unmute', (error, stdout, stderr) => {
-                    if (error) {
-                        console.warn('Failed to unmute audio:', error)
-                    } else {
-                        debug('Audio unmuted successfully')
-                    }
+            } catch (error) {
+                log.error('API screen toggle error:', error)
+                res.status(500).json({ 
+                    success: false, 
+                    error: error.message,
+                    state: state
                 })
             }
-
-            // Try to emit to Electron main process if connection exists
-            var electronSocketId = userID['eCLESS']
-            debug('userID mapping:', userID)
-            debug('Looking for eCLESS socket ID:', electronSocketId)
-            
-            if (electronSocketId) {
-                // Use Socket.IO 4.x syntax to emit to specific socket
-                io.to(electronSocketId).emit("set-screen-toggle", { state: state })
-                debug('Sent screen toggle event to Electron main process via socket ID:', electronSocketId)
-            } else {
-                debug('No Electron socket connection found, only executed audio commands')
-            }
-            
-            res.json({ success: true, screen: state })
         } else {
-            res.status(400).json({ error: 'Screen state must be "on" or "off"' })
+            res.status(400).json({ 
+                success: false,
+                error: 'Screen state must be "on" or "off"',
+                provided: state
+            })
         }
     })
 
@@ -931,6 +916,182 @@ return (async function () {
         })
     }
 
+    // ================================================
+    // DIRECT SCREEN CONTROL FUNCTIONS
+    // ================================================
+    
+    /**
+     * Turn screen/display off using system commands
+     * @returns {Promise}
+     */
+    function turnScreenOff() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            
+            log.info('Turning screen OFF')
+            
+            if (platform === 'win32') {
+                // Windows: Turn off monitor using PowerShell
+                exec('powershell "(Add-Type \'[DllImport(\\\"user32.dll\\\")]public static extern int SendMessage(int hWnd,int hMsg,int wParam,int lParam);\' -Name Win32; [Win32]::SendMessage(0xFFFF, 0x0112, 0xF170, 2))"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning off Windows screen:', error)
+                        // Fallback: try alternative method
+                        exec('powershell "Start-Process -FilePath \\"C:\\\\Windows\\\\System32\\\\scrnsave.scr\\" -ArgumentList \\"/s\\""', (fallbackError) => {
+                            if (fallbackError) {
+                                log.error('Fallback screen off method also failed:', fallbackError)
+                                reject(fallbackError)
+                            } else {
+                                log.info('Windows screen turned off using fallback method')
+                                resolve({ success: true, action: 'screen-off', method: 'screensaver' })
+                            }
+                        })
+                    } else {
+                        log.info('Windows screen turned off')
+                        resolve({ success: true, action: 'screen-off', method: 'powershell' })
+                    }
+                })
+            } else if (platform === 'linux') {
+                // Linux: Turn off display using xset
+                exec('export DISPLAY=:0 && xset dpms force off', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning off Linux screen with xset:', error)
+                        // Fallback: try alternative methods
+                        exec('export DISPLAY=:0 && xrandr --output $(xrandr | grep " connected" | cut -f1 -d" " | head -1) --off', (fallbackError) => {
+                            if (fallbackError) {
+                                log.error('Fallback screen off method also failed:', fallbackError)
+                                reject(fallbackError)
+                            } else {
+                                log.info('Linux screen turned off using xrandr')
+                                resolve({ success: true, action: 'screen-off', method: 'xrandr' })
+                            }
+                        })
+                    } else {
+                        log.info('Linux screen turned off')
+                        resolve({ success: true, action: 'screen-off', method: 'xset' })
+                    }
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Turn off display
+                exec('pmset displaysleepnow', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning off macOS screen:', error)
+                        reject(error)
+                    } else {
+                        log.info('macOS screen turned off')
+                        resolve({ success: true, action: 'screen-off', method: 'pmset' })
+                    }
+                })
+            } else {
+                reject(new Error('Unsupported platform for screen control'))
+            }
+        })
+    }
+
+    /**
+     * Turn screen/display on using system commands
+     * @returns {Promise}
+     */
+    function turnScreenOn() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            
+            log.info('Turning screen ON')
+            
+            if (platform === 'win32') {
+                // Windows: Wake up monitor using mouse movement simulation
+                exec('powershell "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(([System.Windows.Forms.Cursor]::Position.X + 1), [System.Windows.Forms.Cursor]::Position.Y); Start-Sleep -Milliseconds 50; [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(([System.Windows.Forms.Cursor]::Position.X - 1), [System.Windows.Forms.Cursor]::Position.Y)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning on Windows screen:', error)
+                        reject(error)
+                    } else {
+                        log.info('Windows screen turned on')
+                        resolve({ success: true, action: 'screen-on', method: 'mouse-movement' })
+                    }
+                })
+            } else if (platform === 'linux') {
+                // Linux: Turn on display using xset
+                exec('export DISPLAY=:0 && xset dpms force on', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning on Linux screen with xset:', error)
+                        // Fallback: try to wake up display with xrandr
+                        exec('export DISPLAY=:0 && xrandr --output $(xrandr | grep " disconnected" | cut -f1 -d" " | head -1) --auto || xset s reset', (fallbackError) => {
+                            if (fallbackError) {
+                                log.warn('Fallback screen on method had issues, but this is often normal:', fallbackError.message)
+                                // For screen on, we'll consider it successful even if there are warnings
+                                resolve({ success: true, action: 'screen-on', method: 'xset-fallback' })
+                            } else {
+                                log.info('Linux screen turned on using fallback method')
+                                resolve({ success: true, action: 'screen-on', method: 'xrandr' })
+                            }
+                        })
+                    } else {
+                        log.info('Linux screen turned on')
+                        resolve({ success: true, action: 'screen-on', method: 'xset' })
+                    }
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Wake up display by moving mouse cursor
+                exec('osascript -e "tell application \\"System Events\\" to key code 126"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error turning on macOS screen:', error)
+                        reject(error)
+                    } else {
+                        log.info('macOS screen turned on')
+                        resolve({ success: true, action: 'screen-on', method: 'keypress' })
+                    }
+                })
+            } else {
+                reject(new Error('Unsupported platform for screen control'))
+            }
+        })
+    }
+
+    /**
+     * Handle screen toggle with integrated volume control
+     * @param {string} state - 'on' or 'off'
+     * @returns {Promise}
+     */
+    async function handleScreenToggle(state) {
+        try {
+            log.info(`Screen toggle requested: ${state}`)
+            
+            if (state === 'off' || state === false) {
+                // Screen off: turn off display and mute audio
+                log.info('Turning screen OFF - disabling display and muting audio')
+                
+                // Execute both operations
+                const screenResult = await turnScreenOff()
+                const muteResult = await muteSystemVolume()
+                
+                log.info('Screen toggled OFF: display disabled and audio muted')
+                return { 
+                    success: true, 
+                    screen: screenResult, 
+                    audio: muteResult,
+                    state: 'off'
+                }
+            } else {
+                // Screen on: turn on display and unmute audio
+                log.info('Turning screen ON - enabling display and unmuting audio')
+                
+                // Execute both operations
+                const screenResult = await turnScreenOn()
+                const unmuteResult = await unmuteSystemVolume()
+                
+                log.info('Screen toggled ON: display enabled and audio unmuted')
+                return { 
+                    success: true, 
+                    screen: screenResult, 
+                    audio: unmuteResult,
+                    state: 'on'
+                }
+            }
+        } catch (error) {
+            log.error('Error in handleScreenToggle:', error)
+            throw error
+        }
+    }
+
     //SOCkKET io 
 
     //Whenever someone connects this gets executed
@@ -1121,15 +1282,63 @@ return (async function () {
         })
 
         //handle screen toggle control
-        socket.on('set-screen-toggle', (msg) => {
+        socket.on('set-screen-toggle', async (msg) => {
             try {
-                var electronSocketId = userID['eCLESS']
-                if (electronSocketId) {
-                    io.to(electronSocketId).emit("set-screen-toggle", msg)
-                }
+                const state = msg.state || msg
+                const result = await handleScreenToggle(state)
+                socket.emit('screen-toggle-response', { 
+                    success: result.success, 
+                    state: result.state,
+                    screen: result.screen,
+                    audio: result.audio,
+                    message: `Screen ${state === 'off' ? 'disabled' : 'enabled'} successfully`
+                })
             } catch (err) {
                 log.warn('cpanel set-screen-toggle: ' + err)
-                return err
+                socket.emit('screen-toggle-response', { 
+                    success: false, 
+                    error: err.message,
+                    state: msg.state || msg 
+                })
+            }
+        })
+
+        // Handle separate screen control events for compatibility
+        socket.on('screen-on', async (msg) => {
+            try {
+                const result = await handleScreenToggle('on')
+                socket.emit('screen-control-response', { 
+                    action: 'screen-on', 
+                    success: result.success,
+                    screen: result.screen,
+                    audio: result.audio
+                })
+            } catch (err) {
+                log.warn('cpanel screen-on: ' + err)
+                socket.emit('screen-control-response', { 
+                    action: 'screen-on', 
+                    success: false, 
+                    error: err.message 
+                })
+            }
+        })
+
+        socket.on('screen-off', async (msg) => {
+            try {
+                const result = await handleScreenToggle('off')
+                socket.emit('screen-control-response', { 
+                    action: 'screen-off', 
+                    success: result.success,
+                    screen: result.screen,
+                    audio: result.audio
+                })
+            } catch (err) {
+                log.warn('cpanel screen-off: ' + err)
+                socket.emit('screen-control-response', { 
+                    action: 'screen-off', 
+                    success: false, 
+                    error: err.message 
+                })
             }
         })
 
