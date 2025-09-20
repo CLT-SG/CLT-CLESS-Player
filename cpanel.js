@@ -147,6 +147,36 @@ return (async function () {
         res.end('refreshed')
     })
 
+    app.get('/api/resume-layout', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            
+            log.info('API: Resume layout requested')
+            
+            electronID.emit("resume-layout", {
+                "action": "resume",
+                "timestamp": new Date().toISOString()
+            })
+            
+            res.json({
+                status: 'success',
+                message: 'Layout resume request sent to renderer process'
+            })
+        } catch (error) {
+            log.error('API: Resume layout error:', error)
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error: ' + error.message
+            })
+        }
+    })
+
     app.get('/api/restartapp', function (req, res) {
         var electronID = io.sockets.sockets.get(userID['eCLESS'])
         electronID.emit("restart-ecless", 'restart app')
