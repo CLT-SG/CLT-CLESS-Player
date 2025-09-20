@@ -63,6 +63,9 @@ socket.on('updatelayout', function (msg) {
             localStorage.setItem('layout-' + layoutid, JSON.stringify(xmlJSON))
             console.log('=== RENDERER PROCESS: Stored layout XML in localStorage: layout-' + layoutid + ' ===');
 
+            // Sync the current playing layout ID when layout is updated
+            syncCurrentPlayLayoutID(layoutid);
+
             var layoutxml = JSON.parse(localStorage.getItem('layout-' + layoutid))
             console.log('=== RENDERER PROCESS: Calling getLayoutXML with layout data ===');
             getLayoutXML(layoutxml)
@@ -84,6 +87,35 @@ console.log('Socket.io available:', typeof io)
 // Global variables - ensure dsid is available from index.html
 var dsid = dsid || ''
 console.log('=== RENDERER PROCESS: dsid variable:', dsid);
+
+// Global variable for tracking current playing layout ID
+var currentPlayLayoutID = null
+console.log('=== RENDERER PROCESS: currentPlayLayoutID initialized:', currentPlayLayoutID);
+
+// Initialize currentPlayLayoutID from localStorage on startup
+try {
+    var storedLayoutID = localStorage.getItem('currentPlayLayoutID');
+    if (storedLayoutID) {
+        currentPlayLayoutID = storedLayoutID;
+        console.log('=== RENDERER PROCESS: currentPlayLayoutID loaded from localStorage:', currentPlayLayoutID);
+    }
+} catch (error) {
+    console.warn('=== RENDERER PROCESS: Failed to load currentPlayLayoutID from localStorage:', error);
+}
+
+// Helper function to sync currentPlayLayoutID with layout changes
+function syncCurrentPlayLayoutID(layoutID) {
+    if (layoutID) {
+        try {
+            localStorage.setItem('currentPlayLayoutID', layoutID);
+            // Update global variable
+            currentPlayLayoutID = layoutID;
+            console.log('=== RENDERER PROCESS: Synced currentPlayLayoutID to localStorage and global variable:', layoutID);
+        } catch (error) {
+            console.warn('=== RENDERER PROCESS: Failed to sync currentPlayLayoutID to localStorage:', error);
+        }
+    }
+}
 
 // Helper function to get current layout ID and slot information from DS XML data and slotnameList
 function getCurrentLayoutID(slotname, slotnameList) {
@@ -266,6 +298,20 @@ socket.on('gettextslot', function (msg) {
 function capitalizeFirstLetter(string) {
     if (!string) return '';
     return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+// Helper function to get current playing layout ID from localStorage
+function getCurrentPlayLayoutID() {
+    try {
+        var currentLayoutID = localStorage.getItem('currentPlayLayoutID');
+        console.log('=== RENDERER PROCESS: Retrieved currentPlayLayoutID from localStorage:', currentLayoutID);
+        // Update global variable with retrieved value
+        currentPlayLayoutID = currentLayoutID;
+        return currentLayoutID;
+    } catch (error) {
+        console.warn('=== RENDERER PROCESS: Failed to retrieve currentPlayLayoutID from localStorage:', error);
+        return null;
+    }
 }
 
 // Function to extract text slots from localStorage
@@ -496,11 +542,16 @@ socket.on('replacetextslot', function (msg) {
 
     // Check isLoopLyt - if content is for different layout, do layout update first
     if (isLoopLyt) {
+        // Ensure currentPlayLayoutID is properly initialized
+        if (currentPlayLayoutID === null) {
+            getCurrentPlayLayoutID(); // This will update the global variable
+        }
+        
         console.log('=== RENDERER PROCESS: Is current layout and layout id same Current Layout: ', currentPlayLayoutID, ' Layout to Trigger: ', layoutid, ' ===');
         if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && layoutid === currentPlayLayoutID) {
             // Content is for current layout - skip layout switch, go straight to content update
             console.log('=== RENDERER PROCESS: Content for current layout - updating DOM directly ===');
-            updateTextSlotContent(numericId, slottype, text);
+            updateTextSlotContent(numericId, slottype, text, layoutid);
             return;
         }
 
@@ -535,6 +586,9 @@ socket.on('replacetextslot', function (msg) {
                 localStorage.setItem('layout-' + layoutid, JSON.stringify(xmlJSON))
                 console.log('=== RENDERER PROCESS: Stored layout XML in localStorage: layout-' + layoutid + ' ===');
 
+                // Sync the current playing layout ID when layout is switched
+                syncCurrentPlayLayoutID(layoutid);
+
                 // Get the layout data and render it
                 var layoutxml = JSON.parse(localStorage.getItem('layout-' + layoutid))
                 console.log('=== RENDERER PROCESS: Calling getLayoutXML with new layout data ===');
@@ -542,7 +596,7 @@ socket.on('replacetextslot', function (msg) {
                 console.log('=== RENDERER PROCESS: replacetextslot layout switch completed ===');
 
                 // After layout switch, update the text content
-                setTimeout(() => updateTextSlotContent(numericId, slottype, text), 2000);
+                setTimeout(() => updateTextSlotContent(numericId, slottype, text, layoutid), 2000);
             },
             error: function (xhr, textStatus, errorThrown) {
                 console.log('=== RENDERER PROCESS: replacetextslot layout switch AJAX ERROR ===');
@@ -554,43 +608,74 @@ socket.on('replacetextslot', function (msg) {
     } else {
         // Non-loop layout mode - update content directly
         console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly ===');
-        updateTextSlotContent(numericId, slottype, text);
+        updateTextSlotContent(numericId, slottype, text, layoutid);
     }
 })
 
 // Helper function to update text slot content in DOM
-function updateTextSlotContent(id, slottype, text) {
-    if (slottype == 'text') {
-        console.log('=== RENDERER PROCESS: Updating text slot:', id);
-        $('#slot-' + id).html('<div id="text-' + id + '" class="text-slot">' + text + '</div>')
+function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
+    // Pause loop timeout during content update if in loop mode
+    var loopWasPaused = false;
+    if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
+        loopWasPaused = pauseLoopTimeout('text content update');
+        console.log('=== RENDERER PROCESS: Paused loop timeout for text content update, success:', loopWasPaused);
     }
-    if (slottype == 'ticker') {
-        console.log('=== RENDERER PROCESS: Updating ticker slot:', id, 'Text length:', text.length);
-        if (text.length <= 10) {
-            text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
-        } else if (text.length > 10 && text.length <= 25) {
-            text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
-        } else if (text.length > 25 && text.length <= 40) {
-            text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
-        } else if (text.length > 40 && text.length <= 60) {
-            text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
-        } else if (text.length > 60 && text.length <= 80) {
-            text = text + ' ' + text + ' ' + text + ' ' + text
-        } else if (text.length > 80 && text.length <= 110) {
-            text = text + ' ' + text + ' ' + text
-        } else if (text.length > 110 && text.length <= 130) {
-            text = text + ' ' + text
+    
+    // Save current playing layout ID using sync function for consistent tracking
+    if (layoutIdToSave) {
+        syncCurrentPlayLayoutID(layoutIdToSave);
+    }
+
+    try {
+        if (slottype == 'text') {
+            console.log('=== RENDERER PROCESS: Updating text slot:', id);
+            $('#slot-' + id).html('<div id="text-' + id + '" class="text-slot">' + text + '</div>')
         }
-        console.log('=== RENDERER PROCESS: Ticker text processed, final length:', text.length);
-        $('#slot-' + id).children().children().text(text)
-    }
-    if (slottype == 'fader') {
-        console.log('=== RENDERER PROCESS: Updating fader slot:', id);
-        $('#slot-' + id).children().text(text)
-    }
-    if (slottype == 'scroller') {
-        console.log('=== RENDERER PROCESS: Updating scroller slot:', id);
-        $('#slot-' + id).children().children().text(text)
+        if (slottype == 'ticker') {
+            console.log('=== RENDERER PROCESS: Updating ticker slot:', id, 'Text length:', text.length);
+            if (text.length <= 10) {
+                text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
+            } else if (text.length > 10 && text.length <= 25) {
+                text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
+            } else if (text.length > 25 && text.length <= 40) {
+                text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
+            } else if (text.length > 40 && text.length <= 60) {
+                text = text + ' ' + text + ' ' + text + ' ' + text + ' ' + text
+            } else if (text.length > 60 && text.length <= 80) {
+                text = text + ' ' + text + ' ' + text + ' ' + text
+            } else if (text.length > 80 && text.length <= 110) {
+                text = text + ' ' + text + ' ' + text
+            } else if (text.length > 110 && text.length <= 130) {
+                text = text + ' ' + text
+            }
+            console.log('=== RENDERER PROCESS: Ticker text processed, final length:', text.length);
+            $('#slot-' + id).children().children().text(text)
+        }
+        if (slottype == 'fader') {
+            console.log('=== RENDERER PROCESS: Updating fader slot:', id);
+            $('#slot-' + id).children().text(text)
+        }
+        if (slottype == 'scroller') {
+            console.log('=== RENDERER PROCESS: Updating scroller slot:', id);
+            $('#slot-' + id).children().children().text(text)
+        }
+        
+        console.log('=== RENDERER PROCESS: Text content update completed successfully');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error during text content update:', error);
+    } finally {
+        // Resume loop timeout after content update completion
+        if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
+            setTimeout(() => {
+                var resumed = resumeLoopTimeout('text content update completed');
+                console.log('=== RENDERER PROCESS: Resumed loop timeout after text update, success:', resumed);
+                
+                // Log timeout status for debugging
+                if (typeof getLoopTimeoutStatus === 'function') {
+                    console.log('=== RENDERER PROCESS: Loop timeout status after text update:', getLoopTimeoutStatus());
+                }
+            }, 100); // Small delay to ensure DOM update is complete
+        }
     }
 }
 
@@ -857,24 +942,60 @@ socket.on('replacemediaslot', function (msg) {
     var contentObj = createMediaObject(src, mediamode, mediaLocalPath, duration, ytbe);
 
     // Helper function to update media content in DOM
-    function updateMediaSlotContent() {
-        if (contentObj) {
-            mediaCurIndex[numericId] = 1;
-            medialoop[numericId] = [];
-            medialoop[numericId].push(contentObj);
-            $('#slot-' + numericId).html('');
-            console.log('=== RENDERER PROCESS: Cleared slot content and initialized media arrays ===');
-            appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
-            console.log('=== RENDERER PROCESS: Called appendMediaElement ===');
+    function updateMediaSlotContent(layoutIdToSave) {
+        // Pause loop timeout during content update if in loop mode
+        var loopWasPaused = false;
+        if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
+            loopWasPaused = pauseLoopTimeout('media content update');
+            console.log('=== RENDERER PROCESS: Paused loop timeout for media content update, success:', loopWasPaused);
+        }
+        
+        // Save current playing layout ID using sync function for consistent tracking
+        if (layoutIdToSave) {
+            syncCurrentPlayLayoutID(layoutIdToSave);
+        }
+
+        try {
+            if (contentObj) {
+                mediaCurIndex[numericId] = 1;
+                medialoop[numericId] = [];
+                medialoop[numericId].push(contentObj);
+                $('#slot-' + numericId).html('');
+                console.log('=== RENDERER PROCESS: Cleared slot content and initialized media arrays ===');
+                appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
+                console.log('=== RENDERER PROCESS: Called appendMediaElement ===');
+            }
+            
+            console.log('=== RENDERER PROCESS: Media content update completed successfully');
+        } catch (error) {
+            console.error('=== RENDERER PROCESS: Error during media content update:', error);
+        } finally {
+            // Resume loop timeout after content update completion
+            if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
+                setTimeout(() => {
+                    var resumed = resumeLoopTimeout('media content update completed');
+                    console.log('=== RENDERER PROCESS: Resumed loop timeout after media update, success:', resumed);
+                    
+                    // Log timeout status for debugging
+                    if (typeof getLoopTimeoutStatus === 'function') {
+                        console.log('=== RENDERER PROCESS: Loop timeout status after media update:', getLoopTimeoutStatus());
+                    }
+                }, 100); // Small delay to ensure DOM update is complete
+            }
         }
     }
 
     // Check isLoopLyt - if content is for different layout, do layout update first
     if (isLoopLyt) {
+        // Ensure currentPlayLayoutID is properly initialized
+        if (currentPlayLayoutID === null) {
+            getCurrentPlayLayoutID(); // This will update the global variable
+        }
+        
         if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && layoutid === currentPlayLayoutID) {
             // Content is for current layout - skip layout switch, go straight to content update
             console.log('=== RENDERER PROCESS: Content for current layout - updating DOM directly ===');
-            updateMediaSlotContent();
+            updateMediaSlotContent(layoutid);
             return;
         }
 
@@ -903,6 +1024,9 @@ socket.on('replacemediaslot', function (msg) {
                 localStorage.setItem('layout-' + layoutid, JSON.stringify(xmlJSON))
                 console.log('=== RENDERER PROCESS: Stored layout XML in localStorage: layout-' + layoutid + ' ===');
 
+                // Sync the current playing layout ID when layout is switched
+                syncCurrentPlayLayoutID(layoutid);
+
                 // Get the layout data and render it
                 var layoutxml = JSON.parse(localStorage.getItem('layout-' + layoutid))
                 console.log('=== RENDERER PROCESS: Calling getLayoutXML with new layout data ===');
@@ -910,7 +1034,7 @@ socket.on('replacemediaslot', function (msg) {
                 console.log('=== RENDERER PROCESS: replacemediaslot layout switch completed ===');
 
                 // After layout switch, update the media content
-                updateMediaSlotContent();
+                updateMediaSlotContent(layoutid);
             },
             error: function (xhr, textStatus, errorThrown) {
                 console.log('=== RENDERER PROCESS: replacemediaslot layout switch AJAX ERROR ===');
@@ -922,7 +1046,7 @@ socket.on('replacemediaslot', function (msg) {
     } else {
         // Non-loop layout mode - update content directly
         console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly ===');
-        updateMediaSlotContent();
+        updateMediaSlotContent(layoutid);
     }
 })
 

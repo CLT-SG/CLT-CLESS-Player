@@ -5,6 +5,11 @@ var layoutIDList = []
 var loopXMLCurIndex = 1
 var loopTimeout = null
 
+// Global variables for timeout management
+var loopTimeoutStartTime = null
+var loopTimeoutDuration = null
+var loopTimeoutPaused = false
+
 // Global timeout and interval arrays (initialized if not already defined)
 var textTimeout = textTimeout || []
 var mediaTimeout = mediaTimeout || []
@@ -20,6 +25,85 @@ var isLoopLyt = isLoopLyt || false
 // Additional global arrays used by layoutxml.js when isLoopLyt is true
 var pagerow = pagerow || []
 var videoJSPlayer = videoJSPlayer || []
+
+// Function to pause loopTimeout during content updates
+function pauseLoopTimeout(reason) {
+  if (loopTimeout && !loopTimeoutPaused && isLoopLyt) {
+    try {
+      var currentTime = Date.now();
+      var elapsedTime = currentTime - loopTimeoutStartTime;
+      var remainingTime = loopTimeoutDuration - elapsedTime;
+      
+      console.log('=== LOOP TIMEOUT: Pausing for reason:', reason);
+      console.log('=== LOOP TIMEOUT: Elapsed time:', elapsedTime, 'ms, Remaining time:', remainingTime, 'ms');
+      
+      clearTimeout(loopTimeout);
+      loopTimeout = null;
+      loopTimeoutPaused = true;
+      
+      // Store remaining time for resume
+      loopTimeoutDuration = Math.max(remainingTime, 1000); // Minimum 1 second
+      
+      console.log('=== LOOP TIMEOUT: Successfully paused, stored remaining time:', loopTimeoutDuration, 'ms');
+      return true;
+    } catch (error) {
+      console.warn('=== LOOP TIMEOUT: Failed to pause:', error);
+      return false;
+    }
+  }
+  return false;
+}
+
+// Function to resume loopTimeout after content updates
+function resumeLoopTimeout(reason) {
+  if (loopTimeoutPaused && isLoopLyt) {
+    try {
+      console.log('=== LOOP TIMEOUT: Resuming for reason:', reason);
+      console.log('=== LOOP TIMEOUT: Resuming with duration:', loopTimeoutDuration, 'ms');
+      
+      loopTimeoutStartTime = Date.now();
+      loopTimeout = setTimeout(loopNextLayout, loopTimeoutDuration);
+      loopTimeoutPaused = false;
+      
+      console.log('=== LOOP TIMEOUT: Successfully resumed');
+      return true;
+    } catch (error) {
+      console.warn('=== LOOP TIMEOUT: Failed to resume:', error);
+      return false;
+    }
+  }
+  return false;
+}
+
+// Function to reset loopTimeout state (safety mechanism)
+function resetLoopTimeoutState() {
+  try {
+    console.log('=== LOOP TIMEOUT: Resetting timeout state');
+    if (loopTimeout) {
+      clearTimeout(loopTimeout);
+      loopTimeout = null;
+    }
+    loopTimeoutPaused = false;
+    loopTimeoutStartTime = null;
+    loopTimeoutDuration = null;
+    console.log('=== LOOP TIMEOUT: State reset completed');
+    return true;
+  } catch (error) {
+    console.warn('=== LOOP TIMEOUT: Failed to reset state:', error);
+    return false;
+  }
+}
+
+// Function to get current loopTimeout status (for debugging)
+function getLoopTimeoutStatus() {
+  return {
+    hasTimeout: !!loopTimeout,
+    isPaused: loopTimeoutPaused,
+    startTime: loopTimeoutStartTime,
+    duration: loopTimeoutDuration,
+    isLoopMode: isLoopLyt
+  };
+}
 
 function loopNextLayout() {
   if (loopXMLCurIndex >= loopArr.length) {
@@ -61,16 +145,35 @@ function playcurrentLayout(xmlData) {
     clearTimeout(loopTimeout)
     loopTimeout = null
   }
+  
+  // Reset timeout state when starting new layout
+  resetLoopTimeoutState();
+  
   var layoutURL = xmlData['attributes']['url']
   currentlytID = layoutURL.split("layout/")
   currentlytID = currentlytID[1].slice(0, currentlytID[1].lastIndexOf('/'))
+  
+  // Sync with currentPlayLayoutID for socket communication
+  if (typeof syncCurrentPlayLayoutID === 'function') {
+    syncCurrentPlayLayoutID(currentlytID);
+  } else if (typeof window !== 'undefined' && window.currentPlayLayoutID !== undefined) {
+    window.currentPlayLayoutID = currentlytID;
+  }
+  
   var layoutDuration = parseInt(xmlData['attributes']['duration']) * 1000
   var layoutxml = JSON.parse(localStorage.getItem('layout-' + currentlytID))
   log.info('play loop xml : ok : layout-' + currentlytID)
   getLayoutXML(layoutxml)
   layoutLoopUpdateXML()
+  
+  // Setup timeout tracking for pause/resume functionality
+  loopTimeoutStartTime = Date.now();
+  loopTimeoutDuration = layoutDuration;
+  loopTimeoutPaused = false;
+  
   //time of layout play
   loopTimeout = setTimeout(loopNextLayout, layoutDuration)
+  console.log('=== LOOP TIMEOUT: Started new layout timeout for', layoutDuration, 'ms');
 }
 
 function layoutLoopUpdateXML() {
