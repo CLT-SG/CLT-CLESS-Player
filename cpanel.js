@@ -8,6 +8,7 @@ return (async function () {
     const fs = require("fs")
     const cors = require('cors')
     const bodyParser = require('body-parser')
+    const { exec } = require('child_process')
     const {
         expressCspHeader,
         INLINE,
@@ -214,6 +215,65 @@ return (async function () {
         })
     })
 
+    // Enhanced layout details endpoint for comprehensive layout information
+    app.get('/api/layout-details', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            
+            if (!electronID) {
+                return res.status(503).json({
+                    success: false,
+                    error: 'eCLESS renderer process not connected',
+                    data: {
+                        layouts: [],
+                        currentLayout: null,
+                        isLoop: false,
+                        totalSlots: 0
+                    }
+                })
+            }
+
+            // Request layout details from renderer process
+            electronID.emit('get-layout-details', { timestamp: Date.now() })
+            
+            // Set up one-time listener for response
+            var responseTimeout = setTimeout(() => {
+                res.status(504).json({
+                    success: false,
+                    error: 'Timeout waiting for layout details',
+                    data: {
+                        layouts: [],
+                        currentLayout: null,
+                        isLoop: false,
+                        totalSlots: 0
+                    }
+                })
+            }, 5000)
+
+            electronID.once('layout-details-response', function(layoutInfo) {
+                clearTimeout(responseTimeout)
+                res.json({
+                    success: true,
+                    data: layoutInfo,
+                    timestamp: Date.now()
+                })
+            })
+
+        } catch (error) {
+            log.error('Error in /api/layout-details endpoint:', error)
+            res.status(500).json({
+                success: false,
+                error: 'Internal server error retrieving layout details',
+                data: {
+                    layouts: [],
+                    currentLayout: null,
+                    isLoop: false,
+                    totalSlots: 0
+                }
+            })
+        }
+    })
+
     app.get('/api/textdata', function (req, res) {
         // Return text slot data
         res.json({
@@ -380,48 +440,76 @@ return (async function () {
     })
 
     // Volume control endpoints
-    app.get('/api/volume/mute', function (req, res) {
-        var electronSocketId = userID['eCLESS']
-        if (electronSocketId) {
-            io.to(electronSocketId).emit("set-volume-mute", { action: 'mute' })
-            res.json({ success: true, action: 'mute' })
-        } else {
-            res.status(400).json({ error: 'eCLESS client not connected' })
+    app.get('/api/volume/mute', async function (req, res) {
+        try {
+            const result = await muteSystemVolume()
+            res.json({ 
+                success: result.success, 
+                action: 'mute',
+                message: 'Volume muted successfully'
+            })
+        } catch (error) {
+            log.error('API mute error:', error)
+            res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            })
         }
     })
 
-    app.get('/api/volume/unmute', function (req, res) {
-        var electronSocketId = userID['eCLESS']
-        if (electronSocketId) {
-            io.to(electronSocketId).emit("set-volume-mute", { action: 'unmute' })
-            res.json({ success: true, action: 'unmute' })
-        } else {
-            res.status(400).json({ error: 'eCLESS client not connected' })
+    app.get('/api/volume/unmute', async function (req, res) {
+        try {
+            const result = await unmuteSystemVolume()
+            res.json({ 
+                success: result.success, 
+                action: 'unmute',
+                message: 'Volume unmuted successfully'
+            })
+        } catch (error) {
+            log.error('API unmute error:', error)
+            res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            })
         }
     })
 
-    app.post('/api/volume/set', function (req, res) {
+    app.post('/api/volume/set', async function (req, res) {
         const volume = req.body.volume
         if (volume >= 0 && volume <= 100) {
-            var electronSocketId = userID['eCLESS']
-            if (electronSocketId) {
-                io.to(electronSocketId).emit("set-volume-level", { volume: volume })
-                res.json({ success: true, volume: volume })
-            } else {
-                res.status(400).json({ error: 'eCLESS client not connected' })
+            try {
+                const result = await setSystemVolumeLevel(volume)
+                res.json({ 
+                    success: result.success, 
+                    volume: result.volume,
+                    message: `Volume set to ${result.volume}%`
+                })
+            } catch (error) {
+                log.error('API volume set error:', error)
+                res.status(500).json({ 
+                    success: false, 
+                    error: error.message 
+                })
             }
         } else {
             res.status(400).json({ error: 'Volume must be between 0 and 100' })
         }
     })
 
-    app.get('/api/volume/get', function (req, res) {
-        var electronSocketId = userID['eCLESS']
-        if (electronSocketId) {
-            io.to(electronSocketId).emit("get-volume-level", { requestId: Date.now() })
-            res.json({ success: true, message: 'Volume request sent' })
-        } else {
-            res.status(400).json({ error: 'eCLESS client not connected' })
+    app.get('/api/volume/get', async function (req, res) {
+        try {
+            const volume = await getCurrentVolumeLevel()
+            res.json({ 
+                success: true, 
+                volume: volume,
+                message: `Current volume: ${volume}%`
+            })
+        } catch (error) {
+            log.error('API volume get error:', error)
+            res.status(500).json({ 
+                success: false, 
+                error: error.message 
+            })
         }
     })
 
@@ -626,6 +714,223 @@ return (async function () {
     app.use(express.static(__dirname + '//src'))
     app.use(express.static(__dirname + '//novnc'))
 
+    // ================================================
+    // DIRECT VOLUME CONTROL FUNCTIONS
+    // ================================================
+    
+    /**
+     * Get current system volume level
+     * Returns a Promise that resolves with volume percentage (0-100)
+     */
+    function getCurrentVolumeLevel() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            
+            if (platform === 'win32') {
+                // Windows: Use PowerShell to get volume
+                const command = 'powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume"'
+                exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error getting Windows volume:', error)
+                        reject(error)
+                        return
+                    }
+                    try {
+                        const volume = Math.round(parseFloat(stdout.trim()) * 100)
+                        resolve(volume)
+                    } catch (parseError) {
+                        log.error('Error parsing Windows volume:', parseError)
+                        reject(parseError)
+                    }
+                })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer
+                exec('amixer get Master | grep -o "[0-9]*%" | head -1 | tr -d "%"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error getting Linux volume:', error)
+                        reject(error)
+                        return
+                    }
+                    try {
+                        const volume = parseInt(stdout.trim()) || 0
+                        resolve(volume)
+                    } catch (parseError) {
+                        log.error('Error parsing Linux volume:', parseError)
+                        reject(parseError)
+                    }
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript
+                exec('osascript -e "output volume of (get volume settings)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error getting macOS volume:', error)
+                        reject(error)
+                        return
+                    }
+                    try {
+                        const volume = parseInt(stdout.trim()) || 0
+                        resolve(volume)
+                    } catch (parseError) {
+                        log.error('Error parsing macOS volume:', parseError)
+                        reject(parseError)
+                    }
+                })
+            } else {
+                reject(new Error('Unsupported platform for volume control'))
+            }
+        })
+    }
+
+    /**
+     * Set system volume level
+     * @param {number} volumePercent - Volume level (0-100)
+     * @returns {Promise}
+     */
+    function setSystemVolumeLevel(volumePercent) {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            const volume = Math.max(0, Math.min(100, volumePercent)) // Ensure 0-100 range
+            
+            log.info(`Setting system volume to ${volume}%`)
+            
+            if (platform === 'win32') {
+                // Windows: Use PowerShell to set volume
+                const command = `powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Volume = ${volume / 100}"`
+                exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error setting Windows volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info(`Windows volume set to ${volume}%`)
+                    resolve({ success: true, volume: volume })
+                })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer
+                exec(`amixer set Master ${volume}%`, (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error setting Linux volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info(`Linux volume set to ${volume}%`)
+                    resolve({ success: true, volume: volume })
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript
+                exec(`osascript -e "set volume output volume ${volume}"`, (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error setting macOS volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info(`macOS volume set to ${volume}%`)
+                    resolve({ success: true, volume: volume })
+                })
+            } else {
+                reject(new Error('Unsupported platform for volume control'))
+            }
+        })
+    }
+
+    /**
+     * Mute system volume
+     * @returns {Promise}
+     */
+    function muteSystemVolume() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            
+            log.info('Muting system volume')
+            
+            if (platform === 'win32') {
+                // Windows: Use nircmd or PowerShell
+                exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error muting Windows volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('Windows volume muted')
+                    resolve({ success: true, action: 'mute' })
+                })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer
+                exec('amixer set Master mute', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error muting Linux volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('Linux volume muted')
+                    resolve({ success: true, action: 'mute' })
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript
+                exec('osascript -e "set volume with output muted"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error muting macOS volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('macOS volume muted')
+                    resolve({ success: true, action: 'mute' })
+                })
+            } else {
+                reject(new Error('Unsupported platform for volume control'))
+            }
+        })
+    }
+
+    /**
+     * Unmute system volume
+     * @returns {Promise}
+     */
+    function unmuteSystemVolume() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+            
+            log.info('Unmuting system volume')
+            
+            if (platform === 'win32') {
+                // Windows: Use PowerShell
+                exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error unmuting Windows volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('Windows volume unmuted')
+                    resolve({ success: true, action: 'unmute' })
+                })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer
+                exec('amixer set Master unmute', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error unmuting Linux volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('Linux volume unmuted')
+                    resolve({ success: true, action: 'unmute' })
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript
+                exec('osascript -e "set volume without output muted"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.error('Error unmuting macOS volume:', error)
+                        reject(error)
+                        return
+                    }
+                    log.info('macOS volume unmuted')
+                    resolve({ success: true, action: 'unmute' })
+                })
+            } else {
+                reject(new Error('Unsupported platform for volume control'))
+            }
+        })
+    }
+
     //SOCkKET io 
 
     //Whenever someone connects this gets executed
@@ -829,52 +1134,76 @@ return (async function () {
         })
 
         //handle volume control
-        socket.on('set-volume-mute', (msg) => {
+        socket.on('set-volume-mute', async (msg) => {
             try {
-                var electronSocketId = userID['eCLESS']
-                if (electronSocketId) {
-                    io.to(electronSocketId).emit("set-volume-mute", msg)
-                }
+                const result = await muteSystemVolume()
+                socket.emit('volume-control-response', { 
+                    action: 'mute', 
+                    success: result.success,
+                    message: 'Volume muted successfully'
+                })
             } catch (err) {
                 log.warn('cpanel set-volume-mute: ' + err)
-                return err
+                socket.emit('volume-control-response', { 
+                    action: 'mute', 
+                    success: false, 
+                    error: err.message 
+                })
             }
         })
 
-        socket.on('set-volume-level', (msg) => {
+        socket.on('set-volume-unmute', async (msg) => {
             try {
-                var electronSocketId = userID['eCLESS']
-                if (electronSocketId) {
-                    io.to(electronSocketId).emit("set-volume-level", msg)
-                }
+                const result = await unmuteSystemVolume()
+                socket.emit('volume-control-response', { 
+                    action: 'unmute', 
+                    success: result.success,
+                    message: 'Volume unmuted successfully'
+                })
+            } catch (err) {
+                log.warn('cpanel set-volume-unmute: ' + err)
+                socket.emit('volume-control-response', { 
+                    action: 'unmute', 
+                    success: false, 
+                    error: err.message 
+                })
+            }
+        })
+
+        socket.on('set-volume-level', async (msg) => {
+            try {
+                const volumeLevel = msg.volume || msg.level || msg
+                const result = await setSystemVolumeLevel(volumeLevel)
+                socket.emit('volume-control-response', { 
+                    action: 'set-level', 
+                    success: result.success,
+                    volume: result.volume,
+                    message: `Volume set to ${result.volume}%`
+                })
             } catch (err) {
                 log.warn('cpanel set-volume-level: ' + err)
-                return err
+                socket.emit('volume-control-response', { 
+                    action: 'set-level', 
+                    success: false, 
+                    error: err.message 
+                })
             }
         })
 
-        socket.on('get-volume-level', (msg) => {
+        socket.on('get-volume-level', async (msg) => {
             try {
-                var electronSocketId = userID['eCLESS']
-                if (electronSocketId) {
-                    io.to(electronSocketId).emit("get-volume-level", msg)
-                }
+                const volume = await getCurrentVolumeLevel()
+                socket.emit('volume-level-response', { 
+                    success: true, 
+                    volume: volume,
+                    message: `Current volume: ${volume}%`
+                })
             } catch (err) {
                 log.warn('cpanel get-volume-level: ' + err)
-                return err
-            }
-        })
-
-        //handle volume level response from Electron
-        socket.on('volume-level-response', (msg) => {
-            try {
-                debug('Received volume level response from Electron:', msg)
-                // Broadcast to all control panel clients
-                socket.broadcast.emit('volume-level-response', msg)
-                log.info('Volume level response broadcasted to control panels:', msg)
-            } catch (err) {
-                log.warn('cpanel volume-level-response: ' + err)
-                return err
+                socket.emit('volume-level-response', { 
+                    success: false, 
+                    error: err.message 
+                })
             }
         })
 

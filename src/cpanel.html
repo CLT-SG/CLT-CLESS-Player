@@ -228,21 +228,49 @@
                 </div>
             </div>
 
-            <!-- Layout Management Section -->
-            <div class="dashboard-card">
+            <!-- Enhanced Layout Management Section -->
+            <div class="dashboard-card layout-management-card">
                 <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-layout-text-window"></i>
                     </div>
                     <h2 class="card-title">Layout Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="getDetailedLayoutInfo()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Refresh
+                        </button>
+                    </div>
                 </div>
-                <div id="apiLayout" class="mb-3 loading">Loading layout information...</div>
-                <div class="input-group">
-                    <input type="text" id="updateLytInput" class="form-control" placeholder="Enter Layout ID" value="">
-                    <button type="button" class="modern-btn btnUpdateLyt">
-                        <i class="bi bi-arrow-repeat"></i>
-                        Replace
-                    </button>
+                
+                <!-- Comprehensive Layout Information Display -->
+                <div id="apiLayout" class="layout-information-panel loading">
+                    <div class="loading-indicator">
+                        <i class="bi bi-arrow-clockwise spinning"></i>
+                        Loading comprehensive layout information...
+                    </div>
+                </div>
+                
+                <!-- Layout Control Actions -->
+                <div class="layout-control-section">
+                    <h4 class="control-section-title">
+                        <i class="bi bi-gear"></i>
+                        Layout Control
+                    </h4>
+                    <div class="input-group layout-control-group">
+                        <input type="text" id="updateLytInput" class="form-control" 
+                               placeholder="Enter Layout ID to switch" 
+                               value=""
+                               autocomplete="off">
+                        <button type="button" class="modern-btn btnUpdateLyt">
+                            <i class="bi bi-arrow-repeat"></i>
+                            Switch Layout
+                        </button>
+                    </div>
+                    <div class="control-help-text">
+                        <i class="bi bi-info-circle"></i>
+                        Enter a layout ID from the available layouts above to switch to that layout
+                    </div>
                 </div>
             </div>
 

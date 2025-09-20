@@ -848,6 +848,131 @@ function extractTextSlotsFromLocalStorage() {
     return textSlots;
 }
 
+// Function to extract ALL slot types from layout data structure (comprehensive)
+function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT ALL SLOTS: Processing layout key:', layoutKey, layoutData);
+    var allSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT ALL SLOTS: Invalid layout data or missing elements for key:', layoutKey);
+        return allSlots;
+    }
+
+    console.log('=== EXTRACT ALL SLOTS: Layout data validation passed for key:', layoutKey);
+
+    try {
+        // Navigate through the layout structure to find slots
+        var elements = layoutData.elements;
+        console.log('=== EXTRACT ALL SLOTS: Elements array length:', elements.length);
+
+        // Extract layout information
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+        console.log('=== EXTRACT ALL SLOTS: Initial layout ID:', layoutId, 'layout name:', layoutName);
+
+        // Try to get the actual layout name from XML attributes
+        if (elements[0] && elements[0].attributes) {
+            console.log('=== EXTRACT ALL SLOTS: Checking for layout name in attributes');
+            if (elements[0].attributes.layout) {
+                layoutName = elements[0].attributes.layout;
+                console.log('=== EXTRACT ALL SLOTS: Found layout name from layout attribute:', layoutName);
+            } else if (elements[0].attributes.name) {
+                layoutName = elements[0].attributes.name;
+                console.log('=== EXTRACT ALL SLOTS: Found layout name from name attribute:', layoutName);
+            } else if (elements[0].attributes.title) {
+                layoutName = elements[0].attributes.title;
+                console.log('=== EXTRACT ALL SLOTS: Found layout name from title attribute:', layoutName);
+            }
+        }
+
+        // Try to find the layout structure (may vary)
+        var slotsContainer = null;
+        console.log('=== EXTRACT ALL SLOTS: Searching for slots container');
+
+        // Common pattern: elements[0].elements[0].elements[0].elements (slot list)
+        if (elements[0] &&
+            elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+            console.log('=== EXTRACT ALL SLOTS: Found slots container with', slotsContainer.length, 'slots');
+        } else {
+            console.warn('=== EXTRACT ALL SLOTS: Could not find slots container in expected structure');
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            var slotCount = 0;
+            console.log('=== EXTRACT ALL SLOTS: Processing', slotsContainer.length, 'slots');
+
+            // All possible slot types from layoutxml.js
+            var supportedSlotTypes = ['media', 'text', 'ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table'];
+
+            slotsContainer.forEach(function (slot, index) {
+                console.log('=== EXTRACT ALL SLOTS: Processing slot', index, 'type:', slot.name);
+
+                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                    // Check if it's a supported slot type
+                    if (supportedSlotTypes.includes(slot.name)) {
+                        slotCount++;
+                        console.log('=== EXTRACT ALL SLOTS: Found', slot.name, 'slot', slotCount, '- ID:', slot.attributes.id, 'Name:', slot.attributes.name);
+
+                        var slotContent = '';
+
+                        // Try to extract slot content based on type
+                        if (slot.elements && slot.elements[0]) {
+                            if (slot.elements[0].elements && slot.elements[0].elements[0] && slot.elements[0].elements[0].text) {
+                                slotContent = slot.elements[0].elements[0].text;
+                                console.log('=== EXTRACT ALL SLOTS: Extracted content:', slotContent);
+
+                                // For media slots, extract just the filename from path
+                                if (slot.name === 'media' && slotContent) {
+                                    var n = slotContent.lastIndexOf('/');
+                                    if (n !== -1) {
+                                        var originalContent = slotContent;
+                                        slotContent = slotContent.substring(n + 1);
+                                        console.log('=== EXTRACT ALL SLOTS: Extracted filename from path:', originalContent, '->', slotContent);
+                                    }
+                                }
+                            } else if (slot.elements[0].text) {
+                                slotContent = slot.elements[0].text;
+                                console.log('=== EXTRACT ALL SLOTS: Extracted direct text content:', slotContent);
+                            }
+                        }
+
+                        var slotObj = {
+                            id: slot.attributes.id,
+                            name: slot.attributes.name,
+                            type: slot.name,
+                            content: slotContent || '',
+                            layoutId: layoutId,
+                            layoutName: layoutName,
+                            enabled: slot.attributes.enabled || 'Y'
+                        };
+
+                        allSlots.push(slotObj);
+                        console.log('=== EXTRACT ALL SLOTS: Added', slot.name, 'slot to collection:', slotObj.name);
+                    } else {
+                        console.log('=== EXTRACT ALL SLOTS: Skipping unsupported slot type:', slot.name);
+                    }
+                } else {
+                    console.log('=== EXTRACT ALL SLOTS: Skipping slot due to missing attributes - ID:', slot.attributes?.id, 'Name:', slot.attributes?.name);
+                }
+            });
+
+            console.log('=== EXTRACT ALL SLOTS: Total slots found in layout:', slotCount);
+        } else {
+            console.warn('=== EXTRACT ALL SLOTS: No valid slots container found');
+        }
+
+    } catch (error) {
+        console.error('=== EXTRACT ALL SLOTS: Error extracting slots from layout:', layoutKey, error);
+        console.error('=== EXTRACT ALL SLOTS: Error stack:', error.stack);
+    }
+
+    console.log('=== EXTRACT ALL SLOTS: Completed processing layout key:', layoutKey, '- returning', allSlots.length, 'slots');
+    return allSlots;
+}
+
 // Function to extract text slots from layout data structure
 function extractTextSlotsFromLayoutData(layoutData, layoutKey) {
     console.log('=== EXTRACT LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
@@ -1557,4 +1682,259 @@ function getKeyByValue(object, value) {
 
 function capitalizeFirstLetter(string) {
     return string.charAt(0).toUpperCase() + string.slice(1);
+}
+
+// ========================================
+// ENHANCED LAYOUT DETAILS SYSTEM
+// ========================================
+
+// Socket handler for layout details request from control panel
+socket.on('get-layout-details', function (request) {
+    console.log('=== RENDERER PROCESS: Layout details request received ===');
+    
+    try {
+        // For testing, send a simple response first
+        var basicResponse = {
+            layouts: [{
+                id: "test-1",
+                name: "Test Layout",
+                type: "single",
+                allSlots: [
+                    { id: "1", name: "Test Slot", type: "text", content: "Test content" }
+                ],
+                textSlots: [],
+                mediaSlots: [],
+                totalSlots: 1,
+                isActive: true
+            }],
+            currentLayout: null,
+            isLoop: false,
+            totalSlots: 1,
+            textSlots: 0,
+            mediaSlots: 0,
+            timestamp: Date.now()
+        };
+        
+        // Send simple response for testing
+        socket.emit('layout-details-response', basicResponse);
+        console.log('=== RENDERER PROCESS: Basic layout details response sent ===');
+        
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting layout details:', error);
+        
+        // Send error response
+        socket.emit('layout-details-response', {
+            layouts: [],
+            currentLayout: null,
+            isLoop: false,
+            totalSlots: 0,
+            textSlots: 0,
+            mediaSlots: 0,
+            error: 'Failed to retrieve layout details: ' + error.message
+        });
+    }
+});
+
+// Comprehensive function to get all layout details
+function getComprehensiveLayoutDetails() {
+    console.log('=== LAYOUT DETAILS: Starting comprehensive layout analysis ===');
+    
+    var layoutDetails = {
+        layouts: [],
+        currentLayout: null,
+        isLoop: false,
+        totalSlots: 0,
+        textSlots: 0,
+        mediaSlots: 0,
+        timestamp: Date.now()
+    };
+    
+    try {
+        // Check if dsid is available
+        if (typeof dsid === 'undefined' || !dsid) {
+            console.warn('=== LAYOUT DETAILS: No DSID available, returning empty data ===');
+            return layoutDetails;
+        }
+        
+        // Get available layouts from DS data
+        var availableLayouts = getAvailableLayoutsFromDS();
+        console.log('=== LAYOUT DETAILS: Found', availableLayouts.length, 'available layouts');
+        
+        // Determine if it's loop mode
+        layoutDetails.isLoop = availableLayouts.length > 1 || (availableLayouts.length === 1 && availableLayouts[0].type === 'loop');
+        
+        // Process each available layout
+        availableLayouts.forEach(function(layoutInfo) {
+            try {
+                var layoutData = getLayoutFromStorage(layoutInfo.id);
+                
+                if (layoutData) {
+                    var processedLayout = processLayoutForDetails(layoutInfo.id, layoutData, layoutInfo);
+                    layoutDetails.layouts.push(processedLayout);
+                    
+                    // Update totals
+                    layoutDetails.totalSlots += processedLayout.totalSlots || 0;
+                    layoutDetails.textSlots += (processedLayout.textSlots && processedLayout.textSlots.length) || 0;
+                    layoutDetails.mediaSlots += (processedLayout.mediaSlots && processedLayout.mediaSlots.length) || 0;
+                    
+                    // Check if this is the current layout
+                    if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && currentPlayLayoutID === layoutInfo.id) {
+                        layoutDetails.currentLayout = processedLayout;
+                    }
+                } else {
+                    console.warn('=== LAYOUT DETAILS: No layout data found for layout:', layoutInfo.id);
+                }
+            } catch (layoutError) {
+                console.error('=== LAYOUT DETAILS: Error processing layout', layoutInfo.id, ':', layoutError);
+            }
+        });
+        
+        // If no current layout identified but we have layouts, use the first one
+        if (!layoutDetails.currentLayout && layoutDetails.layouts.length > 0) {
+            layoutDetails.currentLayout = layoutDetails.layouts[0];
+            console.log('=== LAYOUT DETAILS: No current layout ID, using first available layout ===');
+        }
+        
+        console.log('=== LAYOUT DETAILS: Analysis complete ===');
+        console.log('=== LAYOUT DETAILS: Total layouts:', layoutDetails.layouts.length);
+        console.log('=== LAYOUT DETAILS: Total slots:', layoutDetails.totalSlots);
+        console.log('=== LAYOUT DETAILS: Loop mode:', layoutDetails.isLoop);
+        
+        // Ensure final data structure is completely serializable
+        var safeLayoutDetails = {
+            layouts: layoutDetails.layouts || [],
+            currentLayout: layoutDetails.currentLayout || null,
+            isLoop: Boolean(layoutDetails.isLoop),
+            totalSlots: Number(layoutDetails.totalSlots) || 0,
+            textSlots: Number(layoutDetails.textSlots) || 0,
+            mediaSlots: Number(layoutDetails.mediaSlots) || 0,
+            timestamp: Number(layoutDetails.timestamp) || Date.now()
+        };
+        
+        return safeLayoutDetails;
+        
+    } catch (error) {
+        console.error('=== LAYOUT DETAILS: Error in comprehensive analysis:', error);
+        // Return safe empty data instead of throwing
+        return {
+            layouts: [],
+            currentLayout: null,
+            isLoop: false,
+            totalSlots: 0,
+            textSlots: 0,
+            mediaSlots: 0,
+            timestamp: Date.now(),
+            error: 'Analysis failed: ' + error.message
+        };
+    }
+}
+
+// Function to process individual layout for detailed information
+function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
+    console.log('=== LAYOUT DETAILS: Processing layout', layoutId);
+    
+    var processedLayout = {
+        id: layoutId,
+        name: 'Layout ' + layoutId,
+        type: (layoutInfo && layoutInfo.type) || 'unknown',
+        index: (layoutInfo && layoutInfo.index) || 0,
+        textSlots: [],
+        mediaSlots: [],
+        allSlots: [], // New comprehensive slot list
+        totalSlots: 0,
+        isActive: (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID === layoutId)
+    };
+    
+    try {
+        // Extract ALL slots comprehensively
+        try {
+            var allSlots = extractAllSlotsFromLayoutData(layoutData, 'layout-' + layoutId);
+            processedLayout.allSlots = Array.isArray(allSlots) ? allSlots : [];
+            
+            // Ensure all slot data is serializable - clean up any non-serializable properties
+            processedLayout.allSlots = processedLayout.allSlots.map(function(slot) {
+                return {
+                    id: String(slot.id || ''),
+                    name: String(slot.name || ''),
+                    type: String(slot.type || 'unknown'),
+                    content: String(slot.content || ''),
+                    layoutId: String(slot.layoutId || layoutId),
+                    layoutName: String(slot.layoutName || ''),
+                    enabled: String(slot.enabled || 'Y')
+                };
+            });
+            
+            // Separate slots by type for backward compatibility
+            processedLayout.textSlots = allSlots.filter(slot => slot.type === 'text').map(slot => ({
+                slotid: String(slot.id || ''),
+                slotname: String(slot.name || ''),
+                slottype: 'text',
+                content: String(slot.content || ''),
+                layoutid: String(slot.layoutId || layoutId)
+            }));
+            
+            processedLayout.mediaSlots = allSlots.filter(slot => slot.type === 'media').map(slot => ({
+                slotid: String(slot.id || ''),
+                slotname: String(slot.name || ''),
+                slottype: 'media',
+                filename: String(slot.content || ''),
+                layoutid: String(slot.layoutId || layoutId)
+            }));
+            
+        } catch (allSlotsError) {
+            console.warn('=== LAYOUT DETAILS: Error extracting all slots for layout', layoutId, ':', allSlotsError);
+            processedLayout.allSlots = [];
+            
+            // Fallback to individual extraction methods
+            try {
+                var textSlots = extractTextSlotsFromLayoutData(layoutData, layoutId);
+                processedLayout.textSlots = Array.isArray(textSlots) ? textSlots.map(function(slot) {
+                    return {
+                        slotid: String(slot.slotid || ''),
+                        slotname: String(slot.slotname || ''),
+                        slottype: 'text',
+                        content: String(slot.content || ''),
+                        layoutid: String(slot.layoutid || layoutId)
+                    };
+                }) : [];
+            } catch (textError) {
+                console.warn('=== LAYOUT DETAILS: Error extracting text slots for layout', layoutId, ':', textError);
+                processedLayout.textSlots = [];
+            }
+            
+            try {
+                var mediaSlots = extractMediaSlotsFromLayoutData(layoutData, layoutId);
+                processedLayout.mediaSlots = Array.isArray(mediaSlots) ? mediaSlots.map(function(slot) {
+                    return {
+                        slotid: String(slot.slotid || ''),
+                        slotname: String(slot.slotname || ''),
+                        slottype: 'media',
+                        filename: String(slot.filename || ''),
+                        layoutid: String(slot.layoutid || layoutId)
+                    };
+                }) : [];
+            } catch (mediaError) {
+                console.warn('=== LAYOUT DETAILS: Error extracting media slots for layout', layoutId, ':', mediaError);
+                processedLayout.mediaSlots = [];
+            }
+        }
+
+        // Calculate total slots
+        processedLayout.totalSlots = processedLayout.allSlots.length || (processedLayout.textSlots.length + processedLayout.mediaSlots.length);
+        
+        // Ensure all main properties are serializable
+        processedLayout.id = String(processedLayout.id || '');
+        processedLayout.name = String(processedLayout.name || '');
+        processedLayout.type = String(processedLayout.type || 'unknown');
+        processedLayout.totalSlots = Number(processedLayout.totalSlots) || 0;
+        processedLayout.isActive = Boolean(processedLayout.isActive);
+        
+        console.log('=== LAYOUT DETAILS: Layout', layoutId, 'processed - Total slots:', processedLayout.totalSlots, ', All slots:', processedLayout.allSlots.length);
+        
+        return processedLayout;
+        
+    } catch (error) {
+        console.error('=== LAYOUT DETAILS: Error processing layout', layoutId, ':', error);
+        return processedLayout; // Return with empty slots
+    }
 }
