@@ -962,12 +962,11 @@ try {
             win = new BrowserWindow({
                 x: 0,
                 y: -10000,
-                y: 0,
-                width: 900,
-                height: 900,
+                width: 0,
+                height: 0,
                 backgroundColor: '#000000',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -993,8 +992,8 @@ try {
                 width: 0,
                 height: 900,
                 backgroundColor: '#302d2d',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -1062,12 +1061,12 @@ try {
             })
 
             //hide menu bar
-            //win.setSkipTaskbar(true)
-            //win.setAlwaysOnTop(true)
-            //win2.setSkipTaskbar(true)
-            //win2.setAlwaysOnTop(true)
-            //win.setMenuBarVisibility(false)
-            //win2.setMenuBarVisibility(false)
+            win.setSkipTaskbar(true)
+            win.setAlwaysOnTop(true)
+            win2.setSkipTaskbar(true)
+            win2.setAlwaysOnTop(true)
+            win.setMenuBarVisibility(false)
+            win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -1358,9 +1357,11 @@ try {
             // Enhanced IPC handlers for new control panel features
             
             // Handle screen on/off toggle with sound control
+            // NOTE: This IPC handler is deprecated - screen control is now handled directly in cpanel.js
+            // Keeping for backward compatibility with any legacy renderer processes
             ipcMain.on('set-screen-toggle', (event, args) => {
-                log.info('Screen toggle request via IPC:', args.state)
-                debug('Screen toggle request received:', args)
+                log.warn('Screen toggle request via IPC (deprecated, use cpanel.js direct control):', args.state)
+                debug('Legacy screen toggle request received:', args)
                 handleScreenToggle(args.state)
             })
             
