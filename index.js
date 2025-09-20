@@ -38,9 +38,10 @@ const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
 const date = require('date-and-time')
 const log = require('electron-log')
+const now = new Date();
+
 // Always use current date for log file name
 log.transports.file.getFile = () => {
-    const now = new Date();
     return logdir + date.format(now, 'YYYY-MM-DD') + '.log';
 };
 log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
