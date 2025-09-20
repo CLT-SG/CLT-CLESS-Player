@@ -69,6 +69,15 @@
       font-size: 5vw;
       color: white;
       white-space: pre-wrap;
+      transition: background-color 0.3s ease;
+    }
+
+    .bottom.offline {
+      background-color: rgb(139, 0, 0); /* Dark red for offline mode */
+    }
+
+    .bottom.online {
+      background-color: rgb(0, 66, 0); /* Original green for online mode */
     }
   </style>
 </head>
@@ -130,8 +139,10 @@
       
       if (mode == 'offline') {
         $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode + ' | Offline Mode')
+        $('.bottom').removeClass('online').addClass('offline')
       } else {
         $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode)
+        $('.bottom').removeClass('offline').addClass('online')
         setTimeout(function () {
           $('.bottom').html('Server : ' + config.hostserver)
         }, 3000)

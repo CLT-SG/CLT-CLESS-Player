@@ -47,6 +47,9 @@ $(document).ready(function () {
     // Initialize volume controls
     getCurrentVolumeLevel()
     
+    // Initialize enhanced configuration fields with default values
+    initializeConfigurationFields()
+    
     // Set up intervals for monitoring
     setInterval(function () {
         deviceinfo()
@@ -117,6 +120,10 @@ function setupEventHandlers() {
 
     $('#restartapp').click(function () {
         restartapp()
+    })
+
+    $('#refreshLayout').click(function () {
+        refreshLayout()
     })
 
     $('.btnUpdateLyt').click(function () {
@@ -209,6 +216,46 @@ function setupEventHandlers() {
         loadConfiguration()
     })
 
+    // Enhanced configuration field validation
+    $('#clessHostname').on('blur', function() {
+        const hostname = $(this).val().trim()
+        if (hostname) {
+            try {
+                new URL(hostname)
+                $(this).removeClass('is-invalid').addClass('is-valid')
+            } catch (e) {
+                $(this).removeClass('is-valid').addClass('is-invalid')
+                showAlert('warning', 'Please enter a valid URL format (e.g., https://example.com)')
+            }
+        } else {
+            $(this).removeClass('is-valid is-invalid')
+        }
+    })
+
+    $('#dsId').on('input', function() {
+        const dsId = $(this).val().trim()
+        const dsIdNum = parseInt(dsId)
+        if (dsId && (!isNaN(dsIdNum) && dsIdNum >= 1 && dsIdNum <= 9999)) {
+            $(this).removeClass('is-invalid').addClass('is-valid')
+        } else if (dsId) {
+            $(this).removeClass('is-valid').addClass('is-invalid')
+        } else {
+            $(this).removeClass('is-valid is-invalid')
+        }
+    })
+
+    // Serial key field handling
+    $('#serialKey').on('input', function() {
+        const serialKey = $(this).val().trim()
+        if (serialKey.length > 0) {
+            $(this).addClass('is-valid')
+            $(this).attr('title', 'Serial key will be updated when configuration is saved')
+        } else {
+            $(this).removeClass('is-valid')
+            $(this).attr('title', 'Enter the license serial key for activation')
+        }
+    })
+
     // System monitoring
     $('#refreshMonitoring').click(function() {
         refreshSystemMonitoring()
@@ -226,6 +273,29 @@ function setupEventHandlers() {
     $('#resetTotalUsage').click(function() {
         resetDataUsage('all')
     })
+}
+
+// Initialize configuration fields with proper defaults
+function initializeConfigurationFields() {
+    // Set default values if fields are empty
+    if (!$('#clessHostname').val()) {
+        $('#clessHostname').val('https://cless4.closed-loop.biz/demo')
+    }
+    
+    if (!$('#corsOptions').val()) {
+        $('#corsOptions').val('N')
+    }
+    
+    if (!$('#dsId').val()) {
+        $('#dsId').val('10')
+    }
+    
+    // Ensure serial key field is properly initialized
+    if (!$('#serialKey').attr('placeholder')) {
+        $('#serialKey').attr('placeholder', 'Enter serial key')
+    }
+    
+    debug('Configuration fields initialized with default values')
 }
 
 // Enhanced system information display
@@ -583,14 +653,63 @@ function getCurrentVolumeLevel() {
 
 // Configuration management
 function saveConfiguration() {
+    // Gather all configuration data
+    const clessHostname = $('#clessHostname').val().trim()
+    const corsOptions = $('#corsOptions').val()
+    const dsId = $('#dsId').val().trim()
+    const serialKey = $('#serialKey').val().trim()
+    
+    // Validate required fields
+    if (!clessHostname) {
+        showAlert('danger', 'CLESS Server Hostname is required')
+        return
+    }
+    
+    if (!dsId || isNaN(dsId) || parseInt(dsId) < 1 || parseInt(dsId) > 9999) {
+        showAlert('danger', 'DS ID must be a number between 1 and 9999')
+        return
+    }
+    
+    // Validate hostname format
+    try {
+        new URL(clessHostname)
+    } catch (e) {
+        showAlert('danger', 'CLESS Server Hostname must be a valid URL (e.g., https://example.com)')
+        return
+    }
+    
     configData = {
+        // Existing configuration fields
         autoStartup: $('#autoStartup').is(':checked'),
         fullscreenMode: $('#fullscreenMode').is(':checked'),
         screenTimeout: parseInt($('#screenTimeout').val()) || 0,
         updateInterval: parseInt($('#updateInterval').val()) || 30,
         logLevel: $('#logLevel').val(),
+        
+        // Enhanced configuration fields
+        hostserver: clessHostname,
+        hostaddress: clessHostname, // for backward compatibility
+        corsproxy: corsOptions,
+        id: dsId,
+        dsid: dsId, // for backward compatibility
+        
+        // Timestamp for tracking
         timestamp: new Date().toISOString()
     }
+    
+    // Only include serial key if provided (not empty)
+    if (serialKey) {
+        configData.serialkey = serialKey
+    }
+
+    debug('Saving configuration:', {
+        hostserver: configData.hostserver,
+        corsproxy: configData.corsproxy,
+        dsid: configData.id,
+        hasSerialKey: !!configData.serialkey,
+        autoStartup: configData.autoStartup,
+        logLevel: configData.logLevel
+    })
 
     $.ajax({
         type: 'post',
@@ -600,10 +719,24 @@ function saveConfiguration() {
         success: function (data) {
             if (data.success) {
                 showAlert('success', 'Configuration saved successfully')
+                
+                // Clear serial key field after successful save for security
+                if (serialKey) {
+                    $('#serialKey').val('')
+                    $('#serialKey').attr('placeholder', 'Serial key updated (enter new key to update again)')
+                }
+                
+                // Optionally reload configuration to verify
+                setTimeout(() => {
+                    loadConfiguration()
+                }, 1000)
+            } else {
+                showAlert('danger', data.message || 'Failed to save configuration')
             }
         },
-        error: function () {
-            showAlert('danger', 'Failed to save configuration')
+        error: function (xhr, status, error) {
+            console.error('Configuration save error:', error)
+            showAlert('danger', `Failed to save configuration: ${error}`)
         }
     })
 }
@@ -615,18 +748,44 @@ function loadConfiguration() {
         success: function (data) {
             if (data && Object.keys(data).length > 0) {
                 configData = data
+                
+                // Load existing configuration fields
                 $('#autoStartup').prop('checked', data.autoStartup || false)
                 $('#fullscreenMode').prop('checked', data.fullscreenMode || false)
                 $('#screenTimeout').val(data.screenTimeout || 0)
                 $('#updateInterval').val(data.updateInterval || 30)
                 $('#logLevel').val(data.logLevel || 'info')
+                
+                // Load enhanced configuration fields
+                $('#clessHostname').val(data.hostserver || data.hostaddress || '')
+                $('#corsOptions').val(data.corsproxy || 'N')
+                $('#dsId').val(data.id || data.dsid || '')
+                
+                // Note: Serial key is not populated for security reasons
+                // Users must enter it manually when updating
+                $('#serialKey').val('')
+                $('#serialKey').attr('placeholder', data.serialkey ? 'Current key is set (enter new key to update)' : 'Enter serial key')
+                
                 if (data.brightness) {
+                    // Handle brightness if needed
                 }
                 showAlert('success', 'Configuration loaded successfully')
+                debug('Configuration loaded:', {
+                    hostserver: data.hostserver || data.hostaddress,
+                    corsproxy: data.corsproxy,
+                    dsid: data.id || data.dsid,
+                    hasSerialKey: !!data.serialkey
+                })
             }
         },
         error: function () {
             debug('No configuration found or error loading')
+            // Load default values on error
+            $('#clessHostname').val('https://cless4.closed-loop.biz/demo')
+            $('#corsOptions').val('N')
+            $('#dsId').val('10')
+            $('#serialKey').val('')
+            $('#serialKey').attr('placeholder', 'Enter serial key')
         }
     })
 }
@@ -697,6 +856,53 @@ function restartapp() {
         url: '/api/restartapp',
         success: function (data) {
             showAlert('success', 'Application restarted')
+        }
+    })
+}
+
+// Refresh layout function - calls /api/refresh-layout endpoint
+// Includes loading state management and error handling
+function refreshLayout() {
+    const refreshLayoutBtn = $('#refreshLayout')
+    
+    // Add loading state
+    refreshLayoutBtn.addClass('loading').prop('disabled', true)
+    const originalText = refreshLayoutBtn.html()
+    refreshLayoutBtn.html('<i class="bi bi-arrow-clockwise"></i> Refreshing...')
+    
+    $.ajax({
+        type: 'get',
+        url: '/api/refresh-layout',
+        timeout: 10000, // 10 second timeout
+        success: function (data) {
+            showAlert('success', 'Layout refreshed successfully')
+            debug('Layout refresh completed:', data)
+            
+            // Optionally refresh the layout display or other UI elements
+            if (typeof getAPILayout === 'function') {
+                setTimeout(() => {
+                    getAPILayout()
+                }, 500)
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('Layout refresh failed:', {xhr, status, error})
+            
+            let errorMessage = 'Failed to refresh layout'
+            if (status === 'timeout') {
+                errorMessage = 'Layout refresh timed out - please try again'
+            } else if (xhr.responseText) {
+                errorMessage = `Failed to refresh layout: ${xhr.responseText}`
+            } else if (error) {
+                errorMessage = `Failed to refresh layout: ${error}`
+            }
+            
+            showAlert('danger', errorMessage)
+        },
+        complete: function() {
+            // Restore button state
+            refreshLayoutBtn.removeClass('loading').prop('disabled', false)
+            refreshLayoutBtn.html(originalText)
         }
     })
 }

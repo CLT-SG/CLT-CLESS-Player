@@ -73,6 +73,11 @@
                         <i class="bi bi-power"></i>
                         Reboot
                     </button>
+                    <!-- Refresh Layout button - calls /api/refresh-layout endpoint -->
+                    <button type="button" class="modern-btn btn-info" id="refreshLayout">
+                        <i class="bi bi-layout-three-columns"></i>
+                        Refresh Layout
+                    </button>
                     <button type="button" class="modern-btn btn-danger" id="shutdown">
                         <i class="bi bi-power"></i>
                         Shutdown
@@ -117,7 +122,8 @@
                     </label>
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-volume-off"></i>
-                        <input type="range" class="form-range flex-grow-1" id="volumeSlider" min="0" max="100" value="50" step="1">
+                        <input type="range" class="form-range flex-grow-1" id="volumeSlider" min="0" max="100"
+                            value="50" step="1">
                         <i class="bi bi-volume-up"></i>
                     </div>
                 </div>
@@ -165,32 +171,48 @@
                                 <option value="debug">Debug</option>
                             </select>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Enhanced Configuration Section -->
+                <div class="row">
+                    <div class="col-md-12">
                         <div class="form-group">
                             <label class="form-label" for="clessHostname">CLESS Server Hostname:</label>
-                            <input type="url" id="clessHostname" class="form-control" 
-                                   placeholder="https://cless4.closed-loop.biz/demo"
-                                   title="Enter the CLESS server URL (e.g., https://example.com)">
+                            <input type="url" id="clessHostname" class="form-control"
+                                placeholder="https://cless4.closed-loop.biz/demo"
+                                title="Enter the CLESS server URL (e.g., https://example.com)">
                         </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label" for="serialKey">Serial Key:</label>
+                            <input type="text" id="serialKey" class="form-control"
+                                placeholder="Enter new serial key to update"
+                                title="Enter the license serial key for activation">
+                            <small class="form-text text-muted">Leave empty to keep current key unchanged</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label class="form-label" for="corsOptions">CORS Options:</label>
-                            <select id="corsOptions" class="select-modern" 
-                                    title="Enable CORS proxy if blocked by Antivirus or Firewall">
+                            <select id="corsOptions" class="select-modern"
+                                title="Enable CORS proxy if blocked by Antivirus or Firewall">
                                 <option value="N">No (Default)</option>
                                 <option value="Y">Yes (Enable CORS Proxy)</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label" for="dsId">DS ID (Display Server ID):</label>
-                            <input type="number" id="dsId" class="form-control" 
-                                   placeholder="10" min="1" max="9999"
-                                   title="Enter a numeric Display Server ID (1-9999)">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="serialKey">Serial Key:</label>
-                            <input type="text" id="serialKey" class="form-control" 
-                                   placeholder="Enter new serial key to update"
-                                   title="Enter the license serial key for activation">
-                            <small class="form-text text-muted">Leave empty to keep current key unchanged</small>
+                            <label class="form-label" for="dsId">DS ID (Digital Signage ID):</label>
+                            <input type="number" id="dsId" class="form-control" placeholder="10" min="1" max="9999"
+                                title="Enter a numeric Digital Signage ID (1-9999)">
                         </div>
                     </div>
                 </div>
@@ -313,7 +335,7 @@
                     <div class="metric-label">Data Usage (Total)</div>
                 </div>
             </div>
-            
+
             <!-- Data Usage Management Section -->
             <div class="mt-4">
                 <h3 class="card-title mb-3">
