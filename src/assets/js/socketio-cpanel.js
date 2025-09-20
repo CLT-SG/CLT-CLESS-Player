@@ -21,7 +21,154 @@ socket.on('restart-ecless', function (msg) {
     appname = ipcRenderer.send('app-reload')
 })
 
+//resume layout functionality
+socket.on('resume-layout', function (msg) {
+    console.log('=== RENDERER PROCESS: resume-layout REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+    console.log('=== RENDERER PROCESS: isLoopLyt status:', isLoopLyt);
+    
+    try {
+        // Validate message structure
+        if (!msg || typeof msg !== 'object') {
+            console.error('=== RENDERER PROCESS: Invalid resume-layout message format ===');
+            return;
+        }
+        
+        var action = msg.action;
+        var timestamp = msg.timestamp;
+        console.log('=== RENDERER PROCESS: Resume layout action:', action, 'timestamp:', timestamp);
+        
+        // Validate required global variables and functions are available
+        if (typeof isLoopLyt === 'undefined') {
+            console.error('=== RENDERER PROCESS: isLoopLyt variable not defined ===');
+            return;
+        }
+        
+        if (isLoopLyt) {
+            // Validate loop-specific functions and variables
+            if (typeof pauseLoopTimeout !== 'function') {
+                console.error('=== RENDERER PROCESS: pauseLoopTimeout function not available for loop layout ===');
+                return;
+            }
+            
+            if (typeof loopTimeout === 'undefined') {
+                console.warn('=== RENDERER PROCESS: loopTimeout variable not defined ===');
+            }
+            
+            // For loop layouts, pause current timeout first
+            console.log('=== RENDERER PROCESS: Pausing loop timeout for resume operation ===');
+            var paused = pauseLoopTimeout('resume layout operation');
+            console.log('=== RENDERER PROCESS: Loop timeout paused successfully:', paused);
+            
+            // Refresh current layout and continue
+            refreshAndResumeLayout();
+        } else {
+            // For single layouts, validate getxml function
+            if (typeof getxml !== 'function') {
+                console.error('=== RENDERER PROCESS: getxml function not available for single layout ===');
+                return;
+            }
+            
+            // For single layouts, just refresh the layout
+            console.log('=== RENDERER PROCESS: Refreshing single layout ===');
+            refreshAndResumeLayout();
+        }
+        
+        console.log('=== RENDERER PROCESS: Resume layout request processed successfully ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error processing resume layout request:', error);
+        console.error('=== RENDERER PROCESS: Error stack:', error.stack);
+        
+        // Emergency cleanup: if we're in an inconsistent state, try to recover
+        if (isLoopLyt && typeof resetLoopTimeoutState === 'function') {
+            console.log('=== RENDERER PROCESS: Emergency cleanup - resetting loop timeout state ===');
+            resetLoopTimeoutState();
+        }
+    }
+})
+
 var allSlotlist
+
+// Helper function to refresh current layout and resume playback
+function refreshAndResumeLayout() {
+    try {
+        console.log('=== RENDERER PROCESS: Starting layout refresh and resume process ===');
+        
+        if (isLoopLyt) {
+            // For loop layouts, update XML and continue with current layout
+            console.log('=== RENDERER PROCESS: Refreshing loop layout XML ===');
+            if (typeof layoutLoopUpdateXML === 'function') {
+                layoutLoopUpdateXML().then(() => {
+                    console.log('=== RENDERER PROCESS: Loop layout XML updated, continuing with current layout ===');
+                    
+                    // Get current layout data and continue playing
+                    if (typeof currentlytID !== 'undefined' && currentlytID && loopArr.length > 0) {
+                        // Find current layout in loopArr
+                        var currentLayoutData = null;
+                        for (var i = 0; i < loopArr.length; i++) {
+                            var layoutURL = loopArr[i]['attributes']['url'];
+                            var layoutID = layoutURL.split("layout/")[1].slice(0, layoutURL.split("layout/")[1].lastIndexOf('/'));
+                            if (layoutID === currentlytID) {
+                                currentLayoutData = loopArr[i];
+                                break;
+                            }
+                        }
+                        
+                        if (currentLayoutData && typeof playcurrentLayout === 'function') {
+                            console.log('=== RENDERER PROCESS: Continuing with current layout ID:', currentlytID);
+                            playcurrentLayout(currentLayoutData);
+                        } else {
+                            console.warn('=== RENDERER PROCESS: Current layout data not found, resuming from current position ===');
+                            if (typeof resumeLoopTimeout === 'function') {
+                                resumeLoopTimeout('layout refresh completed');
+                            }
+                        }
+                    } else {
+                        console.warn('=== RENDERER PROCESS: No current layout ID or loop array, resuming timeout ===');
+                        if (typeof resumeLoopTimeout === 'function') {
+                            resumeLoopTimeout('layout refresh completed');
+                        }
+                    }
+                }).catch((error) => {
+                    console.error('=== RENDERER PROCESS: Loop layout XML update failed during resume:', error);
+                    // Fallback: resume timeout anyway
+                    if (typeof resumeLoopTimeout === 'function') {
+                        resumeLoopTimeout('layout refresh failed - fallback resume');
+                    }
+                });
+            } else {
+                console.warn('=== RENDERER PROCESS: layoutLoopUpdateXML function not available ===');
+                // Fallback: resume timeout
+                if (typeof resumeLoopTimeout === 'function') {
+                    resumeLoopTimeout('layoutLoopUpdateXML not available');
+                }
+            }
+        } else {
+            // For single layouts, refresh XML data
+            console.log('=== RENDERER PROCESS: Refreshing single layout XML ===');
+            if (typeof getxml === 'function') {
+                getxml();
+                console.log('=== RENDERER PROCESS: Single layout XML refresh triggered ===');
+            } else {
+                console.warn('=== RENDERER PROCESS: getxml function not available ===');
+            }
+        }
+        
+        console.log('=== RENDERER PROCESS: Layout refresh and resume process completed ===');
+        return true;
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error in layout refresh and resume process:', error);
+        
+        // Emergency fallback: if we're in loop mode and paused, try to resume
+        if (isLoopLyt && typeof resumeLoopTimeout === 'function') {
+            console.log('=== RENDERER PROCESS: Emergency fallback - resuming loop timeout ===');
+            resumeLoopTimeout('emergency fallback after error');
+        }
+        
+        return false;
+    }
+}
+
 //change ds layout
 socket.on('updatelayout', function (msg) {
     console.log('=== RENDERER PROCESS: updatelayout REQUEST RECEIVED ===');
