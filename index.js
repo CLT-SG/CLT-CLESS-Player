@@ -21,17 +21,6 @@ const si = require('systeminformation')
 const {
     exec
 } = require('child_process')
-const io = require('socket.io-client')
-
-// Windows audio control (only available on Windows)
-let winAudio = null
-try {
-    if (process.platform === 'win32') {
-        winAudio = require('win-audio')
-    }
-} catch (error) {
-    debug('win-audio package not available (not on Windows or not installed)')
-}
 
 const createCpanelServer = require('./cpanel')
 const appdir = path.normalize(homedir + '/clessapp')
@@ -54,6 +43,16 @@ log.transports.console.level = isDebug ? 'debug' : 'warn';
 
 // Optimize console logging
 const debug = isDebug ? log.debug : () => {} // Disable debug logs in production
+
+// Windows audio control (only available on Windows)
+let winAudio = null
+try {
+    if (process.platform === 'win32') {
+        winAudio = require('win-audio')
+    }
+} catch (error) {
+    debug('win-audio package not available (not on Windows or not installed)')
+}
 
 //One instance process check
 let win = null
@@ -963,11 +962,12 @@ try {
             win = new BrowserWindow({
                 x: 0,
                 y: -10000,
-                width: 0,
-                height: 0,
+                y: 0,
+                width: 900,
+                height: 900,
                 backgroundColor: '#000000',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -993,8 +993,8 @@ try {
                 width: 0,
                 height: 900,
                 backgroundColor: '#302d2d',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -1062,12 +1062,12 @@ try {
             })
 
             //hide menu bar
-            win.setSkipTaskbar(true)
-            win.setAlwaysOnTop(true)
-            win2.setSkipTaskbar(true)
-            win2.setAlwaysOnTop(true)
-            win.setMenuBarVisibility(false)
-            win2.setMenuBarVisibility(false)
+            //win.setSkipTaskbar(true)
+            //win.setAlwaysOnTop(true)
+            //win2.setSkipTaskbar(true)
+            //win2.setAlwaysOnTop(true)
+            //win.setMenuBarVisibility(false)
+            //win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -1363,113 +1363,7 @@ try {
                 debug('Screen toggle request received:', args)
                 handleScreenToggle(args.state)
             })
-
-            // Socket.io client connection to cpanel server
-            debug('Attempting to connect to socket.io server...')
-            const socketClient = io('https://localhost:9000', {
-                rejectUnauthorized: false // For self-signed certificates
-            })
-
-            socketClient.on('connect', () => {
-                log.info('Connected to cpanel socket.io server')
-                debug('Socket ID:', socketClient.id)
-                // Identify this connection as the eCLESS electron client
-                socketClient.emit('save id', 'eCLESS:electron-main-process')
-                debug('Sent save id event with eCLESS:electron-main-process')
-            })
-
-            socketClient.on('disconnect', () => {
-                log.info('Disconnected from cpanel socket.io server')
-            })
-
-            socketClient.on('connect_error', (error) => {
-                log.warn('Socket.io connection error:', error.message)
-            })
-
-            // Socket.io event handlers for screen toggle
-            socketClient.on('set-screen-toggle', (data) => {
-                log.info('Received screen toggle via socket:', data.state)
-                debug('Screen toggle data:', data)
-                handleScreenToggle(data.state)
-            })
-
-            // Socket.io event handlers for volume control
-            socketClient.on('set-volume-mute', (data) => {
-                log.info('Received volume mute via socket:', data.action)
-                if (data.action === 'mute') {
-                    muteSystem()
-                } else if (data.action === 'unmute') {
-                    unmuteSystem()
-                }
-            })
-
-            socketClient.on('set-volume-level', (data) => {
-                log.info('Received volume level via socket:', data.volume + '%')
-                setSystemVolume(data.volume)
-            })
-
-            socketClient.on('get-volume-level', (data) => {
-                debug('Received get volume level via socket:', data)
-                getCurrentVolume().then(volume => {
-                    // Send volume back to control panel
-                    socketClient.emit('volume-level-response', { 
-                        requestId: data.requestId, 
-                        volume: Math.round(volume * 100) 
-                    })
-                }).catch(error => {
-                    log.warn('Failed to get volume level:', error.message)
-                })
-            })
-
-            socketClient.on('update-config', (data) => {
-                log.info('Received config update via socket')
-                debug('Config update data:', data)
-                try {
-                    const configPath = path.join(appdir, 'config.json')
-                    const currentConfig = loadConfiguration() || {}
-                    const updatedConfig = { ...currentConfig, ...data, timestamp: new Date().toISOString() }
-                    
-                    fs.writeFileSync(configPath, JSON.stringify(updatedConfig, null, 2))
-                    log.info('Configuration updated successfully via socket')
-                } catch (error) {
-                    log.error('Error updating configuration via socket:', error)
-                }
-            })
-
-            // Handle other socket events as needed
-            socketClient.on('replacetextslot', (data) => {
-                log.info('Received replacetextslot via socket:', data)
-                // Handle text slot replacement
-            })
-
-            socketClient.on('replacemediaslot', (data) => {
-                log.info('Received replacemediaslot via socket:', data)
-                // Handle media slot replacement
-            })
-
-            socketClient.on('updatelayout', (data) => {
-                log.info('Received updatelayout via socket:', data)
-                // Handle layout update
-            })
-
-            socketClient.on('refresh-ecless', (data) => {
-                log.info('Received refresh-ecless via socket:', data)
-                // Handle refresh command
-                if (win) {
-                    win.reload()
-                }
-                if (win2) {
-                    win2.reload()
-                }
-            })
-
-            socketClient.on('restart-ecless', (data) => {
-                log.info('Received restart-ecless via socket:', data)
-                // Handle restart command
-                app.relaunch()
-                app.exit()
-            })
-
+            
             // Handle configuration updates from control panel
             ipcMain.on('update-config', (event, args) => {
                 log.info('Configuration update request:', args)

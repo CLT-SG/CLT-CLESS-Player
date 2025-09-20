@@ -935,34 +935,174 @@ function getAPILayout() {
     $.get(window.location.origin + '/api/layoutdata')
         .done(function(data) {
             $element.removeClass('loading')
-            if (typeof data === 'string') {
-                $element.html(data)
-            } else {
-                $element.html(`
-                    <div class="alert-modern alert-success">
-                        <i class="bi bi-check-circle"></i>
-                        <div>
-                            <strong>Current Layout:</strong> ${data.name || data.current || 'Default'}
-                            <br><small>ID: ${data.current || 'layout-001'}</small>
-                        </div>
-                    </div>
-                `)
-            }
+            debug('Basic layout data loaded:', data)
+            
+            // Now get detailed layout information
+            getDetailedLayoutInfo()
         })
         .fail(function(xhr, status, error) {
             console.warn('Layout API failed, using fallback:', error)
             $element.removeClass('loading')
             const mockData = handleAPIError('/api/layoutdata', error)
-            $element.html(`
-                <div class="alert-modern alert-success">
-                    <i class="bi bi-check-circle"></i>
-                    <div>
-                        <strong>Current Layout:</strong> ${mockData.name || 'Default'}
-                        <br><small>ID: ${mockData.current || 'layout-001'}</small>
+            
+            // Try to get detailed info anyway
+            getDetailedLayoutInfo()
+        })
+}
+
+// Enhanced function to get detailed layout information
+function getDetailedLayoutInfo() {
+    const $element = $('#apiLayout')
+    
+    $.get(window.location.origin + '/api/layout-details')
+        .done(function (response) {
+            if (response.success && response.data) {
+                displayDetailedLayoutInfo(response.data)
+            } else {
+                console.warn('Layout details request failed:', response.error)
+                displayLayoutInfoError(response.error || 'Unknown error')
+            }
+        })
+        .fail(function (error) {
+            console.warn('Failed to load detailed layout information:', error)
+            displayLayoutInfoError('Connection error - Unable to retrieve layout details')
+        })
+}
+
+// Function to display comprehensive layout information
+function displayDetailedLayoutInfo(layoutData) {
+    const $element = $('#apiLayout')
+    
+    // Build the comprehensive layout information display
+    let html = `
+        <div class="layout-info-container">
+            <div class="layout-status-header">
+                <div class="status-indicator ${layoutData.currentLayout ? 'status-online' : 'status-offline'}">
+                    <div class="status-dot"></div>
+                    <span>Layout System ${layoutData.currentLayout ? 'Active' : 'Inactive'}</span>
+                </div>
+                <div class="layout-mode-badge ${layoutData.isLoop ? 'loop-mode' : 'single-mode'}">
+                    <i class="bi ${layoutData.isLoop ? 'bi-arrow-repeat' : 'bi-file-earmark'}"></i>
+                    ${layoutData.isLoop ? 'Loop Mode' : 'Single Mode'}
+                </div>
+            </div>
+    `
+    
+    // Currently Active Layout section has been removed as per user request
+    
+    // Available Layouts - Simple text container with layout name and ID only
+    if (layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
+        html += `
+            <div class="available-layouts-simple">
+                <h4 class="layout-section-title">
+                    <i class="bi bi-collection"></i>
+                    Available Layouts (${layoutData.layouts.length})
+                </h4>
+                <div class="layouts-simple-list">
+        `
+        
+        layoutData.layouts.forEach(layout => {
+            html += `
+                    <div class="layout-simple-item">
+                        <strong>Layout ID:</strong> ${layout.id} | <strong>Name:</strong> ${layout.name || 'Layout ' + layout.id}
+                        
+                        <div class="layout-slots-all">
+                            <strong>All Slots:</strong>
+                            <ul class="slots-all-list">
+            `
+            
+            // Show all slots if available
+            if (layout.allSlots && layout.allSlots.length > 0) {
+                layout.allSlots.forEach(slot => {
+                    html += `
+                                <li><strong>${slot.name}</strong> (ID: ${slot.id}) - Type: ${slot.type}</li>
+                    `
+                })
+            } else {
+                // Fallback to separate text and media slots if allSlots not available
+                if (layout.textSlots && layout.textSlots.length > 0) {
+                    layout.textSlots.forEach(slot => {
+                        html += `
+                                <li><strong>${slot.slotname || slot.name}</strong> (ID: ${slot.slotid || slot.id}) - Type: text</li>
+                        `
+                    })
+                }
+                if (layout.mediaSlots && layout.mediaSlots.length > 0) {
+                    layout.mediaSlots.forEach(slot => {
+                        html += `
+                                <li><strong>${slot.slotname || slot.name}</strong> (ID: ${slot.slotid || slot.id}) - Type: media</li>
+                        `
+                    })
+                }
+            }
+            
+            html += `
+                            </ul>
+                        </div>
+                    </div>
+            `
+        })
+        
+        html += `
+                </div>
+            </div>
+        `
+    }
+    
+    // Summary Statistics
+    html += `
+            <div class="layout-summary">
+                <h4 class="layout-section-title">
+                    <i class="bi bi-bar-chart"></i>
+                    Summary Statistics
+                </h4>
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <div class="stat-value">${layoutData.layouts ? layoutData.layouts.length : (layoutData.currentLayout ? 1 : 0)}</div>
+                        <div class="stat-label">Total Layouts</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="stat-value">${layoutData.totalSlots || 0}</div>
+                        <div class="stat-label">Total Slots</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="stat-value">${layoutData.textSlots || 0}</div>
+                        <div class="stat-label">Text Slots</div>
+                    </div>
+                    <div class="summary-stat">
+                        <div class="stat-value">${layoutData.mediaSlots || 0}</div>
+                        <div class="stat-label">Media Slots</div>
                     </div>
                 </div>
-            `)
-        })
+            </div>
+        </div>
+    `
+    
+    $element.html(html)
+    debug('Detailed layout information displayed successfully')
+}
+
+// Function to display layout information errors
+function displayLayoutInfoError(errorMessage) {
+    const $element = $('#apiLayout')
+    
+    $element.html(`
+        <div class="layout-info-container">
+            <div class="alert-modern alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span>
+                    <strong>Layout Information Error:</strong><br>
+                    ${errorMessage}
+                </span>
+            </div>
+            <div class="layout-error-actions">
+                <button type="button" class="modern-btn btn-secondary" onclick="getDetailedLayoutInfo()">
+                    <i class="bi bi-arrow-clockwise"></i>
+                    Retry
+                </button>
+            </div>
+        </div>
+    `)
 }
 
 function getAPIText() {
