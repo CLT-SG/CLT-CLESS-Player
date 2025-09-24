@@ -112,6 +112,19 @@ function loopNextLayout() {
   }
   layoutLoopUpdateXML() // keep updating ds xml to get updated each loop
   playcurrentLayout(loopArr[loopXMLCurIndex])
+  
+  // Broadcast sync data if this is a master screen
+  if (typeof broadcastLayoutSync === 'function') {
+    try {
+      // Small delay to ensure layout is loaded before broadcasting
+      setTimeout(() => {
+        broadcastLayoutSync();
+      }, 100);
+    } catch (error) {
+      console.warn('=== LOOP SYNC: Failed to broadcast layout sync:', error);
+    }
+  }
+  
   loopXMLCurIndex++
 }
 
@@ -174,6 +187,18 @@ function playcurrentLayout(xmlData) {
   //time of layout play
   loopTimeout = setTimeout(loopNextLayout, layoutDuration)
   console.log('=== LOOP TIMEOUT: Started new layout timeout for', layoutDuration, 'ms');
+  
+  // Broadcast initial sync data if this is a master screen
+  if (typeof broadcastLayoutSync === 'function') {
+    try {
+      // Small delay to ensure layout is fully loaded
+      setTimeout(() => {
+        broadcastLayoutSync();
+      }, 200);
+    } catch (error) {
+      console.warn('=== LOOP SYNC: Failed to broadcast initial layout sync:', error);
+    }
+  }
 }
 
 function layoutLoopUpdateXML() {

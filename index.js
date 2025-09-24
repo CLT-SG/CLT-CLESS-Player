@@ -67,6 +67,128 @@ process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = true
 
 const gotTheLock = app.requestSingleInstanceLock()
 
+// Version comparison utility
+function compareVersions(version1, version2) {
+    const v1parts = version1.split('.').map(Number)
+    const v2parts = version2.split('.').map(Number)
+    
+    for (let i = 0; i < Math.max(v1parts.length, v2parts.length); i++) {
+        const v1part = v1parts[i] || 0
+        const v2part = v2parts[i] || 0
+        
+        if (v1part < v2part) return -1
+        if (v1part > v2part) return 1
+    }
+    return 0
+}
+
+// Upgrade existing config.json to newer version
+async function upgradeConfigVersion(existingConfig, configJsonPath) {
+    try {
+        log.info('Starting config version upgrade process')
+        
+        // Create backup of current config
+        const backupPath = configJsonPath + '.backup.' + Date.now()
+        fs.copyFileSync(configJsonPath, backupPath)
+        log.info('Current config backed up to:', backupPath)
+        
+        // Merge existing config with new features based on version
+        const upgradedConfig = await applyVersionUpgrades(existingConfig)
+        
+        // Write upgraded config
+        fs.writeFileSync(configJsonPath, JSON.stringify(upgradedConfig, null, 2))
+        log.info('Config successfully upgraded to version:', upgradedConfig.version)
+        
+        // Update migration flag
+        const migrationFlagPath = path.join(path.dirname(configJsonPath), '.migration-v2-complete')
+        fs.writeFileSync(migrationFlagPath, JSON.stringify({
+            completedAt: new Date().toISOString(),
+            upgradedFrom: existingConfig.version || 'unknown',
+            targetVersion: upgradedConfig.version,
+            upgradeType: 'version-upgrade'
+        }, null, 2))
+        
+        // Show upgrade notification if app is ready
+        if (app.isReady()) {
+            const options = {
+                type: 'info',
+                buttons: ['Ok'],
+                defaultId: 0,
+                title: 'Configuration Upgraded',
+                message: 'Your configuration has been upgraded to the latest version.',
+                detail: `Configuration upgraded from v${existingConfig.version || 'unknown'} to v${upgradedConfig.version}\n\n` +
+                       `New features added:\n` +
+                       `• Multi-screen synchronization system\n` +
+                       `• Enhanced layout and video coordination\n` +
+                       `• Network resilient architecture\n\n` +
+                       `Your previous config has been backed up.\n\n` +
+                       `Access the control panel at: https://localhost:9000`
+            }
+            dialog.showMessageBox(null, options)
+        }
+        
+    } catch (error) {
+        log.error('Config version upgrade failed:', error)
+        throw error
+    }
+}
+
+// Apply version-specific upgrades to config
+async function applyVersionUpgrades(existingConfig) {
+    const currentVersion = existingConfig.version || '1.0.0'
+    let upgradedConfig = { ...existingConfig }
+    
+    log.info('Applying upgrades from version:', currentVersion)
+    
+    // Upgrade to 2.4.0: Add syncSettings if missing
+    if (compareVersions(currentVersion, '2.4.0') < 0) {
+        log.info('Applying 2.4.0 upgrade: Adding syncSettings')
+        
+        if (!upgradedConfig.syncSettings) {
+            upgradedConfig.syncSettings = {
+                syncMode: 'disabled',
+                isMaster: false,
+                syncInterval: 5000,
+                videoSyncThreshold: 0.5,
+                layoutSyncEnabled: true,
+                videoSyncEnabled: true,
+                masterBroadcastInterval: 1000,
+                networkTimeout: 10000
+            }
+            log.info('Added syncSettings to configuration')
+        } else {
+            // Ensure all sync settings are present (in case of partial config)
+            const defaultSyncSettings = {
+                syncMode: 'disabled',
+                isMaster: false,
+                syncInterval: 5000,
+                videoSyncThreshold: 0.5,
+                layoutSyncEnabled: true,
+                videoSyncEnabled: true,
+                masterBroadcastInterval: 1000,
+                networkTimeout: 10000
+            }
+            
+            upgradedConfig.syncSettings = {
+                ...defaultSyncSettings,
+                ...upgradedConfig.syncSettings
+            }
+            log.info('Updated syncSettings with any missing properties')
+        }
+        
+        upgradedConfig.version = '2.4.0'
+        upgradedConfig.timestamp = new Date().toISOString()
+    }
+    
+    // Future version upgrades can be added here
+    // Example:
+    // if (compareVersions(currentVersion, '2.5.0') < 0) {
+    //     // Add 2.5.0 specific upgrades
+    // }
+    
+    return upgradedConfig
+}
+
 // Configuration Migration Function
 async function performConfigMigration() {
     const configJsPath = path.join(appdir, 'config.js')
@@ -76,8 +198,23 @@ async function performConfigMigration() {
     try {
         // Check if migration has already been completed AND config.json actually exists
         if (fs.existsSync(migrationFlagPath) && fs.existsSync(configJsonPath)) {
-            log.info('Configuration migration already completed and config.json exists')
-            return
+            // Check if we need to update an existing config.json to newer version
+            try {
+                const existingConfig = JSON.parse(fs.readFileSync(configJsonPath, 'utf8'))
+                const currentVersion = existingConfig.version || '1.0.0'
+                const targetVersion = '2.4.0'
+                
+                if (compareVersions(currentVersion, targetVersion) < 0) {
+                    log.info(`Config version upgrade needed: ${currentVersion} -> ${targetVersion}`)
+                    await upgradeConfigVersion(existingConfig, configJsonPath)
+                    return
+                } else {
+                    log.info('Configuration is already up to date, version:', currentVersion)
+                    return
+                }
+            } catch (error) {
+                log.warn('Failed to check config version, will proceed with normal migration check:', error)
+            }
         }
 
         // If migration flag exists but config.json is missing, we need to recreate it
@@ -94,7 +231,7 @@ async function performConfigMigration() {
             fs.writeFileSync(migrationFlagPath, JSON.stringify({
                 completedAt: new Date().toISOString(),
                 migratedFrom: 'default',
-                version: '2.0.14'
+                version: '2.4.0'
             }, null, 2))
             return
         }
@@ -163,8 +300,20 @@ async function performConfigMigration() {
                 cpanelPort: 9000
             },
 
+            // Synchronization settings (new feature)
+            syncSettings: {
+                syncMode: 'disabled',
+                isMaster: false,
+                syncInterval: 5000,
+                videoSyncThreshold: 0.5,
+                layoutSyncEnabled: true,
+                videoSyncEnabled: true,
+                masterBroadcastInterval: 1000,
+                networkTimeout: 10000
+            },
+
             // Migration metadata
-            version: '2.0.14',
+            version: '2.4.0',
             migrationInfo: {
                 migratedFrom: 'config.js',
                 migrationDate: new Date().toISOString(),
@@ -184,7 +333,7 @@ async function performConfigMigration() {
         fs.writeFileSync(migrationFlagPath, JSON.stringify({
             completedAt: new Date().toISOString(),
             migratedFrom: 'config.js',
-            version: '2.0.14'
+            version: '2.4.0'
         }, null, 2))
 
         // Delete original config.js after successful migration
@@ -211,7 +360,8 @@ async function performConfigMigration() {
                    `• Enhanced system monitoring\n` +
                    `• Screen on/off toggle with sound control\n` +
                    `• Advanced configuration management\n` +
-                   `• Real-time system information\n\n` +
+                   `• Real-time system information\n` +
+                   `• Multi-screen synchronization system\n\n` +
                    `Access the enhanced control panel at: https://localhost:9000\n\n` +
                    `Copyright © 2000-${new Date().getFullYear()} by Closed-loop Technology Pte Ltd.`
         }
@@ -278,8 +428,18 @@ async function createDefaultConfigJson() {
                 vncPort: 5900,
                 cpanelPort: 9000
             },
+            syncSettings: {
+                syncMode: 'disabled',
+                isMaster: false,
+                syncInterval: 5000,
+                videoSyncThreshold: 0.5,
+                layoutSyncEnabled: true,
+                videoSyncEnabled: true,
+                masterBroadcastInterval: 1000,
+                networkTimeout: 10000
+            },
             timestamp: new Date().toISOString(),
-            version: '2.0.14'
+            version: '2.4.0'
         }
 
         const configJsonPath = path.join(appdir, 'config.json')
@@ -307,7 +467,29 @@ function loadConfiguration() {
         // Try to load config.json first (new format)
         if (fs.existsSync(configJsonPath)) {
             const configData = JSON.parse(fs.readFileSync(configJsonPath, 'utf8'))
-            log.info('Loaded configuration from config.json')
+            
+            // Check if config needs version upgrade
+            const currentVersion = configData.version || '1.0.0'
+            if (compareVersions(currentVersion, '2.4.0') < 0) {
+                log.info('Config version check: upgrade needed during load, version:', currentVersion)
+                // Don't upgrade here, let the migration system handle it on next restart
+                // For now, ensure syncSettings exist for immediate use
+                if (!configData.syncSettings) {
+                    configData.syncSettings = {
+                        syncMode: 'disabled',
+                        isMaster: false,
+                        syncInterval: 5000,
+                        videoSyncThreshold: 0.5,
+                        layoutSyncEnabled: true,
+                        videoSyncEnabled: true,
+                        masterBroadcastInterval: 1000,
+                        networkTimeout: 10000
+                    }
+                    log.info('Added temporary syncSettings for immediate use')
+                }
+            }
+            
+            log.info('Loaded configuration from config.json, version:', configData.version || 'unknown')
             return configData
         }
 
@@ -330,7 +512,17 @@ function loadConfiguration() {
                 screenTimeout: 0,
                 updateInterval: 30,
                 logLevel: 'info',
-                screenOnOff: true
+                screenOnOff: true,
+                syncSettings: {
+                    syncMode: 'disabled',
+                    isMaster: false,
+                    syncInterval: 5000,
+                    videoSyncThreshold: 0.5,
+                    layoutSyncEnabled: true,
+                    videoSyncEnabled: true,
+                    masterBroadcastInterval: 1000,
+                    networkTimeout: 10000
+                }
             }
         }
 

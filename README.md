@@ -11,6 +11,15 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
 - Remote VNC access for system management
 - ElectronJS-based desktop application
 
+### 🎯 Multi-Screen Synchronization System ✨
+- **Master-Slave Architecture**: Coordinate multiple screens with one controlling timing
+- **Real-time Layout Sync**: All screens show identical layouts at the same timestamp
+- **Video Synchronization**: Synchronized video playback across screens with drift correction
+- **Network Resilient**: Graceful fallback to local timing during connectivity issues
+- **Sub-second Precision**: Professional-grade synchronization accuracy
+- **Easy Configuration**: Simple setup via config.json settings
+- **Backward Compatible**: Works seamlessly with existing offline/online modes
+
 ### Enhanced Control Panel Features ✨
 - **Real-time System Monitoring**: CPU, memory, disk, and network usage
 - **Display Control**: Brightness adjustment and power management
@@ -22,10 +31,11 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
 
 ### API Enhancements
 - RESTful API for system control and monitoring
-- Socket.IO for real-time communication
+- Socket.IO for real-time communication and multi-screen synchronization
 - Configuration management endpoints
 - Display control APIs
 - Comprehensive system information endpoints
+- Synchronization broadcasting and event handling
 
 ## Requirements
 - [Node.js](https://nodejs.org/) (v16.x or later)
@@ -51,6 +61,49 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
    ```bash
    npm start
    ```
+
+## Multi-Screen Synchronization
+
+eCLESS Player supports synchronized content playback across multiple screens using a master-slave architecture.
+
+### Quick Setup
+
+1. **Configure Master Screen:**
+   ```json
+   {
+     "syncSettings": {
+       "syncMode": "enabled",
+       "isMaster": true,
+       "layoutSyncEnabled": true,
+       "videoSyncEnabled": true
+     }
+   }
+   ```
+
+2. **Configure Slave Screens:**
+   ```json
+   {
+     "syncSettings": {
+       "syncMode": "enabled",
+       "isMaster": false,
+       "syncInterval": 5000,
+       "videoSyncThreshold": 0.5
+     }
+   }
+   ```
+
+3. **Start Applications:**
+   - All screens will automatically synchronize via Socket.IO
+   - Layout transitions happen simultaneously
+   - Video content stays synchronized across screens
+
+### Features
+- **Real-time Sync**: Sub-second precision layout and video synchronization
+- **Network Resilient**: Graceful fallback during connectivity issues  
+- **Configurable**: Fine-tune sync behavior per deployment
+- **Professional Grade**: Suitable for large-scale digital signage installations
+
+For detailed configuration and troubleshooting, see [SYNCHRONIZATION.md](docs/SYNCHRONIZATION.md).
 
 ## Usage
 
@@ -122,7 +175,8 @@ curl -X POST https://localhost:9000/api/config/save \
      -d '{"autoStartup": true, "brightness": 75}'
 ```
 
-See [CONTROL_PANEL_API.md](CONTROL_PANEL_API.md) for complete API documentation.
+See [CONTROL_PANEL_API.md](docs/CONTROL_PANEL_API.md) for complete API documentation.
+See [SYNCHRONIZATION.md](docs/SYNCHRONIZATION.md) for multi-screen sync setup and configuration.
 
 ## Building the Application
 

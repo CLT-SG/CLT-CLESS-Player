@@ -727,6 +727,322 @@ socket.on('error', function (error) {
     console.log('=== SOCKET ERROR ===', error)
 })
 
+// ========================================
+// SYNCHRONIZATION EVENT HANDLERS
+// ========================================
+
+// Global synchronization variables
+var syncConfig = null;
+var syncMasterInterval = null;
+var syncCheckInterval = null;
+var lastSyncTimestamp = 0;
+var networkConnected = true;
+
+// Initialize synchronization settings from config
+function initSyncSettings() {
+    try {
+        if (config && config.syncSettings) {
+            syncConfig = config.syncSettings;
+            console.log('=== SYNC: Initialized with settings:', syncConfig);
+            
+            if (syncConfig.syncMode === 'enabled') {
+                if (syncConfig.isMaster) {
+                    startMasterSync();
+                    console.log('=== SYNC: Started as MASTER ===');
+                } else {
+                    startSlaveSync();
+                    console.log('=== SYNC: Started as SLAVE ===');
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC: Failed to initialize sync settings:', error);
+        syncConfig = null;
+    }
+}
+
+// Master synchronization functions
+function startMasterSync() {
+    if (!syncConfig || !syncConfig.isMaster) return;
+    
+    // Stop existing intervals
+    if (syncMasterInterval) clearInterval(syncMasterInterval);
+    
+    // Start master broadcasting
+    syncMasterInterval = setInterval(() => {
+        if (syncConfig.layoutSyncEnabled) {
+            broadcastLayoutSync();
+        }
+        if (syncConfig.videoSyncEnabled) {
+            broadcastVideoTime();
+        }
+    }, syncConfig.masterBroadcastInterval || 1000);
+}
+
+// Slave synchronization functions
+function startSlaveSync() {
+    if (!syncConfig || syncConfig.isMaster) return;
+    
+    // Stop existing intervals
+    if (syncCheckInterval) clearInterval(syncCheckInterval);
+    
+    // Start periodic sync checks
+    syncCheckInterval = setInterval(() => {
+        checkSyncStatus();
+    }, syncConfig.syncInterval || 5000);
+}
+
+// Broadcast current layout synchronization data (Master only)
+function broadcastLayoutSync() {
+    if (!syncConfig || !syncConfig.isMaster || !networkConnected) return;
+    
+    try {
+        if (typeof isLoopLyt !== 'undefined' && isLoopLyt && typeof loopXMLCurIndex !== 'undefined' && typeof loopArr !== 'undefined') {
+            var currentTime = Date.now();
+            var remainingTime = 0;
+            
+            // Calculate remaining time if loop timeout is active
+            if (typeof loopTimeoutStartTime !== 'undefined' && typeof loopTimeoutDuration !== 'undefined' && loopTimeoutStartTime && loopTimeoutDuration) {
+                var elapsed = currentTime - loopTimeoutStartTime;
+                remainingTime = Math.max(loopTimeoutDuration - elapsed, 0);
+            }
+            
+            var syncData = {
+                timestamp: currentTime,
+                layoutIndex: loopXMLCurIndex,
+                currentLayoutID: currentlytID || '',
+                remainingTime: remainingTime,
+                totalLayouts: loopArr.length,
+                isLoopLayout: true,
+                masterBroadcast: true
+            };
+            
+            console.log('=== SYNC MASTER: Broadcasting layout sync:', syncData);
+            socket.emit('layout-sync-broadcast', syncData);
+        }
+    } catch (error) {
+        console.warn('=== SYNC MASTER: Failed to broadcast layout sync:', error);
+    }
+}
+
+// Broadcast current video synchronization data (Master only)
+function broadcastVideoTime() {
+    if (!syncConfig || !syncConfig.isMaster || !networkConnected) return;
+    
+    try {
+        if (typeof videoJSPlayer !== 'undefined' && videoJSPlayer.length > 0) {
+            var videoSyncData = [];
+            
+            videoJSPlayer.forEach((player, index) => {
+                if (player && typeof player.currentTime === 'function' && typeof player.paused === 'function') {
+                    videoSyncData.push({
+                        playerIndex: index,
+                        currentTime: player.currentTime(),
+                        paused: player.paused(),
+                        duration: player.duration() || 0,
+                        playbackRate: player.playbackRate() || 1
+                    });
+                }
+            });
+            
+            if (videoSyncData.length > 0) {
+                var syncData = {
+                    timestamp: Date.now(),
+                    videoPlayers: videoSyncData,
+                    masterBroadcast: true
+                };
+                
+                console.log('=== SYNC MASTER: Broadcasting video sync:', syncData);
+                socket.emit('video-sync', syncData);
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC MASTER: Failed to broadcast video sync:', error);
+    }
+}
+
+// Handle layout synchronization received from master (Slave only)
+socket.on('layout-sync-receive', function(syncData) {
+    if (!syncConfig || syncConfig.isMaster || !syncData) return;
+    
+    console.log('=== SYNC SLAVE: Received layout sync:', syncData);
+    
+    try {
+        if (syncData.masterBroadcast && typeof isLoopLyt !== 'undefined') {
+            lastSyncTimestamp = Date.now();
+            
+            // Check if we need to sync layout
+            var currentLayoutIndex = loopXMLCurIndex || 0;
+            var targetLayoutIndex = syncData.layoutIndex || 0;
+            
+            if (Math.abs(currentLayoutIndex - targetLayoutIndex) > 0 || 
+                (syncData.currentLayoutID && currentlytID !== syncData.currentLayoutID)) {
+                
+                console.log('=== SYNC SLAVE: Layout desync detected, syncing to layout:', targetLayoutIndex);
+                syncToMasterLayout(syncData);
+            } else {
+                // Sync timing within current layout
+                syncLayoutTiming(syncData);
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to process layout sync:', error);
+    }
+});
+
+// Handle video synchronization received from master (Slave only)
+socket.on('video-sync', function(syncData) {
+    if (!syncConfig || syncConfig.isMaster || !syncData || !syncConfig.videoSyncEnabled) return;
+    
+    console.log('=== SYNC SLAVE: Received video sync:', syncData);
+    
+    try {
+        if (syncData.masterBroadcast && syncData.videoPlayers && typeof videoJSPlayer !== 'undefined') {
+            lastSyncTimestamp = Date.now();
+            
+            syncData.videoPlayers.forEach(videoData => {
+                var player = videoJSPlayer[videoData.playerIndex];
+                if (player && typeof player.currentTime === 'function') {
+                    var timeDiff = Math.abs(player.currentTime() - videoData.currentTime);
+                    var threshold = syncConfig.videoSyncThreshold || 0.5;
+                    
+                    if (timeDiff > threshold) {
+                        console.log('=== SYNC SLAVE: Video desync detected, adjusting time for player:', videoData.playerIndex, 'diff:', timeDiff);
+                        player.currentTime(videoData.currentTime);
+                    }
+                    
+                    // Sync play/pause state
+                    if (videoData.paused && !player.paused()) {
+                        player.pause();
+                    } else if (!videoData.paused && player.paused()) {
+                        player.play();
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to process video sync:', error);
+    }
+});
+
+// Sync to master layout (Slave helper function)
+function syncToMasterLayout(syncData) {
+    try {
+        if (typeof loopArr !== 'undefined' && typeof loopNextLayout === 'function' && typeof playcurrentLayout === 'function') {
+            // Update our loop index to match master
+            if (syncData.layoutIndex < loopArr.length) {
+                loopXMLCurIndex = syncData.layoutIndex;
+                
+                // Play the target layout immediately
+                var targetLayout = loopArr[syncData.layoutIndex];
+                if (targetLayout) {
+                    console.log('=== SYNC SLAVE: Switching to master layout:', syncData.layoutIndex);
+                    playcurrentLayout(targetLayout);
+                    
+                    // Set up timeout for remaining time
+                    if (syncData.remainingTime > 0) {
+                        setTimeout(() => {
+                            loopNextLayout();
+                        }, syncData.remainingTime);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to sync to master layout:', error);
+    }
+}
+
+// Sync layout timing (Slave helper function)
+function syncLayoutTiming(syncData) {
+    try {
+        if (typeof loopTimeout !== 'undefined' && syncData.remainingTime > 0) {
+            // Clear current timeout and set new one based on master timing
+            if (loopTimeout) {
+                clearTimeout(loopTimeout);
+            }
+            
+            console.log('=== SYNC SLAVE: Adjusting layout timing, remaining time:', syncData.remainingTime);
+            loopTimeout = setTimeout(() => {
+                if (typeof loopNextLayout === 'function') {
+                    loopNextLayout();
+                }
+            }, syncData.remainingTime);
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to sync layout timing:', error);
+    }
+}
+
+// Check synchronization status (Slave function)
+function checkSyncStatus() {
+    if (!syncConfig || syncConfig.isMaster) return;
+    
+    var currentTime = Date.now();
+    var timeSinceLastSync = currentTime - lastSyncTimestamp;
+    
+    if (timeSinceLastSync > (syncConfig.networkTimeout || 10000)) {
+        if (networkConnected) {
+            console.warn('=== SYNC SLAVE: Network timeout detected, falling back to local timing');
+            networkConnected = false;
+            fallbackToLocalTiming();
+        }
+    } else {
+        if (!networkConnected) {
+            console.log('=== SYNC SLAVE: Network recovered, resuming sync');
+            networkConnected = true;
+        }
+    }
+}
+
+// Fallback to local timing when network is disconnected
+function fallbackToLocalTiming() {
+    try {
+        console.log('=== SYNC: Falling back to local timing mode');
+        // Continue with local loop timing
+        if (typeof isLoopLyt !== 'undefined' && isLoopLyt && !loopTimeout) {
+            // Restart local loop if needed
+            if (typeof loopArr !== 'undefined' && loopArr.length > 0) {
+                var currentLayout = loopArr[loopXMLCurIndex] || loopArr[0];
+                if (currentLayout && typeof playcurrentLayout === 'function') {
+                    playcurrentLayout(currentLayout);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC: Failed to fallback to local timing:', error);
+    }
+}
+
+// Initialize synchronization when socket connects
+socket.on('connect', function () {
+    console.log('=== RENDERER PROCESS: Connected to socket server ===')
+    networkConnected = true;
+    setTimeout(() => {
+        initSyncSettings();
+    }, 1000); // Delay to ensure config is loaded
+})
+
+// Handle disconnect for sync
+socket.on('disconnect', function () {
+    console.log('=== RENDERER PROCESS: Disconnected from socket server ===')
+    networkConnected = false;
+    
+    // Clear sync intervals
+    if (syncMasterInterval) {
+        clearInterval(syncMasterInterval);
+        syncMasterInterval = null;
+    }
+    if (syncCheckInterval) {
+        clearInterval(syncCheckInterval);
+        syncCheckInterval = null;
+    }
+})
+
+// ========================================
+// END SYNCHRONIZATION EVENT HANDLERS
+// ========================================
+
 //retrive all text slot
 socket.on('gettextslot', function (msg) {
     console.log('=== RENDERER PROCESS: gettextslot REQUEST RECEIVED ===');

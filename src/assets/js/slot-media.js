@@ -152,6 +152,11 @@ async function appendMediaElement(asset, previewele, slotid) {
         videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {})
         videoJSPlayer[videojsid].controls(false)
 
+        // Add synchronization support to VideoJS player
+        if (videoJSPlayer[videojsid]) {
+            setupVideoSync(videoJSPlayer[videojsid], videojsid);
+        }
+
         //check if duration 0 then play full duration
         if (duration == 0) {
             videoJSPlayer[videojsid].on('ended', function () {
@@ -183,6 +188,12 @@ async function appendMediaElement(asset, previewele, slotid) {
         $(previewele).html(mediaEl[slotid])
         videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {})
         videoJSPlayer[videojsid].controls(false)
+        
+        // Add synchronization support to VideoJS player
+        if (videoJSPlayer[videojsid]) {
+            setupVideoSync(videoJSPlayer[videojsid], videojsid);
+        }
+        
         //check if duration 0 then play full duration
 
         if (duration == 0) {
@@ -249,3 +260,186 @@ async function appendMediaElement(asset, previewele, slotid) {
         })
     }
 }
+
+// ========================================
+// VIDEO SYNCHRONIZATION FUNCTIONS
+// ========================================
+
+// Global variables for video synchronization
+var videoSyncConfig = null;
+var videoSyncLastUpdate = {};
+
+// Setup video synchronization for a VideoJS player
+function setupVideoSync(player, playerIndex) {
+    if (!player || typeof player.on !== 'function') return;
+    
+    try {
+        // Initialize sync tracking for this player
+        videoSyncLastUpdate[playerIndex] = {
+            lastSyncTime: 0,
+            lastCurrentTime: 0,
+            syncEnabled: true
+        };
+        
+        console.log('=== VIDEO SYNC: Setup sync for player:', playerIndex);
+        
+        // Add event listeners for sync broadcasting (if master)
+        player.on('play', function() {
+            console.log('=== VIDEO SYNC: Player', playerIndex, 'started playing');
+            if (typeof broadcastVideoTime === 'function') {
+                setTimeout(() => broadcastVideoTime(), 100);
+            }
+        });
+        
+        player.on('pause', function() {
+            console.log('=== VIDEO SYNC: Player', playerIndex, 'paused');
+            if (typeof broadcastVideoTime === 'function') {
+                setTimeout(() => broadcastVideoTime(), 100);
+            }
+        });
+        
+        player.on('seeked', function() {
+            console.log('=== VIDEO SYNC: Player', playerIndex, 'seeked to:', player.currentTime());
+            if (typeof broadcastVideoTime === 'function') {
+                setTimeout(() => broadcastVideoTime(), 100);
+            }
+        });
+        
+        // Periodic sync check for smooth synchronization
+        var syncInterval = setInterval(function() {
+            if (player && !player.isDisposed()) {
+                checkVideoSyncDrift(player, playerIndex);
+            } else {
+                clearInterval(syncInterval);
+                delete videoSyncLastUpdate[playerIndex];
+            }
+        }, 1000); // Check every second
+        
+    } catch (error) {
+        console.warn('=== VIDEO SYNC: Failed to setup sync for player:', playerIndex, error);
+    }
+}
+
+// Check for video synchronization drift
+function checkVideoSyncDrift(player, playerIndex) {
+    if (!player || typeof player.currentTime !== 'function') return;
+    
+    try {
+        var currentTime = player.currentTime();
+        var now = Date.now();
+        var syncData = videoSyncLastUpdate[playerIndex];
+        
+        if (!syncData) return;
+        
+        // Update tracking data
+        syncData.lastCurrentTime = currentTime;
+        syncData.lastSyncTime = now;
+        
+        // Additional drift checking could be added here if needed
+        
+    } catch (error) {
+        console.warn('=== VIDEO SYNC: Failed to check drift for player:', playerIndex, error);
+    }
+}
+
+// Synchronize video player to target time and state (Slave function)
+function syncVideoPlayer(player, playerIndex, targetTime, isPaused, tolerance) {
+    if (!player || typeof player.currentTime !== 'function') return false;
+    
+    tolerance = tolerance || 0.5; // Default tolerance of 0.5 seconds
+    
+    try {
+        var currentTime = player.currentTime();
+        var timeDifference = Math.abs(currentTime - targetTime);
+        
+        console.log('=== VIDEO SYNC: Player', playerIndex, 'current:', currentTime, 'target:', targetTime, 'diff:', timeDifference);
+        
+        // Sync time if difference exceeds tolerance
+        if (timeDifference > tolerance) {
+            console.log('=== VIDEO SYNC: Correcting time drift for player:', playerIndex, 'by', timeDifference, 'seconds');
+            player.currentTime(targetTime);
+        }
+        
+        // Sync play/pause state
+        var isCurrentlyPaused = player.paused();
+        if (isPaused && !isCurrentlyPaused) {
+            console.log('=== VIDEO SYNC: Pausing player:', playerIndex);
+            player.pause();
+        } else if (!isPaused && isCurrentlyPaused) {
+            console.log('=== VIDEO SYNC: Playing player:', playerIndex);
+            player.play().catch(function(error) {
+                console.warn('=== VIDEO SYNC: Failed to play player:', playerIndex, error);
+            });
+        }
+        
+        // Update sync tracking
+        if (videoSyncLastUpdate[playerIndex]) {
+            videoSyncLastUpdate[playerIndex].lastCurrentTime = targetTime;
+            videoSyncLastUpdate[playerIndex].lastSyncTime = Date.now();
+        }
+        
+        return true;
+        
+    } catch (error) {
+        console.warn('=== VIDEO SYNC: Failed to sync player:', playerIndex, error);
+        return false;
+    }
+}
+
+// Get all active video players sync data (Master function)
+function getAllVideoPlayersData() {
+    var playersData = [];
+    
+    try {
+        if (typeof videoJSPlayer !== 'undefined' && Array.isArray(videoJSPlayer)) {
+            videoJSPlayer.forEach((player, index) => {
+                if (player && !player.isDisposed() && typeof player.currentTime === 'function') {
+                    playersData.push({
+                        playerIndex: index,
+                        currentTime: player.currentTime(),
+                        paused: player.paused(),
+                        duration: player.duration() || 0,
+                        playbackRate: player.playbackRate() || 1,
+                        volume: player.volume() || 1,
+                        muted: player.muted() || false
+                    });
+                }
+            });
+        }
+    } catch (error) {
+        console.warn('=== VIDEO SYNC: Failed to get players data:', error);
+    }
+    
+    return playersData;
+}
+
+// Initialize video synchronization settings
+function initVideoSyncSettings() {
+    try {
+        if (typeof config !== 'undefined' && config && config.syncSettings) {
+            videoSyncConfig = config.syncSettings;
+            console.log('=== VIDEO SYNC: Initialized with config:', videoSyncConfig);
+        } else {
+            console.log('=== VIDEO SYNC: No sync config found, using defaults');
+            videoSyncConfig = {
+                videoSyncEnabled: true,
+                videoSyncThreshold: 0.5,
+                masterBroadcastInterval: 1000
+            };
+        }
+    } catch (error) {
+        console.warn('=== VIDEO SYNC: Failed to initialize sync settings:', error);
+        videoSyncConfig = null;
+    }
+}
+
+// Auto-initialize when script loads
+if (typeof window !== 'undefined') {
+    window.addEventListener('load', function() {
+        setTimeout(initVideoSyncSettings, 1000);
+    });
+}
+
+// ========================================
+// END VIDEO SYNCHRONIZATION FUNCTIONS  
+// ========================================

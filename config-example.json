@@ -37,6 +37,16 @@
     "vncPort": 5900,
     "cpanelPort": 9000
   },
+  "syncSettings": {
+    "syncMode": "disabled",
+    "isMaster": false,
+    "syncInterval": 5000,
+    "videoSyncThreshold": 0.5,
+    "layoutSyncEnabled": true,
+    "videoSyncEnabled": true,
+    "masterBroadcastInterval": 1000,
+    "networkTimeout": 10000
+  },
   "timestamp": "2025-08-28T10:38:09.284Z",
-  "version": "2.0.14"
+  "version": "2.4.0"
 }
