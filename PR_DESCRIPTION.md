@@ -223,6 +223,9 @@ if (compareVersions(currentVersion, '2.5.0') < 0) {
 - [ ] Online mode operation unaffected  
 - [ ] Loop and single layout modes work correctly
 - [ ] VideoJS player behavior unchanged when sync disabled
+- [ ] Config migration from config.js works correctly
+- [ ] Config version upgrade from older config.json works correctly
+- [ ] Backup files created during migrations
 
 ### Performance Testing
 - [ ] CPU usage remains reasonable during sync operations
