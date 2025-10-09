@@ -490,9 +490,9 @@ function validateLayoutData(layoutData) {
 }
 
 // Helper function to switch to a layout using only localStorage data
-function switchToLayoutOffline(layoutId, callback) {
+function switchToLayoutOffline(layoutId, callback, isTemporarySwitch) {
     try {
-        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId);
+        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId, 'Temporary:', !!isTemporarySwitch);
         
         // Clear current layout state
         if (!isLoopLyt) {
@@ -502,9 +502,16 @@ function switchToLayoutOffline(layoutId, callback) {
             console.log('=== OFFLINE LAYOUT: In loop layout mode, skipping refreshTimeout clear ===');
         }
         
-        loopArr = [];
+        // Only clear loopArr if this is NOT a temporary switch during loop mode
+        if (!isTemporarySwitch || !isLoopLyt) {
+            loopArr = [];
+            console.log('=== OFFLINE LAYOUT: Cleared loopArr (permanent switch or not in loop mode) ===');
+        } else {
+            console.log('=== OFFLINE LAYOUT: Preserving loopArr for temporary switch in loop mode ===');
+        }
+        
         $('#main').html('');
-        console.log('=== OFFLINE LAYOUT: Cleared main content and loopArr ===');
+        console.log('=== OFFLINE LAYOUT: Cleared main content ===');
         
         // Get layout data from localStorage
         var layoutData = getLayoutFromStorage(layoutId);
@@ -541,6 +548,73 @@ function switchToLayoutOffline(layoutId, callback) {
         console.error('=== OFFLINE LAYOUT: Error switching to layout:', error);
         if (callback) callback(false, 'Error: ' + error.message);
         return false;
+    }
+}
+
+// Helper function to temporarily switch layout for content updates in loop mode
+function switchToLayoutTemporarilyInLoop(targetLayoutId, contentUpdateFn, callback) {
+    try {
+        console.log('=== LOOP TEMP SWITCH: Starting temporary layout switch for content update ===');
+        
+        // Store current loop state
+        var originalLayoutId = currentPlayLayoutID;
+        var originalLoopState = isLoopLyt;
+        var originalLoopArr = loopArr ? loopArr.slice() : []; // Copy array
+        
+        console.log('=== LOOP TEMP SWITCH: Stored original state - Layout:', originalLayoutId, 'Loop:', originalLoopState);
+        
+        // Pause the loop timeout
+        var loopWasPaused = false;
+        if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
+            loopWasPaused = pauseLoopTimeout('temporary layout switch for content update');
+            console.log('=== LOOP TEMP SWITCH: Paused loop timeout, success:', loopWasPaused);
+        }
+        
+        // Temporarily switch to target layout
+        switchToLayoutOffline(targetLayoutId, function(switchSuccess, switchMessage) {
+            if (switchSuccess) {
+                console.log('=== LOOP TEMP SWITCH: Layout switch successful, executing content update ===');
+                
+                // Execute the content update function
+                if (typeof contentUpdateFn === 'function') {
+                    contentUpdateFn();
+                }
+                
+                // Small delay to ensure content update completes
+                setTimeout(function() {
+                    console.log('=== LOOP TEMP SWITCH: Content update completed, preparing to restore loop state ===');
+                    
+                    // Restore loop state
+                    isLoopLyt = originalLoopState;
+                    loopArr = originalLoopArr;
+                    
+                    console.log('=== LOOP TEMP SWITCH: Restored loop state - Loop mode:', isLoopLyt, 'LoopArr length:', loopArr.length);
+                    
+                    if (callback) callback(true, 'Temporary layout switch and content update completed successfully');
+                    
+                }, 1500); // 500ms delay for content update completion
+                
+            } else {
+                console.error('=== LOOP TEMP SWITCH: Layout switch failed:', switchMessage);
+                
+                // Resume the loop timeout if it was paused
+                if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
+                    resumeLoopTimeout('temporary layout switch failed');
+                }
+                
+                if (callback) callback(false, 'Layout switch failed: ' + switchMessage);
+            }
+        }, true); // Pass true to indicate temporary switch
+        
+    } catch (error) {
+        console.error('=== LOOP TEMP SWITCH: Error during temporary switch:', error);
+        
+        // Resume the loop timeout if it was paused
+        if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
+            resumeLoopTimeout('temporary layout switch error');
+        }
+        
+        if (callback) callback(false, 'Error: ' + error.message);
     }
 }
 
@@ -1448,13 +1522,7 @@ socket.on('replacetextslot', function (msg) {
             return;
         }
 
-        if (loopTimeout) { //clear loopTimeout to reset
-            console.log('=== RENDERER PROCESS: Stopped Loop layout interval - DS ID: (' + dsid + ')  ===');
-            clearTimeout(loopTimeout)
-            loopTimeout = null
-        }
-
-        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - switching using offline method ===');
+        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - using temporary layout switch ===');
 
         // Check if target layout is available offline
         if (!isLayoutAvailableOffline(layoutid)) {
@@ -1483,40 +1551,24 @@ socket.on('replacetextslot', function (msg) {
             }
         }
 
-        // Switch to target layout using offline method
-        switchToLayoutOffline(layoutid, function(success, message) {
-            if (success) {
-                console.log('=== RENDERER PROCESS: replacetextslot layout switch completed (offline):', message);
-                // After layout switch, update the text content
-                setTimeout(() => updateTextSlotContent(numericId, slottype, text, layoutid), 2000);
-            } else {
-                console.error('=== RENDERER PROCESS: replacetextslot layout switch failed (offline):', message);
-                
-                // Fallback: try to update content in current layout
-                if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
-                    console.log('=== RENDERER PROCESS: Fallback - updating content in current layout ===');
-                    updateTextSlotContent(numericId, slottype, text, currentPlayLayoutID);
-                } else {
-                    console.error('=== RENDERER PROCESS: Complete fallback failure - no layout available for text update ===');
-                }
-            }
+        // Use temporary layout switching to preserve loop mode
+        switchToLayoutTemporarilyInLoop(layoutid, function() {
+            // Content update function executed after layout switch
+            updateTextSlotContent(numericId, slottype, text, layoutid);
+        }, function(success, message) {
+            console.log('=== RENDERER PROCESS: replacetextslot temporary switch completed:', success, message);
         });
-    } else {
-        // Non-loop layout mode - update content directly
-        console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
-        updateTextSlotContent(numericId, slottype, text, layoutid);
+        
+        return; // Exit here for loop mode processing
     }
-})
+    
+    // Non-loop layout mode - update content directly
+    console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
+    updateTextSlotContent(numericId, slottype, text, layoutid);
+});
 
 // Helper function to update text slot content in DOM
 function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
-    // Pause loop timeout during content update if in loop mode
-    var loopWasPaused = false;
-    if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
-        loopWasPaused = pauseLoopTimeout('text content update');
-        console.log('=== RENDERER PROCESS: Paused loop timeout for text content update, success:', loopWasPaused);
-    }
-    
     // Save current playing layout ID using sync function for consistent tracking
     if (layoutIdToSave) {
         syncCurrentPlayLayoutID(layoutIdToSave);
@@ -1557,21 +1609,12 @@ function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
         }
         
         console.log('=== RENDERER PROCESS: Text content update completed successfully');
+
+        if (loopTimeout) {
+                clearTimeout(loopTimeout);
+        }
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error during text content update:', error);
-    } finally {
-        // Resume loop timeout after content update completion
-        if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
-            setTimeout(() => {
-                var resumed = resumeLoopTimeout('text content update completed');
-                console.log('=== RENDERER PROCESS: Resumed loop timeout after text update, success:', resumed);
-                
-                // Log timeout status for debugging
-                if (typeof getLoopTimeoutStatus === 'function') {
-                    console.log('=== RENDERER PROCESS: Loop timeout status after text update:', getLoopTimeoutStatus());
-                }
-            }, 100); // Small delay to ensure DOM update is complete
-        }
     }
 }
 
@@ -1839,13 +1882,6 @@ socket.on('replacemediaslot', function (msg) {
 
     // Helper function to update media content in DOM
     function updateMediaSlotContent(layoutIdToSave) {
-        // Pause loop timeout during content update if in loop mode
-        var loopWasPaused = false;
-        if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
-            loopWasPaused = pauseLoopTimeout('media content update');
-            console.log('=== RENDERER PROCESS: Paused loop timeout for media content update, success:', loopWasPaused);
-        }
-        
         // Save current playing layout ID using sync function for consistent tracking
         if (layoutIdToSave) {
             syncCurrentPlayLayoutID(layoutIdToSave);
@@ -1863,21 +1899,12 @@ socket.on('replacemediaslot', function (msg) {
             }
             
             console.log('=== RENDERER PROCESS: Media content update completed successfully');
+
+            if (loopTimeout) {
+                clearTimeout(loopTimeout);
+            }
         } catch (error) {
             console.error('=== RENDERER PROCESS: Error during media content update:', error);
-        } finally {
-            // Resume loop timeout after content update completion
-            if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
-                setTimeout(() => {
-                    var resumed = resumeLoopTimeout('media content update completed');
-                    console.log('=== RENDERER PROCESS: Resumed loop timeout after media update, success:', resumed);
-                    
-                    // Log timeout status for debugging
-                    if (typeof getLoopTimeoutStatus === 'function') {
-                        console.log('=== RENDERER PROCESS: Loop timeout status after media update:', getLoopTimeoutStatus());
-                    }
-                }, 100); // Small delay to ensure DOM update is complete
-            }
         }
     }
 
@@ -1895,7 +1922,7 @@ socket.on('replacemediaslot', function (msg) {
             return;
         }
 
-        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - switching using offline method ===');
+        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - using temporary layout switch ===');
 
         // Check if target layout is available offline
         if (!isLayoutAvailableOffline(layoutid)) {
@@ -1924,29 +1951,20 @@ socket.on('replacemediaslot', function (msg) {
             }
         }
 
-        // Switch to target layout using offline method
-        switchToLayoutOffline(layoutid, function(success, message) {
-            if (success) {
-                console.log('=== RENDERER PROCESS: replacemediaslot layout switch completed (offline):', message);
-                // After layout switch, update the media content
-                updateMediaSlotContent(layoutid);
-            } else {
-                console.error('=== RENDERER PROCESS: replacemediaslot layout switch failed (offline):', message);
-                
-                // Fallback: try to update content in current layout
-                if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
-                    console.log('=== RENDERER PROCESS: Fallback - updating content in current layout ===');
-                    updateMediaSlotContent(currentPlayLayoutID);
-                } else {
-                    console.error('=== RENDERER PROCESS: Complete fallback failure - no layout available for media update ===');
-                }
-            }
+        // Use temporary layout switching to preserve loop mode
+        switchToLayoutTemporarilyInLoop(layoutid, function() {
+            // Content update function executed after layout switch
+            updateMediaSlotContent(layoutid);
+        }, function(success, message) {
+            console.log('=== RENDERER PROCESS: replacemediaslot temporary switch completed:', success, message);
         });
-    } else {
-        // Non-loop layout mode - update content directly
-        console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
-        updateMediaSlotContent(layoutid);
+        
+        return; // Exit here for loop mode processing
     }
+    
+    // Non-loop layout mode - update content directly
+    console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
+    updateMediaSlotContent(layoutid);
 })
 
 // Helper function to create media object based on media type
