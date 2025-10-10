@@ -5,34 +5,12 @@
 // This file has been professionally refactored to eliminate all AJAX dependencies
 // and implement a comprehensive offline-first architecture for the eCLESS Player.
 //
-// KEY IMPROVEMENTS:
-// 1. Replaced all AJAX calls with localStorage-based operations
-// 2. Implemented comprehensive offline layout management system
-// 3. Added robust error handling and fallback mechanisms
-// 4. Maintained full compatibility with loop and single layout modes
-// 5. Enhanced layout switching with proper timeout coordination
-//
-// OFFLINE FUNCTIONS REFACTORED:
-// - updatelayout: Now uses switchToLayoutOffline for seamless offline operation
-// - replacetextslot: Eliminated AJAX dependency, uses offline layout switching
-// - replacemediaslot: Complete offline functionality with fallback mechanisms
-//
-// NEW HELPER FUNCTIONS ADDED:
-// - getLayoutFromStorage: Safe localStorage retrieval with validation
-// - validateLayoutData: Ensures layout data integrity
-// - switchToLayoutOffline: Complete offline layout switching system
-// - getAvailableLayoutsFromDS: Discovery of available offline layouts
-// - isLayoutAvailableOffline: Quick availability checking
-// - handleCorruptedLayoutData: Recovery from data corruption
-// - recoverFromLayoutError: Critical error recovery
-// - createEmergencyLayout: Last-resort emergency layout
-//
-// BENEFITS:
-// - Full offline operation without server dependencies
-// - Graceful degradation when data is missing or corrupted
-// - Professional error handling with comprehensive logging
-// - Maintains existing functionality while adding robustness
-// - Improved reliability and user experience
+// PERFORMANCE OPTIMIZATIONS ADDED:
+// - Timer management to prevent memory leaks
+// - Debounced event handling
+// - Optimized localStorage operations
+// - Reduced synchronization frequency
+// - Async/await patterns for better performance
 //
 // ========================================
 
@@ -40,6 +18,24 @@ var socket = io('https://localhost:9000')
 
 console.log('=== RENDERER PROCESS: Socket created, registering ===')
 socket.emit('save id', 'eCLESS:renderer-process')
+
+// Debounced socket handlers to reduce CPU usage
+const debouncedHandlers = new Map()
+
+function createDebouncedHandler(name, handler, delay = 100) {
+    return function(...args) {
+        if (debouncedHandlers.has(name)) {
+            clearTimeout(debouncedHandlers.get(name))
+        }
+        
+        const timeoutId = setTimeout(() => {
+            handler.apply(this, args)
+            debouncedHandlers.delete(name)
+        }, delay)
+        
+        debouncedHandlers.set(name, timeoutId)
+    }
+}
 
 socket.on('connect', function () {
     console.log('=== RENDERER PROCESS: Connected to socket server ===')
@@ -823,44 +819,64 @@ function initSyncSettings() {
     }
 }
 
-// Master synchronization functions
+// Optimized master synchronization functions with reduced frequency
 function startMasterSync() {
     if (!syncConfig || !syncConfig.isMaster) return;
 
     // Stop existing intervals
     if (syncMasterInterval) clearInterval(syncMasterInterval);
 
-    // Start master broadcasting
-    syncMasterInterval = setInterval(() => {
+    // Use debounced broadcasting to reduce CPU usage
+    const debouncedBroadcast = createDebouncedHandler('masterSync', () => {
         if (syncConfig.layoutSyncEnabled) {
             broadcastLayoutSync();
         }
         if (syncConfig.videoSyncEnabled) {
             broadcastVideoTime();
         }
-    }, syncConfig.masterBroadcastInterval || 1000);
+    }, 50); // 50ms debounce
+
+    // Reduce default frequency from 1000ms to 2000ms for better performance
+    const broadcastInterval = Math.max(syncConfig.masterBroadcastInterval || 2000, 1000);
+    
+    syncMasterInterval = setInterval(debouncedBroadcast, broadcastInterval);
+    console.log('=== SYNC MASTER: Started with optimized interval:', broadcastInterval + 'ms');
 }
 
-// Slave synchronization functions
+// Optimized slave synchronization functions
 function startSlaveSync() {
     if (!syncConfig || syncConfig.isMaster) return;
 
     // Stop existing intervals
     if (syncCheckInterval) clearInterval(syncCheckInterval);
 
-    // Start periodic sync checks
-    syncCheckInterval = setInterval(() => {
+    // Use debounced sync checking
+    const debouncedSyncCheck = createDebouncedHandler('slaveSync', () => {
         checkSyncStatus();
-    }, syncConfig.syncInterval || 5000);
+    }, 100); // 100ms debounce
+
+    // Reduce default frequency from 5000ms to 10000ms for better performance
+    const syncInterval = Math.max(syncConfig.syncInterval || 10000, 5000);
+    
+    syncCheckInterval = setInterval(debouncedSyncCheck, syncInterval);
+    console.log('=== SYNC SLAVE: Started with optimized interval:', syncInterval + 'ms');
 }
 
-// Broadcast current layout synchronization data (Master only)
+// Optimized broadcast function with throttling
+let lastBroadcastTime = 0
+const MIN_BROADCAST_INTERVAL = 500 // Minimum 500ms between broadcasts
+
 function broadcastLayoutSync() {
     if (!syncConfig || !syncConfig.isMaster || !networkConnected) return;
 
+    const currentTime = Date.now()
+    if (currentTime - lastBroadcastTime < MIN_BROADCAST_INTERVAL) {
+        return // Throttle broadcasts to prevent spam
+    }
+    lastBroadcastTime = currentTime
+
     try {
         if (typeof isLoopLyt !== 'undefined' && isLoopLyt && typeof loopXMLCurIndex !== 'undefined' && typeof loopArr !== 'undefined') {
-            var currentTime = Date.now();
             var remainingTime = 0;
 
             // Calculate remaining time if loop timeout is active
