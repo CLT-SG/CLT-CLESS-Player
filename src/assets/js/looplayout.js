@@ -41,7 +41,7 @@ function pauseLoopTimeout(reason) {
       loopTimeout = null;
       loopTimeoutPaused = true;
       
-      // Store remaining time for resume
+      // Store remaining time for resume (ensure minimum time remaining)
       loopTimeoutDuration = Math.max(remainingTime, 1000); // Minimum 1 second
       
       console.log('=== LOOP TIMEOUT: Successfully paused, stored remaining time:', loopTimeoutDuration, 'ms');
@@ -49,6 +49,15 @@ function pauseLoopTimeout(reason) {
     } catch (error) {
       console.warn('=== LOOP TIMEOUT: Failed to pause:', error);
       return false;
+    }
+  } else {
+    // Log why pause was skipped
+    if (!loopTimeout) {
+      console.log('=== LOOP TIMEOUT: Pause skipped - no active timeout');
+    } else if (loopTimeoutPaused) {
+      console.log('=== LOOP TIMEOUT: Pause skipped - already paused');
+    } else if (!isLoopLyt) {
+      console.log('=== LOOP TIMEOUT: Pause skipped - not in loop mode');
     }
   }
   return false;
@@ -61,6 +70,12 @@ function resumeLoopTimeout(reason) {
       console.log('=== LOOP TIMEOUT: Resuming for reason:', reason);
       console.log('=== LOOP TIMEOUT: Resuming with duration:', loopTimeoutDuration, 'ms');
       
+      // Validate duration before resuming
+      if (loopTimeoutDuration <= 0) {
+        console.warn('=== LOOP TIMEOUT: Invalid duration for resume, using default 5000ms');
+        loopTimeoutDuration = 5000;
+      }
+      
       loopTimeoutStartTime = Date.now();
       loopTimeout = setTimeout(loopNextLayout, loopTimeoutDuration);
       loopTimeoutPaused = false;
@@ -70,6 +85,13 @@ function resumeLoopTimeout(reason) {
     } catch (error) {
       console.warn('=== LOOP TIMEOUT: Failed to resume:', error);
       return false;
+    }
+  } else {
+    // Log why resume was skipped
+    if (!loopTimeoutPaused) {
+      console.log('=== LOOP TIMEOUT: Resume skipped - not paused');
+    } else if (!isLoopLyt) {
+      console.log('=== LOOP TIMEOUT: Resume skipped - not in loop mode');
     }
   }
   return false;
@@ -101,7 +123,9 @@ function getLoopTimeoutStatus() {
     isPaused: loopTimeoutPaused,
     startTime: loopTimeoutStartTime,
     duration: loopTimeoutDuration,
-    isLoopMode: isLoopLyt
+    isLoopMode: isLoopLyt,
+    currentIndex: loopXMLCurIndex,
+    totalLayouts: loopArr.length
   };
 }
 
@@ -112,6 +136,19 @@ function loopNextLayout() {
   }
   layoutLoopUpdateXML() // keep updating ds xml to get updated each loop
   playcurrentLayout(loopArr[loopXMLCurIndex])
+  
+  // Broadcast sync data if this is a master screen
+  if (typeof broadcastLayoutSync === 'function') {
+    try {
+      // Small delay to ensure layout is loaded before broadcasting
+      setTimeout(() => {
+        broadcastLayoutSync();
+      }, 100);
+    } catch (error) {
+      console.warn('=== LOOP SYNC: Failed to broadcast layout sync:', error);
+    }
+  }
+  
   loopXMLCurIndex++
 }
 
@@ -174,6 +211,18 @@ function playcurrentLayout(xmlData) {
   //time of layout play
   loopTimeout = setTimeout(loopNextLayout, layoutDuration)
   console.log('=== LOOP TIMEOUT: Started new layout timeout for', layoutDuration, 'ms');
+  
+  // Broadcast initial sync data if this is a master screen
+  if (typeof broadcastLayoutSync === 'function') {
+    try {
+      // Small delay to ensure layout is fully loaded
+      setTimeout(() => {
+        broadcastLayoutSync();
+      }, 200);
+    } catch (error) {
+      console.warn('=== LOOP SYNC: Failed to broadcast initial layout sync:', error);
+    }
+  }
 }
 
 function layoutLoopUpdateXML() {

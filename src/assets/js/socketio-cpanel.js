@@ -64,40 +64,40 @@ socket.on('resume-layout', function (msg) {
     console.log('=== RENDERER PROCESS: resume-layout REQUEST RECEIVED ===');
     console.log('=== RENDERER PROCESS: Message:', msg);
     console.log('=== RENDERER PROCESS: isLoopLyt status:', isLoopLyt);
-    
+
     try {
         // Validate message structure
         if (!msg || typeof msg !== 'object') {
             console.error('=== RENDERER PROCESS: Invalid resume-layout message format ===');
             return;
         }
-        
+
         var action = msg.action;
         var timestamp = msg.timestamp;
         console.log('=== RENDERER PROCESS: Resume layout action:', action, 'timestamp:', timestamp);
-        
+
         // Validate required global variables and functions are available
         if (typeof isLoopLyt === 'undefined') {
             console.error('=== RENDERER PROCESS: isLoopLyt variable not defined ===');
             return;
         }
-        
+
         if (isLoopLyt) {
             // Validate loop-specific functions and variables
             if (typeof pauseLoopTimeout !== 'function') {
                 console.error('=== RENDERER PROCESS: pauseLoopTimeout function not available for loop layout ===');
                 return;
             }
-            
+
             if (typeof loopTimeout === 'undefined') {
                 console.warn('=== RENDERER PROCESS: loopTimeout variable not defined ===');
             }
-            
+
             // For loop layouts, pause current timeout first
             console.log('=== RENDERER PROCESS: Pausing loop timeout for resume operation ===');
             var paused = pauseLoopTimeout('resume layout operation');
             console.log('=== RENDERER PROCESS: Loop timeout paused successfully:', paused);
-            
+
             // Refresh current layout and continue
             refreshAndResumeLayout();
         } else {
@@ -106,17 +106,17 @@ socket.on('resume-layout', function (msg) {
                 console.error('=== RENDERER PROCESS: getxml function not available for single layout ===');
                 return;
             }
-            
+
             // For single layouts, just refresh the layout
             console.log('=== RENDERER PROCESS: Refreshing single layout ===');
             refreshAndResumeLayout();
         }
-        
+
         console.log('=== RENDERER PROCESS: Resume layout request processed successfully ===');
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error processing resume layout request:', error);
         console.error('=== RENDERER PROCESS: Error stack:', error.stack);
-        
+
         // Emergency cleanup: if we're in an inconsistent state, try to recover
         if (isLoopLyt && typeof resetLoopTimeoutState === 'function') {
             console.log('=== RENDERER PROCESS: Emergency cleanup - resetting loop timeout state ===');
@@ -131,14 +131,14 @@ var allSlotlist
 function refreshAndResumeLayout() {
     try {
         console.log('=== RENDERER PROCESS: Starting layout refresh and resume process ===');
-        
+
         if (isLoopLyt) {
             // For loop layouts, update XML and continue with current layout
             console.log('=== RENDERER PROCESS: Refreshing loop layout XML ===');
             if (typeof layoutLoopUpdateXML === 'function') {
                 layoutLoopUpdateXML().then(() => {
                     console.log('=== RENDERER PROCESS: Loop layout XML updated, continuing with current layout ===');
-                    
+
                     // Get current layout data and continue playing
                     if (typeof currentlytID !== 'undefined' && currentlytID && loopArr.length > 0) {
                         // Find current layout in loopArr
@@ -151,7 +151,7 @@ function refreshAndResumeLayout() {
                                 break;
                             }
                         }
-                        
+
                         if (currentLayoutData && typeof playcurrentLayout === 'function') {
                             console.log('=== RENDERER PROCESS: Continuing with current layout ID:', currentlytID);
                             playcurrentLayout(currentLayoutData);
@@ -191,18 +191,18 @@ function refreshAndResumeLayout() {
                 console.warn('=== RENDERER PROCESS: getxml function not available ===');
             }
         }
-        
+
         console.log('=== RENDERER PROCESS: Layout refresh and resume process completed ===');
         return true;
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error in layout refresh and resume process:', error);
-        
+
         // Emergency fallback: if we're in loop mode and paused, try to resume
         if (isLoopLyt && typeof resumeLoopTimeout === 'function') {
             console.log('=== RENDERER PROCESS: Emergency fallback - resuming loop timeout ===');
             resumeLoopTimeout('emergency fallback after error');
         }
-        
+
         return false;
     }
 }
@@ -220,7 +220,7 @@ socket.on('updatelayout', function (msg) {
     if (!isLayoutAvailableOffline(layoutid)) {
         console.error('=== RENDERER PROCESS: Layout not available offline:', layoutid);
         console.log('=== RENDERER PROCESS: Available layouts:', getAvailableLayoutsFromDS());
-        
+
         // Try to find an alternative layout or fallback
         var availableLayouts = getAvailableLayoutsFromDS();
         if (availableLayouts.length > 0) {
@@ -233,16 +233,16 @@ socket.on('updatelayout', function (msg) {
     }
 
     // Use offline layout switching
-    switchToLayoutOffline(layoutid, function(success, message) {
+    switchToLayoutOffline(layoutid, function (success, message) {
         if (success) {
             console.log('=== RENDERER PROCESS: updatelayout completed successfully (offline):', message);
         } else {
             console.error('=== RENDERER PROCESS: updatelayout failed (offline):', message);
-            
+
             // Try emergency fallback to current playing layout if available
             if (currentPlayLayoutID && currentPlayLayoutID !== layoutid && isLayoutAvailableOffline(currentPlayLayoutID)) {
                 console.log('=== RENDERER PROCESS: Attempting emergency fallback to current layout:', currentPlayLayoutID);
-                switchToLayoutOffline(currentPlayLayoutID, function(fallbackSuccess, fallbackMessage) {
+                switchToLayoutOffline(currentPlayLayoutID, function (fallbackSuccess, fallbackMessage) {
                     if (fallbackSuccess) {
                         console.log('=== RENDERER PROCESS: Emergency fallback successful:', fallbackMessage);
                     } else {
@@ -451,17 +451,17 @@ function getCurrentLayoutID(slotname, slotnameList) {
 function getLayoutFromStorage(layoutId) {
     try {
         console.log('=== OFFLINE LAYOUT: Getting layout from storage:', layoutId);
-        
+
         // Try to get layout data from localStorage
         var layoutKey = 'layout-' + layoutId;
         var layoutData = localStorage.getItem(layoutKey);
-        
+
         if (!layoutData) {
             // Try offline variant
             layoutKey = 'layout-offline-' + layoutId;
             layoutData = localStorage.getItem(layoutKey);
         }
-        
+
         if (layoutData) {
             var parsedLayout = JSON.parse(layoutData);
             console.log('=== OFFLINE LAYOUT: Successfully retrieved layout:', layoutId);
@@ -481,19 +481,19 @@ function validateLayoutData(layoutData) {
     if (!layoutData || !layoutData.elements) {
         return false;
     }
-    
+
     if (!layoutData.elements[0] || !layoutData.elements[0].elements) {
         return false;
     }
-    
+
     return true;
 }
 
 // Helper function to switch to a layout using only localStorage data
-function switchToLayoutOffline(layoutId, callback) {
+function switchToLayoutOffline(layoutId, callback, isTemporarySwitch) {
     try {
-        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId);
-        
+        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId, 'Temporary:', !!isTemporarySwitch);
+
         // Clear current layout state
         if (!isLoopLyt) {
             clearTimeout(refreshTimeout);
@@ -501,42 +501,46 @@ function switchToLayoutOffline(layoutId, callback) {
         } else {
             console.log('=== OFFLINE LAYOUT: In loop layout mode, skipping refreshTimeout clear ===');
         }
-        
-        loopArr = [];
+
+        // Only clear loopArr if this is NOT a temporary switch during loop mode
+        if (!isTemporarySwitch || !isLoopLyt) {
+            loopArr = [];
+            console.log('=== OFFLINE LAYOUT: Cleared loopArr (permanent switch or not in loop mode) ===');
+        } else {
+            console.log('=== OFFLINE LAYOUT: Preserving loopArr for temporary switch in loop mode ===');
+        }
+
         $('#main').html('');
-        console.log('=== OFFLINE LAYOUT: Cleared main content and loopArr ===');
-        
+        console.log('=== OFFLINE LAYOUT: Cleared main content ===');
+
         // Get layout data from localStorage
         var layoutData = getLayoutFromStorage(layoutId);
-        
+
         if (!layoutData) {
             console.error('=== OFFLINE LAYOUT: Layout data not found for ID:', layoutId);
             if (callback) callback(false, 'Layout data not found in localStorage');
             return false;
         }
-        
+
         if (!validateLayoutData(layoutData)) {
             console.error('=== OFFLINE LAYOUT: Invalid layout data structure for ID:', layoutId);
             if (callback) callback(false, 'Invalid layout data structure');
             return false;
         }
-        
+
         // Store the layout data (ensure it's in the correct format)
         localStorage.setItem('layout-' + layoutId, JSON.stringify(layoutData));
         console.log('=== OFFLINE LAYOUT: Stored layout XML in localStorage: layout-' + layoutId + ' ===');
-        
-        // Sync the current playing layout ID
-        syncCurrentPlayLayoutID(layoutId);
-        
+
         // Get the layout data and render it
         var layoutxml = JSON.parse(localStorage.getItem('layout-' + layoutId));
         console.log('=== OFFLINE LAYOUT: Calling getLayoutXML with layout data ===');
         getLayoutXML(layoutxml);
         console.log('=== OFFLINE LAYOUT: Layout switch completed successfully ===');
-        
+
         if (callback) callback(true, 'Layout switched successfully');
         return true;
-        
+
     } catch (error) {
         console.error('=== OFFLINE LAYOUT: Error switching to layout:', error);
         if (callback) callback(false, 'Error: ' + error.message);
@@ -544,37 +548,95 @@ function switchToLayoutOffline(layoutId, callback) {
     }
 }
 
+// Helper function to temporarily switch layout for content updates in loop mode
+function switchToLayoutTemporarilyInLoop(targetLayoutId, callback) {
+    try {
+        console.log('=== LOOP TEMP SWITCH: Starting temporary layout switch for content update ===');
+
+        // Store current loop state
+        var originalLayoutId = currentPlayLayoutID;
+        var originalLoopState = isLoopLyt;
+        var originalLoopArr = loopArr ? loopArr.slice() : []; // Copy array
+
+        console.log('=== LOOP TEMP SWITCH: Stored original state - Layout:', originalLayoutId, 'Loop:', originalLoopState);
+
+        // Pause the loop timeout
+        var loopWasPaused = false;
+        if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
+            loopWasPaused = pauseLoopTimeout('temporary layout switch for content update');
+            console.log('=== LOOP TEMP SWITCH: Paused loop timeout, success:', loopWasPaused);
+        }
+
+        // Temporarily switch to target layout
+        switchToLayoutOffline(targetLayoutId, function (switchSuccess, switchMessage) {
+
+            if (switchSuccess) {
+                console.log('=== LOOP TEMP SWITCH: Layout switch successful, executing content update ===');
+
+                // Small delay to ensure content update completes
+                setTimeout(function () {
+                    console.log('=== LOOP TEMP SWITCH: Content update completed, preparing to restore loop state ===');
+
+                    // Restore loop state
+                    isLoopLyt = originalLoopState;
+                    loopArr = originalLoopArr;
+
+                    console.log('=== LOOP TEMP SWITCH: Restored loop state - Loop mode:', isLoopLyt, 'LoopArr length:', loopArr.length);
+
+                    if (callback) callback(true, 'Temporary layout switch and content update completed successfully');
+
+                }, 2000); // 500ms delay for content update completion
+
+            } else {
+                console.error('=== LOOP TEMP SWITCH: Layout switch failed:', switchMessage);
+
+                if (callback) callback(false, 'Layout switch failed: ' + switchMessage);
+            }
+        }, false); // Pass true to indicate temporary switch
+
+    } catch (error) {
+        console.error('=== LOOP TEMP SWITCH: Error during temporary switch:', error);
+
+        // Resume the loop timeout if it was paused
+        if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
+            resumeLoopTimeout('temporary layout switch error');
+        }
+
+        if (callback) callback(false, 'Error: ' + error.message);
+    }
+}
+
 // Helper function to get available layouts from DS data
 function getAvailableLayoutsFromDS() {
     try {
         console.log('=== OFFLINE LAYOUT: Getting available layouts from DS data ===');
-        
+
         var resultOffline = JSON.parse(localStorage.getItem(dsid));
-        
+
         if (!resultOffline) {
             console.warn('=== OFFLINE LAYOUT: No DS data found in localStorage for DSID:', dsid);
             return [];
         }
-        
+
         var availableLayouts = [];
-        
+
         // Check if data structure is valid
         if (!resultOffline.elements || !resultOffline.elements[0] ||
             !resultOffline.elements[0].elements || !resultOffline.elements[0].elements[0]) {
             console.error('=== OFFLINE LAYOUT: Invalid DS data structure in localStorage');
             return [];
         }
-        
+
         // Determine layout type (loop vs single)
         var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
         console.log('=== OFFLINE LAYOUT: Layout type detected:', layoutType);
-        
+
         if (layoutType == 'loop') {
             // Loop layout - get all layout IDs
             var loopElements = resultOffline['elements'][0]['elements'][0]['elements'];
             console.log('=== OFFLINE LAYOUT: Found', loopElements.length, 'layouts in loop ===');
-            
-            loopElements.forEach(function(layoutElement, index) {
+
+            loopElements.forEach(function (layoutElement, index) {
                 if (layoutElement.attributes && layoutElement.attributes.url) {
                     var layoutURL = layoutElement.attributes.url;
                     var layoutID = layoutURL.split("layout/")[1].slice(0, layoutURL.split("layout/")[1].lastIndexOf('/'));
@@ -597,10 +659,10 @@ function getAvailableLayoutsFromDS() {
                 });
             }
         }
-        
+
         console.log('=== OFFLINE LAYOUT: Available layouts:', availableLayouts);
         return availableLayouts;
-        
+
     } catch (error) {
         console.error('=== OFFLINE LAYOUT: Error getting available layouts:', error);
         return [];
@@ -622,7 +684,7 @@ function isLayoutAvailableOffline(layoutId) {
 // Enhanced error recovery for corrupted layout data
 function handleCorruptedLayoutData(layoutId, corruptedData) {
     console.warn('=== RENDERER PROCESS: Attempting to recover from corrupted layout data:', layoutId);
-    
+
     try {
         // Try to repair common data structure issues
         if (corruptedData && typeof corruptedData === 'object') {
@@ -631,14 +693,14 @@ function handleCorruptedLayoutData(layoutId, corruptedData) {
                 console.log('=== RENDERER PROCESS: Attempting data structure repair');
                 return corruptedData.layout;
             }
-            
+
             // If it has basic structure, try to use it anyway
             if (corruptedData.elements || corruptedData.region) {
                 console.warn('=== RENDERER PROCESS: Using potentially incomplete layout data');
                 return corruptedData;
             }
         }
-        
+
         // If repair fails, try fallback layout
         return recoverFromLayoutError(layoutId);
     } catch (error) {
@@ -650,11 +712,11 @@ function handleCorruptedLayoutData(layoutId, corruptedData) {
 // Critical error recovery function
 function recoverFromLayoutError(targetLayoutId) {
     console.error('=== RENDERER PROCESS: Entering critical layout recovery mode for:', targetLayoutId);
-    
+
     try {
         // Try to find any working layout in localStorage
         var availableLayouts = getAvailableLayoutsFromDS();
-        
+
         for (var i = 0; i < availableLayouts.length; i++) {
             var layoutId = availableLayouts[i].id;
             if (layoutId !== targetLayoutId) { // Don't retry the same failed layout
@@ -672,11 +734,11 @@ function recoverFromLayoutError(targetLayoutId) {
                 }
             }
         }
-        
+
         // If all layouts fail, create minimal emergency layout
         console.error('=== RENDERER PROCESS: All layouts failed, creating emergency layout');
         return createEmergencyLayout();
-        
+
     } catch (error) {
         console.error('=== RENDERER PROCESS: Critical recovery failed:', error);
         return createEmergencyLayout();
@@ -686,7 +748,7 @@ function recoverFromLayoutError(targetLayoutId) {
 // Create minimal emergency layout for worst-case scenarios
 function createEmergencyLayout() {
     console.warn('=== RENDERER PROCESS: Creating emergency minimal layout');
-    
+
     return {
         elements: {
             layout: {
@@ -726,6 +788,323 @@ function createEmergencyLayout() {
 socket.on('error', function (error) {
     console.log('=== SOCKET ERROR ===', error)
 })
+
+// ========================================
+// SYNCHRONIZATION EVENT HANDLERS
+// ========================================
+
+// Global synchronization variables
+var syncConfig = null;
+var syncMasterInterval = null;
+var syncCheckInterval = null;
+var lastSyncTimestamp = 0;
+var networkConnected = true;
+
+// Initialize synchronization settings from config
+function initSyncSettings() {
+    try {
+        if (config && config.syncSettings) {
+            syncConfig = config.syncSettings;
+            console.log('=== SYNC: Initialized with settings:', syncConfig);
+
+            if (syncConfig.syncMode === 'enabled') {
+                if (syncConfig.isMaster) {
+                    startMasterSync();
+                    console.log('=== SYNC: Started as MASTER ===');
+                } else {
+                    startSlaveSync();
+                    console.log('=== SYNC: Started as SLAVE ===');
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC: Failed to initialize sync settings:', error);
+        syncConfig = null;
+    }
+}
+
+// Master synchronization functions
+function startMasterSync() {
+    if (!syncConfig || !syncConfig.isMaster) return;
+
+    // Stop existing intervals
+    if (syncMasterInterval) clearInterval(syncMasterInterval);
+
+    // Start master broadcasting
+    syncMasterInterval = setInterval(() => {
+        if (syncConfig.layoutSyncEnabled) {
+            broadcastLayoutSync();
+        }
+        if (syncConfig.videoSyncEnabled) {
+            broadcastVideoTime();
+        }
+    }, syncConfig.masterBroadcastInterval || 1000);
+}
+
+// Slave synchronization functions
+function startSlaveSync() {
+    if (!syncConfig || syncConfig.isMaster) return;
+
+    // Stop existing intervals
+    if (syncCheckInterval) clearInterval(syncCheckInterval);
+
+    // Start periodic sync checks
+    syncCheckInterval = setInterval(() => {
+        checkSyncStatus();
+    }, syncConfig.syncInterval || 5000);
+}
+
+// Broadcast current layout synchronization data (Master only)
+function broadcastLayoutSync() {
+    if (!syncConfig || !syncConfig.isMaster || !networkConnected) return;
+
+    try {
+        if (typeof isLoopLyt !== 'undefined' && isLoopLyt && typeof loopXMLCurIndex !== 'undefined' && typeof loopArr !== 'undefined') {
+            var currentTime = Date.now();
+            var remainingTime = 0;
+
+            // Calculate remaining time if loop timeout is active
+            if (typeof loopTimeoutStartTime !== 'undefined' && typeof loopTimeoutDuration !== 'undefined' && loopTimeoutStartTime && loopTimeoutDuration) {
+                var elapsed = currentTime - loopTimeoutStartTime;
+                remainingTime = Math.max(loopTimeoutDuration - elapsed, 0);
+            }
+
+            var syncData = {
+                timestamp: currentTime,
+                layoutIndex: loopXMLCurIndex,
+                currentLayoutID: currentlytID || '',
+                remainingTime: remainingTime,
+                totalLayouts: loopArr.length,
+                isLoopLayout: true,
+                masterBroadcast: true
+            };
+
+            console.log('=== SYNC MASTER: Broadcasting layout sync:', syncData);
+            socket.emit('layout-sync-broadcast', syncData);
+        }
+    } catch (error) {
+        console.warn('=== SYNC MASTER: Failed to broadcast layout sync:', error);
+    }
+}
+
+// Broadcast current video synchronization data (Master only)
+function broadcastVideoTime() {
+    if (!syncConfig || !syncConfig.isMaster || !networkConnected) return;
+
+    try {
+        if (typeof videoJSPlayer !== 'undefined' && videoJSPlayer.length > 0) {
+            var videoSyncData = [];
+
+            videoJSPlayer.forEach((player, index) => {
+                if (player && typeof player.currentTime === 'function' && typeof player.paused === 'function') {
+                    videoSyncData.push({
+                        playerIndex: index,
+                        currentTime: player.currentTime(),
+                        paused: player.paused(),
+                        duration: player.duration() || 0,
+                        playbackRate: player.playbackRate() || 1
+                    });
+                }
+            });
+
+            if (videoSyncData.length > 0) {
+                var syncData = {
+                    timestamp: Date.now(),
+                    videoPlayers: videoSyncData,
+                    masterBroadcast: true
+                };
+
+                console.log('=== SYNC MASTER: Broadcasting video sync:', syncData);
+                socket.emit('video-sync', syncData);
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC MASTER: Failed to broadcast video sync:', error);
+    }
+}
+
+// Handle layout synchronization received from master (Slave only)
+socket.on('layout-sync-receive', function (syncData) {
+    if (!syncConfig || syncConfig.isMaster || !syncData) return;
+
+    console.log('=== SYNC SLAVE: Received layout sync:', syncData);
+
+    try {
+        if (syncData.masterBroadcast && typeof isLoopLyt !== 'undefined') {
+            lastSyncTimestamp = Date.now();
+
+            // Check if we need to sync layout
+            var currentLayoutIndex = loopXMLCurIndex || 0;
+            var targetLayoutIndex = syncData.layoutIndex || 0;
+
+            if (Math.abs(currentLayoutIndex - targetLayoutIndex) > 0 ||
+                (syncData.currentLayoutID && currentlytID !== syncData.currentLayoutID)) {
+
+                console.log('=== SYNC SLAVE: Layout desync detected, syncing to layout:', targetLayoutIndex);
+                syncToMasterLayout(syncData);
+            } else {
+                // Sync timing within current layout
+                syncLayoutTiming(syncData);
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to process layout sync:', error);
+    }
+});
+
+// Handle video synchronization received from master (Slave only)
+socket.on('video-sync', function (syncData) {
+    if (!syncConfig || syncConfig.isMaster || !syncData || !syncConfig.videoSyncEnabled) return;
+
+    console.log('=== SYNC SLAVE: Received video sync:', syncData);
+
+    try {
+        if (syncData.masterBroadcast && syncData.videoPlayers && typeof videoJSPlayer !== 'undefined') {
+            lastSyncTimestamp = Date.now();
+
+            syncData.videoPlayers.forEach(videoData => {
+                var player = videoJSPlayer[videoData.playerIndex];
+                if (player && typeof player.currentTime === 'function') {
+                    var timeDiff = Math.abs(player.currentTime() - videoData.currentTime);
+                    var threshold = syncConfig.videoSyncThreshold || 0.5;
+
+                    if (timeDiff > threshold) {
+                        console.log('=== SYNC SLAVE: Video desync detected, adjusting time for player:', videoData.playerIndex, 'diff:', timeDiff);
+                        player.currentTime(videoData.currentTime);
+                    }
+
+                    // Sync play/pause state
+                    if (videoData.paused && !player.paused()) {
+                        player.pause();
+                    } else if (!videoData.paused && player.paused()) {
+                        player.play();
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to process video sync:', error);
+    }
+});
+
+// Sync to master layout (Slave helper function)
+function syncToMasterLayout(syncData) {
+    try {
+        if (typeof loopArr !== 'undefined' && typeof loopNextLayout === 'function' && typeof playcurrentLayout === 'function') {
+            // Update our loop index to match master
+            if (syncData.layoutIndex < loopArr.length) {
+                loopXMLCurIndex = syncData.layoutIndex;
+
+                // Play the target layout immediately
+                var targetLayout = loopArr[syncData.layoutIndex];
+                if (targetLayout) {
+                    console.log('=== SYNC SLAVE: Switching to master layout:', syncData.layoutIndex);
+                    playcurrentLayout(targetLayout);
+
+                    // Set up timeout for remaining time
+                    if (syncData.remainingTime > 0) {
+                        setTimeout(() => {
+                            loopNextLayout();
+                        }, syncData.remainingTime);
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to sync to master layout:', error);
+    }
+}
+
+// Sync layout timing (Slave helper function)
+function syncLayoutTiming(syncData) {
+    try {
+        if (typeof loopTimeout !== 'undefined' && syncData.remainingTime > 0) {
+            // Clear current timeout and set new one based on master timing
+            if (isLoopLyt && typeof resetLoopTimeoutState === 'function') {
+                console.log('=== RENDERER PROCESS: Emergency cleanup - resetting loop timeout state ===');
+                resetLoopTimeoutState();
+            }
+
+            console.log('=== SYNC SLAVE: Adjusting layout timing, remaining time:', syncData.remainingTime);
+            loopTimeout = setTimeout(() => {
+                if (typeof loopNextLayout === 'function') {
+                    loopNextLayout();
+                }
+            }, syncData.remainingTime);
+        }
+    } catch (error) {
+        console.warn('=== SYNC SLAVE: Failed to sync layout timing:', error);
+    }
+}
+
+// Check synchronization status (Slave function)
+function checkSyncStatus() {
+    if (!syncConfig || syncConfig.isMaster) return;
+
+    var currentTime = Date.now();
+    var timeSinceLastSync = currentTime - lastSyncTimestamp;
+
+    if (timeSinceLastSync > (syncConfig.networkTimeout || 10000)) {
+        if (networkConnected) {
+            console.warn('=== SYNC SLAVE: Network timeout detected, falling back to local timing');
+            networkConnected = false;
+            fallbackToLocalTiming();
+        }
+    } else {
+        if (!networkConnected) {
+            console.log('=== SYNC SLAVE: Network recovered, resuming sync');
+            networkConnected = true;
+        }
+    }
+}
+
+// Fallback to local timing when network is disconnected
+function fallbackToLocalTiming() {
+    try {
+        console.log('=== SYNC: Falling back to local timing mode');
+        // Continue with local loop timing
+        if (typeof isLoopLyt !== 'undefined' && isLoopLyt && !loopTimeout) {
+            // Restart local loop if needed
+            if (typeof loopArr !== 'undefined' && loopArr.length > 0) {
+                var currentLayout = loopArr[loopXMLCurIndex] || loopArr[0];
+                if (currentLayout && typeof playcurrentLayout === 'function') {
+                    playcurrentLayout(currentLayout);
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('=== SYNC: Failed to fallback to local timing:', error);
+    }
+}
+
+// Initialize synchronization when socket connects
+socket.on('connect', function () {
+    console.log('=== RENDERER PROCESS: Connected to socket server ===')
+    networkConnected = true;
+    setTimeout(() => {
+        initSyncSettings();
+    }, 1000); // Delay to ensure config is loaded
+})
+
+// Handle disconnect for sync
+socket.on('disconnect', function () {
+    console.log('=== RENDERER PROCESS: Disconnected from socket server ===')
+    networkConnected = false;
+
+    // Clear sync intervals
+    if (syncMasterInterval) {
+        clearInterval(syncMasterInterval);
+        syncMasterInterval = null;
+    }
+    if (syncCheckInterval) {
+        clearInterval(syncCheckInterval);
+        syncCheckInterval = null;
+    }
+})
+
+// ========================================
+// END SYNCHRONIZATION EVENT HANDLERS
+// ========================================
 
 //retrive all text slot
 socket.on('gettextslot', function (msg) {
@@ -1123,7 +1502,7 @@ socket.on('replacetextslot', function (msg) {
         if (currentPlayLayoutID === null) {
             getCurrentPlayLayoutID(); // This will update the global variable
         }
-        
+
         console.log('=== RENDERER PROCESS: Is current layout and layout id same Current Layout: ', currentPlayLayoutID, ' Layout to Trigger: ', layoutid, ' ===');
         if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && layoutid === currentPlayLayoutID) {
             // Content is for current layout - skip layout switch, go straight to content update
@@ -1132,30 +1511,24 @@ socket.on('replacetextslot', function (msg) {
             return;
         }
 
-        if (loopTimeout) { //clear loopTimeout to reset
-            console.log('=== RENDERER PROCESS: Stopped Loop layout interval - DS ID: (' + dsid + ')  ===');
-            clearTimeout(loopTimeout)
-            loopTimeout = null
-        }
-
-        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - switching using offline method ===');
+        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - using temporary layout switch ===');
 
         // Check if target layout is available offline
         if (!isLayoutAvailableOffline(layoutid)) {
             console.error('=== RENDERER PROCESS: Target layout not available offline:', layoutid);
             console.log('=== RENDERER PROCESS: Available layouts:', getAvailableLayoutsFromDS());
-            
+
             // Try to find an alternative layout or use current layout
             var availableLayouts = getAvailableLayoutsFromDS();
             var foundAlternative = false;
-            
+
             for (var i = 0; i < availableLayouts.length; i++) {
                 if (availableLayouts[i].id === layoutid) {
                     foundAlternative = true;
                     break;
                 }
             }
-            
+
             if (!foundAlternative) {
                 console.warn('=== RENDERER PROCESS: Layout not found in available layouts, updating current layout content only ===');
                 if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
@@ -1167,40 +1540,22 @@ socket.on('replacetextslot', function (msg) {
             }
         }
 
-        // Switch to target layout using offline method
-        switchToLayoutOffline(layoutid, function(success, message) {
-            if (success) {
-                console.log('=== RENDERER PROCESS: replacetextslot layout switch completed (offline):', message);
-                // After layout switch, update the text content
-                setTimeout(() => updateTextSlotContent(numericId, slottype, text, layoutid), 2000);
-            } else {
-                console.error('=== RENDERER PROCESS: replacetextslot layout switch failed (offline):', message);
-                
-                // Fallback: try to update content in current layout
-                if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
-                    console.log('=== RENDERER PROCESS: Fallback - updating content in current layout ===');
-                    updateTextSlotContent(numericId, slottype, text, currentPlayLayoutID);
-                } else {
-                    console.error('=== RENDERER PROCESS: Complete fallback failure - no layout available for text update ===');
-                }
-            }
+        // Use temporary layout switching to preserve loop mode
+        switchToLayoutTemporarilyInLoop(layoutid, function (success, message) {
+            console.log('=== RENDERER PROCESS: replacetextslot temporary switch completed:', success, message);
+            updateTextSlotContent(numericId, slottype, text, layoutid);
         });
-    } else {
-        // Non-loop layout mode - update content directly
-        console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
-        updateTextSlotContent(numericId, slottype, text, layoutid);
+
+        return; // Exit here for loop mode processing
     }
-})
+
+    // Non-loop layout mode - update content directly
+    console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
+    updateTextSlotContent(numericId, slottype, text, layoutid);
+});
 
 // Helper function to update text slot content in DOM
 function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
-    // Pause loop timeout during content update if in loop mode
-    var loopWasPaused = false;
-    if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
-        loopWasPaused = pauseLoopTimeout('text content update');
-        console.log('=== RENDERER PROCESS: Paused loop timeout for text content update, success:', loopWasPaused);
-    }
-    
     // Save current playing layout ID using sync function for consistent tracking
     if (layoutIdToSave) {
         syncCurrentPlayLayoutID(layoutIdToSave);
@@ -1239,23 +1594,20 @@ function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
             console.log('=== RENDERER PROCESS: Updating scroller slot:', id);
             $('#slot-' + id).children().children().text(text)
         }
-        
+
         console.log('=== RENDERER PROCESS: Text content update completed successfully');
+
+        if (loopTimeout) {
+            console.log('=== RENDERER PROCESS: Clearing existing loopTimeout to prevent conflicts ===');
+            clearTimeout(loopTimeout);
+            loopTimeout = null;
+        }
+        if (textTimeout[id]) { //clear textTimeout to reset
+            console.log('=== RENDERER PROCESS: Clearing existing textTimeout for slotid:', id);
+            clearTimeout(textTimeout[id])
+        }
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error during text content update:', error);
-    } finally {
-        // Resume loop timeout after content update completion
-        if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
-            setTimeout(() => {
-                var resumed = resumeLoopTimeout('text content update completed');
-                console.log('=== RENDERER PROCESS: Resumed loop timeout after text update, success:', resumed);
-                
-                // Log timeout status for debugging
-                if (typeof getLoopTimeoutStatus === 'function') {
-                    console.log('=== RENDERER PROCESS: Loop timeout status after text update:', getLoopTimeoutStatus());
-                }
-            }, 100); // Small delay to ensure DOM update is complete
-        }
     }
 }
 
@@ -1523,13 +1875,6 @@ socket.on('replacemediaslot', function (msg) {
 
     // Helper function to update media content in DOM
     function updateMediaSlotContent(layoutIdToSave) {
-        // Pause loop timeout during content update if in loop mode
-        var loopWasPaused = false;
-        if (typeof pauseLoopTimeout === 'function' && isLoopLyt) {
-            loopWasPaused = pauseLoopTimeout('media content update');
-            console.log('=== RENDERER PROCESS: Paused loop timeout for media content update, success:', loopWasPaused);
-        }
-        
         // Save current playing layout ID using sync function for consistent tracking
         if (layoutIdToSave) {
             syncCurrentPlayLayoutID(layoutIdToSave);
@@ -1545,23 +1890,20 @@ socket.on('replacemediaslot', function (msg) {
                 appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
                 console.log('=== RENDERER PROCESS: Called appendMediaElement ===');
             }
-            
+
             console.log('=== RENDERER PROCESS: Media content update completed successfully');
+
+            if (loopTimeout) {
+                console.log('=== RENDERER PROCESS: Clearing existing loopTimeout to prevent conflicts ===');
+                clearTimeout(loopTimeout);
+                loopTimeout = null;
+            }
+            if (mediaTimeout[id]) { //clear mediaTimeout to reset
+                console.log('=== RENDERER PROCESS: Clearing existing mediaTimeout for slotid:', id);
+                clearTimeout(mediaTimeout[id])
+            }
         } catch (error) {
             console.error('=== RENDERER PROCESS: Error during media content update:', error);
-        } finally {
-            // Resume loop timeout after content update completion
-            if (loopWasPaused && typeof resumeLoopTimeout === 'function') {
-                setTimeout(() => {
-                    var resumed = resumeLoopTimeout('media content update completed');
-                    console.log('=== RENDERER PROCESS: Resumed loop timeout after media update, success:', resumed);
-                    
-                    // Log timeout status for debugging
-                    if (typeof getLoopTimeoutStatus === 'function') {
-                        console.log('=== RENDERER PROCESS: Loop timeout status after media update:', getLoopTimeoutStatus());
-                    }
-                }, 100); // Small delay to ensure DOM update is complete
-            }
         }
     }
 
@@ -1571,7 +1913,7 @@ socket.on('replacemediaslot', function (msg) {
         if (currentPlayLayoutID === null) {
             getCurrentPlayLayoutID(); // This will update the global variable
         }
-        
+
         if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && layoutid === currentPlayLayoutID) {
             // Content is for current layout - skip layout switch, go straight to content update
             console.log('=== RENDERER PROCESS: Content for current layout - updating DOM directly ===');
@@ -1579,24 +1921,24 @@ socket.on('replacemediaslot', function (msg) {
             return;
         }
 
-        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - switching using offline method ===');
+        console.log('=== RENDERER PROCESS: Content for different layout ID (' + layoutid + ') - using temporary layout switch ===');
 
         // Check if target layout is available offline
         if (!isLayoutAvailableOffline(layoutid)) {
             console.error('=== RENDERER PROCESS: Target layout not available offline:', layoutid);
             console.log('=== RENDERER PROCESS: Available layouts:', getAvailableLayoutsFromDS());
-            
+
             // Try to find an alternative layout or use current layout
             var availableLayouts = getAvailableLayoutsFromDS();
             var foundAlternative = false;
-            
+
             for (var i = 0; i < availableLayouts.length; i++) {
                 if (availableLayouts[i].id === layoutid) {
                     foundAlternative = true;
                     break;
                 }
             }
-            
+
             if (!foundAlternative) {
                 console.warn('=== RENDERER PROCESS: Layout not found in available layouts, updating current layout content only ===');
                 if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
@@ -1608,29 +1950,18 @@ socket.on('replacemediaslot', function (msg) {
             }
         }
 
-        // Switch to target layout using offline method
-        switchToLayoutOffline(layoutid, function(success, message) {
-            if (success) {
-                console.log('=== RENDERER PROCESS: replacemediaslot layout switch completed (offline):', message);
-                // After layout switch, update the media content
-                updateMediaSlotContent(layoutid);
-            } else {
-                console.error('=== RENDERER PROCESS: replacemediaslot layout switch failed (offline):', message);
-                
-                // Fallback: try to update content in current layout
-                if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
-                    console.log('=== RENDERER PROCESS: Fallback - updating content in current layout ===');
-                    updateMediaSlotContent(currentPlayLayoutID);
-                } else {
-                    console.error('=== RENDERER PROCESS: Complete fallback failure - no layout available for media update ===');
-                }
-            }
+        // Use temporary layout switching to preserve loop mode
+        switchToLayoutTemporarilyInLoop(layoutid, function (success, message) {
+            console.log('=== RENDERER PROCESS: replacemediaslot temporary switch completed:', success, message);
+            updateMediaSlotContent(layoutid);
         });
-    } else {
-        // Non-loop layout mode - update content directly
-        console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
-        updateMediaSlotContent(layoutid);
+
+        return; // Exit here for loop mode processing
     }
+
+    // Non-loop layout mode - update content directly
+    console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
+    updateMediaSlotContent(layoutid);
 })
 
 // Helper function to create media object based on media type
@@ -1691,7 +2022,7 @@ function capitalizeFirstLetter(string) {
 // Socket handler for layout details request from control panel
 socket.on('get-layout-details', function (request) {
     console.log('=== RENDERER PROCESS: Layout details request received ===');
-    
+
     try {
         // For testing, send a simple response first
         var basicResponse = {
@@ -1714,14 +2045,14 @@ socket.on('get-layout-details', function (request) {
             mediaSlots: 0,
             timestamp: Date.now()
         };
-        
+
         // Send simple response for testing
         socket.emit('layout-details-response', basicResponse);
         console.log('=== RENDERER PROCESS: Basic layout details response sent ===');
-        
+
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error getting layout details:', error);
-        
+
         // Send error response
         socket.emit('layout-details-response', {
             layouts: [],
@@ -1738,7 +2069,7 @@ socket.on('get-layout-details', function (request) {
 // Comprehensive function to get all layout details
 function getComprehensiveLayoutDetails() {
     console.log('=== LAYOUT DETAILS: Starting comprehensive layout analysis ===');
-    
+
     var layoutDetails = {
         layouts: [],
         currentLayout: null,
@@ -1748,35 +2079,35 @@ function getComprehensiveLayoutDetails() {
         mediaSlots: 0,
         timestamp: Date.now()
     };
-    
+
     try {
         // Check if dsid is available
         if (typeof dsid === 'undefined' || !dsid) {
             console.warn('=== LAYOUT DETAILS: No DSID available, returning empty data ===');
             return layoutDetails;
         }
-        
+
         // Get available layouts from DS data
         var availableLayouts = getAvailableLayoutsFromDS();
         console.log('=== LAYOUT DETAILS: Found', availableLayouts.length, 'available layouts');
-        
+
         // Determine if it's loop mode
         layoutDetails.isLoop = availableLayouts.length > 1 || (availableLayouts.length === 1 && availableLayouts[0].type === 'loop');
-        
+
         // Process each available layout
-        availableLayouts.forEach(function(layoutInfo) {
+        availableLayouts.forEach(function (layoutInfo) {
             try {
                 var layoutData = getLayoutFromStorage(layoutInfo.id);
-                
+
                 if (layoutData) {
                     var processedLayout = processLayoutForDetails(layoutInfo.id, layoutData, layoutInfo);
                     layoutDetails.layouts.push(processedLayout);
-                    
+
                     // Update totals
                     layoutDetails.totalSlots += processedLayout.totalSlots || 0;
                     layoutDetails.textSlots += (processedLayout.textSlots && processedLayout.textSlots.length) || 0;
                     layoutDetails.mediaSlots += (processedLayout.mediaSlots && processedLayout.mediaSlots.length) || 0;
-                    
+
                     // Check if this is the current layout
                     if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID && currentPlayLayoutID === layoutInfo.id) {
                         layoutDetails.currentLayout = processedLayout;
@@ -1788,18 +2119,18 @@ function getComprehensiveLayoutDetails() {
                 console.error('=== LAYOUT DETAILS: Error processing layout', layoutInfo.id, ':', layoutError);
             }
         });
-        
+
         // If no current layout identified but we have layouts, use the first one
         if (!layoutDetails.currentLayout && layoutDetails.layouts.length > 0) {
             layoutDetails.currentLayout = layoutDetails.layouts[0];
             console.log('=== LAYOUT DETAILS: No current layout ID, using first available layout ===');
         }
-        
+
         console.log('=== LAYOUT DETAILS: Analysis complete ===');
         console.log('=== LAYOUT DETAILS: Total layouts:', layoutDetails.layouts.length);
         console.log('=== LAYOUT DETAILS: Total slots:', layoutDetails.totalSlots);
         console.log('=== LAYOUT DETAILS: Loop mode:', layoutDetails.isLoop);
-        
+
         // Ensure final data structure is completely serializable
         var safeLayoutDetails = {
             layouts: layoutDetails.layouts || [],
@@ -1810,9 +2141,9 @@ function getComprehensiveLayoutDetails() {
             mediaSlots: Number(layoutDetails.mediaSlots) || 0,
             timestamp: Number(layoutDetails.timestamp) || Date.now()
         };
-        
+
         return safeLayoutDetails;
-        
+
     } catch (error) {
         console.error('=== LAYOUT DETAILS: Error in comprehensive analysis:', error);
         // Return safe empty data instead of throwing
@@ -1832,7 +2163,7 @@ function getComprehensiveLayoutDetails() {
 // Function to process individual layout for detailed information
 function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
     console.log('=== LAYOUT DETAILS: Processing layout', layoutId);
-    
+
     var processedLayout = {
         id: layoutId,
         name: 'Layout ' + layoutId,
@@ -1844,15 +2175,15 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
         totalSlots: 0,
         isActive: (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID === layoutId)
     };
-    
+
     try {
         // Extract ALL slots comprehensively
         try {
             var allSlots = extractAllSlotsFromLayoutData(layoutData, 'layout-' + layoutId);
             processedLayout.allSlots = Array.isArray(allSlots) ? allSlots : [];
-            
+
             // Ensure all slot data is serializable - clean up any non-serializable properties
-            processedLayout.allSlots = processedLayout.allSlots.map(function(slot) {
+            processedLayout.allSlots = processedLayout.allSlots.map(function (slot) {
                 return {
                     id: String(slot.id || ''),
                     name: String(slot.name || ''),
@@ -1863,7 +2194,7 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
                     enabled: String(slot.enabled || 'Y')
                 };
             });
-            
+
             // Separate slots by type for backward compatibility
             processedLayout.textSlots = allSlots.filter(slot => slot.type === 'text').map(slot => ({
                 slotid: String(slot.id || ''),
@@ -1872,7 +2203,7 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
                 content: String(slot.content || ''),
                 layoutid: String(slot.layoutId || layoutId)
             }));
-            
+
             processedLayout.mediaSlots = allSlots.filter(slot => slot.type === 'media').map(slot => ({
                 slotid: String(slot.id || ''),
                 slotname: String(slot.name || ''),
@@ -1880,15 +2211,15 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
                 filename: String(slot.content || ''),
                 layoutid: String(slot.layoutId || layoutId)
             }));
-            
+
         } catch (allSlotsError) {
             console.warn('=== LAYOUT DETAILS: Error extracting all slots for layout', layoutId, ':', allSlotsError);
             processedLayout.allSlots = [];
-            
+
             // Fallback to individual extraction methods
             try {
                 var textSlots = extractTextSlotsFromLayoutData(layoutData, layoutId);
-                processedLayout.textSlots = Array.isArray(textSlots) ? textSlots.map(function(slot) {
+                processedLayout.textSlots = Array.isArray(textSlots) ? textSlots.map(function (slot) {
                     return {
                         slotid: String(slot.slotid || ''),
                         slotname: String(slot.slotname || ''),
@@ -1901,10 +2232,10 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
                 console.warn('=== LAYOUT DETAILS: Error extracting text slots for layout', layoutId, ':', textError);
                 processedLayout.textSlots = [];
             }
-            
+
             try {
                 var mediaSlots = extractMediaSlotsFromLayoutData(layoutData, layoutId);
-                processedLayout.mediaSlots = Array.isArray(mediaSlots) ? mediaSlots.map(function(slot) {
+                processedLayout.mediaSlots = Array.isArray(mediaSlots) ? mediaSlots.map(function (slot) {
                     return {
                         slotid: String(slot.slotid || ''),
                         slotname: String(slot.slotname || ''),
@@ -1921,18 +2252,18 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
 
         // Calculate total slots
         processedLayout.totalSlots = processedLayout.allSlots.length || (processedLayout.textSlots.length + processedLayout.mediaSlots.length);
-        
+
         // Ensure all main properties are serializable
         processedLayout.id = String(processedLayout.id || '');
         processedLayout.name = String(processedLayout.name || '');
         processedLayout.type = String(processedLayout.type || 'unknown');
         processedLayout.totalSlots = Number(processedLayout.totalSlots) || 0;
         processedLayout.isActive = Boolean(processedLayout.isActive);
-        
+
         console.log('=== LAYOUT DETAILS: Layout', layoutId, 'processed - Total slots:', processedLayout.totalSlots, ', All slots:', processedLayout.allSlots.length);
-        
+
         return processedLayout;
-        
+
     } catch (error) {
         console.error('=== LAYOUT DETAILS: Error processing layout', layoutId, ':', error);
         return processedLayout; // Return with empty slots

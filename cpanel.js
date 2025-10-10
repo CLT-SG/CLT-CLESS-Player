@@ -1538,7 +1538,6 @@ return (async function () {
             // CPU Information
             const cpu = await si.cpu()
             cpuInfo = JSON.stringify(cpu)
-            log.info('cpu : ' + cpuInfo)
 
             // Memory Information
             const memory = await si.mem()
@@ -1552,7 +1551,6 @@ return (async function () {
                 swapused: memory.swapused,
                 swapfree: memory.swapfree
             }
-            log.info('memory : ' + JSON.stringify(memoryInfo))
 
             // Disk Information
             const disks = await si.fsSize()
@@ -1565,7 +1563,6 @@ return (async function () {
                 usage: disk.use,
                 mount: disk.mount
             }))
-            log.info('disk : ' + JSON.stringify(diskInfo))
 
             // Network Information
             const networkInterfaces = await si.networkInterfaces()
@@ -1583,7 +1580,6 @@ return (async function () {
                 mtu: net.mtu,
                 speed: net.speed
             }))
-            log.info('network : ' + JSON.stringify(networkInfo))
 
             // Display Information
             const graphics = await si.graphics()
@@ -1612,7 +1608,6 @@ return (async function () {
                     positionY: display.positionY
                 }))
             }
-            log.info('display : ' + JSON.stringify(displayInfo))
 
             // System Information
             const system = await si.system()
@@ -1641,7 +1636,6 @@ return (async function () {
                     uefi: osInfo.uefi
                 }
             }
-            log.info('system : ' + JSON.stringify(systemInfo))
 
         } catch (error) {
             log.warn('System info gathering error: ' + error)
