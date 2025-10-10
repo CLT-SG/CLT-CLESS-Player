@@ -129,64 +129,6 @@ function getLoopTimeoutStatus() {
   };
 }
 
-// Function to validate and fix loop state inconsistencies
-function validateAndFixLoopState() {
-  try {
-    console.log('=== LOOP VALIDATION: Starting state validation ===');
-    var status = getLoopTimeoutStatus();
-    console.log('=== LOOP VALIDATION: Current state:', status);
-    
-    var fixes = [];
-    
-    // Fix 1: If in loop mode but no loopArr data
-    if (isLoopLyt && loopArr.length === 0) {
-      fixes.push('No loop array data while in loop mode');
-      // Try to restore from localStorage if possible
-      try {
-        var dsData = JSON.parse(localStorage.getItem(dsid));
-        if (dsData && dsData.elements && dsData.elements[0] && dsData.elements[0].elements && dsData.elements[0].elements[0] && dsData.elements[0].elements[0].name === 'loop') {
-          loopArr = dsData.elements[0].elements[0].elements || [];
-          fixes.push('Restored loopArr from localStorage');
-        }
-      } catch (e) {
-        console.warn('=== LOOP VALIDATION: Could not restore loopArr from localStorage:', e);
-      }
-    }
-    
-    // Fix 2: If paused but no timeout duration
-    if (loopTimeoutPaused && (!loopTimeoutDuration || loopTimeoutDuration <= 0)) {
-      fixes.push('Paused state with invalid duration');
-      loopTimeoutDuration = 5000; // Default 5 seconds
-    }
-    
-    // Fix 3: If has timeout but not in loop mode
-    if (loopTimeout && !isLoopLyt) {
-      fixes.push('Active timeout while not in loop mode');
-      clearTimeout(loopTimeout);
-      loopTimeout = null;
-      resetLoopTimeoutState();
-    }
-    
-    // Fix 4: If index is out of bounds
-    if (loopXMLCurIndex >= loopArr.length && loopArr.length > 0) {
-      fixes.push('Loop index out of bounds');
-      loopXMLCurIndex = 0;
-    }
-    
-    if (fixes.length > 0) {
-      console.log('=== LOOP VALIDATION: Applied fixes:', fixes);
-      return { fixed: true, fixes: fixes };
-    } else {
-      console.log('=== LOOP VALIDATION: No issues found, state is consistent');
-      return { fixed: false, fixes: [] };
-    }
-    
-  } catch (error) {
-    console.error('=== LOOP VALIDATION: Error during validation:', error);
-    return { fixed: false, fixes: [], error: error.message };
-  }
-}
-
 function loopNextLayout() {
   if (loopXMLCurIndex >= loopArr.length) {
     // if this is last loop layout then reset counter of current loop timeout
