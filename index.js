@@ -8,41 +8,93 @@
     Menu
 } = require('electron')
 require('@electron/remote/main').initialize()
+
+// Core modules (always needed)
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
-var axios = require('axios').default;
-const homedir = os.homedir()
-const AutoLaunch = require('auto-launch')
-const macaddress = require('macaddress')
-const Crypto = require('crypto')
-const ping = require('ping')
-const si = require('systeminformation')
-const {
-    exec
-} = require('child_process')
+const { exec } = require('child_process')
 
+// Initialize optimization modules
+const lazyLoader = require('./LazyModuleLoader')
 const createCpanelServer = require('./cpanel')
+const performanceMonitor = require('./PerformanceMonitor')
+
+const homedir = os.homedir()
 const appdir = path.normalize(homedir + '/clessapp')
 const logdir = path.normalize(homedir + '/clessapp/logs/')
-const date = require('date-and-time')
-const log = require('electron-log')
-const now = new Date();
 
-// Always use current date for log file name
-log.transports.file.getFile = () => {
-    return logdir + date.format(now, 'YYYY-MM-DD') + '.log';
-};
-log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
-log.transports.file.maxSize = 5 * 1024 * 1024; // 5MB max file size
-log.transports.console.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
-// Set log levels based on environment
-const isDebug = process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true';
-log.transports.file.level = isDebug ? 'debug' : 'info';
-log.transports.console.level = isDebug ? 'debug' : 'warn';
+// Lazy load heavy modules
+let axios, AutoLaunch, macaddress, Crypto, ping, si, date, log, now
+
+// Async initialization of heavy modules
+const initializeModules = async () => {
+    const moduleLoadStartTime = Date.now()
+    
+    try {
+        console.log('Loading modules...')
+        
+        // Initialize performance monitor
+        await performanceMonitor.initialize()
+        
+        // Load modules in parallel for faster startup
+        const modulePromises = [
+            lazyLoader.loadModule('axios'),
+            lazyLoader.loadModule('auto-launch'),
+            lazyLoader.loadModule('macaddress'),
+            lazyLoader.loadModule('crypto'),
+            lazyLoader.loadModule('ping'),
+            lazyLoader.loadModule('systeminformation'),
+            lazyLoader.loadModule('date-and-time'),
+            lazyLoader.loadModule('electron-log')
+        ]
+        
+        const [
+            axiosModule,
+            AutoLaunchModule,
+            macaddressModule,
+            CryptoModule,
+            pingModule,
+            siModule,
+            dateModule,
+            logModule
+        ] = await Promise.all(modulePromises)
+        
+        // Assign loaded modules
+        axios = axiosModule
+        AutoLaunch = AutoLaunchModule
+        macaddress = macaddressModule
+        Crypto = CryptoModule
+        ping = pingModule
+        si = siModule
+        date = dateModule
+        log = logModule
+        now = new Date()
+        
+        const moduleLoadTime = Date.now() - moduleLoadStartTime
+        performanceMonitor.recordStartupMilestone('moduleLoadTime', moduleLoadTime)
+        
+        console.log(`Modules loaded successfully in ${moduleLoadTime}ms`)
+        return true
+        
+    } catch (error) {
+        console.error('Failed to load modules:', error)
+        throw error
+    }
+}
+
+// Safe logging functions that work before module initialization
+const safeLog = {
+    info: (...args) => log ? log.info(...args) : console.log('[INFO]', ...args),
+    error: (...args) => log ? log.error(...args) : console.error('[ERROR]', ...args),
+    warn: (...args) => log ? log.warn(...args) : console.warn('[WARN]', ...args),
+    debug: (...args) => log ? log.debug(...args) : console.log('[DEBUG]', ...args)
+}
 
 // Optimize console logging
-const debug = isDebug ? log.debug : () => {} // Disable debug logs in production
+const debug = (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') 
+    ? (...args) => safeLog.debug(...args) 
+    : () => {} // Disable debug logs in production
 
 // Windows audio control (only available on Windows)
 let winAudio = null
@@ -85,19 +137,19 @@ function compareVersions(version1, version2) {
 // Upgrade existing config.json to newer version
 async function upgradeConfigVersion(existingConfig, configJsonPath) {
     try {
-        log.info('Starting config version upgrade process')
+        safeLog.info('Starting config version upgrade process')
         
         // Create backup of current config
         const backupPath = configJsonPath + '.backup.' + Date.now()
         fs.copyFileSync(configJsonPath, backupPath)
-        log.info('Current config backed up to:', backupPath)
+        safeLog.info('Current config backed up to:', backupPath)
         
         // Merge existing config with new features based on version
         const upgradedConfig = await applyVersionUpgrades(existingConfig)
         
         // Write upgraded config
         fs.writeFileSync(configJsonPath, JSON.stringify(upgradedConfig, null, 2))
-        log.info('Config successfully upgraded to version:', upgradedConfig.version)
+        safeLog.info('Config successfully upgraded to version:', upgradedConfig.version)
         
         // Update migration flag
         const migrationFlagPath = path.join(path.dirname(configJsonPath), '.migration-v2-complete')
@@ -128,7 +180,7 @@ async function upgradeConfigVersion(existingConfig, configJsonPath) {
         }
         
     } catch (error) {
-        log.error('Config version upgrade failed:', error)
+        safeLog.error('Config version upgrade failed:', error)
         throw error
     }
 }
@@ -138,11 +190,11 @@ async function applyVersionUpgrades(existingConfig) {
     const currentVersion = existingConfig.version || '1.0.0'
     let upgradedConfig = { ...existingConfig }
     
-    log.info('Applying upgrades from version:', currentVersion)
+    safeLog.info('Applying upgrades from version:', currentVersion)
     
     // Upgrade to 2.4.0: Add syncSettings if missing
     if (compareVersions(currentVersion, '2.4.0') < 0) {
-        log.info('Applying 2.4.0 upgrade: Adding syncSettings')
+        safeLog.info('Applying 2.4.0 upgrade: Adding syncSettings')
         
         if (!upgradedConfig.syncSettings) {
             upgradedConfig.syncSettings = {
@@ -155,7 +207,7 @@ async function applyVersionUpgrades(existingConfig) {
                 masterBroadcastInterval: 1000,
                 networkTimeout: 10000
             }
-            log.info('Added syncSettings to configuration')
+            safeLog.info('Added syncSettings to configuration')
         } else {
             // Ensure all sync settings are present (in case of partial config)
             const defaultSyncSettings = {
@@ -173,7 +225,7 @@ async function applyVersionUpgrades(existingConfig) {
                 ...defaultSyncSettings,
                 ...upgradedConfig.syncSettings
             }
-            log.info('Updated syncSettings with any missing properties')
+            safeLog.info('Updated syncSettings with any missing properties')
         }
         
         upgradedConfig.version = '2.4.0'
@@ -205,15 +257,15 @@ async function performConfigMigration() {
                 const targetVersion = '2.4.0'
                 
                 if (compareVersions(currentVersion, targetVersion) < 0) {
-                    log.info(`Config version upgrade needed: ${currentVersion} -> ${targetVersion}`)
+                    safeLog.info(`Config version upgrade needed: ${currentVersion} -> ${targetVersion}`)
                     await upgradeConfigVersion(existingConfig, configJsonPath)
                     return
                 } else {
-                    log.info('Configuration is already up to date, version:', currentVersion)
+                    safeLog.info('Configuration is already up to date, version:', currentVersion)
                     return
                 }
             } catch (error) {
-                log.warn('Failed to check config version, will proceed with normal migration check:', error)
+                safeLog.warn('Failed to check config version, will proceed with normal migration check:', error)
             }
         }
 
@@ -226,7 +278,7 @@ async function performConfigMigration() {
 
         // Check if old config.js exists
         if (!fs.existsSync(configJsPath)) {
-            log.info('No existing config.js found, creating new config.json')
+            safeLog.info('No existing config.js found, creating new config.json')
             await createDefaultConfigJson()
             fs.writeFileSync(migrationFlagPath, JSON.stringify({
                 completedAt: new Date().toISOString(),
@@ -236,11 +288,11 @@ async function performConfigMigration() {
             return
         }
 
-        log.info('Starting configuration migration from config.js to config.json')
+        safeLog.info('Starting configuration migration from config.js to config.json')
 
         // Ensure appdir exists before proceeding
         if (!fs.existsSync(appdir)) {
-            log.info('Creating clessapp directory')
+            safeLog.info('Creating clessapp directory')
             fs.mkdirSync(appdir, { recursive: true })
         }
 
@@ -323,11 +375,11 @@ async function performConfigMigration() {
 
         // Backup original config.js
         fs.copyFileSync(configJsPath, path.join(appdir, 'config.js.backup'))
-        log.info('Original config.js backed up to config.js.backup')
+        safeLog.info('Original config.js backed up to config.js.backup')
 
         // Write new config.json
         fs.writeFileSync(configJsonPath, JSON.stringify(newConfig, null, 2))
-        log.info('New config.json created successfully')
+        safeLog.info('New config.json created successfully')
 
         // Create migration completion flag
         fs.writeFileSync(migrationFlagPath, JSON.stringify({
@@ -339,13 +391,13 @@ async function performConfigMigration() {
         // Delete original config.js after successful migration
         try {
             fs.unlinkSync(configJsPath)
-            log.info('Original config.js deleted after successful migration')
+            safeLog.info('Original config.js deleted after successful migration')
         } catch (deleteError) {
             log.warn('Failed to delete original config.js:', deleteError.message)
             // Don't fail the migration if deletion fails - backup exists
         }
 
-        log.info('Configuration migration completed successfully')
+        safeLog.info('Configuration migration completed successfully')
 
         // Show migration success dialog
         const options = {
@@ -371,7 +423,7 @@ async function performConfigMigration() {
         }
 
     } catch (error) {
-        log.error('Configuration migration failed:', error)
+        safeLog.error('Configuration migration failed:', error)
         
         // If migration fails, ensure we have a working config
         if (!fs.existsSync(configJsonPath)) {
@@ -385,7 +437,7 @@ async function createDefaultConfigJson() {
     try {
         // Ensure appdir exists
         if (!fs.existsSync(appdir)) {
-            log.info('Creating clessapp directory for default config')
+            safeLog.info('Creating clessapp directory for default config')
             fs.mkdirSync(appdir, { recursive: true })
         }
 
@@ -444,11 +496,11 @@ async function createDefaultConfigJson() {
 
         const configJsonPath = path.join(appdir, 'config.json')
         fs.writeFileSync(configJsonPath, JSON.stringify(defaultConfig, null, 2))
-        log.info('Default config.json created successfully at: ' + configJsonPath)
+        safeLog.info('Default config.json created successfully at: ' + configJsonPath)
         
         // Verify the file was created
         if (fs.existsSync(configJsonPath)) {
-            log.info('Verified: config.json file exists and is readable')
+            safeLog.info('Verified: config.json file exists and is readable')
         } else {
             throw new Error('Failed to create config.json - file does not exist after write operation')
         }
@@ -471,7 +523,7 @@ function loadConfiguration() {
             // Check if config needs version upgrade
             const currentVersion = configData.version || '1.0.0'
             if (compareVersions(currentVersion, '2.4.0') < 0) {
-                log.info('Config version check: upgrade needed during load, version:', currentVersion)
+                safeLog.info('Config version check: upgrade needed during load, version:', currentVersion)
                 // Don't upgrade here, let the migration system handle it on next restart
                 // For now, ensure syncSettings exist for immediate use
                 if (!configData.syncSettings) {
@@ -485,11 +537,11 @@ function loadConfiguration() {
                         masterBroadcastInterval: 1000,
                         networkTimeout: 10000
                     }
-                    log.info('Added temporary syncSettings for immediate use')
+                    safeLog.info('Added temporary syncSettings for immediate use')
                 }
             }
             
-            log.info('Loaded configuration from config.json, version:', configData.version || 'unknown')
+            safeLog.info('Loaded configuration from config.json, version:', configData.version || 'unknown')
             return configData
         }
 
@@ -497,7 +549,7 @@ function loadConfiguration() {
         if (fs.existsSync(configJsPath)) {
             delete require.cache[require.resolve(configJsPath)]
             const oldConfig = require(configJsPath)
-            log.info('Loaded configuration from config.js (legacy mode)')
+            safeLog.info('Loaded configuration from config.js (legacy mode)')
             
             // Convert to new format structure for compatibility
             return {
@@ -528,7 +580,7 @@ function loadConfiguration() {
 
         throw new Error('No configuration file found')
     } catch (error) {
-        log.error('Error loading configuration:', error)
+        safeLog.error('Error loading configuration:', error)
         return null
     }
 }
@@ -909,113 +961,130 @@ function handleScreenToggle(state) {
 }
 
 try {
-    //create logs folder
-    if (!fs.existsSync(logdir)) {
-        log.info(logdir + ' not exist')
-        fs.mkdir(logdir, 0o755, (err) => {
-            if (err) {
-                log.error(logdir + ' not exist ', err)
+    // Ensure all required directories exist
+    console.log('[INFO] Creating required directories...')
+    const directories = [
+        path.normalize(os.homedir() + '/clessapp'),
+        path.normalize(os.homedir() + '/clessapp/res'),
+        path.normalize(os.homedir() + '/clessapp/logs/')
+    ]
+    console.log('[DEBUG] Directories array:', directories)
+    console.log('[DEBUG] Type of directories:', typeof directories)
+    console.log('[DEBUG] Is array:', Array.isArray(directories))
+    if (Array.isArray(directories)) {
+        directories.forEach(dir => {
+            if (!fs.existsSync(dir)) {
+                try {
+                    fs.mkdirSync(dir, { recursive: true })
+                    console.log(`[INFO] Created directory: ${dir}`)
+                } catch (error) {
+                    console.error(`[ERROR] Failed to create directory ${dir}:`, error)
+                }
             }
         })
-    }
-
-    //create res folder
-    if (!fs.existsSync(appdir + '/res')) {
-        log.info(appdir + ' not exist')
-        fs.mkdir(appdir + '/res', 0o755, (err) => {
-            if (err) {
-                log.error(appdir + ' not exist', err)
-            }
-        })
+    } else {
+        console.error('[ERROR] Directories is not an array!')
     }
 
     //create config.json migration and update system
     (async () => {
-        await performConfigMigration()
+        try {
+            await performConfigMigration()
+        } catch (error) {
+            safeLog.error('Config migration error:', error)
+        }
     })()
 
     //update config-app.js to current update (legacy support)
     fs.stat(appdir + '/config.js', async function (err, stats) {
         if (err) {
-            log.error(appdir + '/config.js', err)
+            safeLog.error(appdir + '/config.js', err)
         } else {
-            const config = require(appdir + '/config')
-            var hostserver_update = "var hostserver = 'https://cless4.closed-loop.biz/demo'; // cless server url\r\n"
-            var dsid_update = "var id = '10'; // ds id\r\n"
-            var mode_update = "var mode = 'online'; // offline or online\r\n"
-            var corsproxy_update = "var corsproxy = 'N'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n"
-            var autostartup_update = "var autostartup = 'Y'; // Y or N\r\n"
-            var serialkey_update = "var serialkey = '1d74f3eda4dd9d1065a6216c84c27d67301779b76996dc867f4403d48f9ad91e'; // insert serial key\r\n\r\n\r\n"
-            var mtime = stats.mtime
-            mtime = date.format(mtime, 'YYYY-MM-DD')
-            var updateDate = date.parse('2025-07-31', 'YYYY-MM-DD') // Updated to current date for new migration
-            updateDate = date.format(updateDate, 'YYYY-MM-DD')
-            const readConfig = () => {
-                return new Promise((resolve, reject) => {
-                    fs.readFile(appdir + '/config.js', async function (err, data) {
-                        if (err) { log.error(err); throw err }
-                        log.info('Config file check successfully')
-                        //any configure variable is founded or updated before this
-                        if (data.includes('var hostserver')) hostserver_update = "var hostserver = '" + config.hostserver + "'; // cless server url\r\n"
-                        if (data.includes('var id')) dsid_update = "var id = '" + config.id + "'; // ds id\r\n"
-                        if (data.includes('var mode')) mode_update = "var mode = '" + config.mode + "'; // offline or online\r\n"
-                        if (data.includes('var corsproxy')) corsproxy_update = "var corsproxy = '" + config.corsproxy + "'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n"
-                        if (data.includes('var autostartup')) autostartup_update = "var autostartup = '" + config.autostartup + "'; // Y or N\r\n"
-                        if (data.includes('var serialkey')) serialkey_update = "var serialkey = '" + config.serialkey + "'; // insert serial key\r\n\r\n\r\n"
-                        resolve()
-                    })
-                })
-            }
-            if (mtime < updateDate) {
-                await readConfig().then(() => {
-                    log.info(hostserver_update, dsid_update, mode_update, corsproxy_update, autostartup_update, serialkey_update)
-                    fs.writeFile(appdir + '/config.js',
-                        hostserver_update +
-                        dsid_update +
-                        mode_update +
-                        corsproxy_update +
-                        autostartup_update +
-                        serialkey_update +
-                        "/*\r\n" +
-                        "DON'T CHANGE ANYTHING BELOW HERE\r\n" +
-                        "*/\r\n" +
-                        "module.exports.hostserver = hostserver;\r\n" +
-                        "module.exports.id = id;\r\n" +
-                        "module.exports.mode = mode;\r\n" +
-                        "module.exports.corsproxy = corsproxy;\r\n" +
-                        "module.exports.autostartup = autostartup;\r\n" +
-                        "module.exports.timeout = 10000;\r\n" +
-                        "module.exports.serialkey = serialkey;\r\n",
-                        function (err, data) {
-                            if (err) {
-                                log.warn(err)
-                            }
-                            const options = {
-                                type: 'info',
-                                buttons: ['Ok'],
-                                defaultId: 2,
-                                title: 'Setup and configuration',
-                                message: 'Config file has been updated.',
-                                detail: 'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \r\n' +
-                                    ' www.closed-loop.biz'
-                            }
-                            dialog.showMessageBox(null, options).then((data) => {
-                                if (data.response == 0) {
-                                    setTimeout(() => {
-                                        log.info('Config file updated successfully')
-                                        app.exit()
-                                        app.relaunch()
-                                    }, 2000)
-                                }
-                            })
+            try {
+                // Ensure date module is loaded before using it
+                if (!date) {
+                    date = await lazyLoader.loadModule('date-and-time')
+                }
+                
+                const config = require(appdir + '/config')
+                var hostserver_update = "var hostserver = 'https://cless4.closed-loop.biz/demo'; // cless server url\r\n"
+                var dsid_update = "var id = '10'; // ds id\r\n"
+                var mode_update = "var mode = 'online'; // offline or online\r\n"
+                var corsproxy_update = "var corsproxy = 'N'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n"
+                var autostartup_update = "var autostartup = 'Y'; // Y or N\r\n"
+                var serialkey_update = "var serialkey = '1d74f3eda4dd9d1065a6216c84c27d67301779b76996dc867f4403d48f9ad91e'; // insert serial key\r\n\r\n\r\n"
+                var mtime = stats.mtime
+                mtime = date.format(mtime, 'YYYY-MM-DD')
+                var updateDate = date.parse('2025-07-31', 'YYYY-MM-DD') // Updated to current date for new migration
+                updateDate = date.format(updateDate, 'YYYY-MM-DD')
+                const readConfig = () => {
+                    return new Promise((resolve, reject) => {
+                        fs.readFile(appdir + '/config.js', async function (err, data) {
+                            if (err) { safeLog.error(err); throw err }
+                            safeLog.info('Config file check successfully')
+                            //any configure variable is founded or updated before this
+                            if (data.includes('var hostserver')) hostserver_update = "var hostserver = '" + config.hostserver + "'; // cless server url\r\n"
+                            if (data.includes('var id')) dsid_update = "var id = '" + config.id + "'; // ds id\r\n"
+                            if (data.includes('var mode')) mode_update = "var mode = '" + config.mode + "'; // offline or online\r\n"
+                            if (data.includes('var corsproxy')) corsproxy_update = "var corsproxy = '" + config.corsproxy + "'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n"
+                            if (data.includes('var autostartup')) autostartup_update = "var autostartup = '" + config.autostartup + "'; // Y or N\r\n"
+                            if (data.includes('var serialkey')) serialkey_update = "var serialkey = '" + config.serialkey + "'; // insert serial key\r\n\r\n\r\n"
+                            resolve()
                         })
-                })
-
+                    })
+                }
+                if (mtime < updateDate) {
+                    await readConfig().then(() => {
+                        safeLog.info(hostserver_update, dsid_update, mode_update, corsproxy_update, autostartup_update, serialkey_update)
+                        fs.writeFile(appdir + '/config.js',
+                            hostserver_update +
+                            dsid_update +
+                            mode_update +
+                            corsproxy_update +
+                            autostartup_update +
+                            serialkey_update +
+                            "/*\r\n" +
+                            "DON'T CHANGE ANYTHING BELOW HERE\r\n" +
+                            "*/\r\n" +
+                            "module.exports.hostserver = hostserver;\r\n" +
+                            "module.exports.id = id;\r\n" +
+                            "module.exports.mode = mode;\r\n" +
+                            "module.exports.corsproxy = corsproxy;\r\n" +
+                            "module.exports.autostartup = autostartup;\r\n" +
+                            "module.exports.timeout = 10000;\r\n" +
+                            "module.exports.serialkey = serialkey;\r\n",
+                            function (err, data) {
+                                if (err) {
+                                    safeLog.warn(err)
+                                }
+                                const options = {
+                                    type: 'info',
+                                    buttons: ['Ok'],
+                                    defaultId: 2,
+                                    title: 'Setup and configuration',
+                                    message: 'Config file has been updated.',
+                                    detail: 'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \r\n' +
+                                        ' www.closed-loop.biz'
+                                }
+                                dialog.showMessageBox(null, options).then((data) => {
+                                    if (data.response == 0) {
+                                        setTimeout(() => {
+                                            safeLog.info('Config file updated successfully')
+                                            app.exit()
+                                            app.relaunch()
+                                        }, 2000)
+                                    }
+                                })
+                            })
+                    })
+                }
+            } catch (error) {
+                safeLog.error('Error in config.js stat callback:', error)
             }
         }
     })
 } catch (err) {
-    log.error('Error in main process initialization:', err)
+    safeLog.error('Error in main process initialization:', err)
 }
 
 try {
@@ -1027,7 +1096,7 @@ try {
     }
 
     if (!gotTheLock) {
-        log.info('User trying to run multiple app. One instance only')
+        safeLog.info('User trying to run multiple app. One instance only')
         app.exit()
     } else {
 
@@ -1036,12 +1105,12 @@ try {
             // Handle both old ('Y'/'N') and new (true/false) config formats
             const shouldAutoStart = config.autoStartup === true || config.autostartup === 'Y'
             if (shouldAutoStart) {
-                log.info('Enabled ecless-player auto startup')
+                safeLog.info('Enabled ecless-player auto startup')
                 app.setLoginItemSettings({
                     openAtLogin: true,
                 })
             } else {
-                log.info('Disabled ecless-player auto startup')
+                safeLog.info('Disabled ecless-player auto startup')
                 app.setLoginItemSettings({
                     openAtLogin: false,
                 })
@@ -1052,7 +1121,7 @@ try {
             // Someone tried to run a second instance, we should focus our window.
             if (win) {
                 if (win.isMinimized()) {
-                    log.info("Restore process.")
+                    safeLog.info("Restore process.")
                     win.show()
                 }
                 app.focus({
@@ -1066,13 +1135,13 @@ try {
 
         app.commandLine.appendSwitch('ignore-certificate-errors', 'true')
         app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
-            log.error('certificate-error : ', error)
+            safeLog.error('certificate-error : ', error)
             event.preventDefault()
             callback(true)
         })
         //APP CRASH REPORT TO LOG
         app.on('uncaughtException', (err) => {
-            log.error('uncaughtException : ', err)
+            safeLog.error('uncaughtException : ', err)
         })
 
         //Enabled Plugin
@@ -1099,7 +1168,11 @@ try {
 
         //APP START UP CONFIG
         app.on('ready', async () => {
-            const primaryDisplay = screen.getPrimaryDisplay() // Retrieve the primary display using the getPrimaryDisplay() method
+            try {
+                // Ensure all required modules are loaded before proceeding
+                await initializeModules()
+                
+                const primaryDisplay = screen.getPrimaryDisplay() // Retrieve the primary display using the getPrimaryDisplay() method
             const bounds = primaryDisplay.bounds // Get the bounds of the primary display
             var mainPosX = bounds.x // Get the x-coordinate of the top-left corner of the primary display
             var mainPosY = bounds.y // Get the y-coordinate of the top-left corner of the primary display
@@ -1216,28 +1289,28 @@ try {
             })
 
             if (config.autostartup == 'Y') {
-                log.info('Enabled auto-startup')
+                safeLog.info('Enabled auto-startup')
                 clessAutoLaunch.enable()
             } else {
-                log.info('Disabled auto-startup')
+                safeLog.info('Disabled auto-startup')
                 clessAutoLaunch.disable()
             }
 
             win.on('closed', () => {
-                log.info('Closing window 1')
+                safeLog.info('Closing window 1')
                 win = null
             })
 
             win2.on('closed', () => {
-                log.info('Closing window 2')
+                safeLog.info('Closing window 2')
                 win2 = null
             })
 
             //APPS FAIL TO LOAD (WHITE SCREEN)
             win.webContents.on("window1-did-fail-load", function (evt, errcode, errname) {
-                log.error("did-fail-load : " + errcode + "/ ", errname)
+                safeLog.error("did-fail-load : " + errcode + "/ ", errname)
                 if (errcode != -3 || errcode != -27) {
-                    log.info('CLESS Player relaunch success.')
+                    safeLog.info('CLESS Player relaunch success.')
                     app.exit()
                     app.relaunch()
                 }
@@ -1245,9 +1318,9 @@ try {
 
             //APPS FAIL TO LOAD (WHITE SCREEN)
             win2.webContents.on("window2-did-fail-load", function (evt, errcode, errname) {
-                log.error("did-fail-load : " + errcode + "/ ", errname)
+                safeLog.error("did-fail-load : " + errcode + "/ ", errname)
                 if (errcode != -3 || errcode != -27) {
-                    log.info('CLESS Player relaunch success.')
+                    safeLog.info('CLESS Player relaunch success.')
                     app.exit()
                     app.relaunch()
                 }
@@ -1634,50 +1707,47 @@ try {
             } catch (error) {
                 log.error('Failed to initialize cpanel server:', error)
             }
+            } catch (error) {
+                safeLog.error('Error in app ready callback:', error)
+            }
         })
 
         app.on('render-process-gone', (event, webContents, details) => {
-            log.error(' render-process-gone : ', details)
+            safeLog.error(' render-process-gone : ', details)
             if (details.reason == "oom") {
-                log.info('CLESS Player relaunch success.')
+                safeLog.info('CLESS Player relaunch success.')
                 app.exit()
                 app.relaunch()
             }
         })
 
         app.on('render-process-crashed', (event, webContents, killed) => {
-            log.error(' render-process-gone : ', killed)
-            log.info('CLESS Player relaunch success.')
+            safeLog.error(' render-process-gone : ', killed)
+            safeLog.info('CLESS Player relaunch success.')
             app.exit()
             app.relaunch()
         })
     }
 } catch (ex) {
-    log.error(ex)
-    if (!fs.existsSync(appdir)) {
-        log.info(appdir + ' not exist')
-        fs.mkdir(appdir, 0o755, (err) => {
-            if (err) {
-                log.warn(err)
+    safeLog.error(ex)
+    // Ensure directories exist in case of errors
+    console.log('[INFO] Creating required directories (error recovery)...')
+    const directories = [
+        path.normalize(os.homedir() + '/clessapp'),
+        path.normalize(os.homedir() + '/clessapp/res'),
+        path.normalize(os.homedir() + '/clessapp/logs/')
+    ]
+    directories.forEach(dir => {
+        if (!fs.existsSync(dir)) {
+            try {
+                fs.mkdirSync(dir, { recursive: true })
+                console.log(`[INFO] Created directory: ${dir}`)
+            } catch (error) {
+                console.error(`[ERROR] Failed to create directory ${dir}:`, error)
             }
-        })
-    }
-    if (!fs.existsSync(appdir + '/res')) {
-        log.info(appdir + ' not exist')
-        fs.mkdir(appdir, 0o755, (err) => {
-            if (err) {
-                log.warn(err)
-            }
-        })
-    }
-    if (!fs.existsSync(logdir)) {
-        log.info(logdir + ' not exist')
-        fs.mkdir(logdir, 0o755, (err) => {
-            if (err) {
-                log.warn(err)
-            }
-        })
-    }
+        }
+    })
+    
     fs.writeFile(appdir + '/config.js',
         "var hostserver = 'https://cless4.closed-loop.biz/demo'; // cless server url\r\n" +
         "var id = '10'; // ds id\r\n" +
@@ -1697,7 +1767,7 @@ try {
         "module.exports.serialkey = serialkey;\r\n",
         function (err, data) {
             if (err) {
-                log.error(err)
+                safeLog.error(err)
             }
             log.info('Config file created.')
             const options = {

@@ -1,40 +1,58 @@
 module.exports = function(electronWindow = null) {
 return (async function () {
-    const express = require('express')
-    var https = require('https')
-    const shutdown = require('electron-shutdown-command')
+    // Load core modules immediately
     const path = require("path")
     const os = require('os')
     const fs = require("fs")
-    const cors = require('cors')
-    const bodyParser = require('body-parser')
     const { exec } = require('child_process')
-    const {
-        expressCspHeader,
-        INLINE,
-        NONE,
-        SELF
-    } = require('express-csp-header')
-    const si = require('systeminformation')
     const homedir = os.homedir()
     const appdir = path.normalize(homedir + '/clessapp')
+    
+    // Load optimization modules
+    const SystemInfoManager = require('./SystemInfoManager')
+    const lazyLoader = require('./LazyModuleLoader')
+    
+    // Initialize system info manager with optimized settings
+    const systemInfoManager = new SystemInfoManager({
+        cacheTTL: 60000, // 1 minute cache
+        updateInterval: 120000, // 2 minutes auto-update
+        enableCaching: true,
+        maxCacheSize: 20
+    })
+    
+    // Lazy load heavy modules
+    const express = await lazyLoader.loadModule('express')
+    const https = await lazyLoader.loadModule('https')
+    const cors = await lazyLoader.loadModule('cors')
+    const bodyParser = await lazyLoader.loadModule('body-parser')
+    const { expressCspHeader } = await lazyLoader.loadModule('express-csp-header')
 
     var options = {
         key: fs.readFileSync(path.join(__dirname, '..', 'cert/key.pem')),
         cert: fs.readFileSync(path.join(__dirname, '..', 'cert/key.crt'))
     }
 
-    const ip = require('ip')
-    const websockify = require('node-websockify')
+    // Lazy load remaining modules
+    const [ip, websockify, datetime, shutdown] = await Promise.all([
+        lazyLoader.loadModule('ip'),
+        lazyLoader.loadModule('node-websockify'),
+        lazyLoader.loadModule('date-and-time'),
+        lazyLoader.loadModule('electron-shutdown-command')
+    ])
+    
     const app = express()
     const server = https.createServer(options, app)
-    const io = require('socket.io')(server)
+    
+    // Load socket.io lazily and handle constructor properly
+    const socketIO = await lazyLoader.loadModule('socket.io')
+    // For socket.io v4, use the constructor function directly  
+    const io = socketIO(server)
+    
     var userID = []
     const port = 9000
 
     //log setup
     const now = new Date()
-    var datetime = require('date-and-time')
     const log = require('electron-log')
     const logdir = path.normalize(homedir + '/clessapp/logs/')
     const datelog = datetime.format(now, 'YYYY-MM-DD')
@@ -43,12 +61,19 @@ return (async function () {
     // Debug function for development-only logging
     const debug = process.env.NODE_ENV === 'development' ? log.debug : () => {}
 
-    var cpuInfo
-    var memoryInfo
-    var diskInfo
-    var networkInfo
-    var displayInfo
-    var systemInfo
+    // Optimized system info storage with lazy loading
+    var systemData = {
+        cpu: null,
+        memory: null,
+        disk: null,
+        network: null,
+        display: null,
+        system: null,
+        lastUpdate: null
+    }
+    
+
+    
     var dataUsageInfo = {
         daily: { download: 0, upload: 0, date: new Date().toDateString() },
         monthly: { download: 0, upload: 0, month: new Date().getMonth(), year: new Date().getFullYear() },
@@ -57,17 +82,20 @@ return (async function () {
         interfaces: {}
     }
 
-    //websoctify for novnc
-    var ipaddress = ip.address()
-    try {
-        websockify({
-            target: ipaddress + ':5900',
-            source: '127.0.0.1:9001',
-            key: path.join(__dirname, '..', 'cert/key.pem'), //https://stackoverflow.com/questions/61599298/electron-builder-include-external-folder
-            cert: path.join(__dirname, '..', 'cert/key.crt') //https://stackoverflow.com/questions/61599298/electron-builder-include-external-folder
-        })
-    } catch (e) {
-        log.warn(e)
+    //websoctify for novnc - lazy initialization
+    const initializeWebsockify = async () => {
+        try {
+            const ipaddress = ip.address()
+            await websockify({
+                target: ipaddress + ':5900',
+                source: '127.0.0.1:9001',
+                key: path.join(__dirname, '..', 'cert/key.pem'),
+                cert: path.join(__dirname, '..', 'cert/key.crt')
+            })
+            log.info('Websockify initialized successfully')
+        } catch (e) {
+            log.warn('Websockify initialization failed:', e.message)
+        }
     }
 
 
@@ -313,43 +341,89 @@ return (async function () {
         })
     })
 
-    app.get('/api/deviceinfo', function (req, res) {
-        res.json({
-            cpu: cpuInfo ? JSON.parse(cpuInfo) : null,
-            memory: memoryInfo,
-            disk: diskInfo,
-            network: networkInfo,
-            display: displayInfo,
-            system: systemInfo
-        })
+    // Optimized device info endpoint with caching
+    app.get('/api/deviceinfo', async function (req, res) {
+        try {
+            const deviceInfo = await systemInfoManager.getMultipleSystemInfo([
+                'cpu', 'memory', 'disk', 'network', 'display', 'system'
+            ])
+            
+            res.json({
+                cpu: deviceInfo.cpu,
+                memory: deviceInfo.memory,
+                disk: deviceInfo.disk,
+                network: deviceInfo.network,
+                display: deviceInfo.display,
+                system: deviceInfo.system,
+                cached: true,
+                timestamp: Date.now()
+            })
+        } catch (error) {
+            log.error('Device info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get device info' })
+        }
     })
 
-    app.get('/api/system/memory', function (req, res) {
-        res.json(memoryInfo || {})
+    app.get('/api/system/memory', async function (req, res) {
+        try {
+            const memoryInfo = await systemInfoManager.getSystemInfo('memory')
+            res.json(memoryInfo || {})
+        } catch (error) {
+            log.error('Memory info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get memory info' })
+        }
     })
 
-    app.get('/api/system/disk', function (req, res) {
-        res.json(diskInfo || {})
+    app.get('/api/system/disk', async function (req, res) {
+        try {
+            const diskInfo = await systemInfoManager.getSystemInfo('disk')
+            res.json(diskInfo || {})
+        } catch (error) {
+            log.error('Disk info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get disk info' })
+        }
     })
 
-    app.get('/api/system/network', function (req, res) {
-        res.json(networkInfo || {})
+    app.get('/api/system/network', async function (req, res) {
+        try {
+            const networkInfo = await systemInfoManager.getSystemInfo('network')
+            res.json(networkInfo || {})
+        } catch (error) {
+            log.error('Network info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get network info' })
+        }
     })
 
-    app.get('/api/system/display', function (req, res) {
-        res.json(displayInfo || {})
+    app.get('/api/system/display', async function (req, res) {
+        try {
+            const displayInfo = await systemInfoManager.getSystemInfo('display')
+            res.json(displayInfo || {})
+        } catch (error) {
+            log.error('Display info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get display info' })
+        }
     })
 
-    app.get('/api/system/full-info', function (req, res) {
-        res.json({
-            cpu: cpuInfo ? JSON.parse(cpuInfo) : null,
-            memory: memoryInfo,
-            disk: diskInfo,
-            network: networkInfo,
-            display: displayInfo,
-            system: systemInfo,
-            timestamp: new Date().toISOString()
-        })
+    app.get('/api/system/full-info', async function (req, res) {
+        try {
+            const fullSystemInfo = await systemInfoManager.getMultipleSystemInfo([
+                'cpu', 'memory', 'disk', 'network', 'display', 'system'
+            ])
+            
+            res.json({
+                cpu: fullSystemInfo.cpu,
+                memory: fullSystemInfo.memory,
+                disk: fullSystemInfo.disk,
+                network: fullSystemInfo.network,
+                display: fullSystemInfo.display,
+                system: fullSystemInfo.system,
+                timestamp: new Date().toISOString(),
+                cached: true
+            })
+        } catch (error) {
+            log.error('Full system info API error:', error.message)
+            res.status(500).json({ error: 'Failed to get system info' })
+        }
     })
 
     // Screenshot endpoint
@@ -587,76 +661,55 @@ return (async function () {
         }
     })
 
-    // System monitoring endpoint
-    app.get('/api/system/monitor', function (req, res) {
-        si.currentLoad()
-            .then(load => {
-                si.mem()
-                    .then(mem => {
-                        si.fsSize()
-                            .then(disks => {
-                                si.networkStats()
-                                    .then(network => {
-                                        // Update data usage tracking
-                                        updateDataUsage(network)
-                                        
-                                        res.json({
-                                            cpu: {
-                                                load: load.currentLoad,
-                                                loadUser: load.currentLoadUser,
-                                                loadSystem: load.currentLoadSystem
-                                            },
-                                            memory: {
-                                                total: mem.total,
-                                                free: mem.free,
-                                                used: mem.used,
-                                                usage: ((mem.used / mem.total) * 100).toFixed(2)
-                                            },
-                                            disk: disks.map(disk => ({
-                                                filesystem: disk.fs,
-                                                size: disk.size,
-                                                used: disk.used,
-                                                available: disk.available,
-                                                usage: disk.use
-                                            })),
-                                            network: network.map(net => ({
-                                                interface: net.iface,
-                                                rx_bytes: net.rx_bytes,
-                                                tx_bytes: net.tx_bytes,
-                                                rx_sec: net.rx_sec,
-                                                tx_sec: net.tx_sec
-                                            })),
-                                            dataUsage: {
-                                                daily: {
-                                                    download: dataUsageInfo.daily.download,
-                                                    upload: dataUsageInfo.daily.upload,
-                                                    total: dataUsageInfo.daily.download + dataUsageInfo.daily.upload,
-                                                    date: dataUsageInfo.daily.date
-                                                },
-                                                monthly: {
-                                                    download: dataUsageInfo.monthly.download,
-                                                    upload: dataUsageInfo.monthly.upload,
-                                                    total: dataUsageInfo.monthly.download + dataUsageInfo.monthly.upload,
-                                                    month: dataUsageInfo.monthly.month,
-                                                    year: dataUsageInfo.monthly.year
-                                                },
-                                                total: {
-                                                    download: dataUsageInfo.total.download,
-                                                    upload: dataUsageInfo.total.upload,
-                                                    total: dataUsageInfo.total.download + dataUsageInfo.total.upload,
-                                                    lastReset: dataUsageInfo.lastReset
-                                                }
-                                            },
-                                            timestamp: new Date().toISOString()
-                                        })
-                                    })
-                                    .catch(err => res.status(500).json({ error: 'Network stats error: ' + err }))
-                            })
-                            .catch(err => res.status(500).json({ error: 'Disk stats error: ' + err }))
-                    })
-                    .catch(err => res.status(500).json({ error: 'Memory stats error: ' + err }))
-            })
-            .catch(err => res.status(500).json({ error: 'CPU stats error: ' + err }))
+    // Optimized system monitoring endpoint with caching
+    app.get('/api/system/monitor', async function (req, res) {
+        try {
+            // Get system info with caching
+            const systemData = await systemInfoManager.getMultipleSystemInfo([
+                'currentLoad', 'memory', 'disk', 'networkStats'
+            ])
+            
+            // Update data usage tracking if network stats available
+            if (systemData.networkStats) {
+                updateDataUsage(systemData.networkStats)
+            }
+            
+            const response = {
+                cpu: systemData.currentLoad ? {
+                    load: systemData.currentLoad.currentLoad,
+                    loadUser: systemData.currentLoad.currentLoadUser,
+                    loadSystem: systemData.currentLoad.currentLoadSystem
+                } : null,
+                memory: systemData.memory ? {
+                    total: systemData.memory.total,
+                    free: systemData.memory.free,
+                    used: systemData.memory.used,
+                    usage: ((systemData.memory.used / systemData.memory.total) * 100).toFixed(2)
+                } : null,
+                disk: systemData.disk ? systemData.disk.map(disk => ({
+                    filesystem: disk.fs,
+                    size: disk.size,
+                    used: disk.used,
+                    available: disk.available,
+                    usage: disk.use
+                })) : [],
+                network: systemData.networkStats ? systemData.networkStats.map(net => ({
+                    interface: net.iface,
+                    rx_bytes: net.rx_bytes,
+                    tx_bytes: net.tx_bytes,
+                    rx_sec: net.rx_sec,
+                    tx_sec: net.tx_sec
+                })) : [],
+                timestamp: Date.now(),
+                cached: true
+            }
+            
+            res.json(response)
+            
+        } catch (error) {
+            log.error('System monitor API error:', error.message)
+            res.status(500).json({ error: 'System monitoring error: ' + error.message })
+        }
     })
 
     // Data usage management endpoint
@@ -1437,9 +1490,18 @@ return (async function () {
         })
     })
 
-    server.listen(port, () => {
-        log.info(`Express server listening on port ${port}`)
-        log.info(`Express server listening on port ${port}`)
+    server.listen(port, '0.0.0.0', () => {
+        log.info(`Express HTTPS server listening on all interfaces (0.0.0.0) port ${port}`)
+        log.info(`Access the control panel at: https://localhost:${port} or https://{your-ip}:${port}`)
+    })
+
+    server.on('error', (error) => {
+        log.error('Server error:', error)
+        if (error.code === 'EADDRINUSE') {
+            log.error(`Port ${port} is already in use. Please close other applications using this port.`)
+        } else if (error.code === 'EACCES') {
+            log.error(`Permission denied to bind to port ${port}. Try running as administrator or use a port > 1024.`)
+        }
     })
 
     // Data usage tracking functions
@@ -1532,149 +1594,100 @@ return (async function () {
         log.info(`Data usage ${type} has been reset`)
     }
 
-    // Initial system information gathering
+    // Optimized system information gathering using SystemInfoManager
     async function gatherSystemInfo() {
         try {
-            // CPU Information
-            const cpu = await si.cpu()
-            cpuInfo = JSON.stringify(cpu)
+            // Get all system info using the optimized manager
+            const systemData = await systemInfoManager.getMultipleSystemInfo([
+                'cpu', 'memory', 'disk', 'network', 'display', 'system'
+            ])
 
-            // Memory Information
-            const memory = await si.mem()
-            memoryInfo = {
-                total: memory.total,
-                free: memory.free,
-                used: memory.used,
-                active: memory.active,
-                available: memory.available,
-                swaptotal: memory.swaptotal,
-                swapused: memory.swapused,
-                swapfree: memory.swapfree
-            }
-
-            // Disk Information
-            const disks = await si.fsSize()
-            diskInfo = disks.map(disk => ({
-                filesystem: disk.fs,
-                type: disk.type,
-                size: disk.size,
-                used: disk.used,
-                available: disk.available,
-                usage: disk.use,
-                mount: disk.mount
-            }))
-
-            // Network Information
-            const networkInterfaces = await si.networkInterfaces()
-            networkInfo = networkInterfaces.map(net => ({
-                iface: net.iface,
-                ifaceName: net.ifaceName,
-                ip4: net.ip4,
-                ip6: net.ip6,
-                mac: net.mac,
-                internal: net.internal,
-                virtual: net.virtual,
-                operstate: net.operstate,
-                type: net.type,
-                duplex: net.duplex,
-                mtu: net.mtu,
-                speed: net.speed
-            }))
-
-            // Display Information
-            const graphics = await si.graphics()
-            displayInfo = {
-                controllers: graphics.controllers.map(ctrl => ({
-                    vendor: ctrl.vendor,
-                    model: ctrl.model,
-                    bus: ctrl.bus,
-                    vram: ctrl.vram,
-                    vramDynamic: ctrl.vramDynamic
-                })),
-                displays: graphics.displays.map(display => ({
-                    vendor: display.vendor,
-                    model: display.model,
-                    main: display.main,
-                    builtin: display.builtin,
-                    connection: display.connection,
-                    sizex: display.sizex,
-                    sizey: display.sizey,
-                    pixeldepth: display.pixeldepth,
-                    resolutionx: display.resolutionx,
-                    resolutiony: display.resolutiony,
-                    currentResX: display.currentResX,
-                    currentResY: display.currentResY,
-                    positionX: display.positionX,
-                    positionY: display.positionY
-                }))
-            }
-
-            // System Information
-            const system = await si.system()
-            const osInfo = await si.osInfo()
-            systemInfo = {
-                manufacturer: system.manufacturer,
-                model: system.model,
-                version: system.version,
-                serial: system.serial,
-                uuid: system.uuid,
-                sku: system.sku,
-                os: {
-                    platform: osInfo.platform,
-                    distro: osInfo.distro,
-                    release: osInfo.release,
-                    codename: osInfo.codename,
-                    kernel: osInfo.kernel,
-                    arch: osInfo.arch,
-                    hostname: osInfo.hostname,
-                    fqdn: osInfo.fqdn,
-                    codepage: osInfo.codepage,
-                    logofile: osInfo.logofile,
-                    serial: osInfo.serial,
-                    build: osInfo.build,
-                    servicepack: osInfo.servicepack,
-                    uefi: osInfo.uefi
-                }
-            }
+            log.info('System information updated successfully')
 
         } catch (error) {
-            log.warn('System info gathering error: ' + error)
+            log.warn('System info gathering error: ' + error.message)
         }
     }
 
-    // Initial gather
-    gatherSystemInfo()
-    
-    // Initialize data usage tracking
-    async function initializeDataUsageTracking() {
+    // Initialize optimized system monitoring
+    const initializeOptimizedMonitoring = async () => {
         try {
-            const networkStats = await si.networkStats()
-            updateDataUsage(networkStats)
+            // Initialize websockify
+            await initializeWebsockify()
+            
+            // Start auto-update for essential system info only
+            systemInfoManager.startAutoUpdate([
+                'memory',    // Update memory info every 2 minutes
+                'currentLoad' // Update CPU load every 2 minutes
+            ], 120000) // 2 minutes
+            
+            // Start less frequent updates for disk and network
+            systemInfoManager.startAutoUpdate([
+                'disk',
+                'networkStats'
+            ], 300000) // 5 minutes
+            
+            log.info('Optimized system monitoring initialized')
+        } catch (error) {
+            log.error('System monitoring initialization error:', error.message)
+        }
+    }
+    
+    // Initialize data usage tracking with reduced frequency
+    const initializeDataUsageTracking = async () => {
+        try {
+            const networkStats = await systemInfoManager.getSystemInfo('networkStats')
+            if (networkStats) {
+                updateDataUsage(networkStats)
+            }
             log.info('Data usage tracking initialized')
         } catch (error) {
-            log.warn('Data usage tracking initialization error: ' + error)
+            log.warn('Data usage tracking initialization error:', error.message)
         }
     }
     
-    // Initialize data usage tracking after a short delay
+    // Initialize with delays to reduce startup load
+    setTimeout(initializeOptimizedMonitoring, 2000)
     setTimeout(initializeDataUsageTracking, 5000)
-
-    // Update system information periodically
-    setInterval(function () {
-        gatherSystemInfo()
-    }, 30000) // Update every 30 seconds
     
-    // Update data usage tracking more frequently
-    setInterval(async function () {
+    // Optimized data usage tracking - reduced frequency from 10s to 60s
+    const dataUsageInterval = setInterval(async () => {
         try {
-            const networkStats = await si.networkStats()
-            updateDataUsage(networkStats)
+            const networkStats = await systemInfoManager.getSystemInfo('networkStats')
+            if (networkStats) {
+                updateDataUsage(networkStats)
+            }
         } catch (error) {
-            debug('Data usage tracking update error: ' + error)
+            debug('Data usage tracking update error:', error.message)
         }
-    }, 10000) // Update every 10 seconds
+    }, 60000) // Update every 1 minute instead of 10 seconds
+    
+    // Cleanup function for proper resource management
+    const cleanup = () => {
+        log.info('Cleaning up cpanel resources...')
+        
+        // Stop system info manager
+        if (systemInfoManager) {
+            systemInfoManager.cleanup()
+        }
+        
+        // Clear intervals
+        clearInterval(dataUsageInterval)
+        
+        // Clear lazy loader
+        if (lazyLoader) {
+            lazyLoader.clearAll()
+        }
+        
+        log.info('Cpanel cleanup completed')
+    }
+    
+    // Setup cleanup handlers
+    process.on('exit', cleanup)
+    process.on('SIGINT', cleanup)
+    process.on('SIGTERM', cleanup)
 
     return server
 
-}())
+}());
 }
