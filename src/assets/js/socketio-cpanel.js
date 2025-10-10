@@ -1597,9 +1597,14 @@ function updateTextSlotContent(id, slottype, text, layoutIdToSave) {
 
         console.log('=== RENDERER PROCESS: Text content update completed successfully');
 
-        if (isLoopLyt && typeof resetLoopTimeoutState === 'function') {
-            console.log('=== RENDERER PROCESS: Emergency cleanup - resetting loop timeout state ===');
-            resetLoopTimeoutState();
+        if (loopTimeout) {
+            console.log('=== RENDERER PROCESS: Clearing existing loopTimeout to prevent conflicts ===');
+            clearTimeout(loopTimeout);
+            loopTimeout = null;
+        }
+        if (textTimeout[id]) { //clear textTimeout to reset
+            console.log('=== RENDERER PROCESS: Clearing existing textTimeout for slotid:', id);
+            clearTimeout(textTimeout[id])
         }
     } catch (error) {
         console.error('=== RENDERER PROCESS: Error during text content update:', error);
@@ -1888,9 +1893,14 @@ socket.on('replacemediaslot', function (msg) {
 
             console.log('=== RENDERER PROCESS: Media content update completed successfully');
 
-            if (isLoopLyt && typeof resetLoopTimeoutState === 'function') {
-                console.log('=== RENDERER PROCESS: Emergency cleanup - resetting loop timeout state ===');
-                resetLoopTimeoutState();
+            if (loopTimeout) {
+                console.log('=== RENDERER PROCESS: Clearing existing loopTimeout to prevent conflicts ===');
+                clearTimeout(loopTimeout);
+                loopTimeout = null;
+            }
+            if (mediaTimeout[id]) { //clear mediaTimeout to reset
+                console.log('=== RENDERER PROCESS: Clearing existing mediaTimeout for slotid:', id);
+                clearTimeout(mediaTimeout[id])
             }
         } catch (error) {
             console.error('=== RENDERER PROCESS: Error during media content update:', error);
