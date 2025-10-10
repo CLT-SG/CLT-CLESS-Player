@@ -9,28 +9,172 @@ const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind
 console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
 socket.emit('save id', 'Controlpanel:')
 
-// Enhanced error handling for API calls
-function handleAPIError(endpoint, error) {
-    console.warn(`API call to ${endpoint} failed:`, error)
+// Socket connection event handlers for restart recovery
+socket.on('connect', function() {
+    console.log('=== CONTROL PANEL: Connected to socket server ===')
     
-    // Provide fallback/mock data for development
-    const mockResponses = {
-        '/api/layoutdata': { current: 'default-layout', name: 'Default Layout' },
-        '/api/textdata': [
-            { id: 1, name: 'Title', content: 'eCLESS Player' },
-            { id: 2, name: 'Status', content: 'System Ready' }
-        ],
-        '/api/mediadata': [
-            { id: 1, name: 'Background', file: 'bg.mp4' },
-            { id: 2, name: 'Logo', file: 'logo.png' }
-        ]
+    // Update connection status indicator
+    updateConnectionStatus(true)
+    
+    // Check if we're recovering from a restart
+    const restartButtonState = localStorage.getItem('ecless-restart-button-state')
+    if (restartButtonState === 'restarting') {
+        console.log('=== CONTROL PANEL: Detected reconnection after restart ===')
+        
+        // Clear restart state
+        localStorage.removeItem('ecless-restart-initiated')
+        localStorage.removeItem('ecless-restart-button-state')
+        
+        // Restore button state and show success message
+        setTimeout(() => {
+            const restartBtn = $('#restartapp')
+            if (restartBtn.length) {
+                restartBtn.removeClass('loading').prop('disabled', false)
+                restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                console.log('=== CONTROL PANEL: Restart button state restored after reconnection ===')
+            }
+            
+            if (window.showToast) {
+                showToast('Application restarted successfully! Connection restored.', 'success')
+            }
+        }, 1000)
+    }
+})
+
+socket.on('disconnect', function() {
+    console.log('=== CONTROL PANEL: Disconnected from socket server ===')
+    
+    // Update connection status indicator
+    updateConnectionStatus(false)
+    
+    // If we're in the middle of a restart, show appropriate message
+    const restartButtonState = localStorage.getItem('ecless-restart-button-state')
+    if (restartButtonState === 'restarting') {
+        console.log('=== CONTROL PANEL: Disconnect detected during restart - this is expected ===')
+        if (window.showToast) {
+            showToast('Connection lost - Application is restarting...', 'info')
+        }
+    } else {
+        // Unexpected disconnection
+        if (window.showToast) {
+            showToast('Connection lost - Attempting to reconnect...', 'warning')
+        }
+    }
+})
+
+// Function to update connection status indicator
+function updateConnectionStatus(connected) {
+    // Find or create connection status indicator
+    let statusIndicator = $('#connection-status')
+    if (statusIndicator.length === 0) {
+        // Create status indicator if it doesn't exist
+        statusIndicator = $(`
+            <div id="connection-status" style="
+                position: fixed; top: 10px; left: 10px; z-index: 9999;
+                padding: 5px 10px; border-radius: 4px; font-size: 12px;
+                background: rgba(0,0,0,0.8); color: white;
+                display: flex; align-items: center; gap: 5px;">
+                <span class="status-dot" style="
+                    width: 8px; height: 8px; border-radius: 50%;
+                    background: #dc3545;"></span>
+                <span class="status-text">Disconnected</span>
+            </div>
+        `)
+        $('body').append(statusIndicator)
     }
     
-    return mockResponses[endpoint] || {}
+    const statusDot = statusIndicator.find('.status-dot')
+    const statusText = statusIndicator.find('.status-text')
+    
+    if (connected) {
+        statusDot.css('background', '#28a745') // Green
+        statusText.text('Connected')
+        
+        // Auto-hide after 3 seconds when connected
+        setTimeout(() => {
+            statusIndicator.fadeOut()
+        }, 3000)
+    } else {
+        statusDot.css('background', '#dc3545') // Red
+        statusText.text('Disconnected')
+        statusIndicator.show()
+    }
+}
+
+// Enhanced error handling for API calls
+function handleAPIError(endpoint, error) {
+    console.error(`API Error at ${endpoint}:`, error)
+    
+    // Show user-friendly error message
+    if (window.showToast) {
+        showToast(`Failed to load ${endpoint.replace('/api/', '')} data`, 'error')
+    }
+    
+    // Log detailed error for debugging
+    if (error.status === 0) {
+        console.error('Network connection failed - server may be down')
+    } else if (error.status === 404) {
+        console.error('API endpoint not found:', endpoint)
+    } else if (error.status >= 500) {
+        console.error('Server error:', error.status, error.statusText)
+    }
+}
+
+// Function to check for restart state and recover UI
+function checkAndRecoverFromRestart() {
+    const restartInitiated = localStorage.getItem('ecless-restart-initiated')
+    const restartButtonState = localStorage.getItem('ecless-restart-button-state')
+    
+    if (restartInitiated && restartButtonState === 'restarting') {
+        const restartTime = parseInt(restartInitiated)
+        const currentTime = Date.now()
+        const timeDiff = currentTime - restartTime
+        
+        // If restart was initiated within the last 2 minutes, assume successful restart
+        if (timeDiff < 120000) { // 2 minutes
+            console.log('=== RESTART RECOVERY: Detected successful restart ===')
+            
+            // Clear restart state
+            localStorage.removeItem('ecless-restart-initiated')
+            localStorage.removeItem('ecless-restart-button-state')
+            
+            // Show success message
+            setTimeout(() => {
+                if (window.showToast) {
+                    showToast('Application restarted successfully!', 'success')
+                } else {
+                    // Fallback for early execution
+                    setTimeout(() => {
+                        if (window.showToast) {
+                            showToast('Application restarted successfully!', 'success')
+                        }
+                    }, 2000)
+                }
+            }, 1000)
+            
+            // Ensure restart button is in normal state
+            setTimeout(() => {
+                const restartBtn = $('#restartapp')
+                if (restartBtn.length) {
+                    restartBtn.removeClass('loading').prop('disabled', false)
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    console.log('=== RESTART RECOVERY: Button state restored ===')
+                }
+            }, 500)
+        } else {
+            // Too much time has passed, assume restart failed
+            console.warn('=== RESTART RECOVERY: Restart timeout detected, clearing state ===')
+            localStorage.removeItem('ecless-restart-initiated')
+            localStorage.removeItem('ecless-restart-button-state')
+        }
+    }
 }
 
 $(document).ready(function () {
     $('#remote-display').attr('src', window.location.origin + '/remote?hostname=' + window.location.hostname)
+    
+    // Check for restart recovery first
+    checkAndRecoverFromRestart()
     
     // Enhanced API calls with error handling
     getAPILayout()
@@ -841,21 +985,115 @@ function reboot() {
 }
 
 function refresh() {
+    const refreshBtn = $('#refresh')
+    
+    // Add loading state
+    refreshBtn.addClass('loading').prop('disabled', true)
+    const originalText = refreshBtn.html()
+    refreshBtn.html('<i class="bi bi-arrow-clockwise"></i> Refreshing...')
+    
     $.ajax({
         type: 'get',
         url: '/api/refresh',
+        timeout: 15000, // 15 second timeout for refresh operations
         success: function (data) {
-            showAlert('success', 'Display refreshed')
+            showAlert('success', 'Display refreshed successfully')
+            debug('Display refresh completed:', data)
+            
+            // Add a delay to show completion before re-enabling button
+            setTimeout(() => {
+                // Restore button state after delay
+                refreshBtn.removeClass('loading').prop('disabled', false)
+                refreshBtn.html(originalText)
+            }, 2000) // 2 second delay as requested
+        },
+        error: function (xhr, status, error) {
+            console.error('Display refresh failed:', {xhr, status, error})
+            
+            let errorMessage = 'Failed to refresh display'
+            if (status === 'timeout') {
+                errorMessage = 'Display refresh timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = `Failed to refresh display: ${xhr.responseJSON.message}`
+            } else if (xhr.responseText) {
+                errorMessage = `Failed to refresh display: ${xhr.responseText}`
+            } else if (error) {
+                errorMessage = `Failed to refresh display: ${error}`
+            }
+            
+            showAlert('danger', errorMessage)
+            
+            // Restore button state immediately on error
+            refreshBtn.removeClass('loading').prop('disabled', false)
+            refreshBtn.html(originalText)
         }
     })
 }
 
 function restartapp() {
+    const restartBtn = $('#restartapp')
+    
+    // Add confirmation dialog
+    if (!confirm('Are you sure you want to restart the application? This will close the current session.')) {
+        return
+    }
+    
+    // Store restart state in localStorage for post-restart recovery
+    localStorage.setItem('ecless-restart-initiated', Date.now().toString())
+    localStorage.setItem('ecless-restart-button-state', 'restarting')
+    
+    // Add loading state
+    restartBtn.addClass('loading').prop('disabled', true)
+    const originalText = restartBtn.html()
+    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restarting...')
+    
+    // Show immediate feedback
+    showAlert('info', 'Restart initiated - Application will restart in 3 seconds...')
+    
     $.ajax({
         type: 'get',
         url: '/api/restartapp',
+        timeout: 15000, // 15 second timeout
         success: function (data) {
-            showAlert('success', 'Application restarted')
+            debug('Application restart request sent:', data)
+            
+            // Show countdown feedback
+            let countdown = 3
+            const countdownInterval = setInterval(() => {
+                if (countdown > 0) {
+                    restartBtn.html(`<i class="bi bi-bootstrap-reboot"></i> Restarting in ${countdown}s...`)
+                    showAlert('info', `Application restarting in ${countdown} seconds...`)
+                    countdown--
+                } else {
+                    clearInterval(countdownInterval)
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restarting now...')
+                    showAlert('warning', 'Application is restarting now. Please wait for reconnection...')
+                }
+            }, 1000)
+        },
+        error: function (xhr, status, error) {
+            console.error('Application restart failed:', {xhr, status, error})
+            
+            // Clear restart state on error
+            localStorage.removeItem('ecless-restart-initiated')
+            localStorage.removeItem('ecless-restart-button-state')
+            
+            let errorMessage = 'Failed to restart application'
+            if (status === 'timeout') {
+                errorMessage = 'Application restart timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = `Failed to restart application: ${xhr.responseJSON.message}`
+            } else if (xhr.responseText) {
+                errorMessage = `Failed to restart application: ${xhr.responseText}`
+            } else if (error) {
+                errorMessage = `Failed to restart application: ${error}`
+            }
+            
+            showAlert('danger', errorMessage)
+            
+            // Restore button state on error
+            restartBtn.removeClass('loading').prop('disabled', false)
+            restartBtn.html(originalText)
         }
     })
 }

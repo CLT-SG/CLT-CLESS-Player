@@ -1227,12 +1227,11 @@ try {
             win = new BrowserWindow({
                 x: 0,
                 y: -10000,
-                y: 0,
-                width: 900,
-                height: 900,
+                width: 0,
+                height: 0,
                 backgroundColor: '#000000',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -1327,12 +1326,12 @@ try {
             })
 
             //hide menu bar
-            //win.setSkipTaskbar(true)
-            //win.setAlwaysOnTop(true)
+            win.setSkipTaskbar(true)
+            win.setAlwaysOnTop(true)
             //win2.setSkipTaskbar(true)
             //win2.setAlwaysOnTop(true)
-            //win.setMenuBarVisibility(false)
-            //win2.setMenuBarVisibility(false)
+            win.setMenuBarVisibility(false)
+            win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -1350,6 +1349,7 @@ try {
                 app.exit()
                 app.relaunch()
             })
+            
             //CLEAR CACHE AND COOKIE EVERY STARTUP
             var ses = win.webContents.session
             //ses.clearStorageData()
@@ -1433,17 +1433,22 @@ try {
             })
 
             //reload app
-            ipcMain.once('app-reload', (event, logs) => {
-                log.info('CLESS Player relaunch via API Panel.')
+            ipcMain.on('app-reload', (event, logs) => {
+                safeLog.info('CLESS Player restart requested via API Panel.')
                 app.exit()
                 app.relaunch()
             })
 
             //refresh app
             //reload app
-            ipcMain.once('app-refresh', (event, logs) => {
-                log.info('CLESS Player reset.')
-                if (win) win.reload()
+            ipcMain.on('app-refresh', (event, logs) => {
+                safeLog.info('CLESS Player refresh requested.')
+                if (win) {
+                    win.reload()
+                    safeLog.info('CLESS Player window reloaded successfully.')
+                } else {
+                    safeLog.warn('CLESS Player window not available for refresh.')
+                }
             })
 
             //reload main

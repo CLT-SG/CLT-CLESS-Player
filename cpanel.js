@@ -171,9 +171,58 @@ return (async function () {
     })
 
     app.get('/api/refresh', function (req, res) {
-        var electronID = io.sockets.sockets.get(userID['eCLESS'])
-        electronID.emit("refresh-ecless", 'refresh')
-        res.end('refreshed')
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            
+            log.info('API: Refresh requested')
+            electronID.emit("refresh-ecless", 'refresh')
+            
+            res.json({
+                status: 'success',
+                message: 'Refresh request sent to renderer process'
+            })
+        } catch (error) {
+            log.error('API: Refresh error:', error)
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error: ' + error.message
+            })
+        }
+    })
+
+    app.get('/api/refresh-layout', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            
+            log.info('API: Refresh layout requested')
+            electronID.emit("resume-layout", {
+                "action": "refresh-layout",
+                "timestamp": new Date().toISOString()
+            })
+            
+            res.json({
+                status: 'success',
+                message: 'Layout refresh request sent to renderer process'
+            })
+        } catch (error) {
+            log.error('API: Refresh layout error:', error)
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error: ' + error.message
+            })
+        }
     })
 
     app.get('/api/resume-layout', function (req, res) {
@@ -207,9 +256,36 @@ return (async function () {
     })
 
     app.get('/api/restartapp', function (req, res) {
-        var electronID = io.sockets.sockets.get(userID['eCLESS'])
-        electronID.emit("restart-ecless", 'restart app')
-        res.end('restarted')
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(404).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            
+            log.info('API: Application restart requested')
+            
+            // Send immediate response to client
+            res.json({
+                status: 'success',
+                message: 'Restart request received, application will restart in 3 seconds'
+            })
+            
+            // Add delay before actually restarting to allow UI feedback
+            setTimeout(() => {
+                log.info('API: Initiating application restart now')
+                electronID.emit("restart-ecless", 'restart app')
+            }, 3000) // 3 second delay
+            
+        } catch (error) {
+            log.error('API: Restart app error:', error)
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error: ' + error.message
+            })
+        }
     })
 
     app.get('/api/reboot', function (req, res) {
