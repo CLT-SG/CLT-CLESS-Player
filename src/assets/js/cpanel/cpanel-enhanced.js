@@ -203,6 +203,9 @@ $(document).ready(function () {
     setInterval(function () {
         refreshSystemStats()
     }, 10000)
+    
+    // Set up real-time layout details monitoring
+    setupLayoutDetailsMonitoring()
 })
 
 // Initialize modern dashboard features
@@ -246,6 +249,224 @@ function initModernFeatures() {
     
     // Set up event handlers for new features
     setupEventHandlers()
+}
+
+// Real-time layout details monitoring system
+var layoutDetailsInterval = null
+var lastLayoutTimestamp = null
+var layoutUpdateInProgress = false
+
+function setupLayoutDetailsMonitoring() {
+    debug('Setting up real-time layout details monitoring')
+    
+    // Initial load
+    refreshLayoutDetails()
+    
+    // Set up periodic refresh (every 15 seconds)
+    layoutDetailsInterval = setInterval(refreshLayoutDetails, 15000)
+    
+    // Listen for layout change events from socket if available
+    if (typeof socket !== 'undefined' && socket) {
+        socket.on('layout-changed', function(data) {
+            debug('Layout change detected via socket:', data)
+            setTimeout(refreshLayoutDetails, 500) // Small delay to allow data to settle
+        })
+        
+        socket.on('updatelayout', function(data) {
+            debug('Layout update detected via socket:', data)
+            setTimeout(refreshLayoutDetails, 1000)
+        })
+        
+        socket.on('replacetextslot', function(data) {
+            debug('Text slot update detected via socket:', data)
+            setTimeout(refreshLayoutDetails, 500)
+        })
+        
+        socket.on('replacemediaslot', function(data) {
+            debug('Media slot update detected via socket:', data)
+            setTimeout(refreshLayoutDetails, 500)
+        })
+    }
+}
+
+function refreshLayoutDetails() {
+    if (layoutUpdateInProgress) {
+        debug('Layout update already in progress, skipping')
+        return
+    }
+    
+    layoutUpdateInProgress = true
+    debug('Refreshing layout details...')
+    
+    $.get(window.location.origin + '/api/layout-details')
+        .done(function (response) {
+            try {
+                if (response.success && response.data) {
+                    // Validate response data structure
+                    if (!validateLayoutResponseData(response.data)) {
+                        console.error('Invalid layout response data structure:', response.data)
+                        displayLayoutInfoError('Invalid layout data structure received')
+                        return
+                    }
+
+                    // Check if data has actually changed
+                    if (hasLayoutDataChanged(response.data)) {
+                        debug('Layout data changed, updating display')
+                        displayDetailedLayoutInfo(response.data)
+                        lastLayoutTimestamp = response.data.timestamp
+                        
+                        // Show update indicator
+                        showLayoutUpdateIndicator()
+                    } else {
+                        debug('Layout data unchanged, skipping update')
+                    }
+                } else {
+                    console.warn('Layout details refresh failed:', response.error)
+                    displayLayoutInfoError(response.error || 'Unknown error occurred')
+                }
+            } catch (processingError) {
+                console.error('Error processing layout response:', processingError)
+                displayLayoutInfoError('Error processing layout data: ' + processingError.message)
+            }
+        })
+        .fail(function (xhr, status, error) {
+            console.warn('Failed to refresh layout details:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText
+            })
+            
+            // Provide specific error messages based on status
+            var errorMessage = 'Failed to refresh layout details'
+            if (xhr.status === 503) {
+                errorMessage = 'eCLESS renderer process not connected'
+            } else if (xhr.status === 504) {
+                errorMessage = 'Timeout waiting for layout details'
+            } else if (xhr.status === 0) {
+                errorMessage = 'Network connection error'
+            } else if (xhr.status >= 500) {
+                errorMessage = 'Server error occurred'
+            } else if (xhr.status >= 400) {
+                errorMessage = 'Client request error'
+            }
+            
+            displayLayoutInfoError(errorMessage)
+        })
+        .always(function() {
+            layoutUpdateInProgress = false
+        })
+}
+
+// Function to validate layout response data structure
+function validateLayoutResponseData(data) {
+    try {
+        // Check required properties
+        if (typeof data !== 'object' || data === null) {
+            console.error('Layout data validation failed: not an object')
+            return false
+        }
+
+        // Check for required properties
+        const requiredProps = ['layouts', 'isLoop', 'timestamp']
+        for (const prop of requiredProps) {
+            if (!(prop in data)) {
+                console.error('Layout data validation failed: missing property', prop)
+                return false
+            }
+        }
+
+        // Validate layouts array
+        if (!Array.isArray(data.layouts)) {
+            console.error('Layout data validation failed: layouts is not an array')
+            return false
+        }
+
+        // Validate individual layouts
+        for (let i = 0; i < data.layouts.length; i++) {
+            const layout = data.layouts[i]
+            if (typeof layout !== 'object' || layout === null) {
+                console.error('Layout data validation failed: layout', i, 'is not an object')
+                return false
+            }
+
+            if (!layout.id || typeof layout.id !== 'string') {
+                console.error('Layout data validation failed: layout', i, 'missing or invalid id')
+                return false
+            }
+
+            if (!layout.name || typeof layout.name !== 'string') {
+                console.error('Layout data validation failed: layout', i, 'missing or invalid name')
+                return false
+            }
+        }
+
+        return true
+
+    } catch (error) {
+        console.error('Error during layout data validation:', error)
+        return false
+    }
+}
+
+function hasLayoutDataChanged(newData) {
+    if (!lastLayoutTimestamp || !newData.timestamp) {
+        return true // First load or no timestamp available
+    }
+    
+    return newData.timestamp !== lastLayoutTimestamp
+}
+
+function showLayoutUpdateIndicator() {
+    const indicator = $(`
+        <div class="layout-update-indicator" style="
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            box-shadow: var(--shadow-md);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+        ">
+            <i class="bi bi-arrow-clockwise"></i>
+            Layout Updated
+        </div>
+    `)
+    
+    $('body').append(indicator)
+    
+    setTimeout(() => {
+        indicator.css({ opacity: 1, transform: 'translateX(0)' })
+    }, 100)
+    
+    setTimeout(() => {
+        indicator.css({ opacity: 0, transform: 'translateX(100%)' })
+        setTimeout(() => indicator.remove(), 300)
+    }, 2000)
+}
+
+// Cleanup function for layout monitoring
+function stopLayoutDetailsMonitoring() {
+    if (layoutDetailsInterval) {
+        clearInterval(layoutDetailsInterval)
+        layoutDetailsInterval = null
+        debug('Layout details monitoring stopped')
+    }
+}
+
+// Restart monitoring with different interval
+function setLayoutMonitoringInterval(seconds) {
+    stopLayoutDetailsMonitoring()
+    if (seconds > 0) {
+        layoutDetailsInterval = setInterval(refreshLayoutDetails, seconds * 1000)
+        debug('Layout monitoring restarted with', seconds, 'second interval')
+    }
 }
 
 function setupEventHandlers() {
@@ -1190,26 +1411,15 @@ function getAPILayout() {
 
 // Enhanced function to get detailed layout information
 function getDetailedLayoutInfo() {
-    const $element = $('#apiLayout')
-    
-    $.get(window.location.origin + '/api/layout-details')
-        .done(function (response) {
-            if (response.success && response.data) {
-                displayDetailedLayoutInfo(response.data)
-            } else {
-                console.warn('Layout details request failed:', response.error)
-                displayLayoutInfoError(response.error || 'Unknown error')
-            }
-        })
-        .fail(function (error) {
-            console.warn('Failed to load detailed layout information:', error)
-            displayLayoutInfoError('Connection error - Unable to retrieve layout details')
-        })
+    // Trigger immediate refresh
+    refreshLayoutDetails()
 }
 
-// Function to display comprehensive layout information
+// Function to display comprehensive layout information with enhanced loop support
 function displayDetailedLayoutInfo(layoutData) {
     const $element = $('#apiLayout')
+    
+    debug('Displaying enhanced layout information:', layoutData)
     
     // Build the comprehensive layout information display
     let html = `
@@ -1222,125 +1432,544 @@ function displayDetailedLayoutInfo(layoutData) {
                 <div class="layout-mode-badge ${layoutData.isLoop ? 'loop-mode' : 'single-mode'}">
                     <i class="bi ${layoutData.isLoop ? 'bi-arrow-repeat' : 'bi-file-earmark'}"></i>
                     ${layoutData.isLoop ? 'Loop Mode' : 'Single Mode'}
+                    ${layoutData.layoutCount ? ` (${layoutData.layoutCount} layouts)` : ''}
                 </div>
             </div>
     `
     
-    // Currently Active Layout section has been removed as per user request
-    
-    // Available Layouts - Simple text container with layout name and ID only
-    if (layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
+    // Current Layout Information (if available)
+    if (layoutData.currentLayout) {
         html += `
-            <div class="available-layouts-simple">
+            <div class="current-layout-info">
                 <h4 class="layout-section-title">
-                    <i class="bi bi-collection"></i>
-                    Available Layouts (${layoutData.layouts.length})
+                    <i class="bi bi-play-circle"></i>
+                    Currently Active Layout
                 </h4>
-                <div class="layouts-simple-list">
-        `
-        
-        layoutData.layouts.forEach(layout => {
-            html += `
-                    <div class="layout-simple-item">
-                        <strong>Layout ID:</strong> ${layout.id} | <strong>Name:</strong> ${layout.name || 'Layout ' + layout.id}
-                        
-                        <div class="layout-slots-all">
-                            <strong>All Slots:</strong>
-                            <ul class="slots-all-list">
-            `
-            
-            // Show all slots if available
-            if (layout.allSlots && layout.allSlots.length > 0) {
-                layout.allSlots.forEach(slot => {
-                    html += `
-                                <li><strong>${slot.name}</strong> (ID: ${slot.id}) - Type: ${slot.type}</li>
-                    `
-                })
-            } else {
-                // Fallback to separate text and media slots if allSlots not available
-                if (layout.textSlots && layout.textSlots.length > 0) {
-                    layout.textSlots.forEach(slot => {
-                        html += `
-                                <li><strong>${slot.slotname || slot.name}</strong> (ID: ${slot.slotid || slot.id}) - Type: text</li>
-                        `
-                    })
-                }
-                if (layout.mediaSlots && layout.mediaSlots.length > 0) {
-                    layout.mediaSlots.forEach(slot => {
-                        html += `
-                                <li><strong>${slot.slotname || slot.name}</strong> (ID: ${slot.slotid || slot.id}) - Type: media</li>
-                        `
-                    })
-                }
-            }
-            
-            html += `
-                            </ul>
-                        </div>
+                <div class="current-layout-details">
+                    <div class="layout-basic-info">
+                        <strong>ID:</strong> ${layoutData.currentLayout.id} | 
+                        <strong>Name:</strong> ${layoutData.currentLayout.name}
+                        ${layoutData.currentLayout.duration ? ` | <strong>Duration:</strong> ${layoutData.currentLayout.duration}s` : ''}
                     </div>
-            `
-        })
-        
-        html += `
+                    ${layoutData.currentLayout.slotSummary ? createSlotSummaryDisplay(layoutData.currentLayout.slotSummary) : ''}
                 </div>
             </div>
         `
     }
     
+    // Layout Details Section
+    if (layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
+        html += createLoopLayoutsDisplay(layoutData.layouts)
+    } else if (!layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
+        html += createSingleLayoutDisplay(layoutData.layouts[0])
+    }
+    
     // Summary Statistics
-    html += `
-            <div class="layout-summary">
-                <h4 class="layout-section-title">
-                    <i class="bi bi-bar-chart"></i>
-                    Summary Statistics
-                </h4>
-                <div class="summary-stats">
-                    <div class="summary-stat">
-                        <div class="stat-value">${layoutData.layouts ? layoutData.layouts.length : (layoutData.currentLayout ? 1 : 0)}</div>
-                        <div class="stat-label">Total Layouts</div>
+    html += createSummaryStatistics(layoutData)
+    
+    html += `</div>`
+    
+    $element.html(html)
+    debug('Enhanced detailed layout information displayed successfully')
+}
+
+// Function to create display for loop layouts with collapsible sections
+function createLoopLayoutsDisplay(layouts) {
+    let html = `
+        <div class="loop-layouts-container">
+            <h4 class="layout-section-title">
+                <i class="bi bi-collection"></i>
+                Loop Layouts (${layouts.length})
+                <button class="btn btn-sm btn-outline-secondary ml-2 toggle-all-layouts" onclick="toggleAllLayoutDetails()">
+                    <i class="bi bi-arrows-expand"></i> Expand All
+                </button>
+            </h4>
+    `
+    
+    layouts.forEach((layout, index) => {
+        const isExpanded = index === 0 // Expand first layout by default
+        html += `
+            <div class="layout-item-container">
+                <div class="layout-item-header" onclick="toggleLayoutDetails('${layout.id}')">
+                    <div class="layout-header-info">
+                        <span class="layout-number">${index + 1}</span>
+                        <span class="layout-name">${layout.name}</span>
+                        <span class="layout-id">(ID: ${layout.id})</span>
+                        ${layout.duration ? `<span class="layout-duration">${layout.duration}s</span>` : ''}
+                        <span class="layout-slot-count">${layout.totalSlots || 0} slots</span>
                     </div>
-                    <div class="summary-stat">
-                        <div class="stat-value">${layoutData.totalSlots || 0}</div>
-                        <div class="stat-label">Total Slots</div>
-                    </div>
-                    <div class="summary-stat">
-                        <div class="stat-value">${layoutData.textSlots || 0}</div>
-                        <div class="stat-label">Text Slots</div>
-                    </div>
-                    <div class="summary-stat">
-                        <div class="stat-value">${layoutData.mediaSlots || 0}</div>
-                        <div class="stat-label">Media Slots</div>
+                    <div class="layout-toggle-icon">
+                        <i class="bi bi-chevron-${isExpanded ? 'up' : 'down'}"></i>
                     </div>
                 </div>
+                <div class="layout-item-details ${isExpanded ? 'expanded' : 'collapsed'}" id="layout-details-${layout.id}">
+                    ${createLayoutDetailsContent(layout)}
+                </div>
+            </div>
+        `
+    })
+    
+    html += `</div>`
+    return html
+}
+
+// Function to create display for single layout
+function createSingleLayoutDisplay(layout) {
+    return `
+        <div class="single-layout-container">
+            <h4 class="layout-section-title">
+                <i class="bi bi-file-earmark"></i>
+                Layout Details
+            </h4>
+            <div class="layout-item-details expanded">
+                ${createLayoutDetailsContent(layout)}
             </div>
         </div>
     `
-    
-    $element.html(html)
-    debug('Detailed layout information displayed successfully')
 }
 
-// Function to display layout information errors
-function displayLayoutInfoError(errorMessage) {
+// Function to create detailed content for a single layout
+function createLayoutDetailsContent(layout) {
+    let html = `
+        <div class="layout-details-content">
+            <div class="layout-properties">
+                <div class="property-group">
+                    <h5>Layout Properties</h5>
+                    <div class="property-item">
+                        <span class="property-label">Dimensions:</span>
+                        <span class="property-value">${layout.width || '1920'} × ${layout.height || '1080'}</span>
+                    </div>
+                    <div class="property-item">
+                        <span class="property-label">Background:</span>
+                        <span class="property-value">
+                            ${layout.backgroundColor || '#000000'}
+                            <div class="color-preview" style="background-color: ${layout.backgroundColor || '#000000'}"></div>
+                        </span>
+                    </div>
+                    ${layout.duration ? `
+                    <div class="property-item">
+                        <span class="property-label">Duration:</span>
+                        <span class="property-value">${layout.duration} seconds</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+    `
+
+    // Slot Summary
+    if (layout.slotSummary) {
+        html += createSlotSummaryDisplay(layout.slotSummary, true)
+    }
+
+    // Detailed Slot Information
+    if (layout.slots && layout.slots.length > 0) {
+        html += createDetailedSlotsDisplay(layout.slots)
+    }
+
+    html += `</div>`
+    return html
+}
+
+// Function to create slot summary display
+function createSlotSummaryDisplay(slotSummary, detailed = false) {
+    let html = `
+        <div class="slot-summary ${detailed ? 'detailed' : 'compact'}">
+            <h5>Slot Summary</h5>
+            <div class="slot-summary-grid">
+                <div class="slot-summary-item">
+                    <span class="slot-count">${slotSummary.total || 0}</span>
+                    <span class="slot-type">Total</span>
+                </div>
+                <div class="slot-summary-item">
+                    <span class="slot-count">${slotSummary.text || 0}</span>
+                    <span class="slot-type">Text</span>
+                </div>
+                <div class="slot-summary-item">
+                    <span class="slot-count">${slotSummary.media || 0}</span>
+                    <span class="slot-type">Media</span>
+                </div>
+    `
+
+    if (detailed) {
+        const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table']
+        specialTypes.forEach(type => {
+            if (slotSummary[type] && slotSummary[type] > 0) {
+                html += `
+                    <div class="slot-summary-item">
+                        <span class="slot-count">${slotSummary[type]}</span>
+                        <span class="slot-type">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                    </div>
+                `
+            }
+        })
+    }
+
+    html += `
+            </div>
+        </div>
+    `
+    return html
+}
+
+// Function to create detailed slots display
+function createDetailedSlotsDisplay(slots) {
+    let html = `
+        <div class="detailed-slots-container">
+            <h5>Slot Details</h5>
+            <div class="slots-grid">
+    `
+
+    slots.forEach(slot => {
+        const slotTypeClass = `slot-type-${slot.type}`
+        html += `
+            <div class="slot-item ${slotTypeClass}">
+                <div class="slot-header">
+                    <span class="slot-name">${slot.name}</span>
+                    <span class="slot-type-badge">${slot.type}</span>
+                </div>
+                <div class="slot-details">
+                    <div class="slot-detail-item">
+                        <span class="detail-label">ID:</span>
+                        <span class="detail-value">${slot.id}</span>
+                    </div>
+                    ${slot.content ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Content:</span>
+                        <span class="detail-value slot-content">${slot.content}</span>
+                    </div>
+                    ` : ''}
+                    ${slot.contentType && slot.contentType !== slot.type ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Content Type:</span>
+                        <span class="detail-value">${slot.contentType}</span>
+                    </div>
+                    ` : ''}
+                    ${slot.position && (slot.position.width || slot.position.height) ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Size:</span>
+                        <span class="detail-value">${slot.position.width || '?'} × ${slot.position.height || '?'}</span>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `
+    })
+
+    html += `
+            </div>
+        </div>
+    `
+    return html
+}
+
+// Function to create summary statistics
+function createSummaryStatistics(layoutData) {
+    return `
+        <div class="layout-summary">
+            <h4 class="layout-section-title">
+                <i class="bi bi-bar-chart"></i>
+                Summary Statistics
+            </h4>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.layouts ? layoutData.layouts.length : (layoutData.currentLayout ? 1 : 0)}</div>
+                    <div class="stat-label">Total Layouts</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.totalSlots || 0}</div>
+                    <div class="stat-label">Total Slots</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.textSlots || 0}</div>
+                    <div class="stat-label">Text Slots</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.mediaSlots || 0}</div>
+                    <div class="stat-label">Media Slots</div>
+                </div>
+                ${layoutData.isLoop ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.layoutCount || 0}</div>
+                    <div class="stat-label">Loop Count</div>
+                </div>
+                ` : ''}
+            </div>
+        </div>
+    `
+}
+
+// JavaScript functions for interactive elements
+function toggleLayoutDetails(layoutId) {
+    const detailsElement = document.getElementById(`layout-details-${layoutId}`)
+    const toggleIcon = detailsElement.parentElement.querySelector('.layout-toggle-icon i')
+    
+    if (detailsElement.classList.contains('expanded')) {
+        detailsElement.classList.remove('expanded')
+        detailsElement.classList.add('collapsed')
+        toggleIcon.className = 'bi bi-chevron-down'
+    } else {
+        detailsElement.classList.remove('collapsed')
+        detailsElement.classList.add('expanded')
+        toggleIcon.className = 'bi bi-chevron-up'
+    }
+}
+
+function toggleAllLayoutDetails() {
+    const allDetails = document.querySelectorAll('.layout-item-details')
+    const toggleButton = document.querySelector('.toggle-all-layouts')
+    const toggleIcon = toggleButton.querySelector('i')
+    const toggleText = toggleButton.childNodes[1]
+    
+    const hasCollapsed = Array.from(allDetails).some(detail => detail.classList.contains('collapsed'))
+    
+    allDetails.forEach(detail => {
+        const toggleIcon = detail.parentElement.querySelector('.layout-toggle-icon i')
+        if (hasCollapsed) {
+            detail.classList.remove('collapsed')
+            detail.classList.add('expanded')
+            toggleIcon.className = 'bi bi-chevron-up'
+        } else {
+            detail.classList.remove('expanded')
+            detail.classList.add('collapsed')
+            toggleIcon.className = 'bi bi-chevron-down'
+        }
+    })
+    
+    if (hasCollapsed) {
+        toggleIcon.className = 'bi bi-arrows-collapse'
+        toggleText.textContent = ' Collapse All'
+    } else {
+        toggleIcon.className = 'bi bi-arrows-expand'
+        toggleText.textContent = ' Expand All'
+    }
+}
+
+// Enhanced function to display layout information errors with detailed diagnostics
+function displayLayoutInfoError(errorMessage, errorDetails = null) {
     const $element = $('#apiLayout')
     
-    $element.html(`
+    // Determine error type and appropriate icon/color
+    let errorType = 'general'
+    let errorIcon = 'exclamation-triangle'
+    let errorClass = 'alert-danger'
+    
+    if (errorMessage.includes('not connected') || errorMessage.includes('connection')) {
+        errorType = 'connection'
+        errorIcon = 'wifi-off'
+        errorClass = 'alert-warning'
+    } else if (errorMessage.includes('timeout') || errorMessage.includes('Timeout')) {
+        errorType = 'timeout'
+        errorIcon = 'clock'
+        errorClass = 'alert-warning'
+    } else if (errorMessage.includes('Invalid') || errorMessage.includes('validation')) {
+        errorType = 'validation'
+        errorIcon = 'shield-exclamation'
+        errorClass = 'alert-danger'
+    } else if (errorMessage.includes('Server error') || errorMessage.includes('500')) {
+        errorType = 'server'
+        errorIcon = 'server'
+        errorClass = 'alert-danger'
+    }
+    
+    let html = `
         <div class="layout-info-container">
-            <div class="alert-modern alert-danger">
-                <i class="bi bi-exclamation-triangle"></i>
-                <span>
-                    <strong>Layout Information Error:</strong><br>
+            <div class="alert-modern ${errorClass}">
+                <i class="bi bi-${errorIcon}"></i>
+                <div class="error-content">
+                    <strong>Layout Information Error (${errorType}):</strong><br>
                     ${errorMessage}
-                </span>
+                </div>
             </div>
+    `
+
+    // Add detailed error information if available
+    if (errorDetails) {
+        html += `
+            <div class="error-details-container">
+                <details class="error-details">
+                    <summary>Technical Details</summary>
+                    <div class="error-details-content">
+                        <pre>${JSON.stringify(errorDetails, null, 2)}</pre>
+                    </div>
+                </details>
+            </div>
+        `
+    }
+
+    // Add appropriate action buttons based on error type
+    html += `
             <div class="layout-error-actions">
                 <button type="button" class="modern-btn btn-secondary" onclick="getDetailedLayoutInfo()">
                     <i class="bi bi-arrow-clockwise"></i>
                     Retry
                 </button>
+    `
+
+    if (errorType === 'connection') {
+        html += `
+                <button type="button" class="modern-btn btn-outline-primary" onclick="checkConnectionStatus()">
+                    <i class="bi bi-wifi"></i>
+                    Check Connection
+                </button>
+        `
+    }
+
+    if (errorType === 'validation' || errorType === 'server') {
+        html += `
+                <button type="button" class="modern-btn btn-outline-warning" onclick="clearLayoutCache()">
+                    <i class="bi bi-trash"></i>
+                    Clear Cache
+                </button>
+        `
+    }
+
+    html += `
+                <button type="button" class="modern-btn btn-outline-info" onclick="showLayoutDiagnostics()">
+                    <i class="bi bi-info-circle"></i>
+                    Diagnostics
+                </button>
             </div>
         </div>
-    `)
+    `
+    
+    $element.html(html)
+    
+    // Log error for debugging
+    console.error('Layout Error Display:', {
+        type: errorType,
+        message: errorMessage,
+        details: errorDetails,
+        timestamp: new Date().toISOString()
+    })
+}
+
+// Function to check connection status
+function checkConnectionStatus() {
+    if (window.showToast) {
+        window.showToast('Checking connection status...', 'info')
+    }
+    
+    $.get(window.location.origin + '/api/deviceinfo')
+        .done(function() {
+            if (window.showToast) {
+                window.showToast('Connection is working correctly', 'success')
+            }
+            // Try to refresh layout details again
+            setTimeout(getDetailedLayoutInfo, 1000)
+        })
+        .fail(function() {
+            if (window.showToast) {
+                window.showToast('Connection test failed - please check network', 'error')
+            }
+        })
+}
+
+// Function to clear layout cache (localStorage cleanup)
+function clearLayoutCache() {
+    try {
+        // Clear layout-related localStorage items
+        const keysToRemove = []
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i)
+            if (key && (key.startsWith('layout-') || key.match(/^\d+$/))) {
+                keysToRemove.push(key)
+            }
+        }
+        
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+        
+        if (window.showToast) {
+            window.showToast(`Cleared ${keysToRemove.length} cached layout items`, 'success')
+        }
+        
+        // Try to refresh layout details after clearing cache
+        setTimeout(getDetailedLayoutInfo, 1000)
+        
+    } catch (error) {
+        console.error('Error clearing layout cache:', error)
+        if (window.showToast) {
+            window.showToast('Failed to clear cache: ' + error.message, 'error')
+        }
+    }
+}
+
+// Function to show layout diagnostics
+function showLayoutDiagnostics() {
+    try {
+        const diagnostics = {
+            timestamp: new Date().toISOString(),
+            dsid: typeof dsid !== 'undefined' ? dsid : 'undefined',
+            localStorage: {
+                available: typeof localStorage !== 'undefined',
+                itemCount: localStorage ? localStorage.length : 0,
+                layoutItems: []
+            },
+            socket: {
+                connected: typeof socket !== 'undefined' && socket ? socket.connected : false,
+                available: typeof socket !== 'undefined'
+            },
+            layout: {
+                monitoringActive: layoutDetailsInterval !== null,
+                updateInProgress: layoutUpdateInProgress,
+                lastTimestamp: lastLayoutTimestamp
+            }
+        }
+
+        // Get layout items from localStorage
+        if (localStorage) {
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key && (key.startsWith('layout-') || key.match(/^\d+$/))) {
+                    try {
+                        const size = localStorage.getItem(key).length
+                        diagnostics.localStorage.layoutItems.push({
+                            key: key,
+                            size: size,
+                            hasData: size > 0
+                        })
+                    } catch (e) {
+                        diagnostics.localStorage.layoutItems.push({
+                            key: key,
+                            error: e.message
+                        })
+                    }
+                }
+            }
+        }
+
+        // Display diagnostics in a modal or detailed view
+        const diagnosticsWindow = window.open('', 'Layout Diagnostics', 'width=800,height=600,scrollbars=yes')
+        diagnosticsWindow.document.write(`
+            <html>
+                <head>
+                    <title>Layout Diagnostics</title>
+                    <style>
+                        body { font-family: monospace; margin: 20px; }
+                        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; }
+                        .section { margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 15px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>eCLESS Layout System Diagnostics</h1>
+                    <div class="section">
+                        <h2>System Information</h2>
+                        <pre>${JSON.stringify(diagnostics, null, 2)}</pre>
+                    </div>
+                    <div class="section">
+                        <h2>Actions</h2>
+                        <button onclick="window.close()">Close</button>
+                    </div>
+                </body>
+            </html>
+        `)
+        diagnosticsWindow.document.close()
+
+    } catch (error) {
+        console.error('Error generating diagnostics:', error)
+        if (window.showToast) {
+            window.showToast('Failed to generate diagnostics: ' + error.message, 'error')
+        }
+    }
 }
 
 function getAPIText() {
@@ -1616,4 +2245,326 @@ $(window).on('beforeunload', function() {
     if (systemMonitoringInterval) {
         clearInterval(systemMonitoringInterval)
     }
+    // Cleanup layout monitoring
+    stopLayoutDetailsMonitoring()
 })
+
+// ================================================
+// TESTING AND VALIDATION FUNCTIONS
+// ================================================
+
+// Comprehensive test function for the enhanced layout system
+function testEnhancedLayoutSystem() {
+    console.log('=== TESTING: Starting comprehensive layout system tests ===')
+    
+    const testResults = {
+        timestamp: new Date().toISOString(),
+        tests: [],
+        summary: {
+            passed: 0,
+            failed: 0,
+            total: 0
+        }
+    }
+
+    // Test 1: API Endpoint Availability
+    addTest(testResults, 'API Endpoint Availability', function() {
+        return new Promise((resolve) => {
+            $.get(window.location.origin + '/api/layout-details')
+                .done(function(response) {
+                    if (response && typeof response === 'object') {
+                        resolve({ success: true, message: 'API endpoint responding correctly' })
+                    } else {
+                        resolve({ success: false, message: 'Invalid response format' })
+                    }
+                })
+                .fail(function(xhr) {
+                    resolve({ success: false, message: `API request failed: ${xhr.status} ${xhr.statusText}` })
+                })
+        })
+    })
+
+    // Test 2: Layout Data Structure Validation
+    addTest(testResults, 'Layout Data Structure Validation', function() {
+        return new Promise((resolve) => {
+            $.get(window.location.origin + '/api/layout-details')
+                .done(function(response) {
+                    if (response.success && validateLayoutResponseData(response.data)) {
+                        resolve({ success: true, message: 'Layout data structure is valid' })
+                    } else {
+                        resolve({ success: false, message: 'Invalid layout data structure' })
+                    }
+                })
+                .fail(function() {
+                    resolve({ success: false, message: 'Could not retrieve data for validation' })
+                })
+        })
+    })
+
+    // Test 3: UI Component Rendering
+    addTest(testResults, 'UI Component Rendering', function() {
+        return new Promise((resolve) => {
+            const testData = createMockLayoutData()
+            try {
+                displayDetailedLayoutInfo(testData)
+                const layoutContainer = document.querySelector('.layout-info-container')
+                if (layoutContainer) {
+                    resolve({ success: true, message: 'UI components rendered successfully' })
+                } else {
+                    resolve({ success: false, message: 'Layout container not found in DOM' })
+                }
+            } catch (error) {
+                resolve({ success: false, message: `UI rendering error: ${error.message}` })
+            }
+        })
+    })
+
+    // Test 4: Loop Layout Detection
+    addTest(testResults, 'Loop Layout Detection', function() {
+        return new Promise((resolve) => {
+            const singleLayoutData = createMockLayoutData(false)
+            const loopLayoutData = createMockLayoutData(true)
+            
+            try {
+                displayDetailedLayoutInfo(singleLayoutData)
+                const singleModeBadge = document.querySelector('.single-mode')
+                
+                displayDetailedLayoutInfo(loopLayoutData)
+                const loopModeBadge = document.querySelector('.loop-mode')
+                
+                if (singleModeBadge && loopModeBadge) {
+                    resolve({ success: true, message: 'Loop and single layout modes detected correctly' })
+                } else {
+                    resolve({ success: false, message: 'Layout mode detection failed' })
+                }
+            } catch (error) {
+                resolve({ success: false, message: `Layout detection error: ${error.message}` })
+            }
+        })
+    })
+
+    // Test 5: Collapsible UI Functionality
+    addTest(testResults, 'Collapsible UI Functionality', function() {
+        return new Promise((resolve) => {
+            const loopLayoutData = createMockLayoutData(true)
+            
+            try {
+                displayDetailedLayoutInfo(loopLayoutData)
+                
+                // Check if collapsible elements exist
+                const layoutDetails = document.querySelectorAll('.layout-item-details')
+                const toggleButtons = document.querySelectorAll('.layout-item-header')
+                
+                if (layoutDetails.length > 0 && toggleButtons.length > 0) {
+                    resolve({ success: true, message: 'Collapsible UI elements created successfully' })
+                } else {
+                    resolve({ success: false, message: 'Collapsible UI elements not found' })
+                }
+            } catch (error) {
+                resolve({ success: false, message: `Collapsible UI error: ${error.message}` })
+            }
+        })
+    })
+
+    // Test 6: Error Handling
+    addTest(testResults, 'Error Handling', function() {
+        return new Promise((resolve) => {
+            try {
+                displayLayoutInfoError('Test error message', { testData: true })
+                const errorContainer = document.querySelector('.alert-modern')
+                if (errorContainer) {
+                    resolve({ success: true, message: 'Error handling and display working correctly' })
+                } else {
+                    resolve({ success: false, message: 'Error display not rendered' })
+                }
+            } catch (error) {
+                resolve({ success: false, message: `Error handling test failed: ${error.message}` })
+            }
+        })
+    })
+
+    // Execute all tests
+    executeTests(testResults)
+        .then(function(finalResults) {
+            displayTestResults(finalResults)
+        })
+        .catch(function(error) {
+            console.error('Test execution failed:', error)
+        })
+}
+
+// Helper function to add a test to the test suite
+function addTest(testResults, name, testFunction) {
+    testResults.tests.push({
+        name: name,
+        function: testFunction,
+        result: null,
+        duration: 0
+    })
+    testResults.summary.total++
+}
+
+// Execute all tests sequentially
+async function executeTests(testResults) {
+    for (let i = 0; i < testResults.tests.length; i++) {
+        const test = testResults.tests[i]
+        const startTime = Date.now()
+        
+        console.log(`Running test ${i + 1}/${testResults.tests.length}: ${test.name}`)
+        
+        try {
+            test.result = await test.function()
+            test.duration = Date.now() - startTime
+            
+            if (test.result.success) {
+                testResults.summary.passed++
+                console.log(`✓ ${test.name}: ${test.result.message}`)
+            } else {
+                testResults.summary.failed++
+                console.log(`✗ ${test.name}: ${test.result.message}`)
+            }
+        } catch (error) {
+            test.result = { success: false, message: error.message }
+            test.duration = Date.now() - startTime
+            testResults.summary.failed++
+            console.log(`✗ ${test.name}: ${error.message}`)
+        }
+    }
+    
+    return testResults
+}
+
+// Create mock layout data for testing
+function createMockLayoutData(isLoop = false) {
+    if (isLoop) {
+        return {
+            layouts: [
+                {
+                    id: 'test-layout-1',
+                    name: 'Test Layout 1',
+                    type: 'loop',
+                    hasData: true,
+                    duration: 10,
+                    slots: [
+                        { id: 'slot-1', name: 'test-text-slot', type: 'text', content: 'Test text content' },
+                        { id: 'slot-2', name: 'test-media-slot', type: 'media', content: 'test-video.mp4' }
+                    ],
+                    slotSummary: { total: 2, text: 1, media: 1 },
+                    totalSlots: 2
+                },
+                {
+                    id: 'test-layout-2',
+                    name: 'Test Layout 2',
+                    type: 'loop',
+                    hasData: true,
+                    duration: 15,
+                    slots: [
+                        { id: 'slot-3', name: 'test-text-slot-2', type: 'text', content: 'Second layout text' }
+                    ],
+                    slotSummary: { total: 1, text: 1, media: 0 },
+                    totalSlots: 1
+                }
+            ],
+            currentLayout: {
+                id: 'test-layout-1',
+                name: 'Test Layout 1'
+            },
+            isLoop: true,
+            layoutCount: 2,
+            totalSlots: 3,
+            textSlots: 2,
+            mediaSlots: 1,
+            timestamp: Date.now()
+        }
+    } else {
+        return {
+            layouts: [
+                {
+                    id: 'test-single-layout',
+                    name: 'Test Single Layout',
+                    type: 'single',
+                    hasData: true,
+                    slots: [
+                        { id: 'slot-1', name: 'single-text-slot', type: 'text', content: 'Single layout text' }
+                    ],
+                    slotSummary: { total: 1, text: 1, media: 0 },
+                    totalSlots: 1
+                }
+            ],
+            currentLayout: {
+                id: 'test-single-layout',
+                name: 'Test Single Layout'
+            },
+            isLoop: false,
+            layoutCount: 1,
+            totalSlots: 1,
+            textSlots: 1,
+            mediaSlots: 0,
+            timestamp: Date.now()
+        }
+    }
+}
+
+// Display test results
+function displayTestResults(testResults) {
+    const resultsWindow = window.open('', 'Test Results', 'width=800,height=600,scrollbars=yes')
+    
+    let html = `
+        <html>
+            <head>
+                <title>Enhanced Layout System Test Results</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .summary { background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                    .test-item { border: 1px solid #ddd; margin: 10px 0; border-radius: 5px; overflow: hidden; }
+                    .test-header { padding: 10px 15px; background: #f8f9fa; font-weight: bold; }
+                    .test-content { padding: 15px; }
+                    .success { border-left: 4px solid #28a745; }
+                    .failure { border-left: 4px solid #dc3545; }
+                    .success .test-header { background: #d4edda; color: #155724; }
+                    .failure .test-header { background: #f8d7da; color: #721c24; }
+                </style>
+            </head>
+            <body>
+                <h1>Enhanced Layout System Test Results</h1>
+                <div class="summary">
+                    <h2>Summary</h2>
+                    <p><strong>Total Tests:</strong> ${testResults.summary.total}</p>
+                    <p><strong>Passed:</strong> ${testResults.summary.passed}</p>
+                    <p><strong>Failed:</strong> ${testResults.summary.failed}</p>
+                    <p><strong>Success Rate:</strong> ${((testResults.summary.passed / testResults.summary.total) * 100).toFixed(1)}%</p>
+                    <p><strong>Timestamp:</strong> ${testResults.timestamp}</p>
+                </div>
+                <h2>Test Details</h2>
+    `
+    
+    testResults.tests.forEach(function(test, index) {
+        const statusClass = test.result.success ? 'success' : 'failure'
+        const statusIcon = test.result.success ? '✓' : '✗'
+        
+        html += `
+            <div class="test-item ${statusClass}">
+                <div class="test-header">
+                    ${statusIcon} Test ${index + 1}: ${test.name}
+                </div>
+                <div class="test-content">
+                    <p><strong>Result:</strong> ${test.result.message}</p>
+                    <p><strong>Duration:</strong> ${test.duration}ms</p>
+                </div>
+            </div>
+        `
+    })
+    
+    html += `
+                <div style="margin-top: 30px; text-align: center;">
+                    <button onclick="window.close()" style="padding: 10px 20px; font-size: 16px;">Close</button>
+                </div>
+            </body>
+        </html>
+    `
+    
+    resultsWindow.document.write(html)
+    resultsWindow.document.close()
+    
+    console.log('=== TESTING: Test results displayed in new window ===')
+}
