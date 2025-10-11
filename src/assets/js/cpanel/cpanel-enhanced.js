@@ -268,6 +268,12 @@ function initModernFeatures() {
     
     // Set up event handlers for new features
     setupEventHandlers()
+    
+    // Initialize API documentation
+    initializeApiDocumentation()
+    
+    // Initialize Bootstrap tooltips
+    initializeTooltips()
 }
 
 // Real-time layout details monitoring system
@@ -2916,4 +2922,150 @@ function displayTestResults(testResults) {
     resultsWindow.document.close()
     
     console.log('=== TESTING: Test results displayed in new window ===')
+}
+
+// ================================================
+// API DOCUMENTATION FUNCTIONS
+// ================================================
+
+/**
+ * Toggle API documentation visibility
+ */
+function toggleApiDocumentation() {
+    const content = document.getElementById('apiDocumentationContent')
+    const icon = document.getElementById('apiDocToggleIcon')
+    const text = document.getElementById('apiDocToggleText')
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block'
+        icon.classList.add('rotated')
+        text.textContent = 'Hide'
+    } else {
+        content.style.display = 'none'
+        icon.classList.remove('rotated')
+        text.textContent = 'Show'
+    }
+}
+
+/**
+ * Copy text to clipboard with user feedback
+ */
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show success feedback
+        if (window.showToast) {
+            window.showToast('URL copied to clipboard!', 'success')
+        } else {
+            // Fallback alert if toast system not available
+            const originalText = event.target.textContent
+            event.target.textContent = 'Copied!'
+            event.target.style.background = '#10b981'
+            
+            setTimeout(() => {
+                event.target.textContent = originalText
+                event.target.style.background = ''
+            }, 2000)
+        }
+    }).catch(function(err) {
+        console.error('Failed to copy text: ', err)
+        if (window.showToast) {
+            window.showToast('Failed to copy URL', 'error')
+        }
+    })
+}
+
+/**
+ * Copy generated URL from the URL builder (simplified)
+ */
+function copyGeneratedUrl() {
+    // URL Builder functionality removed for simplification
+    console.log('URL Builder functionality has been removed')
+    if (window.showToast) {
+        window.showToast('URL Builder functionality has been simplified. Use the copy buttons in the API examples.', 'info')
+    }
+}
+
+/**
+ * Test the generated URL by making an actual API call (simplified)
+ */
+function testGeneratedUrl() {
+    // URL Builder functionality removed for simplification
+    console.log('URL Builder functionality has been removed')
+    if (window.showToast) {
+        window.showToast('URL Builder functionality has been simplified. Use the API examples to test endpoints.', 'info')
+    }
+}
+
+/**
+ * Update URL builder based on selected endpoint (simplified)
+ */
+function updateUrlBuilder() {
+    // URL Builder functionality removed for simplification
+    console.log('URL Builder functionality has been removed')
+}
+
+/**
+ * Generate API URL based on current parameters (simplified)
+ */
+function generateApiUrl() {
+    // URL Builder functionality removed for simplification
+    console.log('URL Builder functionality has been removed')
+}
+
+/**
+ * Initialize API documentation event handlers (simplified)
+ */
+function initializeApiDocumentation() {
+    // Simplified - no URL builder functionality
+    debug('API documentation initialized (simplified version)')
+}
+
+/**
+ * Toggle help panels for individual sections
+ */
+function toggleLayoutHelp() {
+    const helpPanel = document.getElementById('layoutSwitchingHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+function toggleTextHelp() {
+    const helpPanel = document.getElementById('textManagementHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+function toggleMediaHelp() {
+    const helpPanel = document.getElementById('mediaManagementHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+/**
+ * Initialize Bootstrap tooltips for enhanced user guidance
+ */
+function initializeTooltips() {
+    // Initialize Bootstrap tooltips if available
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl, {
+                delay: { "show": 500, "hide": 100 },
+                trigger: 'hover focus'
+            })
+        })
+        debug('Bootstrap tooltips initialized:', tooltipList.length)
+    } else {
+        // Fallback: Use native title attributes (already present)
+        debug('Bootstrap tooltips not available, using native title attributes')
+    }
 }
