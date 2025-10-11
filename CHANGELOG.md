@@ -1,5 +1,29 @@
 # Change Log
 
+## [2.5.10] 11 / 10 / 2025
+
+### Added
+- **Configuration Auto-Relaunch System** - Automatic application restart after configuration save
+  - Smart restart validation that only triggers when configuration changes require it
+  - Critical change detection for server URL, DS ID, and serial key modifications
+  - User confirmation dialogs with clear explanations for restart necessity
+  - Professional restart overlay with visual feedback during application restart
+  - Comprehensive error handling with fallback mechanisms and manual restart instructions
+
+### Fixed
+- **Application Restart Issue** - Fixed app.relaunch() and app.exit() execution order
+  - Corrected IPC handler to call app.relaunch() before app.exit() for proper restart
+  - Enhanced restart endpoint debugging and error reporting
+  - Improved socket connection verification before restart operations
+
+### Enhanced
+- **Configuration Management**
+  - Intelligent restart decision logic based on configuration field changes
+  - Configuration change tracking and comparison system
+  - Enhanced user experience with cancellable countdown timers
+  - Professional error recovery with detailed user guidance
+  - Improved debugging and logging for configuration operations
+
 ## [2.5.9] 11 / 10 / 2025
 
 ### Added
