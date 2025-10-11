@@ -1111,7 +1111,22 @@ function loadConfiguration() {
         type: 'get',
         url: '/api/config/load',
         success: function (data) {
-            if (data && Object.keys(data).length > 0) {
+            if (data && data.message && data.message.includes('No configuration file found')) {
+                // No config file exists - load defaults
+                debug('No configuration file found, loading defaults')
+                $('#clessHostname').val('https://cless4.closed-loop.biz/demo')
+                $('#corsOptions').val('N')
+                $('#dsId').val('10')
+                $('#serialKey').val('')
+                $('#serialKey').attr('placeholder', 'Enter serial key')
+                $('#autoStartup').prop('checked', false)
+                $('#fullscreenMode').prop('checked', false)
+                $('#screenTimeout').val(0)
+                $('#updateInterval').val(30)
+                $('#logLevel').val('info')
+                showToast('No configuration file found - Default values loaded', 'info')
+            } else if (data && Object.keys(data).length > 0 && !data.message) {
+                // Valid configuration data found
                 configData = data
                 
                 // Load existing configuration fields
@@ -1134,23 +1149,44 @@ function loadConfiguration() {
                 if (data.brightness) {
                     // Handle brightness if needed
                 }
-                showAlert('success', 'Configuration loaded successfully')
+                showToast('Configuration loaded successfully', 'success')
                 debug('Configuration loaded:', {
                     hostserver: data.hostserver || data.hostaddress,
                     corsproxy: data.corsproxy,
                     dsid: data.id || data.dsid,
                     hasSerialKey: !!data.serialkey
                 })
+            } else {
+                // Empty or invalid response - load defaults
+                debug('Empty or invalid configuration response, loading defaults')
+                $('#clessHostname').val('https://cless4.closed-loop.biz/demo')
+                $('#corsOptions').val('N')
+                $('#dsId').val('10')
+                $('#serialKey').val('')
+                $('#serialKey').attr('placeholder', 'Enter serial key')
+                $('#autoStartup').prop('checked', false)
+                $('#fullscreenMode').prop('checked', false)
+                $('#screenTimeout').val(0)
+                $('#updateInterval').val(30)
+                $('#logLevel').val('info')
+                showToast('Invalid configuration data - Default values loaded', 'warning')
             }
         },
-        error: function () {
-            debug('No configuration found or error loading')
+        error: function (xhr, status, error) {
+            debug('No configuration found or error loading:', error)
             // Load default values on error
             $('#clessHostname').val('https://cless4.closed-loop.biz/demo')
             $('#corsOptions').val('N')
             $('#dsId').val('10')
             $('#serialKey').val('')
             $('#serialKey').attr('placeholder', 'Enter serial key')
+            
+            // Show appropriate error message
+            if (xhr.status === 404 || xhr.responseJSON?.message?.includes('No configuration file found')) {
+                showToast('No configuration file found - Default values loaded', 'info')
+            } else {
+                showToast('Failed to load configuration - Default values loaded', 'warning')
+            }
         }
     })
 }
@@ -2146,21 +2182,10 @@ function saveConfiguration() {
         })
 }
 
-function loadConfiguration() {
-    $.get('/api/config')
-        .done(function(config) {
-            $('#autoStartup').prop('checked', config.autoStartup || false)
-            $('#fullscreenMode').prop('checked', config.fullscreenMode || false)
-            $('#screenTimeout').val(config.screenTimeout || 0)
-            $('#updateInterval').val(config.updateInterval || 30)
-            $('#logLevel').val(config.logLevel || 'info')
-            showToast('Configuration loaded successfully', 'success')
-        })
-        .fail(function(xhr, status, error) {
-            console.warn('Config load failed:', error)
-            showToast('Failed to load configuration', 'warning')
-        })
-}
+// DUPLICATE FUNCTION REMOVED - loadConfiguration() 
+// The comprehensive loadConfiguration() function is already defined above at line 1109
+// This duplicate was overriding the comprehensive version and causing the Load Configuration bug
+// The comprehensive version properly loads all fields including CLESS hostname, DS ID, serial key, etc.
 
 // Socket event handlers
 socket.on('cpanel-textslot', function (msg) {
