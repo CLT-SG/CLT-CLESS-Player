@@ -1,5 +1,38 @@
 # Change Log
 
+## [2.5.11] 11 / 10 / 2025
+
+### Added
+- **Comprehensive API Documentation System** - Professional API reference for eCLESS Player Control Panel
+  - Complete documentation coverage for all available REST API endpoints
+  - Organized API categories: Layout Control, Content Management, System Control, Volume Control, Display Control, Application Control
+  - New documented endpoints: `/api/shutdown`, `/api/reboot`, `/api/restartapp`, `/api/volume/*`, `/api/display/screen/*`, `/api/refresh`, `/api/screenshot`
+  - Professional dark theme styling consistent with eCLESS Player interface
+  - Copy-to-clipboard functionality for all API examples
+  - Clear, concise descriptions without technical jargon
+  - Single practical example per endpoint for improved usability
+
+### Enhanced
+- **API Documentation Interface**
+  - Simplified user experience by removing complex URL Builder tool
+  - Streamlined from multiple examples to single clear example per endpoint
+  - Improved organization with logical API grouping and visual hierarchy
+  - Enhanced readability with professional styling and consistent formatting
+  - Better developer experience with comprehensive endpoint coverage
+
+### Removed
+- **URL Builder Tool** - Simplified interface by removing complex parameter configuration tool
+  - Replaced with direct copy-paste examples for better user experience
+  - Maintained all functionality through simplified approach
+  - Improved documentation clarity and reduced complexity
+
+### Technical Improvements
+- **Code Organization**
+  - Updated `src/cpanel.html` with comprehensive API documentation structure
+  - Simplified JavaScript functions in `src/assets/js/cpanel/cpanel-enhanced.js`
+  - Maintained backward compatibility for all existing API functionality
+  - Professional error handling and user feedback for simplified interface
+
 ## [2.5.10] 11 / 10 / 2025
 
 ### Added
