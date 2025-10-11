@@ -1227,12 +1227,11 @@ try {
             win = new BrowserWindow({
                 x: 0,
                 y: -10000,
-                y: 0,
-                width: 900,
-                height: 900,
+                width: 0,
+                height: 0,
                 backgroundColor: '#000000',
-                //alwaysOnTop: true,
-                //autoHideMenuBar: true,
+                alwaysOnTop: true,
+                autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -1327,12 +1326,12 @@ try {
             })
 
             //hide menu bar
-            //win.setSkipTaskbar(true)
-            //win.setAlwaysOnTop(true)
-            //win2.setSkipTaskbar(true)
+            win.setSkipTaskbar(true)
+            win.setAlwaysOnTop(true)
+            win2.setSkipTaskbar(true)
             //win2.setAlwaysOnTop(true)
-            //win.setMenuBarVisibility(false)
-            //win2.setMenuBarVisibility(false)
+            win.setMenuBarVisibility(false)
+            win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
             win.setMenu(null)
             win2.setMenu(null)
@@ -1435,8 +1434,10 @@ try {
             //reload app
             ipcMain.on('app-reload', (event, logs) => {
                 safeLog.info('CLESS Player restart requested via API Panel.')
-                app.exit()
+                
+                // Important: Call relaunch() before exit() to ensure the restart happens
                 app.relaunch()
+                app.exit()
             })
 
             //refresh app

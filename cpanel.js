@@ -257,15 +257,27 @@ return (async function () {
 
     app.get('/api/restartapp', function (req, res) {
         try {
+            // Enhanced debugging for socket connection status
+            log.info('API: Application restart requested')
+            log.info('API: Current userID mappings:', JSON.stringify(userID, null, 2))
+            log.info('API: Total connected sockets:', io.sockets.sockets.size)
+            
             var electronID = io.sockets.sockets.get(userID['eCLESS'])
             if (!electronID) {
+                log.warn('API: eCLESS renderer process not found in userID mappings')
+                log.warn('API: Available socket IDs:', Array.from(io.sockets.sockets.keys()))
                 return res.status(404).json({
                     status: 'error',
-                    message: 'eCLESS renderer process not connected'
+                    message: 'eCLESS renderer process not connected',
+                    debug: {
+                        userIDMappings: userID,
+                        totalSockets: io.sockets.sockets.size,
+                        availableSocketIds: Array.from(io.sockets.sockets.keys())
+                    }
                 })
             }
             
-            log.info('API: Application restart requested')
+            log.info('API: Found eCLESS socket, preparing restart')
             
             // Send immediate response to client
             res.json({
@@ -1232,15 +1244,19 @@ return (async function () {
             var clientid = msg.substr(0, msg.indexOf(':'))
             console.log('=== CPANEL: save id received ===', msg)
             console.log('=== CPANEL: parsed clientid ===', clientid)
+            console.log('=== CPANEL: socket.id ===', socket.id)
             debug('Received save id event:', msg)
             debug('Parsed clientid:', clientid)
             debug('Socket ID for this connection:', socket.id)
+            
             if (clientid == 'eCLESS') {
                 userID[clientid] = socket.id
                 console.log('=== CPANEL: eCLESS client registered ===', socket.id)
+                console.log('=== CPANEL: Current userID mappings ===', JSON.stringify(userID, null, 2))
                 debug('Saved eCLESS socket mapping:', userID[clientid])
             } else {
                 userID[clientip] = socket.id
+                console.log('=== CPANEL: Non-eCLESS client registered ===', clientip, socket.id)
                 debug('Saved IP socket mapping for', clientip, ':', userID[clientip])
             }
         })

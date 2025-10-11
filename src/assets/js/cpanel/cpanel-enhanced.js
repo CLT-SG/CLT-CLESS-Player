@@ -18,24 +18,43 @@ socket.on('connect', function() {
     
     // Check if we're recovering from a restart
     const restartButtonState = localStorage.getItem('ecless-restart-button-state')
+    const restartReason = localStorage.getItem('ecless-restart-reason')
+    
     if (restartButtonState === 'restarting') {
         console.log('=== CONTROL PANEL: Detected reconnection after restart ===')
+        console.log('=== CONTROL PANEL: Restart reason:', restartReason)
         
         // Clear restart state
         localStorage.removeItem('ecless-restart-initiated')
         localStorage.removeItem('ecless-restart-button-state')
+        localStorage.removeItem('ecless-restart-reason')
         
-        // Restore button state and show success message
+        // Restore appropriate button state based on restart reason
         setTimeout(() => {
-            const restartBtn = $('#restartapp')
-            if (restartBtn.length) {
-                restartBtn.removeClass('loading').prop('disabled', false)
-                restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
-                console.log('=== CONTROL PANEL: Restart button state restored after reconnection ===')
-            }
-            
-            if (window.showToast) {
-                showToast('Application restarted successfully! Connection restored.', 'success')
+            if (restartReason === 'configuration-save') {
+                // Configuration save restart recovery
+                const saveBtn = $('#saveConfig')
+                if (saveBtn.length) {
+                    saveBtn.removeClass('loading').prop('disabled', false)
+                    saveBtn.html('<i class="bi bi-check-circle"></i> Save Configuration')
+                    console.log('=== CONTROL PANEL: Save Configuration button state restored after restart ===')
+                }
+                
+                if (window.showToast) {
+                    showToast('Configuration applied successfully! Application restarted with new settings.', 'success')
+                }
+            } else {
+                // Regular restart recovery
+                const restartBtn = $('#restartapp')
+                if (restartBtn.length) {
+                    restartBtn.removeClass('loading').prop('disabled', false)
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    console.log('=== CONTROL PANEL: Restart button state restored after reconnection ===')
+                }
+                
+                if (window.showToast) {
+                    showToast('Application restarted successfully! Connection restored.', 'success')
+                }
             }
         }, 1000)
     }
@@ -1026,12 +1045,12 @@ function saveConfiguration() {
     
     // Validate required fields
     if (!clessHostname) {
-        showAlert('danger', 'CLESS Server Hostname is required')
+        showToast('CLESS Server Hostname is required', 'error')
         return
     }
     
     if (!dsId || isNaN(dsId) || parseInt(dsId) < 1 || parseInt(dsId) > 9999) {
-        showAlert('danger', 'DS ID must be a number between 1 and 9999')
+        showToast('DS ID must be a number between 1 and 9999', 'error')
         return
     }
     
@@ -1039,26 +1058,24 @@ function saveConfiguration() {
     try {
         new URL(clessHostname)
     } catch (e) {
-        showAlert('danger', 'CLESS Server Hostname must be a valid URL (e.g., https://example.com)')
+        showToast('CLESS Server Hostname must be a valid URL (e.g., https://example.com)', 'error')
         return
     }
     
     configData = {
-        // Existing configuration fields
+        // Only update user-editable fields - preserve existing config structure
         autoStartup: $('#autoStartup').is(':checked'),
         fullscreenMode: $('#fullscreenMode').is(':checked'),
         screenTimeout: parseInt($('#screenTimeout').val()) || 0,
         updateInterval: parseInt($('#updateInterval').val()) || 30,
         logLevel: $('#logLevel').val(),
         
-        // Enhanced configuration fields
+        // Enhanced configuration fields (user-editable)
         hostserver: clessHostname,
-        hostaddress: clessHostname, // for backward compatibility
         corsproxy: corsOptions,
-        id: dsId,
-        dsid: dsId, // for backward compatibility
+        id: parseInt(dsId), // Ensure numeric type for DS ID
         
-        // Timestamp for tracking
+        // Update timestamp
         timestamp: new Date().toISOString()
     }
     
@@ -1083,7 +1100,7 @@ function saveConfiguration() {
         data: JSON.stringify(configData),
         success: function (data) {
             if (data.success) {
-                showAlert('success', 'Configuration saved successfully')
+                showToast('Configuration saved successfully', 'success')
                 
                 // Clear serial key field after successful save for security
                 if (serialKey) {
@@ -1091,19 +1108,145 @@ function saveConfiguration() {
                     $('#serialKey').attr('placeholder', 'Serial key updated (enter new key to update again)')
                 }
                 
-                // Optionally reload configuration to verify
-                setTimeout(() => {
-                    loadConfiguration()
-                }, 1000)
+                // Validate configuration changes and determine if restart is needed
+                if (validateConfigurationForRestart(configData)) {
+                    // Auto-relaunch application after configuration save
+                    triggerAutoRelaunchAfterConfigSave()
+                } else {
+                    showToast('Configuration saved. No restart required for these changes.', 'success')
+                }
             } else {
-                showAlert('danger', data.message || 'Failed to save configuration')
+                showToast(data.message || 'Failed to save configuration', 'error')
             }
         },
         error: function (xhr, status, error) {
             console.error('Configuration save error:', error)
-            showAlert('danger', `Failed to save configuration: ${error}`)
+            showToast(`Failed to save configuration: ${error}`, 'error')
         }
     })
+}
+
+// Validate configuration changes and determine if restart is needed
+function validateConfigurationForRestart(newConfig) {
+    console.log('=== CONTROL PANEL: Validating configuration for restart necessity ===')
+    
+    // Get current configuration to compare changes
+    let currentConfig = {}
+    try {
+        const storedConfig = localStorage.getItem('ecless-current-config')
+        if (storedConfig) {
+            currentConfig = JSON.parse(storedConfig)
+        }
+    } catch (error) {
+        console.warn('Could not load current config for comparison, assuming restart needed')
+        return true // Assume restart needed if we can't compare
+    }
+    
+    // Configuration fields that require restart when changed
+    const restartRequiredFields = [
+        'hostserver',    // Server URL change requires reconnection
+        'id',           // DS ID change requires server re-registration
+        'serialkey',    // Serial key change may affect licensing
+        'corsproxy',    // CORS proxy setting affects network requests
+        'autoStartup'   // Auto-startup setting requires system-level changes
+    ]
+    
+    // Configuration fields that are critical and always require user confirmation
+    const criticalFields = [
+        'hostserver',   // Changing server could disconnect from current content
+        'id',          // Changing DS ID could change displayed content
+        'serialkey'    // Serial key affects licensing and features
+    ]
+    
+    let restartNeeded = false
+    let criticalChanges = []
+    let minorChanges = []
+    
+    // Check each field for changes
+    restartRequiredFields.forEach(field => {
+        const oldValue = currentConfig[field]
+        const newValue = newConfig[field]
+        
+        // Handle different data types and undefined values
+        const normalizedOldValue = oldValue === undefined ? '' : String(oldValue)
+        const normalizedNewValue = newValue === undefined ? '' : String(newValue)
+        
+        if (normalizedOldValue !== normalizedNewValue) {
+            restartNeeded = true
+            
+            if (criticalFields.includes(field)) {
+                criticalChanges.push({
+                    field: field,
+                    oldValue: normalizedOldValue,
+                    newValue: normalizedNewValue
+                })
+            } else {
+                minorChanges.push({
+                    field: field,
+                    oldValue: normalizedOldValue,
+                    newValue: normalizedNewValue
+                })
+            }
+        }
+    })
+    
+    // Log configuration changes for debugging
+    if (criticalChanges.length > 0) {
+        console.log('=== CONTROL PANEL: Critical configuration changes detected ===', criticalChanges)
+    }
+    if (minorChanges.length > 0) {
+        console.log('=== CONTROL PANEL: Minor configuration changes detected ===', minorChanges)
+    }
+    
+    // Store new configuration for future comparisons
+    localStorage.setItem('ecless-current-config', JSON.stringify(newConfig))
+    
+    // Show user confirmation for critical changes
+    if (criticalChanges.length > 0) {
+        const criticalChangesList = criticalChanges.map(change => {
+            const fieldName = change.field === 'hostserver' ? 'Server URL' :
+                             change.field === 'id' ? 'DS ID' :
+                             change.field === 'serialkey' ? 'Serial Key' :
+                             change.field
+            
+            return `• ${fieldName}: "${change.oldValue}" → "${change.newValue}"`
+        }).join('\n')
+        
+        const confirmCriticalChanges = confirm(
+            'WARNING: Critical configuration changes detected!\n\n' +
+            'The following changes may affect your display content and connection:\n\n' +
+            criticalChangesList + '\n\n' +
+            'These changes require an application restart to take effect.\n\n' +
+            'Do you want to proceed with the restart?\n\n' +
+            'Click OK to restart and apply changes, or Cancel to save without restarting.'
+        )
+        
+        if (!confirmCriticalChanges) {
+            showToast('Configuration saved without restart. Changes will be applied on next manual restart.', 'warning')
+            return false
+        }
+    }
+    
+    // If restart is needed, show summary of all changes
+    if (restartNeeded) {
+        const allChanges = [...criticalChanges, ...minorChanges]
+        if (allChanges.length > 0) {
+            const changesSummary = allChanges.map(change => {
+                const fieldName = change.field === 'hostserver' ? 'Server URL' :
+                                 change.field === 'id' ? 'DS ID' :
+                                 change.field === 'serialkey' ? 'Serial Key' :
+                                 change.field === 'corsproxy' ? 'CORS Proxy' :
+                                 change.field === 'autoStartup' ? 'Auto Startup' :
+                                 change.field
+                
+                return `${fieldName}: ${change.oldValue || '(empty)'} → ${change.newValue || '(empty)'}`
+            }).join(', ')
+            
+            console.log('=== CONTROL PANEL: Configuration changes requiring restart ===', changesSummary)
+        }
+    }
+    
+    return restartNeeded
 }
 
 function loadConfiguration() {
@@ -1137,9 +1280,9 @@ function loadConfiguration() {
                 $('#logLevel').val(data.logLevel || 'info')
                 
                 // Load enhanced configuration fields
-                $('#clessHostname').val(data.hostserver || data.hostaddress || '')
+                $('#clessHostname').val(data.hostserver || '')
                 $('#corsOptions').val(data.corsproxy || 'N')
-                $('#dsId').val(data.id || data.dsid || '')
+                $('#dsId').val(data.id || '')
                 
                 // Note: Serial key is not populated for security reasons
                 // Users must enter it manually when updating
@@ -1149,11 +1292,15 @@ function loadConfiguration() {
                 if (data.brightness) {
                     // Handle brightness if needed
                 }
+                
+                // Store current configuration for change comparison
+                localStorage.setItem('ecless-current-config', JSON.stringify(data))
+                
                 showToast('Configuration loaded successfully', 'success')
                 debug('Configuration loaded:', {
-                    hostserver: data.hostserver || data.hostaddress,
+                    hostserver: data.hostserver,
                     corsproxy: data.corsproxy,
-                    dsid: data.id || data.dsid,
+                    dsid: data.id,
                     hasSerialKey: !!data.serialkey
                 })
             } else {
@@ -1351,6 +1498,198 @@ function restartapp() {
             // Restore button state on error
             restartBtn.removeClass('loading').prop('disabled', false)
             restartBtn.html(originalText)
+        }
+    })
+}
+
+// Auto-relaunch function for configuration save with user confirmation
+function triggerAutoRelaunchAfterConfigSave() {
+    // Show immediate confirmation with countdown
+    showToast('Configuration saved! Application will restart automatically to apply changes...', 'success')
+    
+    // Show confirmation dialog with clear explanation
+    const shouldRestart = confirm(
+        'Configuration has been saved successfully!\n\n' +
+        'The application will restart automatically in 5 seconds to apply the new settings.\n\n' +
+        'Click OK to restart immediately, or Cancel to restart manually later.\n\n' +
+        'Note: If you cancel, some settings may not take effect until you restart manually.'
+    )
+    
+    if (shouldRestart) {
+        // User confirmed - restart immediately
+        showToast('Restarting application to apply configuration changes...', 'info')
+        executeConfigurationRelaunch()
+    } else {
+        // User cancelled - show persistent reminder
+        showToast('Configuration saved. Please restart the application manually to apply all changes.', 'warning')
+        
+        // Still offer auto-restart countdown for convenience
+        let countdown = 5
+        let countdownActive = true
+        
+        const countdownToast = setInterval(() => {
+            if (!countdownActive) {
+                clearInterval(countdownToast)
+                return
+            }
+            
+            if (countdown > 0) {
+                showToast(`Auto-restart in ${countdown}s (click anywhere to cancel)`, 'info')
+                countdown--
+            } else {
+                clearInterval(countdownToast)
+                countdownActive = false
+                if (document.hasFocus()) {
+                    showToast('Initiating automatic restart to apply configuration changes...', 'warning')
+                    executeConfigurationRelaunch()
+                } else {
+                    showToast('Auto-restart cancelled (window not in focus). Please restart manually.', 'info')
+                }
+            }
+        }, 1000)
+        
+        // Allow user to cancel by clicking anywhere or pressing a key
+        const cancelCountdown = () => {
+            if (countdownActive) {
+                countdownActive = false
+                clearInterval(countdownToast)
+                showToast('Auto-restart cancelled. Please restart manually to apply configuration changes.', 'info')
+                $(document).off('click keydown', cancelCountdown)
+            }
+        }
+        
+        $(document).one('click keydown', cancelCountdown)
+    }
+}
+
+// Execute the actual configuration relaunch
+function executeConfigurationRelaunch() {
+    console.log('=== CONTROL PANEL: Executing configuration-triggered relaunch ===')
+    
+    // Store restart state for post-restart tracking
+    localStorage.setItem('ecless-restart-initiated', Date.now().toString())
+    localStorage.setItem('ecless-restart-button-state', 'restarting')
+    localStorage.setItem('ecless-restart-reason', 'configuration-save')
+    
+    // Disable Save Configuration button to prevent double-clicks
+    const saveBtn = $('#saveConfig')
+    if (saveBtn.length) {
+        saveBtn.addClass('loading').prop('disabled', true)
+        saveBtn.html('<i class="bi bi-bootstrap-reboot"></i> Applying Changes...')
+    }
+    
+    // Show countdown feedback with enhanced messaging
+    showToast('Applying configuration changes - Application restarting in 3 seconds...', 'warning')
+    
+    // Check connection status before making the restart request
+    if (!socket || !socket.connected) {
+        console.warn('Socket connection not available, attempting direct restart')
+        showToast('Connection issue detected. Attempting alternative restart method...', 'warning')
+    }
+    
+    $.ajax({
+        type: 'get',
+        url: '/api/restartapp',
+        timeout: 15000, // Increased timeout for restart operations
+        beforeSend: function() {
+            console.log('=== CONTROL PANEL: Sending restart request ===')
+        },
+        success: function (data) {
+            console.log('=== CONTROL PANEL: Restart request successful ===', data)
+            
+            if (data.status === 'success') {
+                showToast('Configuration applied successfully! Application is restarting...', 'success')
+                
+                // Show visual feedback that restart is happening
+                $('body').append(`
+                    <div id="restart-overlay" style="
+                        position: fixed;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background: rgba(0, 0, 0, 0.8);
+                        color: white;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        z-index: 9999;
+                        font-size: 1.5rem;
+                        text-align: center;
+                    ">
+                        <div>
+                            <i class="bi bi-bootstrap-reboot" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                            <br>
+                            Configuration Applied Successfully
+                            <br>
+                            <small style="font-size: 1rem; opacity: 0.8;">Application restarting...</small>
+                        </div>
+                    </div>
+                `)
+                
+                // Set up a fallback timeout in case restart doesn't work as expected
+                setTimeout(() => {
+                    if (document.getElementById('restart-overlay')) {
+                        $('#restart-overlay').remove()
+                        showToast('Restart may have failed. Please check if the application restarted or restart manually.', 'warning')
+                        
+                        // Re-enable save button
+                        if (saveBtn.length) {
+                            saveBtn.removeClass('loading').prop('disabled', false)
+                            saveBtn.html('<i class="bi bi-check-circle"></i> Save Configuration')
+                        }
+                        
+                        // Clear restart state
+                        localStorage.removeItem('ecless-restart-initiated')
+                        localStorage.removeItem('ecless-restart-button-state')
+                        localStorage.removeItem('ecless-restart-reason')
+                    }
+                }, 10000) // 10 second fallback
+            } else {
+                throw new Error(data.message || 'Restart request failed')
+            }
+        },
+        error: function (xhr, status, error) {
+            console.error('=== CONTROL PANEL: Configuration restart failed ===', status, error)
+            
+            // Re-enable save button
+            if (saveBtn.length) {
+                saveBtn.removeClass('loading').prop('disabled', false)
+                saveBtn.html('<i class="bi bi-check-circle"></i> Save Configuration')
+            }
+            
+            // Clear restart state on error
+            localStorage.removeItem('ecless-restart-initiated')
+            localStorage.removeItem('ecless-restart-button-state')
+            localStorage.removeItem('ecless-restart-reason')
+            
+            let errorMessage = 'Failed to restart application after configuration save'
+            
+            if (status === 'timeout') {
+                errorMessage = 'Application restart request timed out. Configuration has been saved, but please restart manually to apply all changes.'
+            } else if (xhr.status === 404) {
+                errorMessage = 'Restart service not available. Configuration saved, but please restart the application manually.'
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = `Configuration restart failed: ${xhr.responseJSON.message}. Please restart manually to apply changes.`
+            } else if (error) {
+                errorMessage = `Configuration restart error: ${error}. Please restart manually to apply changes.`
+            }
+            
+            showToast(errorMessage, 'error')
+            
+            // Offer manual restart instructions
+            const manualRestartHelp = confirm(
+                'Configuration has been saved successfully, but automatic restart failed.\n\n' +
+                'To apply all changes, please:\n' +
+                '1. Close the eCLESS Player application\n' +
+                '2. Restart the application manually\n\n' +
+                'Click OK to see the control panel again, or Cancel to continue.'
+            )
+            
+            if (manualRestartHelp) {
+                // Just acknowledge, configuration is already saved
+                showToast('Configuration saved. Remember to restart the application manually.', 'info')
+            }
         }
     })
 }
@@ -2162,25 +2501,10 @@ function updateDeviceInfoDisplay(data) {
     }
 }
 
-// Enhanced configuration functions
-function saveConfiguration() {
-    const configData = {
-        autoStartup: $('#autoStartup').is(':checked'),
-        fullscreenMode: $('#fullscreenMode').is(':checked'),
-        screenTimeout: parseInt($('#screenTimeout').val() || 0),
-        updateInterval: parseInt($('#updateInterval').val() || 30),
-        logLevel: $('#logLevel').val() || 'info'
-    }
-    
-    $.post('/api/config', configData)
-        .done(function(response) {
-            showToast('Configuration saved successfully', 'success')
-        })
-        .fail(function(xhr, status, error) {
-            console.warn('Config save failed:', error)
-            showToast('Failed to save configuration', 'error')
-        })
-}
+// Enhanced configuration functions - DUPLICATE FUNCTION REMOVED
+// The comprehensive saveConfiguration() function is already defined above at line 1021
+// This duplicate was overriding the comprehensive version and causing the Save Configuration bug
+// The comprehensive version properly merges with existing config.json and preserves all fields
 
 // DUPLICATE FUNCTION REMOVED - loadConfiguration() 
 // The comprehensive loadConfiguration() function is already defined above at line 1109
