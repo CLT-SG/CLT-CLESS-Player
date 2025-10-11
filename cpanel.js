@@ -1410,6 +1410,230 @@ return (async function () {
             }
         })
 
+        //cpanel req for ticker slots
+        socket.on('reqtickerslot', (msg) => {
+            console.log('=== CPANEL: reqtickerslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding gettickerslot to eCLESS ===')
+                    electronID.emit("gettickerslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqtickerslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqtickerslot ===', err)
+                log.warn('cpanel reqtickerslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('tickerslot-list', (msg) => {
+            console.log('=== CPANEL: tickerslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-tickerslot', msg)
+                console.log('=== CPANEL: cpanel-tickerslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in tickerslot-list ===', err)
+                log.warn('cpanel tickerslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for scroller slots
+        socket.on('reqscrollerslot', (msg) => {
+            console.log('=== CPANEL: reqscrollerslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getscrollerslot to eCLESS ===')
+                    electronID.emit("getscrollerslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqscrollerslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqscrollerslot ===', err)
+                log.warn('cpanel reqscrollerslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('scrollerslot-list', (msg) => {
+            console.log('=== CPANEL: scrollerslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-scrollerslot', msg)
+                console.log('=== CPANEL: cpanel-scrollerslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in scrollerslot-list ===', err)
+                log.warn('cpanel scrollerslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for fader slots
+        socket.on('reqfaderslot', (msg) => {
+            console.log('=== CPANEL: reqfaderslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getfaderslot to eCLESS ===')
+                    electronID.emit("getfaderslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqfaderslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqfaderslot ===', err)
+                log.warn('cpanel reqfaderslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('faderslot-list', (msg) => {
+            console.log('=== CPANEL: faderslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-faderslot', msg)
+                console.log('=== CPANEL: cpanel-faderslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in faderslot-list ===', err)
+                log.warn('cpanel faderslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for date slots
+        socket.on('reqdateslot', (msg) => {
+            console.log('=== CPANEL: reqdateslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getdateslot to eCLESS ===')
+                    electronID.emit("getdateslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqdateslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqdateslot ===', err)
+                log.warn('cpanel reqdateslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('dateslot-list', (msg) => {
+            console.log('=== CPANEL: dateslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-dateslot', msg)
+                console.log('=== CPANEL: cpanel-dateslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in dateslot-list ===', err)
+                log.warn('cpanel dateslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for time slots
+        socket.on('reqtimeslot', (msg) => {
+            console.log('=== CPANEL: reqtimeslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding gettimeslot to eCLESS ===')
+                    electronID.emit("gettimeslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqtimeslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqtimeslot ===', err)
+                log.warn('cpanel reqtimeslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('timeslot-list', (msg) => {
+            console.log('=== CPANEL: timeslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-timeslot', msg)
+                console.log('=== CPANEL: cpanel-timeslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in timeslot-list ===', err)
+                log.warn('cpanel timeslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for html slots
+        socket.on('reqhtmlslot', (msg) => {
+            console.log('=== CPANEL: reqhtmlslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding gethtmlslot to eCLESS ===')
+                    electronID.emit("gethtmlslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqhtmlslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqhtmlslot ===', err)
+                log.warn('cpanel reqhtmlslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('htmlslot-list', (msg) => {
+            console.log('=== CPANEL: htmlslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-htmlslot', msg)
+                console.log('=== CPANEL: cpanel-htmlslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in htmlslot-list ===', err)
+                log.warn('cpanel htmlslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for table slots
+        socket.on('reqtableslot', (msg) => {
+            console.log('=== CPANEL: reqtableslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding gettableslot to eCLESS ===')
+                    electronID.emit("gettableslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqtableslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqtableslot ===', err)
+                log.warn('cpanel reqtableslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('tableslot-list', (msg) => {
+            console.log('=== CPANEL: tableslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-tableslot', msg)
+                console.log('=== CPANEL: cpanel-tableslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in tableslot-list ===', err)
+                log.warn('cpanel tableslot-list: ' + err)
+                return err
+            }
+        })
+
         //handle screen toggle control
         socket.on('set-screen-toggle', async (msg) => {
             try {

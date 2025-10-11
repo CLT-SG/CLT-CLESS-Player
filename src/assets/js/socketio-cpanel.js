@@ -602,7 +602,46 @@ function switchToLayoutTemporarilyInLoop(targetLayoutId, callback) {
     }
 }
 
-// Helper function to get available layouts from DS data
+// Helper function to detect layout mode (loop vs single)
+function detectLayoutMode() {
+    try {
+        console.log('=== LAYOUT MODE: Detecting layout mode ===');
+        
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline || !resultOffline.elements || !resultOffline.elements[0] ||
+            !resultOffline.elements[0].elements || !resultOffline.elements[0].elements[0]) {
+            console.warn('=== LAYOUT MODE: Invalid or missing DS data structure');
+            return { isLoop: false, layoutCount: 0 };
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        var isLoop = layoutType === 'loop';
+        var layoutCount = 1;
+
+        if (isLoop) {
+            var loopElements = resultOffline['elements'][0]['elements'][0]['elements'];
+            layoutCount = loopElements ? loopElements.length : 0;
+        }
+
+        console.log('=== LAYOUT MODE: Detected mode:', {
+            isLoop: isLoop,
+            layoutType: layoutType,
+            layoutCount: layoutCount
+        });
+
+        return {
+            isLoop: isLoop,
+            layoutType: layoutType,
+            layoutCount: layoutCount
+        };
+
+    } catch (error) {
+        console.error('=== LAYOUT MODE: Error detecting layout mode:', error);
+        return { isLoop: false, layoutCount: 0 };
+    }
+}
+
+// Enhanced helper function to get available layouts from DS data with comprehensive details
 function getAvailableLayoutsFromDS() {
     try {
         console.log('=== OFFLINE LAYOUT: Getting available layouts from DS data ===');
@@ -616,51 +655,361 @@ function getAvailableLayoutsFromDS() {
 
         var availableLayouts = [];
 
-        // Check if data structure is valid
-        if (!resultOffline.elements || !resultOffline.elements[0] ||
-            !resultOffline.elements[0].elements || !resultOffline.elements[0].elements[0]) {
-            console.error('=== OFFLINE LAYOUT: Invalid DS data structure in localStorage');
+        // Enhanced validation of data structure
+        if (!resultOffline.elements || !Array.isArray(resultOffline.elements) || resultOffline.elements.length === 0) {
+            console.error('=== OFFLINE LAYOUT: Invalid DS data structure - missing or empty elements array');
             return [];
         }
 
-        // Determine layout type (loop vs single)
+        if (!resultOffline.elements[0] || !resultOffline.elements[0].elements || 
+            !Array.isArray(resultOffline.elements[0].elements) || resultOffline.elements[0].elements.length === 0) {
+            console.error('=== OFFLINE LAYOUT: Invalid DS data structure - missing nested elements');
+            return [];
+        }
+
+        if (!resultOffline.elements[0].elements[0]) {
+            console.error('=== OFFLINE LAYOUT: Invalid DS data structure - missing layout definition');
+            return [];
+        }
+
+        // Determine layout type (loop vs single) with error handling
         var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (!layoutType) {
+            console.error('=== OFFLINE LAYOUT: Cannot determine layout type - missing name attribute');
+            return [];
+        }
+
         console.log('=== OFFLINE LAYOUT: Layout type detected:', layoutType);
 
         if (layoutType == 'loop') {
-            // Loop layout - get all layout IDs
+            // Loop layout - get all layout IDs with enhanced details and validation
             var loopElements = resultOffline['elements'][0]['elements'][0]['elements'];
+            
+            if (!loopElements || !Array.isArray(loopElements)) {
+                console.error('=== OFFLINE LAYOUT: Invalid loop structure - missing or invalid loop elements');
+                return [];
+            }
+
             console.log('=== OFFLINE LAYOUT: Found', loopElements.length, 'layouts in loop ===');
 
             loopElements.forEach(function (layoutElement, index) {
-                if (layoutElement.attributes && layoutElement.attributes.url) {
+                try {
+                    if (!layoutElement || !layoutElement.attributes) {
+                        console.warn('=== OFFLINE LAYOUT: Skipping invalid loop element at index', index, '- missing attributes');
+                        return;
+                    }
+
+                    if (!layoutElement.attributes.url) {
+                        console.warn('=== OFFLINE LAYOUT: Skipping loop element at index', index, '- missing URL attribute');
+                        return;
+                    }
+
                     var layoutURL = layoutElement.attributes.url;
-                    var layoutID = layoutURL.split("layout/")[1].slice(0, layoutURL.split("layout/")[1].lastIndexOf('/'));
-                    availableLayouts.push({
+                    var urlParts = layoutURL.split("layout/");
+                    
+                    if (urlParts.length < 2) {
+                        console.warn('=== OFFLINE LAYOUT: Invalid layout URL format at index', index, ':', layoutURL);
+                        return;
+                    }
+
+                    var layoutID = urlParts[1].slice(0, urlParts[1].lastIndexOf('/'));
+                    
+                    if (!layoutID) {
+                        console.warn('=== OFFLINE LAYOUT: Could not extract layout ID from URL at index', index, ':', layoutURL);
+                        return;
+                    }
+                    
+                    // Extract additional attributes for loop layouts with validation
+                    var layoutInfo = {
                         id: layoutID,
                         url: layoutURL,
                         type: 'loop',
-                        index: index
-                    });
+                        index: index,
+                        name: layoutElement.attributes.name || 'Layout ' + (index + 1),
+                        duration: layoutElement.attributes.duration || null,
+                        isLoop: true,
+                        parentLayoutType: 'loop',
+                        hasValidData: true,
+                        errors: []
+                    };
+
+                    // Validate duration if present
+                    if (layoutInfo.duration && isNaN(parseInt(layoutInfo.duration))) {
+                        layoutInfo.errors.push('Invalid duration value: ' + layoutInfo.duration);
+                        layoutInfo.duration = null;
+                    }
+
+                    // Try to get more details from stored layout data with error handling
+                    try {
+                        var storedLayoutData = getLayoutFromStorage(layoutID);
+                        if (storedLayoutData) {
+                            layoutInfo.hasStoredData = true;
+                            layoutInfo.slotCount = extractSlotCountFromLayout(storedLayoutData);
+                        } else {
+                            layoutInfo.hasStoredData = false;
+                            layoutInfo.slotCount = 0;
+                            layoutInfo.errors.push('No stored layout data found');
+                        }
+                    } catch (storageError) {
+                        console.warn('=== OFFLINE LAYOUT: Error accessing stored data for layout', layoutID, ':', storageError);
+                        layoutInfo.hasStoredData = false;
+                        layoutInfo.slotCount = 0;
+                        layoutInfo.errors.push('Error accessing stored data: ' + storageError.message);
+                    }
+
+                    availableLayouts.push(layoutInfo);
+
+                } catch (elementError) {
+                    console.error('=== OFFLINE LAYOUT: Error processing loop element at index', index, ':', elementError);
                 }
             });
         } else {
-            // Single layout - get layout ID directly
-            if (resultOffline.elements[0].attributes && resultOffline.elements[0].attributes.id) {
+            // Single layout - get layout ID directly with enhanced details and validation
+            try {
+                if (!resultOffline.elements[0].attributes) {
+                    console.error('=== OFFLINE LAYOUT: Single layout missing attributes');
+                    return [];
+                }
+
                 var layoutID = resultOffline.elements[0].attributes.id;
-                availableLayouts.push({
+                if (!layoutID) {
+                    console.error('=== OFFLINE LAYOUT: Single layout missing ID attribute');
+                    return [];
+                }
+
+                var layoutInfo = {
                     id: layoutID,
                     type: 'single',
-                    index: 0
-                });
+                    index: 0,
+                    name: resultOffline.elements[0].attributes.name || 'Single Layout',
+                    duration: resultOffline.elements[0].attributes.duration || null,
+                    isLoop: false,
+                    parentLayoutType: 'single',
+                    hasValidData: true,
+                    errors: []
+                };
+
+                // Validate duration if present
+                if (layoutInfo.duration && isNaN(parseInt(layoutInfo.duration))) {
+                    layoutInfo.errors.push('Invalid duration value: ' + layoutInfo.duration);
+                    layoutInfo.duration = null;
+                }
+
+                // Try to get more details from stored layout data with error handling
+                try {
+                    var storedLayoutData = getLayoutFromStorage(layoutID);
+                    if (storedLayoutData) {
+                        layoutInfo.hasStoredData = true;
+                        layoutInfo.slotCount = extractSlotCountFromLayout(storedLayoutData);
+                    } else {
+                        layoutInfo.hasStoredData = false;
+                        layoutInfo.slotCount = 0;
+                        layoutInfo.errors.push('No stored layout data found');
+                    }
+                } catch (storageError) {
+                    console.warn('=== OFFLINE LAYOUT: Error accessing stored data for single layout', layoutID, ':', storageError);
+                    layoutInfo.hasStoredData = false;
+                    layoutInfo.slotCount = 0;
+                    layoutInfo.errors.push('Error accessing stored data: ' + storageError.message);
+                }
+
+                availableLayouts.push(layoutInfo);
+
+            } catch (singleLayoutError) {
+                console.error('=== OFFLINE LAYOUT: Error processing single layout:', singleLayoutError);
+                return [];
             }
         }
 
-        console.log('=== OFFLINE LAYOUT: Available layouts:', availableLayouts);
+        console.log('=== OFFLINE LAYOUT: Available layouts with details:', availableLayouts);
         return availableLayouts;
 
     } catch (error) {
-        console.error('=== OFFLINE LAYOUT: Error getting available layouts:', error);
+        console.error('=== OFFLINE LAYOUT: Fatal error getting available layouts:', error);
+        console.error('=== OFFLINE LAYOUT: Error stack:', error.stack);
+        return [];
+    }
+}
+
+// Helper function to extract slot count from layout data
+function extractSlotCountFromLayout(layoutData) {
+    try {
+        if (!layoutData || !layoutData.elements) {
+            return 0;
+        }
+
+        var totalSlots = 0;
+        var elements = layoutData.elements;
+
+        // Function to recursively count slots in layout structure
+        function countSlotsRecursively(element) {
+            if (!element) return 0;
+            
+            var count = 0;
+            
+            // Check if this element is a slot (has slot-related attributes)
+            if (element.attributes && (
+                element.attributes.slotname || 
+                element.attributes.slottype || 
+                element.name === 'text' || 
+                element.name === 'media'
+            )) {
+                count++;
+            }
+            
+            // Recursively check child elements
+            if (element.elements && Array.isArray(element.elements)) {
+                element.elements.forEach(function(child) {
+                    count += countSlotsRecursively(child);
+                });
+            } else if (element.elements && typeof element.elements === 'object') {
+                Object.keys(element.elements).forEach(function(key) {
+                    count += countSlotsRecursively(element.elements[key]);
+                });
+            }
+            
+            return count;
+        }
+
+        // Start counting from the layout elements
+        if (Array.isArray(elements)) {
+            elements.forEach(function(element) {
+                totalSlots += countSlotsRecursively(element);
+            });
+        } else if (typeof elements === 'object') {
+            Object.keys(elements).forEach(function(key) {
+                totalSlots += countSlotsRecursively(elements[key]);
+            });
+        }
+
+        return totalSlots;
+
+    } catch (error) {
+        console.warn('=== SLOT COUNT: Error extracting slot count:', error);
+        return 0;
+    }
+}
+
+// Function to get comprehensive details for individual layouts within a loop
+function getDetailedLayoutInfo(layoutId, layoutInfo) {
+    try {
+        console.log('=== DETAILED LAYOUT: Getting details for layout:', layoutId);
+        
+        var layoutData = getLayoutFromStorage(layoutId);
+        if (!layoutData) {
+            console.warn('=== DETAILED LAYOUT: No layout data found for:', layoutId);
+            return {
+                id: layoutId,
+                name: layoutInfo ? layoutInfo.name : 'Unknown Layout',
+                type: layoutInfo ? layoutInfo.type : 'unknown',
+                hasData: false,
+                error: 'No layout data available',
+                slots: [],
+                textSlots: [],
+                mediaSlots: [],
+                totalSlots: 0
+            };
+        }
+
+        // Extract comprehensive slot information using enhanced function
+        var slotData = extractComprehensiveSlotData(layoutData, layoutId);
+
+        // Extract layout attributes
+        var layoutAttributes = {};
+        if (layoutData.elements && layoutData.elements.layout && layoutData.elements.layout.attributes) {
+            layoutAttributes = layoutData.elements.layout.attributes;
+        } else if (slotData.layoutInfo && slotData.layoutInfo.attributes) {
+            layoutAttributes = slotData.layoutInfo.attributes;
+        }
+
+        var detailedInfo = {
+            id: layoutId,
+            name: layoutInfo ? layoutInfo.name : (slotData.layoutInfo.name || ('Layout ' + layoutId)),
+            type: layoutInfo ? layoutInfo.type : 'unknown',
+            hasData: true,
+            
+            // Layout properties
+            duration: layoutInfo ? layoutInfo.duration : null,
+            index: layoutInfo ? layoutInfo.index : null,
+            isLoop: layoutInfo ? layoutInfo.isLoop : false,
+            parentLayoutType: layoutInfo ? layoutInfo.parentLayoutType : 'unknown',
+            
+            // Layout attributes (dimensions, colors, etc.)
+            attributes: layoutAttributes,
+            width: layoutAttributes.width || '1920',
+            height: layoutAttributes.height || '1080',
+            backgroundColor: layoutAttributes.bgcolor || layoutAttributes.backgroundColor || '#000000',
+            
+            // Enhanced slot information from comprehensive extraction
+            slots: slotData.allSlots,
+            textSlots: slotData.textSlots,
+            mediaSlots: slotData.mediaSlots,
+            specialSlots: slotData.specialSlots,
+            slotSummary: slotData.slotSummary,
+            
+            // Backward compatibility
+            totalSlots: slotData.slotSummary.total,
+            textSlotCount: slotData.slotSummary.text,
+            mediaSlotCount: slotData.slotSummary.media,
+            
+            // Additional metadata
+            lastUpdated: new Date().toISOString(),
+            dataSource: 'localStorage',
+            layoutInfo: slotData.layoutInfo
+        };
+
+        console.log('=== DETAILED LAYOUT: Enhanced details extracted for', layoutId, ':', {
+            totalSlots: detailedInfo.totalSlots,
+            textSlots: detailedInfo.textSlotCount,
+            mediaSlots: detailedInfo.mediaSlotCount,
+            specialSlots: detailedInfo.specialSlots.length
+        });
+
+        return detailedInfo;
+
+    } catch (error) {
+        console.error('=== DETAILED LAYOUT: Error getting detailed info for', layoutId, ':', error);
+        return {
+            id: layoutId,
+            name: layoutInfo ? layoutInfo.name : 'Error Layout',
+            type: layoutInfo ? layoutInfo.type : 'error',
+            hasData: false,
+            error: error.message || 'Unknown error',
+            slots: [],
+            textSlots: [],
+            mediaSlots: [],
+            totalSlots: 0
+        };
+    }
+}
+
+// Function to get all layouts in a loop with their detailed information
+function getAllLoopLayoutDetails() {
+    try {
+        console.log('=== LOOP LAYOUTS: Getting all loop layout details ===');
+        
+        var layoutMode = detectLayoutMode();
+        var availableLayouts = getAvailableLayoutsFromDS();
+        
+        if (!layoutMode.isLoop) {
+            console.log('=== LOOP LAYOUTS: Not in loop mode, returning single layout details ===');
+            if (availableLayouts.length > 0) {
+                return [getDetailedLayoutInfo(availableLayouts[0].id, availableLayouts[0])];
+            }
+            return [];
+        }
+
+        var loopLayoutDetails = [];
+        availableLayouts.forEach(function(layoutInfo) {
+            var detailedInfo = getDetailedLayoutInfo(layoutInfo.id, layoutInfo);
+            loopLayoutDetails.push(detailedInfo);
+        });
+
+        console.log('=== LOOP LAYOUTS: Retrieved details for', loopLayoutDetails.length, 'layouts in loop ===');
+        return loopLayoutDetails;
+
+    } catch (error) {
+        console.error('=== LOOP LAYOUTS: Error getting all loop layout details:', error);
         return [];
     }
 }
@@ -1243,6 +1592,266 @@ function extractTextSlotsFromLocalStorage() {
     return textSlots;
 }
 
+// Enhanced function to extract comprehensive slot data with detailed information
+function extractComprehensiveSlotData(layoutData, layoutKey) {
+    console.log('=== COMPREHENSIVE SLOT EXTRACTION: Processing layout:', layoutKey);
+    
+    var result = {
+        allSlots: [],
+        textSlots: [],
+        mediaSlots: [],
+        specialSlots: [],
+        layoutInfo: {},
+        slotSummary: {
+            total: 0,
+            text: 0,
+            media: 0,
+            ticker: 0,
+            scroller: 0,
+            fader: 0,
+            date: 0,
+            time: 0,
+            html: 0,
+            table: 0,
+            other: 0
+        }
+    };
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== COMPREHENSIVE SLOT EXTRACTION: Invalid layout data for:', layoutKey);
+        return result;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        
+        // Extract layout information
+        result.layoutInfo = {
+            id: layoutId,
+            name: 'Layout ' + layoutId,
+            key: layoutKey,
+            attributes: {}
+        };
+
+        // Get layout attributes and name
+        if (elements[0] && elements[0].attributes) {
+            result.layoutInfo.attributes = elements[0].attributes;
+            result.layoutInfo.name = elements[0].attributes.name || 
+                                   elements[0].attributes.layout || 
+                                   elements[0].attributes.title || 
+                                   result.layoutInfo.name;
+        }
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] &&
+            elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            console.log('=== COMPREHENSIVE SLOT EXTRACTION: Processing', slotsContainer.length, 'slots');
+
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                    var slotInfo = extractDetailedSlotInfo(slot, layoutId, result.layoutInfo.name, index);
+                    
+                    if (slotInfo) {
+                        result.allSlots.push(slotInfo);
+                        result.slotSummary.total++;
+
+                        // Categorize slots
+                        switch (slotInfo.type) {
+                            case 'text':
+                                result.textSlots.push(slotInfo);
+                                result.slotSummary.text++;
+                                break;
+                            case 'media':
+                                result.mediaSlots.push(slotInfo);
+                                result.slotSummary.media++;
+                                break;
+                            case 'ticker':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.ticker++;
+                                break;
+                            case 'scroller':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.scroller++;
+                                break;
+                            case 'fader':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.fader++;
+                                break;
+                            case 'date':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.date++;
+                                break;
+                            case 'time':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.time++;
+                                break;
+                            case 'html':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.html++;
+                                break;
+                            case 'table':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.table++;
+                                break;
+                            default:
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.other++;
+                        }
+                    }
+                }
+            });
+        }
+
+        console.log('=== COMPREHENSIVE SLOT EXTRACTION: Completed for', layoutKey, '- Total slots:', result.slotSummary.total);
+        return result;
+
+    } catch (error) {
+        console.error('=== COMPREHENSIVE SLOT EXTRACTION: Error for', layoutKey, ':', error);
+        return result;
+    }
+}
+
+// Function to extract detailed information for a single slot
+function extractDetailedSlotInfo(slot, layoutId, layoutName, index) {
+    try {
+        var slotInfo = {
+            id: slot.attributes.id,
+            name: slot.attributes.name,
+            type: slot.name,
+            layoutId: layoutId,
+            layoutName: layoutName,
+            index: index,
+            enabled: slot.attributes.enabled || 'Y',
+            attributes: slot.attributes,
+            content: '',
+            contentType: '',
+            duration: null,
+            position: {},
+            styling: {},
+            rawData: null
+        };
+
+        // Extract positioning information
+        if (slot.attributes) {
+            slotInfo.position = {
+                x: slot.attributes.x || slot.attributes.left || 0,
+                y: slot.attributes.y || slot.attributes.top || 0,
+                width: slot.attributes.width || 0,
+                height: slot.attributes.height || 0,
+                zIndex: slot.attributes.zindex || slot.attributes.z || 0
+            };
+
+            // Extract styling information
+            slotInfo.styling = {
+                backgroundColor: slot.attributes.bgcolor || slot.attributes.backgroundColor,
+                color: slot.attributes.color || slot.attributes.textColor,
+                fontSize: slot.attributes.fontSize || slot.attributes.fontsize,
+                fontFamily: slot.attributes.fontFamily || slot.attributes.font,
+                textAlign: slot.attributes.textAlign || slot.attributes.align,
+                opacity: slot.attributes.opacity || 1
+            };
+
+            // Extract duration if available
+            slotInfo.duration = slot.attributes.duration || slot.attributes.timeout || null;
+        }
+
+        // Extract content based on slot type
+        if (slot.elements && slot.elements[0]) {
+            if (slot.elements[0].elements && slot.elements[0].elements[0]) {
+                if (slot.elements[0].elements[0].text) {
+                    slotInfo.content = slot.elements[0].elements[0].text;
+                    slotInfo.rawData = slot.elements[0].elements[0];
+                }
+            } else if (slot.elements[0].text) {
+                slotInfo.content = slot.elements[0].text;
+                slotInfo.rawData = slot.elements[0];
+            }
+        }
+
+        // Determine content type and extract type-specific information
+        if (slot.name === 'media' && slotInfo.content) {
+            var extension = slotInfo.content.split('.').pop().toLowerCase();
+            var videoExtensions = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm'];
+            var imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg'];
+            var audioExtensions = ['mp3', 'wav', 'aac', 'flac', 'ogg'];
+
+            if (videoExtensions.includes(extension)) {
+                slotInfo.contentType = 'video';
+            } else if (imageExtensions.includes(extension)) {
+                slotInfo.contentType = 'image';
+            } else if (audioExtensions.includes(extension)) {
+                slotInfo.contentType = 'audio';
+            } else {
+                slotInfo.contentType = 'unknown';
+            }
+
+            // Extract filename from path
+            var n = slotInfo.content.lastIndexOf('/');
+            if (n !== -1) {
+                slotInfo.fileName = slotInfo.content.substring(n + 1);
+                slotInfo.filePath = slotInfo.content;
+                slotInfo.content = slotInfo.fileName; // Display filename instead of full path
+            } else {
+                slotInfo.fileName = slotInfo.content;
+            }
+        } else if (slot.name === 'text') {
+            slotInfo.contentType = 'text';
+        } else if (slot.name === 'ticker') {
+            slotInfo.contentType = 'ticker';
+            // Extract ticker-specific attributes
+            slotInfo.tickerSpeed = slot.attributes.speed || slot.attributes.scrollspeed || '';
+            slotInfo.tickerDirection = slot.attributes.direction || 'left';
+        } else if (slot.name === 'scroller') {
+            slotInfo.contentType = 'scroller';
+            // Extract scroller-specific attributes
+            slotInfo.scrollSpeed = slot.attributes.speed || slot.attributes.scrollspeed || '';
+            slotInfo.scrollDirection = slot.attributes.direction || 'up';
+        } else if (slot.name === 'fader') {
+            slotInfo.contentType = 'fader';
+            // Extract fader-specific attributes
+            slotInfo.fadeSpeed = slot.attributes.speed || slot.attributes.fadespeed || '';
+            slotInfo.fadeDuration = slot.attributes.duration || slot.attributes.fadeduration || '';
+        } else if (slot.name === 'date') {
+            slotInfo.contentType = 'date';
+            // Extract date-specific attributes
+            slotInfo.dateFormat = slot.attributes.format || slot.attributes.dateformat || 'DD/MM/YYYY';
+            slotInfo.timezone = slot.attributes.timezone || '';
+        } else if (slot.name === 'time') {
+            slotInfo.contentType = 'time';
+            // Extract time-specific attributes
+            slotInfo.timeFormat = slot.attributes.format || slot.attributes.timeformat || 'HH:MM:SS';
+            slotInfo.timezone = slot.attributes.timezone || '';
+            slotInfo.showSeconds = slot.attributes.showseconds || 'Y';
+        } else if (slot.name === 'html') {
+            slotInfo.contentType = 'html';
+            // HTML content is used as-is
+        } else if (slot.name === 'table') {
+            slotInfo.contentType = 'table';
+            // Extract table-specific attributes
+            slotInfo.tableColumns = slot.attributes.columns || '';
+            slotInfo.tableRows = slot.attributes.rows || '';
+            slotInfo.dataSoource = slot.attributes.datasource || '';
+            slotInfo.tableHeaders = slot.attributes.headers || 'Y';
+        } else {
+            slotInfo.contentType = slot.name;
+        }
+
+        return slotInfo;
+
+    } catch (error) {
+        console.error('=== DETAILED SLOT INFO: Error extracting info for slot:', slot.attributes?.name, error);
+        return null;
+    }
+}
+
 // Function to extract ALL slot types from layout data structure (comprehensive)
 function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
     console.log('=== EXTRACT ALL SLOTS: Processing layout key:', layoutKey, layoutData);
@@ -1317,7 +1926,7 @@ function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
                         if (slot.elements && slot.elements[0]) {
                             if (slot.elements[0].elements && slot.elements[0].elements[0] && slot.elements[0].elements[0].text) {
                                 slotContent = slot.elements[0].elements[0].text;
-                                console.log('=== EXTRACT ALL SLOTS: Extracted content:', slotContent);
+                                console.log('=== EXTRACT ALL SLOTS: Extracted content for', slot.name, 'slot:', slotContent);
 
                                 // For media slots, extract just the filename from path
                                 if (slot.name === 'media' && slotContent) {
@@ -1330,7 +1939,33 @@ function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
                                 }
                             } else if (slot.elements[0].text) {
                                 slotContent = slot.elements[0].text;
-                                console.log('=== EXTRACT ALL SLOTS: Extracted direct text content:', slotContent);
+                                console.log('=== EXTRACT ALL SLOTS: Extracted direct text content for', slot.name, 'slot:', slotContent);
+                            }
+                        }
+
+                        // Handle special slot types with additional attributes
+                        var additionalData = {};
+                        if (slot.attributes) {
+                            // For date/time slots, capture format attributes
+                            if (slot.name === 'date' || slot.name === 'time') {
+                                additionalData.format = slot.attributes.format || '';
+                                additionalData.timezone = slot.attributes.timezone || '';
+                            }
+                            // For ticker/scroller/fader slots, capture animation attributes
+                            else if (slot.name === 'ticker' || slot.name === 'scroller' || slot.name === 'fader') {
+                                additionalData.speed = slot.attributes.speed || '';
+                                additionalData.direction = slot.attributes.direction || '';
+                                additionalData.duration = slot.attributes.duration || '';
+                            }
+                            // For table slots, capture table-specific attributes
+                            else if (slot.name === 'table') {
+                                additionalData.columns = slot.attributes.columns || '';
+                                additionalData.rows = slot.attributes.rows || '';
+                                additionalData.datasource = slot.attributes.datasource || '';
+                            }
+                            // For HTML slots, no special handling needed
+                            else if (slot.name === 'html') {
+                                // HTML content is extracted as-is
                             }
                         }
 
@@ -1341,7 +1976,8 @@ function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
                             content: slotContent || '',
                             layoutId: layoutId,
                             layoutName: layoutName,
-                            enabled: slot.attributes.enabled || 'Y'
+                            enabled: slot.attributes.enabled || 'Y',
+                            additionalData: additionalData
                         };
 
                         allSlots.push(slotObj);
@@ -1646,6 +2282,139 @@ socket.on('getmediaslot', function (msg) {
     }
 });
 
+//retrieve all ticker slots
+socket.on('gettickerslot', function (msg) {
+    console.log('=== RENDERER PROCESS: gettickerslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var tickerSlots = extractTickerSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', tickerSlots.length, 'ticker slots ===');
+
+        // Send the ticker slots back to the control panel
+        socket.emit('tickerslot-list', tickerSlots);
+        console.log('=== RENDERER PROCESS: Sent ticker slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting ticker slots ===', error);
+        // Send empty array on error
+        socket.emit('tickerslot-list', []);
+    }
+});
+
+//retrieve all scroller slots
+socket.on('getscrollerslot', function (msg) {
+    console.log('=== RENDERER PROCESS: getscrollerslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var scrollerSlots = extractScrollerSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', scrollerSlots.length, 'scroller slots ===');
+
+        // Send the scroller slots back to the control panel
+        socket.emit('scrollerslot-list', scrollerSlots);
+        console.log('=== RENDERER PROCESS: Sent scroller slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting scroller slots ===', error);
+        // Send empty array on error
+        socket.emit('scrollerslot-list', []);
+    }
+});
+
+//retrieve all fader slots
+socket.on('getfaderslot', function (msg) {
+    console.log('=== RENDERER PROCESS: getfaderslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var faderSlots = extractFaderSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', faderSlots.length, 'fader slots ===');
+
+        // Send the fader slots back to the control panel
+        socket.emit('faderslot-list', faderSlots);
+        console.log('=== RENDERER PROCESS: Sent fader slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting fader slots ===', error);
+        // Send empty array on error
+        socket.emit('faderslot-list', []);
+    }
+});
+
+//retrieve all date slots
+socket.on('getdateslot', function (msg) {
+    console.log('=== RENDERER PROCESS: getdateslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var dateSlots = extractDateSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', dateSlots.length, 'date slots ===');
+
+        // Send the date slots back to the control panel
+        socket.emit('dateslot-list', dateSlots);
+        console.log('=== RENDERER PROCESS: Sent date slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting date slots ===', error);
+        // Send empty array on error
+        socket.emit('dateslot-list', []);
+    }
+});
+
+//retrieve all time slots
+socket.on('gettimeslot', function (msg) {
+    console.log('=== RENDERER PROCESS: gettimeslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var timeSlots = extractTimeSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', timeSlots.length, 'time slots ===');
+
+        // Send the time slots back to the control panel
+        socket.emit('timeslot-list', timeSlots);
+        console.log('=== RENDERER PROCESS: Sent time slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting time slots ===', error);
+        // Send empty array on error
+        socket.emit('timeslot-list', []);
+    }
+});
+
+//retrieve all html slots
+socket.on('gethtmlslot', function (msg) {
+    console.log('=== RENDERER PROCESS: gethtmlslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var htmlSlots = extractHtmlSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', htmlSlots.length, 'html slots ===');
+
+        // Send the html slots back to the control panel
+        socket.emit('htmlslot-list', htmlSlots);
+        console.log('=== RENDERER PROCESS: Sent html slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting html slots ===', error);
+        // Send empty array on error
+        socket.emit('htmlslot-list', []);
+    }
+});
+
+//retrieve all table slots
+socket.on('gettableslot', function (msg) {
+    console.log('=== RENDERER PROCESS: gettableslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var tableSlots = extractTableSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', tableSlots.length, 'table slots ===');
+
+        // Send the table slots back to the control panel
+        socket.emit('tableslot-list', tableSlots);
+        console.log('=== RENDERER PROCESS: Sent table slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting table slots ===', error);
+        // Send empty array on error
+        socket.emit('tableslot-list', []);
+    }
+});
+
 // Function to extract media slots from localStorage
 function extractMediaSlotsFromLocalStorage() {
     console.log('=== EXTRACT MEDIA SLOTS: Function started ===');
@@ -1726,6 +2495,237 @@ function extractMediaSlotsFromLocalStorage() {
     console.log('=== EXTRACTED MEDIA SLOTS ===', mediaSlots);
 
     return mediaSlots;
+}
+
+// Function to extract ticker slots from localStorage
+function extractTickerSlotsFromLocalStorage() {
+    console.log('=== EXTRACT TICKER SLOTS: Function started ===');
+    var tickerSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT TICKER SLOTS: No data found in localStorage for DSID:', dsid);
+            return tickerSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractTickerSlotsFromLayoutData(layoutData, layoutID);
+                tickerSlots = tickerSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractTickerSlotsFromLayoutData(resultOffline, dsid);
+            tickerSlots = tickerSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TICKER SLOTS: Error:', error);
+    }
+
+    return tickerSlots;
+}
+
+// Function to extract scroller slots from localStorage
+function extractScrollerSlotsFromLocalStorage() {
+    console.log('=== EXTRACT SCROLLER SLOTS: Function started ===');
+    var scrollerSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT SCROLLER SLOTS: No data found in localStorage for DSID:', dsid);
+            return scrollerSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractScrollerSlotsFromLayoutData(layoutData, layoutID);
+                scrollerSlots = scrollerSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractScrollerSlotsFromLayoutData(resultOffline, dsid);
+            scrollerSlots = scrollerSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT SCROLLER SLOTS: Error:', error);
+    }
+
+    return scrollerSlots;
+}
+
+// Function to extract fader slots from localStorage
+function extractFaderSlotsFromLocalStorage() {
+    console.log('=== EXTRACT FADER SLOTS: Function started ===');
+    var faderSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT FADER SLOTS: No data found in localStorage for DSID:', dsid);
+            return faderSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractFaderSlotsFromLayoutData(layoutData, layoutID);
+                faderSlots = faderSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractFaderSlotsFromLayoutData(resultOffline, dsid);
+            faderSlots = faderSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT FADER SLOTS: Error:', error);
+    }
+
+    return faderSlots;
+}
+
+// Function to extract date slots from localStorage
+function extractDateSlotsFromLocalStorage() {
+    console.log('=== EXTRACT DATE SLOTS: Function started ===');
+    var dateSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT DATE SLOTS: No data found in localStorage for DSID:', dsid);
+            return dateSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractDateSlotsFromLayoutData(layoutData, layoutID);
+                dateSlots = dateSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractDateSlotsFromLayoutData(resultOffline, dsid);
+            dateSlots = dateSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT DATE SLOTS: Error:', error);
+    }
+
+    return dateSlots;
+}
+
+// Function to extract time slots from localStorage
+function extractTimeSlotsFromLocalStorage() {
+    console.log('=== EXTRACT TIME SLOTS: Function started ===');
+    var timeSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT TIME SLOTS: No data found in localStorage for DSID:', dsid);
+            return timeSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractTimeSlotsFromLayoutData(layoutData, layoutID);
+                timeSlots = timeSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractTimeSlotsFromLayoutData(resultOffline, dsid);
+            timeSlots = timeSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TIME SLOTS: Error:', error);
+    }
+
+    return timeSlots;
+}
+
+// Function to extract HTML slots from localStorage
+function extractHtmlSlotsFromLocalStorage() {
+    console.log('=== EXTRACT HTML SLOTS: Function started ===');
+    var htmlSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT HTML SLOTS: No data found in localStorage for DSID:', dsid);
+            return htmlSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractHtmlSlotsFromLayoutData(layoutData, layoutID);
+                htmlSlots = htmlSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractHtmlSlotsFromLayoutData(resultOffline, dsid);
+            htmlSlots = htmlSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT HTML SLOTS: Error:', error);
+    }
+
+    return htmlSlots;
+}
+
+// Function to extract table slots from localStorage
+function extractTableSlotsFromLocalStorage() {
+    console.log('=== EXTRACT TABLE SLOTS: Function started ===');
+    var tableSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT TABLE SLOTS: No data found in localStorage for DSID:', dsid);
+            return tableSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractTableSlotsFromLayoutData(layoutData, layoutID);
+                tableSlots = tableSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractTableSlotsFromLayoutData(resultOffline, dsid);
+            tableSlots = tableSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TABLE SLOTS: Error:', error);
+    }
+
+    return tableSlots;
 }
 
 // Function to extract media slots from layout data structure
@@ -1848,6 +2848,374 @@ function extractMediaSlotsFromLayoutData(layoutData, layoutKey) {
 
     console.log('=== EXTRACT MEDIA LAYOUT DATA: Completed processing layout key:', layoutKey, '- returning', mediaSlots.length, 'media slots');
     return mediaSlots;
+}
+
+// Function to extract ticker slots from layout data structure
+function extractTickerSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT TICKER LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var tickerSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT TICKER LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return tickerSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'ticker') {
+                    var tickerContent = '';
+                    if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
+                        slot.elements[0].elements[0].text) {
+                        tickerContent = slot.elements[0].elements[0].text;
+                    }
+
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Ticker',
+                        text: tickerContent || 'no-content',
+                        speed: slot.attributes.speed || slot.attributes.scrollspeed || '',
+                        direction: slot.attributes.direction || 'left'
+                    };
+
+                    tickerSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TICKER LAYOUT DATA: Error extracting ticker slots from layout:', layoutKey, error);
+    }
+
+    return tickerSlots;
+}
+
+// Function to extract scroller slots from layout data structure
+function extractScrollerSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT SCROLLER LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var scrollerSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT SCROLLER LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return scrollerSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'scroller') {
+                    var scrollerContent = '';
+                    if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
+                        slot.elements[0].elements[0].text) {
+                        scrollerContent = slot.elements[0].elements[0].text;
+                    }
+
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Scroller',
+                        text: scrollerContent || 'no-content',
+                        speed: slot.attributes.speed || slot.attributes.scrollspeed || '',
+                        direction: slot.attributes.direction || 'up'
+                    };
+
+                    scrollerSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT SCROLLER LAYOUT DATA: Error extracting scroller slots from layout:', layoutKey, error);
+    }
+
+    return scrollerSlots;
+}
+
+// Function to extract fader slots from layout data structure
+function extractFaderSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT FADER LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var faderSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT FADER LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return faderSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'fader') {
+                    var faderContent = '';
+                    if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
+                        slot.elements[0].elements[0].text) {
+                        faderContent = slot.elements[0].elements[0].text;
+                    }
+
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Fader',
+                        text: faderContent || 'no-content',
+                        speed: slot.attributes.speed || slot.attributes.fadespeed || '',
+                        duration: slot.attributes.duration || slot.attributes.fadeduration || ''
+                    };
+
+                    faderSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT FADER LAYOUT DATA: Error extracting fader slots from layout:', layoutKey, error);
+    }
+
+    return faderSlots;
+}
+
+// Function to extract date slots from layout data structure
+function extractDateSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT DATE LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var dateSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT DATE LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return dateSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'date') {
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Date',
+                        text: 'Current Date',
+                        format: slot.attributes.format || slot.attributes.dateformat || 'DD/MM/YYYY',
+                        timezone: slot.attributes.timezone || ''
+                    };
+
+                    dateSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT DATE LAYOUT DATA: Error extracting date slots from layout:', layoutKey, error);
+    }
+
+    return dateSlots;
+}
+
+// Function to extract time slots from layout data structure
+function extractTimeSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT TIME LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var timeSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT TIME LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return timeSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'time') {
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Time',
+                        text: 'Current Time',
+                        format: slot.attributes.format || slot.attributes.timeformat || 'HH:MM:SS',
+                        timezone: slot.attributes.timezone || '',
+                        showSeconds: slot.attributes.showseconds || 'Y'
+                    };
+
+                    timeSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TIME LAYOUT DATA: Error extracting time slots from layout:', layoutKey, error);
+    }
+
+    return timeSlots;
+}
+
+// Function to extract HTML slots from layout data structure
+function extractHtmlSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT HTML LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var htmlSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT HTML LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return htmlSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'html') {
+                    var htmlContent = '';
+                    if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
+                        slot.elements[0].elements[0].text) {
+                        htmlContent = slot.elements[0].elements[0].text;
+                    }
+
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'HTML',
+                        text: htmlContent || 'no-content'
+                    };
+
+                    htmlSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT HTML LAYOUT DATA: Error extracting HTML slots from layout:', layoutKey, error);
+    }
+
+    return htmlSlots;
+}
+
+// Function to extract table slots from layout data structure
+function extractTableSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT TABLE LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var tableSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT TABLE LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return tableSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'table') {
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name,
+                        slottype: 'Table',
+                        text: 'Table Data',
+                        columns: slot.attributes.columns || '',
+                        rows: slot.attributes.rows || '',
+                        datasource: slot.attributes.datasource || '',
+                        headers: slot.attributes.headers || 'Y'
+                    };
+
+                    tableSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT TABLE LAYOUT DATA: Error extracting table slots from layout:', layoutKey, error);
+    }
+
+    return tableSlots;
 }
 
 //replace media - OFFLINE VERSION
@@ -2037,46 +3405,86 @@ function capitalizeFirstLetter(string) {
 
 // Socket handler for layout details request from control panel
 socket.on('get-layout-details', function (request) {
-    console.log('=== RENDERER PROCESS: Layout details request received ===');
+    console.log('=== RENDERER PROCESS: Enhanced layout details request received ===');
 
     try {
-        // For testing, send a simple response first
-        var basicResponse = {
-            layouts: [{
-                id: "test-1",
-                name: "Test Layout",
-                type: "single",
-                allSlots: [
-                    { id: "1", name: "Test Slot", type: "text", content: "Test content" }
-                ],
-                textSlots: [],
-                mediaSlots: [],
-                totalSlots: 1,
-                isActive: true
-            }],
+        // Detect layout mode first
+        var layoutMode = detectLayoutMode();
+        console.log('=== RENDERER PROCESS: Layout mode detected:', layoutMode);
+
+        var response = {
+            layouts: [],
             currentLayout: null,
-            isLoop: false,
-            totalSlots: 1,
+            isLoop: layoutMode.isLoop,
+            layoutCount: layoutMode.layoutCount,
+            totalSlots: 0,
             textSlots: 0,
             mediaSlots: 0,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            mode: layoutMode.isLoop ? 'loop' : 'single'
         };
 
-        // Send simple response for testing
-        socket.emit('layout-details-response', basicResponse);
-        console.log('=== RENDERER PROCESS: Basic layout details response sent ===');
+        if (layoutMode.isLoop) {
+            // Loop mode - get all layouts with detailed information
+            console.log('=== RENDERER PROCESS: Processing loop mode with', layoutMode.layoutCount, 'layouts ===');
+            
+            var loopLayouts = getAllLoopLayoutDetails();
+            response.layouts = loopLayouts;
+
+            // Calculate totals across all layouts in the loop
+            loopLayouts.forEach(function(layout) {
+                response.totalSlots += layout.totalSlots || 0;
+                response.textSlots += layout.textSlotCount || 0;
+                response.mediaSlots += layout.mediaSlotCount || 0;
+            });
+
+            // Identify current layout if available
+            if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID) {
+                response.currentLayout = loopLayouts.find(function(layout) {
+                    return layout.id === currentPlayLayoutID;
+                }) || null;
+            } else if (loopLayouts.length > 0) {
+                response.currentLayout = loopLayouts[0]; // Default to first layout
+            }
+
+        } else {
+            // Single mode - get single layout details
+            console.log('=== RENDERER PROCESS: Processing single layout mode ===');
+            
+            var availableLayouts = getAvailableLayoutsFromDS();
+            if (availableLayouts.length > 0) {
+                var singleLayout = getDetailedLayoutInfo(availableLayouts[0].id, availableLayouts[0]);
+                response.layouts = [singleLayout];
+                response.currentLayout = singleLayout;
+                response.totalSlots = singleLayout.totalSlots || 0;
+                response.textSlots = singleLayout.textSlotCount || 0;
+                response.mediaSlots = singleLayout.mediaSlotCount || 0;
+            }
+        }
+
+        console.log('=== RENDERER PROCESS: Layout details response prepared:', {
+            layoutCount: response.layouts.length,
+            isLoop: response.isLoop,
+            totalSlots: response.totalSlots,
+            currentLayoutId: response.currentLayout ? response.currentLayout.id : null
+        });
+
+        // Send comprehensive response
+        socket.emit('layout-details-response', response);
 
     } catch (error) {
-        console.error('=== RENDERER PROCESS: Error getting layout details:', error);
+        console.error('=== RENDERER PROCESS: Error getting enhanced layout details:', error);
 
         // Send error response
         socket.emit('layout-details-response', {
             layouts: [],
             currentLayout: null,
             isLoop: false,
+            layoutCount: 0,
             totalSlots: 0,
             textSlots: 0,
             mediaSlots: 0,
+            timestamp: Date.now(),
             error: 'Failed to retrieve layout details: ' + error.message
         });
     }

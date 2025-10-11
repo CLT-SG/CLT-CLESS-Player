@@ -229,7 +229,7 @@
             </div>
 
             <!-- Enhanced Layout Management Section -->
-            <div class="dashboard-card layout-management-card">
+            <div class="dashboard-card layout-management-card" style="grid-column: 2 / -2;">
                 <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-layout-text-window"></i>
@@ -250,13 +250,22 @@
                         Loading comprehensive layout information...
                     </div>
                 </div>
-                
-                <!-- Layout Control Actions -->
-                <div class="layout-control-section">
-                    <h4 class="control-section-title">
-                        <i class="bi bi-gear"></i>
-                        Layout Control
-                    </h4>
+            </div>
+
+            <!-- Text Management Section -->
+            <div class="dashboard-card">
+
+                <!-- Layout Switching Actions -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-layout-text-window"></i>
+                    </div>
+                    <h2 class="card-title">Layout Switching</h2>
+                </div>
+                <div class="mb-3 loading">
+                    Enter a layout ID from the available layouts to switch to that layout
+                </div>
+                <div class="form-group">
                     <div class="input-group layout-control-group">
                         <input type="text" id="updateLytInput" class="form-control" 
                                placeholder="Enter Layout ID to switch" 
@@ -267,15 +276,9 @@
                             Switch Layout
                         </button>
                     </div>
-                    <div class="control-help-text">
-                        <i class="bi bi-info-circle"></i>
-                        Enter a layout ID from the available layouts above to switch to that layout
-                    </div>
                 </div>
-            </div>
 
-            <!-- Text Management Section -->
-            <div class="dashboard-card">
+                <!-- Text Management Section -->
                 <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-type"></i>
@@ -295,10 +298,8 @@
                         Replace
                     </button>
                 </div>
-            </div>
 
-            <!-- Media Management Section -->
-            <div class="dashboard-card">
+                <!-- Media Management Section -->
                 <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-play-circle"></i>

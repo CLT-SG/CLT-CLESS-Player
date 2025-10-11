@@ -57,7 +57,6 @@ class SystemInfoManager extends EventEmitter {
         // Check cache first
         if (useCache && this.isCacheValid(type)) {
             this.stats.cacheHits++
-            this.log.debug(`SystemInfo: Cache hit for ${type}`)
             return this.cache.get(type)
         }
         
@@ -74,7 +73,6 @@ class SystemInfoManager extends EventEmitter {
         this.stats.systemCalls++
         
         try {
-            this.log.debug(`SystemInfo: Fetching fresh data for ${type}`)
             const data = await this.fetchSystemData(type, options)
             
             // Cache the result
@@ -92,7 +90,6 @@ class SystemInfoManager extends EventEmitter {
             
             // Return cached data if available, even if expired
             if (this.cache.has(type)) {
-                this.log.warn(`SystemInfo: Returning stale cache for ${type}`)
                 return this.cache.get(type)
             }
             
@@ -165,7 +162,6 @@ class SystemInfoManager extends EventEmitter {
             }
             
             const duration = Date.now() - startTime
-            this.log.debug(`SystemInfo: Fetched ${type} in ${duration}ms`)
             
             return data
             
@@ -205,7 +201,6 @@ class SystemInfoManager extends EventEmitter {
         this.cache.set(type, data)
         this.cacheTimestamps.set(type, Date.now())
         
-        this.log.debug(`SystemInfo: Cached data for ${type}`)
     }
     
     /**
