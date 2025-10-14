@@ -96,6 +96,544 @@ const debug = (process.env.NODE_ENV === 'development' || process.env.DEBUG === '
     ? (...args) => safeLog.debug(...args) 
     : () => {} // Disable debug logs in production
 
+/**
+ * Professional Multi-Display Resolution Calculator
+ * Handles comprehensive display detection and resolution calculation
+ * for multi-monitor setups with various arrangement configurations
+ */
+class DisplayCalculator {
+    constructor() {
+        this.displays = []
+        this.primaryDisplay = null
+        this.combinedResolution = { width: 0, height: 0 }
+        this.arrangement = 'unknown'
+        this.lastUpdate = null
+        this.cache = new Map()
+        this.cacheTimeout = 5000 // 5 seconds cache
+    }
+
+    /**
+     * Get comprehensive display information with caching
+     * @param {boolean} forceRefresh - Force refresh of display data
+     * @returns {Promise<Object>} Complete display configuration
+     */
+    async getDisplayConfiguration(forceRefresh = false) {
+        const cacheKey = 'displayConfig'
+        const now = Date.now()
+        
+        // Return cached data if still valid
+        if (!forceRefresh && this.cache.has(cacheKey)) {
+            const cached = this.cache.get(cacheKey)
+            if (now - cached.timestamp < this.cacheTimeout) {
+                return cached.data
+            }
+        }
+
+        try {
+            safeLog.info('DisplayCalculator: Detecting multi-display configuration...')
+            
+            // Get Electron screen information
+            const electronDisplays = screen.getAllDisplays()
+            const electronPrimary = screen.getPrimaryDisplay()
+            
+            // Get systeminformation graphics data
+            let siDisplays = []
+            if (si) {
+                try {
+                    const graphics = await si.graphics()
+                    siDisplays = graphics.displays || []
+                } catch (error) {
+                    safeLog.warn('DisplayCalculator: Could not get systeminformation graphics:', error.message)
+                }
+            }
+
+            // Platform-specific enhanced detection
+            let platformSpecificData = null
+            if (process.platform === 'linux') {
+                platformSpecificData = await this.getLinuxDisplayInfo()
+            } else if (process.platform === 'win32') {
+                platformSpecificData = await this.getWindowsDisplayInfo()
+            } else if (process.platform === 'darwin') {
+                platformSpecificData = await this.getMacDisplayInfo()
+            }
+
+            // Merge and normalize display data
+            const normalizedDisplays = this.normalizeDisplayData(electronDisplays, siDisplays, platformSpecificData)
+            
+            // Calculate combined resolution and arrangement
+            const combinedRes = this.calculateCombinedResolution(normalizedDisplays)
+            const arrangement = this.detectDisplayArrangement(normalizedDisplays)
+            
+            // Build comprehensive configuration object
+            const configuration = {
+                timestamp: now,
+                displays: normalizedDisplays,
+                primaryDisplay: this.findPrimaryDisplay(normalizedDisplays, electronPrimary),
+                combinedResolution: combinedRes,
+                arrangement: arrangement,
+                totalWorkspace: this.calculateTotalWorkspace(normalizedDisplays),
+                displayCount: normalizedDisplays.length,
+                hasMultipleDisplays: normalizedDisplays.length > 1,
+                electronData: {
+                    displays: electronDisplays,
+                    primary: electronPrimary
+                },
+                systemInfo: siDisplays,
+                platformSpecific: platformSpecificData
+            }
+
+            // Cache the result
+            this.cache.set(cacheKey, {
+                data: configuration,
+                timestamp: now
+            })
+
+            this.lastUpdate = now
+            safeLog.info(`DisplayCalculator: Detected ${normalizedDisplays.length} displays, combined resolution: ${combinedRes.width}x${combinedRes.height}, arrangement: ${arrangement}`)
+            
+            return configuration
+
+        } catch (error) {
+            safeLog.error('DisplayCalculator: Error getting display configuration:', error)
+            throw error
+        }
+    }
+
+    /**
+     * Normalize display data from multiple sources
+     */
+    normalizeDisplayData(electronDisplays, siDisplays, platformData) {
+        const normalized = []
+        
+        electronDisplays.forEach((electronDisplay, index) => {
+            // Find matching systeminformation display
+            const siDisplay = siDisplays.find(si => 
+                si.currentResX === electronDisplay.size.width && 
+                si.currentResY === electronDisplay.size.height
+            ) || siDisplays[index]
+
+            const display = {
+                id: electronDisplay.id,
+                index: index,
+                bounds: electronDisplay.bounds,
+                size: electronDisplay.size,
+                workArea: electronDisplay.workArea,
+                workAreaSize: electronDisplay.workAreaSize,
+                scaleFactor: electronDisplay.scaleFactor,
+                rotation: electronDisplay.rotation,
+                touchSupport: electronDisplay.touchSupport,
+                monochrome: electronDisplay.monochrome,
+                accelerometerSupport: electronDisplay.accelerometerSupport,
+                colorSpace: electronDisplay.colorSpace,
+                colorDepth: electronDisplay.colorDepth,
+                depthPerComponent: electronDisplay.depthPerComponent,
+                internal: electronDisplay.internal,
+                isPrimary: electronDisplay.primary || false,
+                
+                // Enhanced properties from systeminformation
+                model: siDisplay?.model || `Display ${index + 1}`,
+                name: siDisplay?.name || `Display ${index + 1}`,
+                vendor: siDisplay?.vendor || 'Unknown',
+                currentResX: siDisplay?.currentResX || electronDisplay.size.width,
+                currentResY: siDisplay?.currentResY || electronDisplay.size.height,
+                positionX: siDisplay?.positionX || electronDisplay.bounds.x,
+                positionY: siDisplay?.positionY || electronDisplay.bounds.y,
+                pixelDepth: siDisplay?.pixelDepth || electronDisplay.colorDepth,
+                resolutionx: siDisplay?.resolutionx || electronDisplay.size.width,
+                resolutiony: siDisplay?.resolutiony || electronDisplay.size.height,
+                sizex: siDisplay?.sizex || electronDisplay.size.width,
+                sizey: siDisplay?.sizey || electronDisplay.size.height,
+                
+                // Platform-specific enhancements
+                platformData: platformData?.displays?.find(p => 
+                    p.width === electronDisplay.size.width && 
+                    p.height === electronDisplay.size.height
+                ) || null
+            }
+            
+            normalized.push(display)
+        })
+        
+        return normalized
+    }
+
+    /**
+     * Calculate combined resolution for all displays
+     */
+    calculateCombinedResolution(displays) {
+        if (!displays || displays.length === 0) {
+            return { width: 1920, height: 1080 } // Default fallback
+        }
+
+        if (displays.length === 1) {
+            return {
+                width: displays[0].currentResX || displays[0].size.width,
+                height: displays[0].currentResY || displays[0].size.height
+            }
+        }
+
+        // Calculate bounding box of all displays
+        let minX = Number.MAX_SAFE_INTEGER
+        let minY = Number.MAX_SAFE_INTEGER
+        let maxX = Number.MIN_SAFE_INTEGER
+        let maxY = Number.MIN_SAFE_INTEGER
+
+        displays.forEach(display => {
+            const x = display.positionX || display.bounds.x
+            const y = display.positionY || display.bounds.y
+            const width = display.currentResX || display.size.width
+            const height = display.currentResY || display.size.height
+
+            minX = Math.min(minX, x)
+            minY = Math.min(minY, y)
+            maxX = Math.max(maxX, x + width)
+            maxY = Math.max(maxY, y + height)
+        })
+
+        return {
+            width: maxX - minX,
+            height: maxY - minY,
+            bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+        }
+    }
+
+    /**
+     * Detect display arrangement pattern
+     */
+    detectDisplayArrangement(displays) {
+        if (displays.length <= 1) return 'single'
+        if (displays.length === 2) {
+            const display1 = displays[0]
+            const display2 = displays[1]
+            
+            const x1 = display1.positionX || display1.bounds.x
+            const y1 = display1.positionY || display1.bounds.y
+            const x2 = display2.positionX || display2.bounds.x
+            const y2 = display2.positionY || display2.bounds.y
+            
+            if (Math.abs(y1 - y2) < 50) { // Horizontal alignment (small Y difference)
+                return x1 < x2 ? 'horizontal-left-right' : 'horizontal-right-left'
+            } else if (Math.abs(x1 - x2) < 50) { // Vertical alignment (small X difference)
+                return y1 < y2 ? 'vertical-top-bottom' : 'vertical-bottom-top'
+            }
+            return 'diagonal'
+        }
+        
+        return 'complex-multi'
+    }
+
+    /**
+     * Calculate total workspace area
+     */
+    calculateTotalWorkspace(displays) {
+        if (!displays || displays.length === 0) {
+            return { width: 1920, height: 1080, area: 1920 * 1080 }
+        }
+
+        let totalArea = 0
+        let minX = Number.MAX_SAFE_INTEGER
+        let minY = Number.MAX_SAFE_INTEGER
+        let maxX = Number.MIN_SAFE_INTEGER
+        let maxY = Number.MIN_SAFE_INTEGER
+
+        displays.forEach(display => {
+            const workArea = display.workArea || display.bounds
+            totalArea += workArea.width * workArea.height
+            
+            minX = Math.min(minX, workArea.x)
+            minY = Math.min(minY, workArea.y)
+            maxX = Math.max(maxX, workArea.x + workArea.width)
+            maxY = Math.max(maxY, workArea.y + workArea.height)
+        })
+
+        return {
+            width: maxX - minX,
+            height: maxY - minY,
+            area: totalArea,
+            bounds: { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+        }
+    }
+
+    /**
+     * Find primary display from normalized data
+     */
+    findPrimaryDisplay(displays, electronPrimary) {
+        // First try to find by primary flag
+        const primaryByFlag = displays.find(d => d.isPrimary)
+        if (primaryByFlag) return primaryByFlag
+
+        // Then try to match with Electron primary
+        if (electronPrimary) {
+            const primaryById = displays.find(d => d.id === electronPrimary.id)
+            if (primaryById) return primaryById
+        }
+
+        // Fallback to first display
+        return displays[0] || null
+    }
+
+    /**
+     * Get Linux-specific display information
+     */
+    async getLinuxDisplayInfo() {
+        try {
+            return new Promise((resolve) => {
+                exec('xrandr | grep -w connected', (error, stdout) => {
+                    if (error) {
+                        safeLog.warn('DisplayCalculator: xrandr command failed:', error.message)
+                        resolve(null)
+                        return
+                    }
+
+                    const lines = stdout.trim().split('\n')
+                    const displays = lines.map((line, index) => {
+                        const resolutionMatch = line.match(/\b(\d+)x(\d+)\b/)
+                        const positionMatch = line.match(/(\d+)x(\d+)\+(\d+)\+(\d+)/)
+                        const nameMatch = line.match(/^(\S+)/)
+                        
+                        return {
+                            name: nameMatch ? nameMatch[1] : `Display ${index + 1}`,
+                            width: resolutionMatch ? parseInt(resolutionMatch[1]) : 1920,
+                            height: resolutionMatch ? parseInt(resolutionMatch[2]) : 1080,
+                            x: positionMatch ? parseInt(positionMatch[3]) : 0,
+                            y: positionMatch ? parseInt(positionMatch[4]) : 0,
+                            connected: line.includes('connected'),
+                            primary: line.includes('primary')
+                        }
+                    })
+                    
+                    resolve({ platform: 'linux', displays: displays })
+                })
+            })
+        } catch (error) {
+            safeLog.warn('DisplayCalculator: Linux display detection failed:', error.message)
+            return null
+        }
+    }
+
+    /**
+     * Get Windows-specific display information
+     */
+    async getWindowsDisplayInfo() {
+        // This would use Windows-specific commands or APIs
+        // For now, return null and rely on systeminformation
+        return { platform: 'win32', displays: [] }
+    }
+
+    /**
+     * Get macOS-specific display information
+     */
+    async getMacDisplayInfo() {
+        // This would use macOS-specific commands or APIs
+        // For now, return null and rely on systeminformation
+        return { platform: 'darwin', displays: [] }
+    }
+
+    /**
+     * Clear cache
+     */
+    clearCache() {
+        this.cache.clear()
+        safeLog.debug('DisplayCalculator: Cache cleared')
+    }
+
+    /**
+     * Get quick resolution summary
+     */
+    async getResolutionSummary() {
+        try {
+            const config = await this.getDisplayConfiguration()
+            return {
+                combined: config.combinedResolution,
+                individual: config.displays.map(d => ({
+                    name: d.model || d.name,
+                    resolution: `${d.currentResX}x${d.currentResY}`,
+                    position: `${d.positionX},${d.positionY}`,
+                    primary: d.isPrimary
+                })),
+                arrangement: config.arrangement,
+                count: config.displayCount
+            }
+        } catch (error) {
+            safeLog.error('DisplayCalculator: Error getting resolution summary:', error)
+            return {
+                combined: { width: 1920, height: 1080 },
+                individual: [{ name: 'Unknown', resolution: '1920x1080', position: '0,0', primary: true }],
+                arrangement: 'single',
+                count: 1
+            }
+        }
+    }
+}
+
+// Global display calculator instance
+let displayCalculator = null
+
+/**
+ * Setup real-time display change event listeners
+ * Monitors for display connections, disconnections, and configuration changes
+ */
+function setupDisplayChangeListeners(calculator) {
+    if (!calculator) {
+        safeLog.warn('DisplayChangeListeners: No DisplayCalculator instance provided')
+        return
+    }
+
+    let lastDisplayCount = 0
+    let lastCombinedResolution = ''
+    let debounceTimeout = null
+    let cpanelServer = null
+
+    // Get reference to cpanel server for broadcasting changes
+    const getCpanelServer = () => {
+        if (!cpanelServer && global.cpanelServerInstance) {
+            cpanelServer = global.cpanelServerInstance
+        }
+        return cpanelServer
+    }
+
+    // Debounced function to handle display changes
+    const handleDisplayChange = (eventType, display = null) => {
+        clearTimeout(debounceTimeout)
+        debounceTimeout = setTimeout(async () => {
+            try {
+                safeLog.info(`DisplayChangeListener: Processing ${eventType} event`)
+                
+                // Clear calculator cache to force fresh detection
+                calculator.clearCache()
+                
+                // Get updated display configuration
+                const newConfig = await calculator.getDisplayConfiguration(true)
+                const newDisplayCount = newConfig.displayCount
+                const newCombinedResolution = `${newConfig.combinedResolution.width}x${newConfig.combinedResolution.height}`
+                
+                // Check if there are significant changes
+                const hasSignificantChange = (
+                    newDisplayCount !== lastDisplayCount ||
+                    newCombinedResolution !== lastCombinedResolution
+                )
+                
+                if (hasSignificantChange) {
+                    safeLog.info(`DisplayChangeListener: Significant display change detected`)
+                    safeLog.info(`  Display count: ${lastDisplayCount} → ${newDisplayCount}`)
+                    safeLog.info(`  Combined resolution: ${lastCombinedResolution} → ${newCombinedResolution}`)
+                    safeLog.info(`  Arrangement: ${newConfig.arrangement}`)
+                    
+                    // Update stored values
+                    lastDisplayCount = newDisplayCount
+                    lastCombinedResolution = newCombinedResolution
+                    
+                    // Broadcast display change to connected control panels
+                    const server = getCpanelServer()
+                    if (server && server.io) {
+                        const changeEvent = {
+                            type: 'display-configuration-changed',
+                            eventType: eventType,
+                            timestamp: new Date().toISOString(),
+                            previousConfig: {
+                                displayCount: lastDisplayCount !== newDisplayCount ? lastDisplayCount : undefined,
+                                combinedResolution: lastCombinedResolution !== newCombinedResolution ? lastCombinedResolution : undefined
+                            },
+                            newConfig: {
+                                displayCount: newConfig.displayCount,
+                                combinedResolution: newCombinedResolution,
+                                arrangement: newConfig.arrangement,
+                                hasMultipleDisplays: newConfig.hasMultipleDisplays,
+                                displays: newConfig.displays.map(d => ({
+                                    name: d.model || d.name,
+                                    resolution: `${d.currentResX}x${d.currentResY}`,
+                                    position: `${d.positionX},${d.positionY}`,
+                                    isPrimary: d.isPrimary
+                                }))
+                            }
+                        }
+                        
+                        server.io.emit('display-change', changeEvent)
+                        safeLog.info('DisplayChangeListener: Broadcast display change event to control panels')
+                        
+                        // Also emit to specific control panel clients
+                        server.io.emit('system-info-update', {
+                            type: 'display',
+                            data: newConfig,
+                            timestamp: new Date().toISOString()
+                        })
+                    }
+                    
+                    // Update global display calculator reference
+                    global.displayCalculator = calculator
+                    
+                    // Trigger UI updates if main window exists
+                    if (win && !win.isDestroyed()) {
+                        win.webContents.send('display-configuration-changed', newConfig)
+                    }
+                    
+                } else {
+                    safeLog.debug(`DisplayChangeListener: Minor display change (${eventType}), no significant impact`)
+                }
+                
+            } catch (error) {
+                safeLog.error(`DisplayChangeListener: Error handling ${eventType} event:`, error)
+            }
+        }, 1000) // 1 second debounce to avoid rapid-fire events
+    }
+
+    // Initialize baseline values
+    calculator.getDisplayConfiguration().then(config => {
+        lastDisplayCount = config.displayCount
+        lastCombinedResolution = `${config.combinedResolution.width}x${config.combinedResolution.height}`
+        safeLog.info(`DisplayChangeListener: Baseline established - ${lastDisplayCount} displays, ${lastCombinedResolution}`)
+    }).catch(error => {
+        safeLog.warn('DisplayChangeListener: Failed to establish baseline:', error)
+        lastDisplayCount = 1
+        lastCombinedResolution = '1920x1080'
+    })
+
+    // Listen for display added events
+    screen.on('display-added', (event, newDisplay) => {
+        safeLog.info('DisplayChangeListener: Display added event received')
+        safeLog.info(`  New display: ${newDisplay.size.width}x${newDisplay.size.height} at ${newDisplay.bounds.x},${newDisplay.bounds.y}`)
+        handleDisplayChange('display-added', newDisplay)
+    })
+
+    // Listen for display removed events
+    screen.on('display-removed', (event, oldDisplay) => {
+        safeLog.info('DisplayChangeListener: Display removed event received')
+        safeLog.info(`  Removed display: ${oldDisplay.size.width}x${oldDisplay.size.height} at ${oldDisplay.bounds.x},${oldDisplay.bounds.y}`)
+        handleDisplayChange('display-removed', oldDisplay)
+    })
+
+    // Listen for display metrics changed events
+    screen.on('display-metrics-changed', (event, display, changedMetrics) => {
+        safeLog.info('DisplayChangeListener: Display metrics changed event received')
+        safeLog.info(`  Changed display: ${display.size.width}x${display.size.height} at ${display.bounds.x},${display.bounds.y}`)
+        safeLog.info(`  Changed metrics: ${JSON.stringify(changedMetrics)}`)
+        
+        // Only handle significant metric changes (size, bounds, scaleFactor)
+        const significantChanges = ['size', 'bounds', 'scaleFactor', 'workArea']
+        const hasSignificantMetricChange = changedMetrics.some(metric => significantChanges.includes(metric))
+        
+        if (hasSignificantMetricChange) {
+            handleDisplayChange('display-metrics-changed', display)
+        } else {
+            safeLog.debug('DisplayChangeListener: Ignoring minor metric changes')
+        }
+    })
+
+    safeLog.info('DisplayChangeListener: Real-time display change detection initialized')
+    
+    // Return cleanup function
+    return () => {
+        clearTimeout(debounceTimeout)
+        screen.removeAllListeners('display-added')
+        screen.removeAllListeners('display-removed')
+        screen.removeAllListeners('display-metrics-changed')
+        safeLog.info('DisplayChangeListener: Event listeners cleaned up')
+    }
+}
+
+// Store cleanup function globally for app shutdown
+let displayChangeListenersCleanup = null
+
 // Windows audio control (only available on Windows)
 let winAudio = null
 try {
@@ -1172,56 +1710,109 @@ try {
                 // Ensure all required modules are loaded before proceeding
                 await initializeModules()
                 
+                // Initialize the professional multi-display calculator
+                displayCalculator = new DisplayCalculator()
+                // Make DisplayCalculator globally accessible for other modules
+                global.displayCalculator = displayCalculator
+                
+                // Initialize error handler for robust operation
+                const MultiDisplayErrorHandler = require('./MultiDisplayErrorHandler')
+                const multiDisplayErrorHandler = new MultiDisplayErrorHandler(log || safeLog)
+                global.multiDisplayErrorHandler = multiDisplayErrorHandler
+                
+                safeLog.info('DisplayCalculator: Initialized professional multi-display resolution calculator with error handling')
+                
+                // Setup real-time display change detection
+                displayChangeListenersCleanup = setupDisplayChangeListeners(displayCalculator)
+                
+                // Initialize multi-display testing if in development mode
+                if (process.env.NODE_ENV === 'development' || process.env.ENABLE_DISPLAY_TESTS === 'true') {
+                    try {
+                        const MultiDisplayTester = require('./MultiDisplayTester')
+                        const tester = new MultiDisplayTester()
+                        tester.initialize(displayCalculator)
+                        
+                        // Run basic tests after a short delay to allow system to stabilize
+                        setTimeout(async () => {
+                            safeLog.info('Running multi-display test suite...')
+                            await tester.runAllTests()
+                            await tester.testDisplayScenarios()
+                        }, 3000)
+                        
+                        // Make tester globally available for manual testing
+                        global.multiDisplayTester = tester
+                        
+                    } catch (error) {
+                        safeLog.warn('MultiDisplayTester initialization failed:', error.message)
+                    }
+                }
+                
                 const primaryDisplay = screen.getPrimaryDisplay() // Retrieve the primary display using the getPrimaryDisplay() method
             const bounds = primaryDisplay.bounds // Get the bounds of the primary display
             var mainPosX = bounds.x // Get the x-coordinate of the top-left corner of the primary display
             var mainPosY = bounds.y // Get the y-coordinate of the top-left corner of the primary display
             const mainWidth = primaryDisplay.workAreaSize.width // Get the width of the work area using the workAreaSize property
             const mainHeight = primaryDisplay.workAreaSize.height // Get the height of the work area using the workAreaSize property
-            var screenX = 0 // POS X of the window
-            var screenY = 0 // POS Y of the window
-            var screenWidth = 0 // Total of the width every monitor after calculation
-            var screenHeight = 0 // Total of the height every  monitor after calculation
-            var retryUntilGetAllScreens = true // when true open the window
+            // Get comprehensive display configuration using the new DisplayCalculator
+            let displayConfig
+            let screenX = 0 // POS X of the window
+            let screenY = 0 // POS Y of the window  
+            let screenWidth = 0 // Total width calculated from all monitors
+            let screenHeight = 0 // Total height calculated from all monitors
+            let retryUntilGetAllScreens = true // when true open the window
 
-            if (process.platform === 'win32') {
-                await si.graphics().then(screens => {
-                    screens.displays.forEach((sItem, i) => {
-                        /*if (sItem.positionX > mainPosX || sItem.positionY > mainPosY) { // if secondary pos stacked on main screen
-                            screenX = sItem.positionX
-                            screenY = sItem.positionY
-                        } else {
-                            screenX = mainPosX
-                            screenY = mainPosY
-                        }*/
-
-                        if (i >= 0 && sItem.positionX > mainPosX) { // check if this secondary monitor is on stacked bottom of the primary screen
-                            screenWidth = Math.max(screenWidth, sItem.currentResX) // set the maximum of the screen width size
-                            screenHeight += sItem.currentResY
-                        } else {
-                            screenWidth += sItem.currentResX
-                            screenHeight = Math.max(screenHeight, sItem.currentResY) // if stacked right then just get the maximum of the height size
-                        }
-
-                        if (i == screens.displays.length - 1) {
-                            log.info(`Checking all screen sizing. Y: ${mainPosX}, X : ${mainPosY}, W: ${screenWidth}, H: ${screenHeight}`)
-                            retryUntilGetAllScreens = false
-                        }
-                    })
-                })
-            } else if (process.platform === 'linux') {
-                // Linux-specific logic using systeminformation library
-                try {
-                    await getTotalResolution()
-                        .then(resolution => {
-                            screenWidth = resolution.width
-                            screenHeight = resolution.height
-                            retryUntilGetAllScreens = false
-                        })
-                        .catch(error => log.error(error));
-                } catch (error) {
-                    log.error('Error getting display information:', error);
+            // Use error handler for robust display configuration
+            const displayErrorHandler = global.multiDisplayErrorHandler
+            
+            try {
+                // Use the professional DisplayCalculator with error handling
+                displayConfig = await displayErrorHandler.safeDisplayCalculation(displayCalculator)
+                
+                // Validate the configuration
+                displayConfig = displayErrorHandler.createSafeDisplayConfig(displayConfig)
+                
+                // Extract combined resolution from the professional calculator
+                screenWidth = displayConfig.combinedResolution.width
+                screenHeight = displayConfig.combinedResolution.height
+                
+                // Use primary display position as the base position
+                if (displayConfig.primaryDisplay) {
+                    screenX = displayConfig.primaryDisplay.positionX || displayConfig.primaryDisplay.bounds.x
+                    screenY = displayConfig.primaryDisplay.positionY || displayConfig.primaryDisplay.bounds.y
                 }
+                
+                retryUntilGetAllScreens = false
+                
+                // Log detailed display information
+                if (displayConfig.error) {
+                    log.warn(`DisplayCalculator: Using fallback configuration: ${displayConfig.error}`)
+                } else {
+                    log.info(`DisplayCalculator: Professional multi-display configuration detected:`)
+                }
+                
+                log.info(`  Combined Resolution: ${screenWidth}x${screenHeight}`)
+                log.info(`  Display Count: ${displayConfig.displayCount}`)
+                log.info(`  Arrangement: ${displayConfig.arrangement}`)
+                log.info(`  Primary Display: ${displayConfig.primaryDisplay?.model || 'Unknown'} (${displayConfig.primaryDisplay?.currentResX}x${displayConfig.primaryDisplay?.currentResY})`)
+                
+                if (displayConfig.hasMultipleDisplays) {
+                    displayConfig.displays.forEach((display, index) => {
+                        log.info(`  Display ${index + 1}: ${display.model || display.name} - ${display.currentResX}x${display.currentResY} @ ${display.positionX},${display.positionY}`)
+                    })
+                }
+                
+            } catch (error) {
+                log.error('DisplayCalculator: All display detection methods failed, using absolute fallback:', error)
+                
+                // Absolute fallback - use safe defaults
+                screenWidth = 1920
+                screenHeight = 1080
+                retryUntilGetAllScreens = false
+                
+                log.warn('DisplayCalculator: Using absolute fallback resolution: 1920x1080')
+                
+                // Create minimal display config for consistency
+                displayConfig = displayErrorHandler.getFallbackValue('getDisplayConfiguration')
             }
 
             win = new BrowserWindow({
@@ -1858,3 +2449,44 @@ function getTotalResolution() {
         });
     });
 }
+
+// App lifecycle event handlers for cleanup
+app.on('before-quit', (event) => {
+    safeLog.info('App: Before quit event received, cleaning up resources...')
+    
+    // Cleanup display change listeners
+    if (displayChangeListenersCleanup) {
+        displayChangeListenersCleanup()
+        displayChangeListenersCleanup = null
+    }
+    
+    // Cleanup DisplayCalculator if available
+    if (displayCalculator) {
+        displayCalculator.clearCache()
+        safeLog.info('DisplayCalculator: Cache cleared for app shutdown')
+    }
+})
+
+app.on('window-all-closed', () => {
+    safeLog.info('App: All windows closed')
+    
+    // Cleanup display change listeners if not already done
+    if (displayChangeListenersCleanup) {
+        displayChangeListenersCleanup()
+        displayChangeListenersCleanup = null
+    }
+    
+    // On macOS, apps typically stay running even when all windows are closed
+    if (process.platform !== 'darwin') {
+        app.quit()
+    }
+})
+
+app.on('activate', async () => {
+    // On macOS, re-create windows when dock icon is clicked
+    if (process.platform === 'darwin' && BrowserWindow.getAllWindows().length === 0) {
+        safeLog.info('App: Reactivating on macOS, need to recreate windows')
+        // Note: The main window creation logic would need to be refactored into a separate function
+        // for this to work properly, but this provides the structure
+    }
+})

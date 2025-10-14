@@ -48,6 +48,16 @@ return (async function () {
     // For socket.io v4, use the constructor function directly  
     const io = socketIO(server)
     
+    // Make server and io globally accessible for display change broadcasting
+    const serverInstance = {
+        server: server,
+        io: io,
+        app: app,
+        port: 9000,
+        systemInfoManager: systemInfoManager
+    }
+    global.cpanelServerInstance = serverInstance
+    
     var userID = []
     const port = 9000
 
@@ -130,12 +140,150 @@ return (async function () {
         res.sendFile(__dirname + "/src//cpanel.html")
     })
 
-    app.get('/remote', function (req, res) {
-        res.sendFile(__dirname + "/novnc//remote.html")
+    app.get('/remote', async function (req, res) {
+        try {
+            log.info('Remote display endpoint called with multi-display support')
+            
+            // Get display configuration for the remote display
+            const displayInfo = await systemInfoManager.getSystemInfo('display')
+            
+            // Extract query parameters for display configuration
+            const hostname = req.query.hostname || 'localhost'
+            const port = req.query.port || '9000'
+            const scaling = req.query.scaling || 'auto'
+            
+            // Determine if we need to inject multi-display information
+            const hasMultipleDisplays = displayInfo.multiDisplaySummary?.hasMultipleDisplays || false
+            const combinedResolution = displayInfo.multiDisplaySummary?.combinedResolution || '1920x1080'
+            const arrangement = displayInfo.multiDisplaySummary?.arrangement || 'single'
+            
+            // Read the remote.html file
+            const fs = require('fs')
+            const path = require('path')
+            const remoteHtmlPath = path.join(__dirname, 'novnc', 'remote.html')
+            
+            // Check if file exists
+            if (!fs.existsSync(remoteHtmlPath)) {
+                log.error('Remote display file not found:', remoteHtmlPath)
+                return res.status(404).json({ error: 'Remote display file not found' })
+            }
+            
+            let remoteHtml = fs.readFileSync(remoteHtmlPath, 'utf8')
+            
+            // Inject multi-display configuration into the HTML
+            const multiDisplayConfig = {
+                hasMultipleDisplays: hasMultipleDisplays,
+                combinedResolution: combinedResolution,
+                arrangement: arrangement,
+                displayCount: displayInfo.multiDisplaySummary?.totalDisplays || 1,
+                scaling: scaling,
+                hostname: hostname,
+                port: port,
+                timestamp: new Date().toISOString()
+            }
+            
+            // Inject the configuration as a script tag before closing head
+            const configScript = `
+    <script type="text/javascript">
+        // eCLESS Multi-Display Configuration
+        window.eclessMultiDisplayConfig = ${JSON.stringify(multiDisplayConfig)};
+        
+        // Enhanced initialization for multi-display support
+        window.eclessInitializeMultiDisplay = function() {
+            if (window.eclessMultiDisplayConfig.hasMultipleDisplays) {
+                console.log('eCLESS: Initializing multi-display support');
+                console.log('Combined Resolution:', window.eclessMultiDisplayConfig.combinedResolution);
+                console.log('Arrangement:', window.eclessMultiDisplayConfig.arrangement);
+                console.log('Display Count:', window.eclessMultiDisplayConfig.displayCount);
+                
+                // Apply multi-display specific styling or behavior
+                document.body.classList.add('multi-display-mode');
+                document.body.classList.add('arrangement-' + window.eclessMultiDisplayConfig.arrangement);
+                
+                // Set viewport meta for better scaling
+                const viewport = document.querySelector('meta[name="viewport"]');
+                if (viewport) {
+                    viewport.content = 'width=device-width, initial-scale=1.0, user-scalable=yes';
+                }
+            } else {
+                console.log('eCLESS: Single display mode');
+                document.body.classList.add('single-display-mode');
+            }
+        };
+        
+        // Auto-initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', window.eclessInitializeMultiDisplay);
+        } else {
+            window.eclessInitializeMultiDisplay();
+        }
+    </script>`
+            
+            // Find the closing head tag and inject our script
+            if (remoteHtml.includes('</head>')) {
+                remoteHtml = remoteHtml.replace('</head>', configScript + '\n</head>')
+            } else {
+                // Fallback: inject at the beginning of body
+                remoteHtml = remoteHtml.replace('<body>', '<body>' + configScript)
+            }
+            
+            // Set appropriate headers
+            res.set({
+                'Content-Type': 'text/html',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'X-Multi-Display': hasMultipleDisplays ? 'enabled' : 'disabled',
+                'X-Combined-Resolution': combinedResolution,
+                'X-Display-Arrangement': arrangement
+            })
+            
+            res.send(remoteHtml)
+            
+        } catch (error) {
+            log.error('Remote display endpoint error:', error.message)
+            // Fallback to original behavior
+            res.sendFile(__dirname + "/novnc//remote.html")
+        }
     })
 
-    app.get('/vnc', function (req, res) {
-        res.sendFile(__dirname + "/novnc//vnc.html")
+    app.get('/vnc', async function (req, res) {
+        try {
+            log.info('VNC display endpoint called with multi-display support')
+            
+            // Get display configuration for the VNC display
+            const displayInfo = await systemInfoManager.getSystemInfo('display')
+            
+            // Determine if we need to inject multi-display information
+            const hasMultipleDisplays = displayInfo.multiDisplaySummary?.hasMultipleDisplays || false
+            const combinedResolution = displayInfo.multiDisplaySummary?.combinedResolution || '1920x1080'
+            const arrangement = displayInfo.multiDisplaySummary?.arrangement || 'single'
+            
+            // For VNC, we might want different behavior than remote
+            const vncConfig = {
+                hasMultipleDisplays: hasMultipleDisplays,
+                combinedResolution: combinedResolution,
+                arrangement: arrangement,
+                displayCount: displayInfo.multiDisplaySummary?.totalDisplays || 1,
+                mode: 'vnc',
+                timestamp: new Date().toISOString()
+            }
+            
+            // Set headers with multi-display information
+            res.set({
+                'X-Multi-Display': hasMultipleDisplays ? 'enabled' : 'disabled',
+                'X-Combined-Resolution': combinedResolution,
+                'X-Display-Arrangement': arrangement,
+                'X-VNC-Mode': 'multi-display-aware'
+            })
+            
+            res.sendFile(__dirname + "/novnc//vnc.html")
+            
+        } catch (error) {
+            log.error('VNC display endpoint error:', error.message)
+            // Fallback to original behavior
+            res.sendFile(__dirname + "/novnc//vnc.html")
+        }
     })
 
     app.get('/api/replace-text', function (req, res) {
@@ -485,10 +633,151 @@ return (async function () {
     app.get('/api/system/display', async function (req, res) {
         try {
             const displayInfo = await systemInfoManager.getSystemInfo('display')
+            
+            // Add response headers for better client caching
+            res.set({
+                'Cache-Control': 'public, max-age=30', // Cache for 30 seconds
+                'X-Display-API': 'enhanced-multi-display-v2'
+            })
+            
             res.json(displayInfo || {})
         } catch (error) {
             log.error('Display info API error:', error.message)
-            res.status(500).json({ error: 'Failed to get display info' })
+            res.status(500).json({ 
+                error: 'Failed to get display info',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            })
+        }
+    })
+
+    // Enhanced multi-display resolution summary endpoint
+    app.get('/api/system/display/resolution-summary', async function (req, res) {
+        try {
+            log.info('Display resolution summary API endpoint called')
+            
+            // Get enhanced display information
+            const displayInfo = await systemInfoManager.getSystemInfo('display')
+            
+            // Extract and format resolution summary
+            const summary = {
+                timestamp: new Date().toISOString(),
+                hasMultipleDisplays: displayInfo.multiDisplaySummary?.hasMultipleDisplays || false,
+                totalDisplays: displayInfo.multiDisplaySummary?.totalDisplays || 1,
+                combinedResolution: displayInfo.multiDisplaySummary?.combinedResolution || '1920x1080',
+                arrangement: displayInfo.multiDisplaySummary?.arrangement || 'single',
+                
+                // Individual display resolutions
+                individualDisplays: displayInfo.displays?.map(display => ({
+                    index: display.index,
+                    name: display.properties?.name || `Display ${display.index + 1}`,
+                    model: display.properties?.model || 'Unknown',
+                    resolution: display.resolution?.current || '1920x1080',
+                    position: display.position?.formatted || '0,0',
+                    isPrimary: display.properties?.main || false
+                })) || [],
+                
+                // Professional display data if available
+                professionalData: displayInfo.professionalDisplayData ? {
+                    combinedResolution: displayInfo.professionalDisplayData.combinedResolution,
+                    arrangement: displayInfo.professionalDisplayData.arrangement,
+                    totalWorkspace: displayInfo.professionalDisplayData.totalWorkspace,
+                    resolutionSummary: displayInfo.professionalDisplayData.resolutionSummary
+                } : null
+            }
+            
+            res.set({
+                'Cache-Control': 'public, max-age=10', // Shorter cache for resolution summary
+                'X-Display-API': 'resolution-summary-v1'
+            })
+            
+            res.json(summary)
+            
+        } catch (error) {
+            log.error('Display resolution summary API error:', error.message)
+            res.status(500).json({ 
+                error: 'Failed to get display resolution summary',
+                message: error.message,
+                timestamp: new Date().toISOString()
+            })
+        }
+    })
+
+    // Multi-display configuration endpoint for remoteDisplayContainer
+    app.get('/api/system/display/remote-display-config', async function (req, res) {
+        try {
+            log.info('Remote display configuration API endpoint called')
+            
+            const displayInfo = await systemInfoManager.getSystemInfo('display')
+            
+            // Configuration specifically for the remote display container
+            const remoteDisplayConfig = {
+                timestamp: new Date().toISOString(),
+                
+                // Combined resolution for the remote display container
+                combinedResolution: {
+                    width: displayInfo.multiDisplaySummary?.combinedWidth || 1920,
+                    height: displayInfo.multiDisplaySummary?.combinedHeight || 1080,
+                    formatted: displayInfo.multiDisplaySummary?.combinedResolution || '1920x1080',
+                    aspectRatio: displayInfo.multiDisplaySummary?.combinedWidth && displayInfo.multiDisplaySummary?.combinedHeight ?
+                        (displayInfo.multiDisplaySummary.combinedWidth / displayInfo.multiDisplaySummary.combinedHeight).toFixed(2) : '1.78'
+                },
+                
+                // Display arrangement for proper scaling
+                arrangement: displayInfo.multiDisplaySummary?.arrangement || 'single',
+                displayCount: displayInfo.multiDisplaySummary?.totalDisplays || 1,
+                hasMultipleDisplays: displayInfo.multiDisplaySummary?.hasMultipleDisplays || false,
+                
+                // Orientation calculation based on combined resolution
+                orientation: (() => {
+                    const width = displayInfo.multiDisplaySummary?.combinedWidth || 1920
+                    const height = displayInfo.multiDisplaySummary?.combinedHeight || 1080
+                    const ratio = width / height
+                    
+                    if (Math.abs(ratio - 1) < 0.1) return 'square'
+                    else if (ratio > 1.2) return 'landscape'
+                    else if (ratio < 0.8) return 'portrait'
+                    else return 'landscape'
+                })(),
+                
+                // Primary display information for reference
+                primaryDisplay: displayInfo.displays?.find(d => d.properties?.main) || displayInfo.displays?.[0] || {
+                    resolution: { current: '1920x1080' },
+                    properties: { name: 'Unknown Display' }
+                },
+                
+                // Professional display data for advanced features
+                professionalFeatures: displayInfo.professionalDisplayData ? {
+                    available: true,
+                    totalWorkspaceArea: displayInfo.professionalDisplayData.totalWorkspace?.area,
+                    displayConfigurations: displayInfo.professionalDisplayData.displayConfigurations
+                } : {
+                    available: false,
+                    fallbackReason: 'DisplayCalculator not available'
+                }
+            }
+            
+            res.set({
+                'Cache-Control': 'public, max-age=15', // Cache for 15 seconds
+                'X-Display-API': 'remote-display-config-v1'
+            })
+            
+            res.json(remoteDisplayConfig)
+            
+        } catch (error) {
+            log.error('Remote display configuration API error:', error.message)
+            res.status(500).json({ 
+                error: 'Failed to get remote display configuration',
+                message: error.message,
+                timestamp: new Date().toISOString(),
+                fallback: {
+                    combinedResolution: { width: 1920, height: 1080, formatted: '1920x1080', aspectRatio: '1.78' },
+                    arrangement: 'single',
+                    displayCount: 1,
+                    hasMultipleDisplays: false,
+                    orientation: 'landscape'
+                }
+            })
         }
     })
 
@@ -1258,6 +1547,106 @@ return (async function () {
                 userID[clientip] = socket.id
                 console.log('=== CPANEL: Non-eCLESS client registered ===', clientip, socket.id)
                 debug('Saved IP socket mapping for', clientip, ':', userID[clientip])
+            }
+        })
+
+        // Enhanced multi-display event handlers
+        socket.on('request-display-config', async (msg) => {
+            try {
+                log.info('Socket: Display configuration requested by client')
+                const displayInfo = await systemInfoManager.getSystemInfo('display')
+                
+                socket.emit('display-config-response', {
+                    success: true,
+                    data: displayInfo,
+                    timestamp: new Date().toISOString()
+                })
+                
+            } catch (error) {
+                log.error('Socket: Error getting display configuration:', error.message)
+                socket.emit('display-config-response', {
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                })
+            }
+        })
+
+        socket.on('request-display-resolution-summary', async (msg) => {
+            try {
+                log.info('Socket: Display resolution summary requested by client')
+                const displayInfo = await systemInfoManager.getSystemInfo('display')
+                
+                const summary = {
+                    hasMultipleDisplays: displayInfo.multiDisplaySummary?.hasMultipleDisplays || false,
+                    totalDisplays: displayInfo.multiDisplaySummary?.totalDisplays || 1,
+                    combinedResolution: displayInfo.multiDisplaySummary?.combinedResolution || '1920x1080',
+                    arrangement: displayInfo.multiDisplaySummary?.arrangement || 'single',
+                    individualDisplays: displayInfo.displays?.map(display => ({
+                        name: display.properties?.name || `Display ${display.index + 1}`,
+                        resolution: display.resolution?.current || '1920x1080',
+                        position: display.position?.formatted || '0,0',
+                        isPrimary: display.properties?.main || false
+                    })) || []
+                }
+                
+                socket.emit('display-resolution-summary-response', {
+                    success: true,
+                    data: summary,
+                    timestamp: new Date().toISOString()
+                })
+                
+            } catch (error) {
+                log.error('Socket: Error getting display resolution summary:', error.message)
+                socket.emit('display-resolution-summary-response', {
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                })
+            }
+        })
+
+        socket.on('force-display-refresh', async (msg) => {
+            try {
+                log.info('Socket: Force display refresh requested by client')
+                
+                // Clear cache and get fresh display information
+                if (global.displayCalculator) {
+                    global.displayCalculator.clearCache()
+                    const newConfig = await global.displayCalculator.getDisplayConfiguration(true)
+                    
+                    // Broadcast the updated configuration to all connected clients
+                    io.emit('display-configuration-updated', {
+                        type: 'forced-refresh',
+                        data: newConfig,
+                        timestamp: new Date().toISOString()
+                    })
+                    
+                    socket.emit('display-refresh-response', {
+                        success: true,
+                        message: 'Display configuration refreshed and broadcasted',
+                        data: newConfig,
+                        timestamp: new Date().toISOString()
+                    })
+                } else {
+                    // Fallback to SystemInfoManager refresh
+                    const displayInfo = await systemInfoManager.getSystemInfo('display')
+                    
+                    socket.emit('display-refresh-response', {
+                        success: true,
+                        message: 'Display configuration refreshed (fallback method)',
+                        data: displayInfo,
+                        timestamp: new Date().toISOString()
+                    })
+                }
+                
+            } catch (error) {
+                log.error('Socket: Error forcing display refresh:', error.message)
+                socket.emit('display-refresh-response', {
+                    success: false,
+                    error: error.message,
+                    timestamp: new Date().toISOString()
+                })
             }
         })
 

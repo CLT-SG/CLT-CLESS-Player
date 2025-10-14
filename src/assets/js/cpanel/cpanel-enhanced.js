@@ -81,6 +81,134 @@ socket.on('disconnect', function() {
     }
 })
 
+// Enhanced multi-display event handlers for control panel
+socket.on('display-change', function(changeEvent) {
+    console.log('=== CONTROL PANEL: Display configuration change detected ===')
+    console.log('Event details:', changeEvent)
+    
+    try {
+        // Update stored configuration data
+        if (changeEvent.newConfig) {
+            window.latestDisplayConfig = changeEvent.newConfig
+            
+            // Update display information in UI if elements exist  
+            updateDisplayInfoUI(changeEvent.newConfig)
+            
+            // Show user notification about the change
+            const displayCount = changeEvent.newConfig.displayCount
+            const resolution = changeEvent.newConfig.combinedResolution
+            const arrangement = changeEvent.newConfig.arrangement
+            
+            let message = ''
+            if (changeEvent.eventType === 'display-added') {
+                message = `Display added! Now using ${displayCount} displays (${resolution})`
+            } else if (changeEvent.eventType === 'display-removed') {
+                message = `Display removed! Now using ${displayCount} displays (${resolution})`
+            } else {
+                message = `Display configuration changed: ${resolution} (${arrangement})`
+            }
+            
+            if (window.showToast) {
+                showToast(message, 'info', 6000)
+            }
+            
+            // Trigger refresh of remote display container if available
+            if (window.displayOrientationManager) {
+                setTimeout(() => {
+                    window.displayOrientationManager.refreshDisplayInfo()
+                }, 500)
+            }
+        }
+        
+    } catch (error) {
+        console.error('=== CONTROL PANEL: Error handling display change ===', error)
+    }
+})
+
+socket.on('display-configuration-updated', function(updateEvent) {
+    console.log('=== CONTROL PANEL: Display configuration updated ===')
+    console.log('Update details:', updateEvent)
+    
+    try {
+        if (updateEvent.data) {
+            window.latestDisplayConfig = updateEvent.data
+            updateDisplayInfoUI(updateEvent.data)
+            
+            // Show appropriate message based on update type
+            if (updateEvent.type === 'forced-refresh') {
+                if (window.showToast) {
+                    showToast('Display configuration refreshed successfully', 'success', 3000)
+                }
+            }
+            
+            // Update remote display orientation
+            if (window.displayOrientationManager) {
+                window.displayOrientationManager.detectDisplayOrientation()
+            }
+        }
+        
+    } catch (error) {
+        console.error('=== CONTROL PANEL: Error handling display configuration update ===', error)
+    }
+})
+
+// Function to update display information in the control panel UI
+function updateDisplayInfoUI(displayConfig) {
+    try {
+        // Update display count indicator if it exists
+        const displayCountElement = document.getElementById('display-count')
+        if (displayCountElement) {
+            displayCountElement.textContent = displayConfig.displayCount || 1
+        }
+        
+        // Update combined resolution indicator if it exists
+        const resolutionElement = document.getElementById('combined-resolution')
+        if (resolutionElement) {
+            resolutionElement.textContent = displayConfig.combinedResolution || '1920x1080'
+        }
+        
+        // Update arrangement indicator if it exists
+        const arrangementElement = document.getElementById('display-arrangement')
+        if (arrangementElement) {
+            arrangementElement.textContent = displayConfig.arrangement || 'single'
+        }
+        
+        // Update multi-display status badge if it exists
+        const multiDisplayBadge = document.getElementById('multi-display-badge')
+        if (multiDisplayBadge) {
+            if (displayConfig.hasMultipleDisplays) {
+                multiDisplayBadge.className = 'badge badge-success'
+                multiDisplayBadge.textContent = 'Multi-Display'
+            } else {
+                multiDisplayBadge.className = 'badge badge-secondary'
+                multiDisplayBadge.textContent = 'Single Display'
+            }
+        }
+        
+        // Update individual displays list if container exists
+        const displaysListElement = document.getElementById('displays-list')
+        if (displaysListElement && displayConfig.displays) {
+            let displaysHTML = ''
+            displayConfig.displays.forEach((display, index) => {
+                const isPrimary = display.isPrimary ? ' (Primary)' : ''
+                displaysHTML += `
+                    <div class="display-item">
+                        <strong>${display.name}${isPrimary}</strong><br>
+                        Resolution: ${display.resolution}<br>
+                        Position: ${display.position}
+                    </div>
+                `
+            })
+            displaysListElement.innerHTML = displaysHTML
+        }
+        
+        console.log('=== CONTROL PANEL: Display UI updated successfully ===')
+        
+    } catch (error) {
+        console.error('=== CONTROL PANEL: Error updating display UI ===', error)
+    }
+}
+
 // Function to update connection status indicator
 function updateConnectionStatus(connected) {
     // Find or create connection status indicator
