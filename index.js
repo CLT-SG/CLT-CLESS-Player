@@ -1507,8 +1507,6 @@ try {
         path.normalize(os.homedir() + '/clessapp/logs/')
     ]
     console.log('[DEBUG] Directories array:', directories)
-    console.log('[DEBUG] Type of directories:', typeof directories)
-    console.log('[DEBUG] Is array:', Array.isArray(directories))
     if (Array.isArray(directories)) {
         directories.forEach(dir => {
             if (!fs.existsSync(dir)) {
@@ -1821,8 +1819,8 @@ try {
                 width: 0,
                 height: 0,
                 backgroundColor: '#000000',
-                alwaysOnTop: true,
-                autoHideMenuBar: true,
+                //alwaysOnTop: true,
+                //autoHideMenuBar: true,
                 fullscreenable: false,
                 resizable: false,
                 moveable: false,
@@ -1917,9 +1915,9 @@ try {
             })
 
             //hide menu bar
-            win.setSkipTaskbar(true)
-            win.setAlwaysOnTop(true)
-            win2.setSkipTaskbar(true)
+            //win.setSkipTaskbar(true)
+            //win.setAlwaysOnTop(true)
+            //win2.setSkipTaskbar(true)
             //win2.setAlwaysOnTop(true)
             win.setMenuBarVisibility(false)
             win2.setMenuBarVisibility(false)

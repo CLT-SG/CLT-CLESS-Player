@@ -1077,6 +1077,24 @@ return (async function () {
                     rx_sec: net.rx_sec,
                     tx_sec: net.tx_sec
                 })) : [],
+                dataUsage: {
+                    daily: {
+                        download: dataUsageInfo.daily.download,
+                        upload: dataUsageInfo.daily.upload,
+                        total: dataUsageInfo.daily.download + dataUsageInfo.daily.upload
+                    },
+                    monthly: {
+                        download: dataUsageInfo.monthly.download,
+                        upload: dataUsageInfo.monthly.upload,
+                        total: dataUsageInfo.monthly.download + dataUsageInfo.monthly.upload
+                    },
+                    total: {
+                        download: dataUsageInfo.total.download,
+                        upload: dataUsageInfo.total.upload,
+                        total: dataUsageInfo.total.download + dataUsageInfo.total.upload
+                    },
+                    lastReset: dataUsageInfo.lastReset
+                },
                 timestamp: Date.now(),
                 cached: true
             }
