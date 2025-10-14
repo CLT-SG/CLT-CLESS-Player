@@ -1,5 +1,51 @@
 # Change Log
 
+## [2.6.4] 14 / 10 / 2025
+
+### Fixed
+- **Bootstrap Tooltips & JavaScript Execution** - Resolved critical JavaScript blocking issues
+  - Replaced Bootstrap tooltip initialization that required Popper.js with safe jQuery-based fallback system
+  - Fixed "Bootstrap tooltips require Popper.js" JavaScript errors that prevented dashboard functionality
+  - Implemented graceful tooltip degradation with native browser tooltips as final fallback
+  - Added comprehensive try-catch blocks to prevent single failures from breaking entire application
+
+- **System Monitoring Functionality** - Restored full system metrics display and data processing
+  - Enhanced `refreshSystemMonitoring()` function with proper error handling and data validation
+  - Fixed CPU, memory, disk, and network data fetching from `/api/system/monitor` endpoint
+  - Added comprehensive logging and timeout handling for system monitoring API calls
+  - Implemented proper DOM element validation and error state display in monitoring UI
+
+- **Data Usage Management** - Corrected data usage calculation and display functionality
+  - Fixed `updateDataUsageDisplay()` function to match correct HTML element IDs (`dailyDownload`, `dailyUpload`, `monthlyTotal`, `totalUsage`)
+  - Enhanced `/api/system/monitor` endpoint to include comprehensive data usage information with proper totals calculation
+  - Restored daily, monthly, and total data usage tracking with accurate byte calculations
+  - Fixed data usage reset functionality and proper metric display synchronization
+
+- **Device Information Display** - Restored complete system information functionality
+  - Enhanced `deviceinfo()` function with improved error handling and 15-second timeout settings
+  - Fixed data processing for CPU, memory, system, network, display, and storage information from `/api/system/full-info` endpoint
+  - Added comprehensive validation and fallback handling for missing system data
+  - Implemented proper error state management with user-friendly error notifications
+
+### Enhanced
+- **JavaScript Error Resilience** - Professional error handling throughout control panel
+  - Added comprehensive try-catch blocks to `initModernFeatures()` function with independent component initialization
+  - Implemented safe initialization patterns that continue execution even if individual features fail
+  - Enhanced logging with detailed status reporting for each initialization phase
+  - Separated critical and non-critical feature initialization to prevent cascade failures
+
+- **API Response Processing** - Improved data validation and error handling
+  - Added robust JSON response validation with proper null/undefined checks
+  - Enhanced error messaging with detailed debugging information for API failures
+  - Implemented timeout handling and connection error recovery mechanisms
+  - Added user-friendly toast notifications for system monitoring and device information errors
+
+### Technical Improvements
+- **Control Panel Stability** - Eliminated JavaScript execution blocking that prevented dashboard functionality
+- **System Monitoring Reliability** - Ensured consistent data fetching and display across all system metrics
+- **Error Recovery** - Implemented comprehensive fallback mechanisms for all dashboard components
+- **User Experience** - Restored full functionality without JavaScript console errors or broken features
+
 ## [2.6.3] 14 / 10 / 2025
 
 ### Added

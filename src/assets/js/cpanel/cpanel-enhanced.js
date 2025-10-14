@@ -357,51 +357,85 @@ $(document).ready(function () {
 
 // Initialize modern dashboard features
 function initModernFeatures() {
+    console.log('=== CONTROL PANEL: Initializing modern features ===')
     
-    // Setup toast notification system
-    if (!window.showToast) {
-        window.showToast = function(message, type = 'info') {
-            const alertClass = type === 'error' ? 'alert-danger' : 
-                              type === 'warning' ? 'alert-warning' : 'alert-success'
-            const icon = type === 'error' ? 'exclamation-triangle' : 
-                        type === 'warning' ? 'exclamation-circle' : 'check-circle'
-            
-            const toast = $(`
-                <div class="alert-modern ${alertClass}" style="
-                    position: fixed; top: 20px; right: 20px; z-index: 9999;
-                    min-width: 300px; opacity: 0; transform: translateX(100%);
-                    transition: all 0.3s ease;">
-                    <i class="bi bi-${icon}"></i>
-                    <span>${message}</span>
-                </div>
-            `)
-            
-            $('body').append(toast)
-            
-            setTimeout(() => {
-                toast.css({ opacity: 1, transform: 'translateX(0)' })
-            }, 100)
-            
-            setTimeout(() => {
-                toast.css({ opacity: 0, transform: 'translateX(100%)' })
-                setTimeout(() => toast.remove(), 300)
-            }, 4000)
+    try {
+        // Setup toast notification system
+        if (!window.showToast) {
+            window.showToast = function(message, type = 'info') {
+                const alertClass = type === 'error' ? 'alert-danger' : 
+                                  type === 'warning' ? 'alert-warning' : 'alert-success'
+                const icon = type === 'error' ? 'exclamation-triangle' : 
+                            type === 'warning' ? 'exclamation-circle' : 'check-circle'
+                
+                const toast = $(`
+                    <div class="alert-modern ${alertClass}" style="
+                        position: fixed; top: 20px; right: 20px; z-index: 9999;
+                        min-width: 300px; opacity: 0; transform: translateX(100%);
+                        transition: all 0.3s ease;">
+                        <i class="bi bi-${icon}"></i>
+                        <span>${message}</span>
+                    </div>
+                `)
+                
+                $('body').append(toast)
+                
+                setTimeout(() => {
+                    toast.css({ opacity: 1, transform: 'translateX(0)' })
+                }, 100)
+                
+                setTimeout(() => {
+                    toast.css({ opacity: 0, transform: 'translateX(100%)' })
+                    setTimeout(() => toast.remove(), 300)
+                }, 4000)
+            }
         }
+        console.log('Toast notification system initialized')
+    } catch (error) {
+        console.warn('Failed to initialize toast system:', error)
     }
     
-    // Remove loading classes and show content
-    $('.loading').removeClass('loading')
+    try {
+        // Remove loading classes and show content
+        $('.loading').removeClass('loading')
+        console.log('Loading classes removed')
+    } catch (error) {
+        console.warn('Failed to remove loading classes:', error)
+    }
     
-    startSystemMonitoring()
+    try {
+        // Start system monitoring (critical feature)
+        startSystemMonitoring()
+        console.log('System monitoring started')
+    } catch (error) {
+        console.error('Failed to start system monitoring:', error)
+    }
     
-    // Set up event handlers for new features
-    setupEventHandlers()
+    try {
+        // Set up event handlers for new features
+        setupEventHandlers()
+        console.log('Event handlers initialized')
+    } catch (error) {
+        console.warn('Failed to setup event handlers:', error)
+    }
     
-    // Initialize API documentation
-    initializeApiDocumentation()
+    try {
+        // Initialize API documentation
+        initializeApiDocumentation()
+        console.log('API documentation initialized')
+    } catch (error) {
+        console.warn('Failed to initialize API documentation:', error)
+    }
     
-    // Initialize Bootstrap tooltips
-    initializeTooltips()
+    try {
+        // Initialize Bootstrap tooltips (non-critical, safe implementation)
+        initializeTooltips()
+        console.log('Tooltips initialized')
+    } catch (error) {
+        console.warn('Failed to initialize tooltips (non-critical):', error)
+    }
+    
+    console.log('=== CONTROL PANEL: Modern features initialization completed ===')
 }
 
 // Real-time layout details monitoring system
@@ -818,54 +852,116 @@ function initializeConfigurationFields() {
 
 // Enhanced system information display
 function deviceinfo() {
+    console.log('=== CONTROL PANEL: Fetching device information ===')
+    
     $.ajax({
-        type: 'get',
+        type: 'GET',
         url: '/api/system/full-info',
+        timeout: 15000, // 15 second timeout
         success: function (data) {
-            if (data.cpu) {
-                $('#sManu').text(data.cpu.manufacturer || 'N/A')
-                $('#sBrand').text(data.cpu.brand || 'N/A')
-                $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'N/A'))
-                $('#sCores').text(data.cpu.cores || 'N/A')
-                $('#sPhysicalCores').text(data.cpu.physicalCores || 'N/A')
-                $('#sFamily').text(data.cpu.family || 'N/A')
-                $('#sModel').text(data.cpu.model || 'N/A')
-            }
+            console.log('Device info data received:', data)
+            
+            try {
+                // CPU Information
+                if (data.cpu) {
+                    $('#sManu').text(data.cpu.manufacturer || 'N/A')
+                    $('#sBrand').text(data.cpu.brand || 'N/A')
+                    $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'N/A'))
+                    $('#sCores').text(data.cpu.cores || 'N/A')
+                    $('#sPhysicalCores').text(data.cpu.physicalCores || 'N/A')
+                    $('#sFamily').text(data.cpu.family || 'N/A')
+                    $('#sModel').text(data.cpu.model || 'N/A')
+                    console.log('CPU information updated')
+                } else {
+                    console.warn('CPU data not available')
+                    $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('N/A')
+                }
 
-            if (data.memory) {
-                $('#memTotal').text(formatBytes(data.memory.total))
-                $('#memFree').text(formatBytes(data.memory.free))
-                $('#memUsed').text(formatBytes(data.memory.used))
-                $('#memAvailable').text(formatBytes(data.memory.available))
-                $('#swapTotal').text(formatBytes(data.memory.swaptotal))
-                $('#swapUsed').text(formatBytes(data.memory.swapused))
-            }
+                // Memory Information
+                if (data.memory) {
+                    $('#memTotal').text(formatBytes(data.memory.total))
+                    $('#memFree').text(formatBytes(data.memory.free))
+                    $('#memUsed').text(formatBytes(data.memory.used))
+                    $('#memAvailable').text(formatBytes(data.memory.available))
+                    $('#swapTotal').text(formatBytes(data.memory.swaptotal || 0))
+                    $('#swapUsed').text(formatBytes(data.memory.swapused || 0))
+                    console.log('Memory information updated')
+                } else {
+                    console.warn('Memory data not available')
+                    $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('N/A')
+                }
 
-            if (data.system) {
-                $('#systemManu').text(data.system.manufacturer || 'N/A')
-                $('#systemModel').text(data.system.model || 'N/A')
-                if (data.system.os) {
-                    $('#osInfo').text(`${data.system.os.distro} ${data.system.os.release}` || 'N/A')
-                    $('#osPlatform').text(data.system.os.platform || 'N/A')
-                    $('#osArch').text(data.system.os.arch || 'N/A')
-                    $('#osHostname').text(data.system.os.hostname || 'N/A')
+                // System Information
+                if (data.system) {
+                    $('#systemManu').text(data.system.manufacturer || 'N/A')
+                    $('#systemModel').text(data.system.model || 'N/A')
+                    if (data.system.os) {
+                        $('#osInfo').text(`${data.system.os.distro || ''} ${data.system.os.release || ''}`.trim() || 'N/A')
+                        $('#osPlatform').text(data.system.os.platform || 'N/A')
+                        $('#osArch').text(data.system.os.arch || 'N/A')
+                        $('#osHostname').text(data.system.os.hostname || 'N/A')
+                    } else {
+                        $('#osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                    }
+                    console.log('System information updated')
+                } else {
+                    console.warn('System data not available')
+                    $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                }
+
+                // Network Information
+                if (data.network && Array.isArray(data.network)) {
+                    displayNetworkInterfaces(data.network)
+                    console.log('Network information updated')
+                } else {
+                    console.warn('Network data not available')
+                    // Clear network display
+                    $('#networkInfo').html('<div class="text-muted">No network data available</div>')
+                }
+
+                // Display Information
+                if (data.display) {
+                    displayDisplayInfo(data.display)
+                    console.log('Display information updated')
+                } else {
+                    console.warn('Display data not available')
+                    // Clear display info
+                    $('#displayInfo').html('<div class="text-muted">No display data available</div>')
+                }
+
+                // Storage/Disk Information
+                if (data.disk && Array.isArray(data.disk)) {
+                    displayDiskInfo(data.disk)
+                    console.log('Disk information updated')
+                } else {
+                    console.warn('Disk data not available')
+                    // Clear disk info
+                    $('#diskInfo').html('<div class="text-muted">No storage data available</div>')
+                }
+                
+                console.log('=== CONTROL PANEL: Device information update completed ===')
+                
+            } catch (error) {
+                console.error('Error processing device info data:', error)
+                // Show error in UI
+                if (window.showToast) {
+                    window.showToast('Error processing device information', 'error')
                 }
             }
-
-            if (data.network) {
-                displayNetworkInterfaces(data.network)
-            }
-
-            if (data.display) {
-                displayDisplayInfo(data.display)
-            }
-
-            if (data.disk) {
-                displayDiskInfo(data.disk)
-            }
         },
-        error: function () {
-            console.warn('Error fetching device info')
+        error: function (xhr, status, error) {
+            console.error('Error fetching device info:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText
+            })
+            
+            // Show error state in UI
+            $('.device-info-field').text('Error')
+            
+            if (window.showToast) {
+                window.showToast('Failed to fetch device information. Please check connection.', 'error')
+            }
         }
     })
 }
@@ -945,59 +1041,143 @@ function startSystemMonitoring() {
 }
 
 function refreshSystemMonitoring() {
+    console.log('=== CONTROL PANEL: Refreshing system monitoring data ===')
+    
     $.ajax({
-        type: 'get',
+        type: 'GET',
         url: '/api/system/monitor',
+        timeout: 10000, // 10 second timeout
         success: function (data) {
-            // CPU Usage
-            $('#cpuUsage').html(`<span class="metric-value">${data.cpu.load.toFixed(1)}%</span>`)
-            $('#cpuProgressBar').css('width', data.cpu.load.toFixed(1) + '%')
+            console.log('System monitoring data received:', data)
             
-            // Memory Usage
-            $('#memoryUsage').html(`<span class="metric-value">${data.memory.usage}%</span><br><small>${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}</small>`)
-            $('#memoryProgressBar').css('width', data.memory.usage + '%')
-            
-            // Disk Usage
-            var diskHtml = ''
-            data.disk.forEach(function(disk, index) {
-                if (index < 2) { // Show only first 2 disks
-                    diskHtml += `<small>${disk.filesystem}: ${disk.usage.toFixed(1)}%</small><br>`
+            try {
+                // CPU Usage
+                if (data.cpu && typeof data.cpu.load !== 'undefined') {
+                    const cpuLoad = parseFloat(data.cpu.load).toFixed(1)
+                    $('#cpuUsage').html(`<span class="metric-value">${cpuLoad}%</span>`)
+                    $('#cpuProgressBar').css('width', cpuLoad + '%')
+                    console.log('CPU data updated:', cpuLoad + '%')
+                } else {
+                    $('#cpuUsage').html('<span class="metric-value">N/A</span>')
+                    console.warn('CPU data not available in response')
                 }
-            })
-            $('#diskUsage').html(diskHtml)
-            
-            // Network Stats
-            var networkHtml = ''
-            data.network.forEach(function(net, index) {
-                if (index < 1 && net.rx_sec > 0) { // Show only first active interface
-                    networkHtml += `<small>↓ ${formatBytes(net.rx_sec)}/s<br>↑ ${formatBytes(net.tx_sec)}/s</small>`
+                
+                // Memory Usage
+                if (data.memory && data.memory.used && data.memory.total) {
+                    const memoryUsage = ((data.memory.used / data.memory.total) * 100).toFixed(1)
+                    $('#memoryUsage').html(`<span class="metric-value">${memoryUsage}%</span><br><small>${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}</small>`)
+                    $('#memoryProgressBar').css('width', memoryUsage + '%')
+                    console.log('Memory data updated:', memoryUsage + '%')
+                } else {
+                    $('#memoryUsage').html('<span class="metric-value">N/A</span>')
+                    console.warn('Memory data not available in response')
                 }
-            })
-            $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
-            
-            // Data Usage Stats
-            if (data.dataUsage) {
-                updateDataUsageDisplay(data.dataUsage)
+                
+                // Disk Usage
+                if (data.disk && Array.isArray(data.disk)) {
+                    var diskHtml = ''
+                    data.disk.forEach(function(disk, index) {
+                        if (index < 2 && disk.filesystem && typeof disk.usage !== 'undefined') {
+                            diskHtml += `<small>${disk.filesystem}: ${parseFloat(disk.usage).toFixed(1)}%</small><br>`
+                        }
+                    })
+                    $('#diskUsage').html(diskHtml || '<small>No disk data</small>')
+                    console.log('Disk data updated')
+                } else {
+                    $('#diskUsage').html('<small>No disk data</small>')
+                    console.warn('Disk data not available in response')
+                }
+                
+                // Network Stats
+                if (data.network && Array.isArray(data.network)) {
+                    var networkHtml = ''
+                    data.network.forEach(function(net, index) {
+                        if (index < 1 && net.rx_sec > 0) {
+                            networkHtml += `<small>↓ ${formatBytes(net.rx_sec)}/s<br>↑ ${formatBytes(net.tx_sec)}/s</small>`
+                        }
+                    })
+                    $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
+                    console.log('Network data updated')
+                } else {
+                    $('#networkStats').html('<small>No network data</small>')
+                    console.warn('Network data not available in response')
+                }
+                
+                // Data Usage Stats
+                if (data.dataUsage) {
+                    updateDataUsageDisplay(data.dataUsage)
+                    console.log('Data usage updated')
+                } else {
+                    console.warn('Data usage not available in response')
+                }
+                
+            } catch (error) {
+                console.error('Error processing system monitoring data:', error)
+                $('#cpuUsage, #memoryUsage, #diskUsage, #networkStats').html('<span class="text-danger">Error</span>')
             }
         },
-        error: function () {
-            console.warn('Error fetching monitoring data')
+        error: function (xhr, status, error) {
+            console.error('Error fetching monitoring data:', {
+                status: status,
+                error: error,
+                responseText: xhr.responseText
+            })
+            
+            // Show error state in UI
+            $('#cpuUsage').html('<span class="text-danger">Error</span>')
+            $('#memoryUsage').html('<span class="text-danger">Error</span>')
+            $('#diskUsage').html('<small class="text-danger">Connection Error</small>')
+            $('#networkStats').html('<small class="text-danger">Connection Error</small>')
+            
+            // Try to show user-friendly error message
+            if (window.showToast) {
+                window.showToast('Failed to fetch system monitoring data. Please check connection.', 'error')
+            }
         }
     })
 }
 
 // Data usage display function
 function updateDataUsageDisplay(dataUsage) {
-    // Update metric cards
-    $('#dataUsageDaily').html(formatBytes(dataUsage.daily.total))
-    $('#dataUsageMonthly').html(formatBytes(dataUsage.monthly.total))
-    $('#dataUsageTotal').html(formatBytes(dataUsage.total.total))
+    console.log('Updating data usage display:', dataUsage)
     
-    // Update detailed breakdown
-    $('#dailyDownload').text(formatBytes(dataUsage.daily.download))
-    $('#dailyUpload').text(formatBytes(dataUsage.daily.upload))
-    $('#monthlyTotal').text(formatBytes(dataUsage.monthly.total))
-    $('#totalUsage').text(formatBytes(dataUsage.total.total))
+    try {
+        // Update main metric card (only dataUsageTotal exists in HTML)
+        if (dataUsage.total && typeof dataUsage.total.total !== 'undefined') {
+            $('#dataUsageTotal').html(formatBytes(dataUsage.total.total))
+        } else if (dataUsage.total && typeof dataUsage.total.download !== 'undefined' && typeof dataUsage.total.upload !== 'undefined') {
+            const totalBytes = dataUsage.total.download + dataUsage.total.upload
+            $('#dataUsageTotal').html(formatBytes(totalBytes))
+        } else {
+            $('#dataUsageTotal').html('N/A')
+        }
+        
+        // Update detailed breakdown in the Data Usage Management section
+        if (dataUsage.daily) {
+            $('#dailyDownload').text(formatBytes(dataUsage.daily.download || 0))
+            $('#dailyUpload').text(formatBytes(dataUsage.daily.upload || 0))
+        }
+        
+        if (dataUsage.monthly) {
+            // Calculate monthly total if not provided
+            const monthlyTotal = dataUsage.monthly.total || 
+                                (dataUsage.monthly.download + dataUsage.monthly.upload) || 0
+            $('#monthlyTotal').text(formatBytes(monthlyTotal))
+        }
+        
+        if (dataUsage.total) {
+            // Calculate total usage if not provided
+            const totalUsage = dataUsage.total.total || 
+                              (dataUsage.total.download + dataUsage.total.upload) || 0
+            $('#totalUsage').text(formatBytes(totalUsage))
+        }
+        
+        console.log('Data usage display updated successfully')
+    } catch (error) {
+        console.error('Error updating data usage display:', error)
+        $('#dataUsageTotal').html('Error')
+        $('#dailyDownload, #dailyUpload, #monthlyTotal, #totalUsage').text('Error')
+    }
 }
 
 // Data usage reset function
@@ -3179,21 +3359,43 @@ function toggleMediaHelp() {
 }
 
 /**
- * Initialize Bootstrap tooltips for enhanced user guidance
+ * Initialize Bootstrap tooltips for enhanced user guidance (Safe Implementation)
  */
 function initializeTooltips() {
-    // Initialize Bootstrap tooltips if available
-    if (typeof bootstrap !== 'undefined' && bootstrap.Tooltip) {
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
-        const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl, {
-                delay: { "show": 500, "hide": 100 },
-                trigger: 'hover focus'
-            })
-        })
-        debug('Bootstrap tooltips initialized:', tooltipList.length)
-    } else {
-        // Fallback: Use native title attributes (already present)
-        debug('Bootstrap tooltips not available, using native title attributes')
+    try {
+        // Check if jQuery and Bootstrap are available
+        if (typeof $ !== 'undefined' && typeof $.fn.tooltip === 'function') {
+            // Use jQuery tooltip as fallback (doesn't require Popper.js)
+            $('[data-bs-toggle="tooltip"], [data-toggle="tooltip"], [title]').each(function() {
+                try {
+                    $(this).tooltip({
+                        delay: { "show": 500, "hide": 100 },
+                        trigger: 'hover focus',
+                        placement: 'auto'
+                    });
+                } catch (tooltipError) {
+                    // Individual tooltip failure shouldn't break the loop
+                    console.warn('Failed to initialize tooltip for element:', this, tooltipError);
+                }
+            });
+            debug('jQuery-based tooltips initialized successfully');
+        } else {
+            // Fallback: Use native title attributes and simple hover effects
+            const elementsWithTooltips = document.querySelectorAll('[data-bs-toggle="tooltip"], [data-toggle="tooltip"], [title]');
+            elementsWithTooltips.forEach(function(element) {
+                // Ensure title attribute exists for native tooltip
+                const tooltipText = element.getAttribute('data-bs-title') || 
+                                   element.getAttribute('title') || 
+                                   element.getAttribute('data-original-title');
+                if (tooltipText && !element.getAttribute('title')) {
+                    element.setAttribute('title', tooltipText);
+                }
+            });
+            debug('Native tooltips initialized:', elementsWithTooltips.length);
+        }
+    } catch (error) {
+        console.warn('Tooltip initialization failed, using native fallback:', error);
+        // Even if everything fails, ensure we don't break the application
+        debug('Using native browser tooltips as final fallback');
     }
 }
