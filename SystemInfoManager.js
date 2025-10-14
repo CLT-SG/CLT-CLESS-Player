@@ -130,7 +130,8 @@ class SystemInfoManager extends EventEmitter {
                     break
                     
                 case 'display':
-                    data = await si.graphics()
+                    // Get enhanced multi-display system information
+                    data = await this.getEnhancedDisplayInfo()
                     break
                     
                 case 'system':
@@ -301,6 +302,150 @@ class SystemInfoManager extends EventEmitter {
         }
     }
     
+    /**
+     * Get enhanced display information with multi-display support
+     * @returns {Promise<Object>} Enhanced display configuration
+     */
+    async getEnhancedDisplayInfo() {
+        // Use error handler if available
+        const errorHandler = global.multiDisplayErrorHandler
+        
+        if (errorHandler) {
+            return await errorHandler.safeExecute(
+                () => this._getEnhancedDisplayInfoUnsafe(),
+                'getEnhancedDisplayInfo',
+                errorHandler.getFallbackValue('getSystemInfo')
+            )
+        }
+        
+        // Fallback to unsafe version if no error handler
+        return await this._getEnhancedDisplayInfoUnsafe()
+    }
+
+    /**
+     * Internal unsafe version of enhanced display info
+     */
+    async _getEnhancedDisplayInfoUnsafe() {
+        try {
+            // Get base display information from systeminformation
+            let baseDisplayInfo
+            try {
+                baseDisplayInfo = await si.graphics()
+            } catch (siError) {
+                this.log.warn('SystemInfo: systeminformation graphics() failed:', siError.message)
+                baseDisplayInfo = { displays: [] }
+            }
+            
+            // Try to get enhanced display data from the global DisplayCalculator
+            let enhancedDisplayData = null
+            if (global.displayCalculator) {
+                try {
+                    const errorHandler = global.multiDisplayErrorHandler
+                    if (errorHandler) {
+                        enhancedDisplayData = await errorHandler.safeDisplayCalculation(global.displayCalculator)
+                    } else {
+                        enhancedDisplayData = await global.displayCalculator.getDisplayConfiguration()
+                    }
+                } catch (error) {
+                    this.log.debug('SystemInfo: DisplayCalculator failed, using base display info only:', error.message)
+                }
+            }
+            
+            // Create enhanced info structure
+            const enhancedInfo = {
+                ...baseDisplayInfo,
+                timestamp: new Date().toISOString(),
+                multiDisplaySupport: enhancedDisplayData !== null,
+                displays: baseDisplayInfo.displays ? baseDisplayInfo.displays.map((display, index) => ({
+                    ...display,
+                    index: index,
+                    displayId: `display_${index}`,
+                    resolution: {
+                        width: display.currentResX || display.resolutionx || display.sizex || 1920,
+                        height: display.currentResY || display.resolutiony || display.sizey || 1080,
+                        current: `${display.currentResX || display.resolutionx || 1920}x${display.currentResY || display.resolutiony || 1080}`
+                    },
+                    position: {
+                        x: display.positionX || 0,
+                        y: display.positionY || 0,
+                        formatted: `${display.positionX || 0},${display.positionY || 0}`
+                    },
+                    properties: {
+                        model: display.model || `Display ${index + 1}`,
+                        vendor: display.vendor || 'Unknown',
+                        name: display.name || `Display ${index + 1}`,
+                        connection: display.connection || 'Unknown',
+                        main: display.main || false,
+                        builtin: display.builtin || false,
+                        pixelDepth: display.pixelDepth || 24
+                    }
+                })) : [],
+                multiDisplaySummary: {
+                    totalDisplays: baseDisplayInfo.displays ? baseDisplayInfo.displays.length : 1,
+                    hasMultipleDisplays: baseDisplayInfo.displays ? baseDisplayInfo.displays.length > 1 : false,
+                    primaryDisplay: baseDisplayInfo.displays ? 
+                        baseDisplayInfo.displays.find(d => d.main) || baseDisplayInfo.displays[0] : null
+                }
+            }
+            
+            // Add enhanced multi-display data if available
+            if (enhancedDisplayData) {
+                enhancedInfo.professionalDisplayData = {
+                    combinedResolution: enhancedDisplayData.combinedResolution,
+                    arrangement: enhancedDisplayData.arrangement,
+                    totalWorkspace: enhancedDisplayData.totalWorkspace,
+                    displayCount: enhancedDisplayData.displayCount,
+                    hasMultipleDisplays: enhancedDisplayData.hasMultipleDisplays
+                }
+                
+                enhancedInfo.multiDisplaySummary = {
+                    ...enhancedInfo.multiDisplaySummary,
+                    combinedWidth: enhancedDisplayData.combinedResolution.width,
+                    combinedHeight: enhancedDisplayData.combinedResolution.height,
+                    combinedResolution: `${enhancedDisplayData.combinedResolution.width}x${enhancedDisplayData.combinedResolution.height}`,
+                    arrangement: enhancedDisplayData.arrangement,
+                    totalWorkspaceArea: enhancedDisplayData.totalWorkspace.area
+                }
+            }
+            
+            this.log.debug('SystemInfo: Enhanced display information generated successfully')
+            return enhancedInfo
+            
+        } catch (error) {
+            this.log.error('SystemInfo: Failed to get enhanced display information:', error.message)
+            
+            // Return fallback display information
+            return {
+                timestamp: new Date().toISOString(),
+                multiDisplaySupport: false,
+                displays: [{
+                    index: 0,
+                    displayId: 'display_0',
+                    resolution: { width: 1920, height: 1080, current: '1920x1080' },
+                    position: { x: 0, y: 0, formatted: '0,0' },
+                    properties: {
+                        model: 'Unknown Display',
+                        vendor: 'Unknown',
+                        name: 'Primary Display',
+                        connection: 'Unknown',
+                        main: true,
+                        builtin: false,
+                        pixelDepth: 24
+                    }
+                }],
+                multiDisplaySummary: {
+                    totalDisplays: 1,
+                    hasMultipleDisplays: false,
+                    combinedWidth: 1920,
+                    combinedHeight: 1080,
+                    combinedResolution: '1920x1080',
+                    arrangement: 'single'
+                },
+                error: error.message
+            }
+        }
+    }
+
     /**
      * Cleanup resources
      */

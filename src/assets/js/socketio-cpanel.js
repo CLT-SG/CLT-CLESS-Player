@@ -39,10 +39,119 @@ function createDebouncedHandler(name, handler, delay = 100) {
 
 socket.on('connect', function () {
     console.log('=== RENDERER PROCESS: Connected to socket server ===')
+    
+    // Request initial display configuration when connected
+    socket.emit('request-display-config', { timestamp: new Date().toISOString() })
 })
 
 socket.on('disconnect', function () {
     console.log('=== RENDERER PROCESS: Disconnected from socket server ===')
+})
+
+// Enhanced multi-display event handlers
+socket.on('display-change', function (changeEvent) {
+    console.log('=== RENDERER PROCESS: Display configuration change detected ===')
+    console.log('Event type:', changeEvent.eventType)
+    console.log('New configuration:', changeEvent.newConfig)
+    
+    try {
+        // Update global display data
+        if (window.currentDisplayData) {
+            window.currentDisplayData = changeEvent.newConfig
+        }
+        
+        // Trigger display orientation manager update if available
+        if (window.displayOrientationManager) {
+            window.displayOrientationManager.detectDisplayOrientation()
+        }
+        
+        // Update any UI elements that show display information
+        if (typeof updateDisplayInfo === 'function') {
+            updateDisplayInfo(changeEvent.newConfig)
+        }
+        
+        // Show notification to user about display change
+        if (window.showToast) {
+            const message = changeEvent.newConfig.hasMultipleDisplays ? 
+                `Multi-display configuration updated: ${changeEvent.newConfig.combinedResolution} (${changeEvent.newConfig.arrangement})` :
+                `Display configuration updated: ${changeEvent.newConfig.combinedResolution}`
+            
+            showToast(message, 'info', 5000)
+        }
+        
+        console.log('=== RENDERER PROCESS: Display change handling completed ===')
+        
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error handling display change ===', error)
+    }
+})
+
+socket.on('display-configuration-updated', function (updateEvent) {
+    console.log('=== RENDERER PROCESS: Display configuration updated ===')
+    console.log('Update type:', updateEvent.type)
+    console.log('Updated data:', updateEvent.data)
+    
+    try {
+        // Store the updated configuration
+        window.currentDisplayData = updateEvent.data
+        
+        // Trigger orientation manager refresh
+        if (window.displayOrientationManager) {
+            window.displayOrientationManager.multiDisplayConfig = {
+                hasMultipleDisplays: updateEvent.data.hasMultipleDisplays,
+                combinedResolution: updateEvent.data.combinedResolution,
+                arrangement: updateEvent.data.arrangement,
+                displayCount: updateEvent.data.displayCount
+            }
+            window.displayOrientationManager.detectDisplayOrientation()
+        }
+        
+        console.log('=== RENDERER PROCESS: Display configuration update applied ===')
+        
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error applying display configuration update ===', error)
+    }
+})
+
+socket.on('display-config-response', function (response) {
+    console.log('=== RENDERER PROCESS: Display config response received ===')
+    
+    if (response.success) {
+        console.log('Display configuration:', response.data)
+        
+        // Store the display configuration globally
+        window.currentDisplayData = response.data
+        
+        // Update display orientation manager if available
+        if (window.displayOrientationManager && response.data.multiDisplaySummary) {
+            window.displayOrientationManager.multiDisplayConfig = {
+                hasMultipleDisplays: response.data.multiDisplaySummary.hasMultipleDisplays,
+                combinedResolution: {
+                    width: response.data.multiDisplaySummary.combinedWidth,
+                    height: response.data.multiDisplaySummary.combinedHeight,
+                    formatted: response.data.multiDisplaySummary.combinedResolution
+                },
+                arrangement: response.data.multiDisplaySummary.arrangement,
+                displayCount: response.data.multiDisplaySummary.totalDisplays
+            }
+            window.displayOrientationManager.detectDisplayOrientation()
+        }
+    } else {
+        console.error('Failed to get display configuration:', response.error)
+    }
+})
+
+socket.on('system-info-update', function (updateData) {
+    if (updateData.type === 'display') {
+        console.log('=== RENDERER PROCESS: Display system info update received ===')
+        
+        // Handle display-specific system info updates
+        window.currentDisplayData = updateData.data
+        
+        if (window.displayOrientationManager) {
+            window.displayOrientationManager.detectDisplayOrientation()
+        }
+    }
 })
 
 //refresh ecless
