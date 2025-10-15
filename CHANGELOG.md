@@ -1,5 +1,90 @@
 # Change Log
 
+## [2.6.5] 15 / 10 / 2025
+
+### Added
+- **Multi-PC Network Synchronization Support** - Revolutionary cross-machine display synchronization
+  - Added `masterServerAddress` configuration field for specifying master PC IP address
+  - Added `masterServerPort` configuration field for custom synchronization port settings
+  - Implemented dynamic Socket.IO client connection using configurable server addresses
+  - Enhanced synchronization architecture to support distributed displays across multiple physical machines
+  - Added comprehensive network setup documentation with step-by-step multi-PC configuration guides
+
+- **Advanced Network Configuration System** - Enterprise-ready network deployment capabilities
+  - Created `NETWORK-SETUP-GUIDE.md` with detailed setup instructions for various network scenarios
+  - Added support for single subnet, multi-VLAN, and complex network topologies
+  - Implemented firewall configuration examples for Windows and Linux systems
+  - Added network connectivity testing commands and troubleshooting procedures
+  - Enhanced configuration validation with network-specific error handling
+
+- **Professional Documentation Suite** - Comprehensive guides for multi-PC deployment
+  - Enhanced `SYNCHRONIZATION.md` with network architecture diagrams and topology examples
+  - Added real-world deployment scenarios (office networks, corporate VLANs, dedicated display networks)
+  - Created troubleshooting checklist with pre-flight checks and connectivity tests
+  - Added performance tuning recommendations for high-precision and network-tolerant setups
+  - Implemented configuration parameter explanations with detailed use case examples
+
+### Enhanced
+- **Configuration Migration System** - Robust version upgrade with backward compatibility
+  - Implemented version 2.6.5 migration path with automatic network field addition
+  - Added intelligent config upgrade system that preserves existing settings while adding new capabilities
+  - Enhanced migration logging with detailed status reporting and backup creation
+  - Implemented safe default values for network fields (localhost:9000) to maintain existing functionality
+  - Added comprehensive error handling and rollback capabilities for failed migrations
+
+- **Socket.IO Connection Management** - Dynamic server addressing with fallback support
+  - Refactored Socket.IO client initialization to use configurable server addresses from config.json
+  - Added graceful fallback to localhost when configuration is missing or invalid
+  - Implemented connection error handling with automatic retry mechanisms
+  - Enhanced debugging with detailed connection status logging and error reporting
+  - Added support for custom ports and hostname resolution
+
+- **Synchronization Architecture** - Scalable master-slave coordination across networks
+  - Updated master broadcast system to support cross-network slave coordination
+  - Enhanced slave discovery and connection management for multi-PC environments
+  - Improved sync timing accuracy with network latency compensation
+  - Added connection health monitoring and automatic reconnection capabilities
+  - Implemented network-aware timeout and retry logic for unstable connections
+
+### Fixed
+- **Multi-PC Synchronization Limitations** - Resolved hardcoded localhost restrictions
+  - Fixed Socket.IO client hardcoded to `localhost:9000` preventing cross-PC synchronization
+  - Resolved network discovery issues that limited synchronization to single physical machines
+  - Fixed configuration system to properly handle network addressing for distributed setups
+  - Corrected slave connection logic to support master servers on different IP addresses
+  - Eliminated single-point-of-failure issues in distributed display environments
+
+- **Configuration Compatibility** - Seamless upgrade path for existing installations
+  - Fixed potential config corruption during version upgrades with comprehensive backup system
+  - Resolved missing configuration fields in partial or corrupted config files
+  - Fixed version detection logic to properly handle configs from all previous versions
+  - Corrected migration flag management to prevent duplicate or failed migrations
+  - Enhanced error recovery for interrupted or failed configuration upgrades
+
+### Technical Improvements
+- **Network Infrastructure Support** - Enterprise-grade deployment capabilities
+  - Version bump from 2.6.3 to 2.6.5 reflecting significant network enhancement features
+  - Updated all configuration templates and examples to include new network fields
+  - Enhanced version comparison logic for proper migration sequencing (v1.0.0 → v2.4.0 → v2.6.5)
+  - Implemented comprehensive testing coverage for multi-PC scenarios and network configurations
+  - Added support for firewall penetration and port forwarding configurations
+
+- **Developer Experience** - Comprehensive documentation and debugging tools
+  - Created detailed changelog documentation with migration impact analysis
+  - Added network testing commands and connectivity verification procedures
+  - Enhanced error messages with actionable troubleshooting steps and solution guidance
+  - Implemented debug logging with network-specific status and error categorization
+  - Added configuration validation tools and pre-deployment testing procedures
+
+### Breaking Changes
+- **None** - This release maintains full backward compatibility with existing installations
+
+### Migration Notes
+- Existing configurations are automatically upgraded to include network fields with safe defaults
+- Single-PC setups continue to work without any configuration changes required
+- Multi-PC capability is opt-in through configuration of `masterServerAddress` field
+- All existing synchronization features remain unchanged and fully functional
+
 ## [2.6.4] 14 / 10 / 2025
 
 ### Fixed

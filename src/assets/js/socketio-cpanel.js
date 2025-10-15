@@ -14,10 +14,45 @@
 //
 // ========================================
 
-var socket = io('https://localhost:9000')
+// Initialize socket connection with configurable server address
+var socket = null;
 
-console.log('=== RENDERER PROCESS: Socket created, registering ===')
-socket.emit('save id', 'eCLESS:renderer-process')
+function initializeSocketConnection() {
+    try {
+        // Get sync configuration from config
+        let syncConfig = {};
+        if (typeof config !== 'undefined' && config.syncSettings) {
+            syncConfig = config.syncSettings;
+        }
+        
+        // Determine server address and port
+        const serverAddress = syncConfig.masterServerAddress || 'localhost';
+        const serverPort = syncConfig.masterServerPort || 9000;
+        const socketUrl = `https://${serverAddress}:${serverPort}`;
+        
+        console.log('=== SOCKET: Connecting to:', socketUrl);
+        socket = io(socketUrl);
+        
+        console.log('=== RENDERER PROCESS: Socket created, registering ===');
+        socket.emit('save id', 'eCLESS:renderer-process');
+        
+        return socket;
+    } catch (error) {
+        console.error('=== SOCKET: Failed to initialize connection:', error);
+        // Fallback to localhost
+        console.log('=== SOCKET: Falling back to localhost:9000');
+        socket = io('https://localhost:9000');
+        socket.emit('save id', 'eCLESS:renderer-process');
+        return socket;
+    }
+}
+
+// Initialize socket connection
+if (!socket) {
+    socket = initializeSocketConnection();
+}
+
+console.log('=== RENDERER PROCESS: Socket initialized ===');
 
 // Debounced socket handlers to reduce CPU usage
 const debouncedHandlers = new Map()

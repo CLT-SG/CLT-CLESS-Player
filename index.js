@@ -738,6 +738,8 @@ async function applyVersionUpgrades(existingConfig) {
             upgradedConfig.syncSettings = {
                 syncMode: 'disabled',
                 isMaster: false,
+                masterServerAddress: 'localhost',
+                masterServerPort: 9000,
                 syncInterval: 5000,
                 videoSyncThreshold: 0.5,
                 layoutSyncEnabled: true,
@@ -751,6 +753,8 @@ async function applyVersionUpgrades(existingConfig) {
             const defaultSyncSettings = {
                 syncMode: 'disabled',
                 isMaster: false,
+                masterServerAddress: 'localhost',
+                masterServerPort: 9000,
                 syncInterval: 5000,
                 videoSyncThreshold: 0.5,
                 layoutSyncEnabled: true,
@@ -770,11 +774,41 @@ async function applyVersionUpgrades(existingConfig) {
         upgradedConfig.timestamp = new Date().toISOString()
     }
     
-    // Future version upgrades can be added here
-    // Example:
-    // if (compareVersions(currentVersion, '2.5.0') < 0) {
-    //     // Add 2.5.0 specific upgrades
-    // }
+    // Upgrade to 2.6.5: Ensure masterServerAddress and masterServerPort are present
+    if (compareVersions(currentVersion, '2.6.5') < 0) {
+        safeLog.info('Applying 2.6.5 upgrade: Adding network server configuration')
+        
+        // Ensure syncSettings exists first
+        if (!upgradedConfig.syncSettings) {
+            upgradedConfig.syncSettings = {
+                syncMode: 'disabled',
+                isMaster: false,
+                masterServerAddress: 'localhost',
+                masterServerPort: 9000,
+                syncInterval: 5000,
+                videoSyncThreshold: 0.5,
+                layoutSyncEnabled: true,
+                videoSyncEnabled: true,
+                masterBroadcastInterval: 1000,
+                networkTimeout: 10000
+            }
+            safeLog.info('Added complete syncSettings for 2.6.5')
+        } else {
+            // Add missing network server fields if they don't exist
+            if (!upgradedConfig.syncSettings.hasOwnProperty('masterServerAddress')) {
+                upgradedConfig.syncSettings.masterServerAddress = 'localhost'
+                safeLog.info('Added masterServerAddress to existing syncSettings')
+            }
+            if (!upgradedConfig.syncSettings.hasOwnProperty('masterServerPort')) {
+                upgradedConfig.syncSettings.masterServerPort = 9000
+                safeLog.info('Added masterServerPort to existing syncSettings')
+            }
+        }
+        
+        upgradedConfig.version = '2.6.5'
+        upgradedConfig.timestamp = new Date().toISOString()
+        safeLog.info('Upgraded configuration to version 2.6.5 with network server support')
+    }
     
     return upgradedConfig
 }
@@ -792,7 +826,7 @@ async function performConfigMigration() {
             try {
                 const existingConfig = JSON.parse(fs.readFileSync(configJsonPath, 'utf8'))
                 const currentVersion = existingConfig.version || '1.0.0'
-                const targetVersion = '2.4.0'
+                const targetVersion = '2.6.5'
                 
                 if (compareVersions(currentVersion, targetVersion) < 0) {
                     safeLog.info(`Config version upgrade needed: ${currentVersion} -> ${targetVersion}`)
@@ -821,7 +855,7 @@ async function performConfigMigration() {
             fs.writeFileSync(migrationFlagPath, JSON.stringify({
                 completedAt: new Date().toISOString(),
                 migratedFrom: 'default',
-                version: '2.4.0'
+                version: '2.6.5'
             }, null, 2))
             return
         }
@@ -894,6 +928,8 @@ async function performConfigMigration() {
             syncSettings: {
                 syncMode: 'disabled',
                 isMaster: false,
+                masterServerAddress: 'localhost',
+                masterServerPort: 9000,
                 syncInterval: 5000,
                 videoSyncThreshold: 0.5,
                 layoutSyncEnabled: true,
@@ -903,7 +939,7 @@ async function performConfigMigration() {
             },
 
             // Migration metadata
-            version: '2.4.0',
+            version: '2.6.5',
             migrationInfo: {
                 migratedFrom: 'config.js',
                 migrationDate: new Date().toISOString(),
@@ -923,7 +959,7 @@ async function performConfigMigration() {
         fs.writeFileSync(migrationFlagPath, JSON.stringify({
             completedAt: new Date().toISOString(),
             migratedFrom: 'config.js',
-            version: '2.4.0'
+            version: '2.6.5'
         }, null, 2))
 
         // Delete original config.js after successful migration
@@ -951,7 +987,9 @@ async function performConfigMigration() {
                    `• Screen on/off toggle with sound control\n` +
                    `• Advanced configuration management\n` +
                    `• Real-time system information\n` +
-                   `• Multi-screen synchronization system\n\n` +
+                   `• Multi-screen synchronization system\n` +
+                   `• Multi-PC network synchronization support\n` +
+                   `• Configurable master server addressing\n\n` +
                    `Access the enhanced control panel at: https://localhost:9000\n\n` +
                    `Copyright © 2000-${new Date().getFullYear()} by Closed-loop Technology Pte Ltd.`
         }
@@ -1021,6 +1059,8 @@ async function createDefaultConfigJson() {
             syncSettings: {
                 syncMode: 'disabled',
                 isMaster: false,
+                masterServerAddress: 'localhost',
+                masterServerPort: 9000,
                 syncInterval: 5000,
                 videoSyncThreshold: 0.5,
                 layoutSyncEnabled: true,
@@ -1029,7 +1069,7 @@ async function createDefaultConfigJson() {
                 networkTimeout: 10000
             },
             timestamp: new Date().toISOString(),
-            version: '2.4.0'
+            version: '2.6.5'
         }
 
         const configJsonPath = path.join(appdir, 'config.json')
@@ -1060,7 +1100,7 @@ function loadConfiguration() {
             
             // Check if config needs version upgrade
             const currentVersion = configData.version || '1.0.0'
-            if (compareVersions(currentVersion, '2.4.0') < 0) {
+            if (compareVersions(currentVersion, '2.6.5') < 0) {
                 safeLog.info('Config version check: upgrade needed during load, version:', currentVersion)
                 // Don't upgrade here, let the migration system handle it on next restart
                 // For now, ensure syncSettings exist for immediate use
@@ -1068,6 +1108,8 @@ function loadConfiguration() {
                     configData.syncSettings = {
                         syncMode: 'disabled',
                         isMaster: false,
+                        masterServerAddress: 'localhost',
+                        masterServerPort: 9000,
                         syncInterval: 5000,
                         videoSyncThreshold: 0.5,
                         layoutSyncEnabled: true,
@@ -1106,6 +1148,8 @@ function loadConfiguration() {
                 syncSettings: {
                     syncMode: 'disabled',
                     isMaster: false,
+                    masterServerAddress: 'localhost',
+                    masterServerPort: 9000,
                     syncInterval: 5000,
                     videoSyncThreshold: 0.5,
                     layoutSyncEnabled: true,
