@@ -40,6 +40,8 @@
   "syncSettings": {
     "syncMode": "disabled",
     "isMaster": false,
+    "masterServerAddress": "localhost",
+    "masterServerPort": 9000,
     "syncInterval": 5000,
     "videoSyncThreshold": 0.5,
     "layoutSyncEnabled": true,
@@ -48,5 +50,5 @@
     "networkTimeout": 10000
   },
   "timestamp": "2025-08-28T10:38:09.284Z",
-  "version": "2.4.0"
+  "version": "2.6.5"
 }
