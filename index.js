@@ -1966,13 +1966,10 @@ try {
                 
                 // Restore alwaysOnTop when loading main player (index.html)
                 if (currentURL.includes('index.html')) {
-                    win.setAlwaysOnTop(true)
-                    win.setSkipTaskbar(true)
                     win.setMenuBarVisibility(false)
                     log.info('AlwaysOnTop restored for main player view')
                 } else if (currentURL.includes('configure.html') || currentURL.includes('activate.html')) {
                     // Ensure alwaysOnTop stays disabled for configure/activate pages
-                    win.setAlwaysOnTop(false)
                     log.info('AlwaysOnTop remains disabled for configure/activate page')
                 }
             })
@@ -1980,8 +1977,8 @@ try {
             //hide menu bar
             win.setSkipTaskbar(true)
             win.setAlwaysOnTop(true)
-            win2.setSkipTaskbar(true)
-            win2.setAlwaysOnTop(true)
+            //win2.setSkipTaskbar(true)
+            //win2.setAlwaysOnTop(true)
             win.setMenuBarVisibility(false)
             win2.setMenuBarVisibility(false)
             Menu.setApplicationMenu(null)
