@@ -19,6 +19,7 @@ const { exec } = require('child_process')
 const lazyLoader = require('./LazyModuleLoader')
 const createCpanelServer = require('./cpanel')
 const performanceMonitor = require('./PerformanceMonitor')
+const SerialKeyValidator = require('./SerialKeyValidator')
 
 const homedir = os.homedir()
 const appdir = path.normalize(homedir + '/clessapp')
@@ -2117,35 +2118,57 @@ try {
                         log.info('Offline mode active : Network is down but proceeding with cached layout data from localStorage')
                     }
                     
-                    macaddress.one(function (err, mac) {
-                        if (err) {
-                            log.error('MAC error:', err)
-                            // In offline mode, even MAC error should not prevent loading if we have cached data
-                            if (config.mode == 'offline') {
-                                log.warn('MAC error in offline mode : Proceeding with cached data anyway')
-                                // In offline mode, skip serial key verification if MAC detection fails
-                                log.info('ecless player startup (offline mode, MAC error bypassed)')
-                                win.loadURL("file://" + __dirname + "/src/index.html")
-                            } else {
-                                win.loadURL("file://" + __dirname + "/src/offline.html")
-                            }
-                            return
-                        }
+                    // Initialize professional multi-NIC serial key validator
+                    const serialKeyValidator = new SerialKeyValidator({
+                        secret: 'Clt@2022',
+                        debug: process.env.NODE_ENV === 'development',
+                        logger: log
+                    })
 
-                        log.info('MAC detected:', mac)
-                        const secret = 'Clt@2022'
-                        const hash = Crypto.createHash('sha256').update(mac).digest('hex')
-
-                        if (config.serialkey === hash) {
-                            log.info('ecless player startup')
+                    // Get all network interface MAC addresses
+                    const networkMACs = serialKeyValidator.getAllNetworkMACs()
+                    
+                    if (networkMACs.length === 0) {
+                        log.error('SerialKeyValidator: No network interfaces detected')
+                        // In offline mode, allow proceeding without MAC detection
+                        if (config.mode == 'offline') {
+                            log.warn('Offline mode: Proceeding without network interface detection')
+                            log.info('ecless player startup (offline mode, no network interfaces)')
                             win.loadURL("file://" + __dirname + "/src/index.html")
                         } else {
-                            win.setSkipTaskbar(false)
-                            win.setAlwaysOnTop(false)
-                            win.setMenuBarVisibility(true)
-                            win.loadURL("file://" + __dirname + "/src/activate.html")
+                            win.loadURL("file://" + __dirname + "/src/offline.html")
                         }
+                        return
+                    }
+
+                    // Log all detected network interfaces
+                    log.info(`SerialKeyValidator: Detected ${networkMACs.length} network interface(s)`)
+                    networkMACs.forEach((macInfo, index) => {
+                        log.info(`  Interface ${index + 1}: ${macInfo.interface} (${macInfo.type}) - MAC: ${macInfo.mac}`)
                     })
+
+                    // Validate serial key against all detected network interfaces
+                    const validationResult = serialKeyValidator.validateSerialKey(config.serialkey)
+
+                    if (validationResult.valid) {
+                        log.info('SerialKeyValidator: Serial key validation SUCCESS')
+                        log.info(`SerialKeyValidator: Matched interface: ${validationResult.matchedInterface.interface} (${validationResult.matchedInterface.mac})`)
+                        log.info('ecless player startup')
+                        win.loadURL("file://" + __dirname + "/src/index.html")
+                    } else {
+                        log.warn('SerialKeyValidator: Serial key validation FAILED')
+                        log.warn(`SerialKeyValidator: Reason: ${validationResult.reason}`)
+                        log.warn(`SerialKeyValidator: Detected ${validationResult.detectedInterfaces} network interface(s)`)
+                        
+                        // Generate validation report for troubleshooting
+                        const validationReport = serialKeyValidator.getValidationReport(config.serialkey)
+                        log.debug('SerialKeyValidator: Validation report:', JSON.stringify(validationReport, null, 2))
+                        
+                        win.setSkipTaskbar(false)
+                        win.setAlwaysOnTop(false)
+                        win.setMenuBarVisibility(true)
+                        win.loadURL("file://" + __dirname + "/src/activate.html")
+                    }
                 }
             })
 

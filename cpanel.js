@@ -1038,6 +1038,61 @@ return (async function () {
         }
     })
 
+    // Network interfaces and license status endpoint
+    app.get('/api/network-license-status', function (req, res) {
+        try {
+            // Load SerialKeyValidator module
+            const SerialKeyValidator = require('./SerialKeyValidator')
+            
+            // Load current configuration to get serial key
+            const configPath = path.join(appdir, 'config.json')
+            let serialKey = null
+            
+            try {
+                const configContent = fs.readFileSync(configPath, 'utf-8')
+                const config = JSON.parse(configContent)
+                serialKey = config.serialkey
+            } catch (error) {
+                log.warn('Could not load serial key from config:', error)
+            }
+            
+            // Initialize validator
+            const validator = new SerialKeyValidator({
+                secret: 'Clt@2022',
+                debug: process.env.NODE_ENV === 'development',
+                logger: log
+            })
+            
+            // Get all network interfaces
+            const networkMACs = validator.getAllNetworkMACs()
+            
+            // Validate serial key if provided
+            let validationResult = null
+            if (serialKey) {
+                validationResult = validator.validateSerialKey(serialKey)
+            }
+            
+            // Prepare response
+            const response = {
+                interfaces: networkMACs,
+                licenseValid: validationResult ? validationResult.valid : false,
+                matchedInterface: validationResult ? validationResult.matchedInterface : null,
+                validationReason: validationResult ? validationResult.reason : 'No serial key configured',
+                timestamp: new Date().toISOString()
+            }
+            
+            res.json(response)
+            
+        } catch (error) {
+            log.error('Error getting network license status:', error)
+            res.status(500).json({ 
+                error: 'Failed to get network license status',
+                interfaces: [],
+                licenseValid: false
+            })
+        }
+    })
+
     // Optimized system monitoring endpoint with caching
     app.get('/api/system/monitor', async function (req, res) {
         try {

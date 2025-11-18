@@ -20,13 +20,20 @@
       <!-- System Information -->
       <div class="system-info">
         <div class="info-card">
-          <div class="info-label">MAC Address</div>
+          <div class="info-label">Primary MAC Address</div>
           <div class="mac-address-container">
             <div class="info-value" id="macaddress">Loading...</div>
             <button class="copy-btn" id="copyMacBtn" onclick="copyMacAddress()" title="Copy MAC Address">
               📋
             </button>
           </div>
+        </div>
+      </div>
+      
+      <!-- All Network Interfaces Section -->
+      <div class="all-macs-section">
+        <div id="all-mac-addresses" class="all-mac-container">
+          <div class="loading-macs">Loading network interfaces...</div>
         </div>
       </div>
 
@@ -58,13 +65,9 @@
 
       <!-- QR Code Section -->
       <div class="qr-section">
-        <canvas id="qr-canvas" width="200" height="200"></canvas>
-        <p style="color: #666; font-size: 0.9em; margin-top: 5px;">
-          Scan QR code to request license key via WhatsApp
-        </p>
-        <p style="color: #666; font-size: 0.9em; margin-top: 5px;">
-          or email: sales@closed-loop.biz
-        </p>
+        <canvas id="qr-canvas" width="150" height="150"></canvas>
+        <p>Scan QR code to request license key via WhatsApp</p>
+        <p>or email: sales@closed-loop.biz</p>
       </div>
 
       <!-- Activation Input -->
