@@ -1,5 +1,124 @@
 # Change Log
 
+## [2.7.2] - 2025-11-18
+
+### Added
+- **Custom Dialog System** - Professional in-window modal dialogs for alwaysOnTop compatibility
+  - Created `custom-dialog.js` utility replacing native alert() and confirm() calls
+  - Implemented auto-dismiss feature with 5-second timeout for informational alerts
+  - Added keyboard navigation support (Enter to confirm, Escape to cancel)
+  - Professional styling with smooth animations (fadeIn, slideIn effects)
+  - Multiple dialog types with appropriate icons and themes: info, success, warning, error, question
+  - Promise-based API for clean async/await usage
+  - Countdown timer display showing remaining seconds before auto-close
+  - Responsive design working across all screen sizes
+
+- **AlwaysOnTop State Management** - Intelligent window state control for dialog visibility
+  - Automatic alwaysOnTop disabling when loading configure.html or activate.html
+  - Automatic alwaysOnTop restoration when returning to main player (index.html)
+  - Event-driven architecture using did-finish-load for seamless state transitions
+  - Enhanced keyboard shortcut (Ctrl+1) to disable alwaysOnTop before opening configure page
+  - Comprehensive logging for window state changes and debugging
+
+- **IPC-Based Configuration Dialogs** - Non-blocking configuration save workflow
+  - Replaced Electron's blocking dialog.showMessageBox with IPC response system
+  - Renderer process handles dialog display using custom modal system
+  - config-save-response event for communication between main and renderer processes
+  - Enhanced error handling with user-friendly error messages
+  - Automatic application restart after successful configuration save
+
+### Fixed
+- **Dialog Visibility Issue** - Resolved critical UX problem with hidden message boxes
+  - Fixed native dialogs appearing behind alwaysOnTop windows in activation page
+  - Fixed configuration save dialogs being unclickable behind main window
+  - Resolved issue where users couldn't dismiss dialogs due to window stacking
+  - Fixed keyboard focus issues with native browser dialogs
+
+### Enhanced
+- **Activation Page (activate.html)** - Complete dialog system integration
+  - Replaced all alert() calls with customAlert() featuring auto-dismiss
+  - Replaced all confirm() calls with customConfirm() for better UX
+  - Enhanced copy MAC address error handling with custom error dialogs
+  - Improved license validation feedback with type-specific dialogs (warning, success, error)
+  - Added async/await support for cleaner code flow
+  - Professional toast notifications for copy operations
+
+- **Configuration Page (configure.html)** - Enhanced save workflow
+  - Integrated custom dialog system for configuration save confirmation
+  - Added IPC listener for config-save-response events
+  - Success dialog displays copyright information with 5-second auto-dismiss
+  - Error dialog shows detailed failure messages with appropriate styling
+  - Automatic application restart after user acknowledgment or timeout
+  - Non-blocking save operation preserving application responsiveness
+
+### Technical Improvements
+- **Custom Dialog Architecture** - Professional modal system implementation
+  - CustomDialog class with comprehensive dialog management
+  - Support for multiple simultaneous dialog configurations
+  - Automatic cleanup and memory leak prevention
+  - Z-index management ensuring proper stacking (999999)
+  - CSS animations with keyframe definitions
+  - Accessible button focus management
+  - Timeout management with proper cleanup
+
+- **Window State Lifecycle** - Robust alwaysOnTop management
+  - did-finish-load event listener for automatic state detection
+  - URL-based window state determination (index.html vs configure.html vs activate.html)
+  - Graceful state transitions without user intervention
+  - Maintains proper taskbar visibility during configuration
+  - Menu bar visibility control coordinated with alwaysOnTop state
+
+- **Error Handling & Resilience** - Comprehensive error management
+  - Try-catch blocks throughout dialog system
+  - Graceful fallback mechanisms for missing DOM elements
+  - Detailed error logging for debugging
+  - User-friendly error messages with actionable guidance
+  - Connection error recovery for IPC communication
+
+### Documentation
+- **Implementation Guide** - Complete technical documentation
+  - Created `/docs/ALWAYSONTOP-DIALOG-FIX.md` with comprehensive system architecture
+  - Detailed API reference for custom dialog functions
+  - Testing checklist covering all scenarios
+  - Visual verification guidelines for QA
+  - Future enhancement suggestions
+  - Created `/DIALOG-FIX-SUMMARY.md` as quick reference guide
+
+### API Changes
+- **Custom Dialog API** - New public functions available in renderer process
+  - `customAlert(message, options)` - Show alert with optional timeout
+  - `customConfirm(message, options)` - Show confirmation dialog
+  - `window.customDialog` - Direct access to DialogManager instance
+  - Options: type, timeout, title, buttonText, confirmText, cancelText
+
+### Compatibility
+- Full backward compatibility maintained with existing functionality
+- No breaking changes to any existing APIs or workflows
+- Works seamlessly with all existing IPC handlers
+- Compatible with all supported platforms (Windows, Linux, macOS)
+- Zero impact on main player functionality or performance
+
+### Performance
+- Minimal memory footprint for dialog system
+- Efficient DOM manipulation with cleanup
+- No performance impact on main application
+- Optimized animation rendering
+- Proper event listener cleanup preventing memory leaks
+
+### Security
+- XSS protection through proper text sanitization
+- No inline JavaScript in dialog content
+- Secure IPC communication patterns
+- Proper event handler cleanup
+
+### User Experience
+- Dialogs always visible and clickable
+- Auto-dismiss prevents user frustration
+- Professional appearance matching eCLESS design
+- Keyboard shortcuts improve accessibility
+- Smooth animations enhance perceived performance
+- Clear visual feedback for all user actions
+
 ## [2.7.1] - 2025-11-18
 
 ### Added
