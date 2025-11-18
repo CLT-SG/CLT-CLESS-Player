@@ -1959,6 +1959,24 @@ try {
                 }
             })
 
+            // Listen for page load to restore alwaysOnTop for main player view
+            win.webContents.on('did-finish-load', () => {
+                const currentURL = win.webContents.getURL()
+                log.info('Window finished loading:', currentURL)
+                
+                // Restore alwaysOnTop when loading main player (index.html)
+                if (currentURL.includes('index.html')) {
+                    win.setAlwaysOnTop(true)
+                    win.setSkipTaskbar(true)
+                    win.setMenuBarVisibility(false)
+                    log.info('AlwaysOnTop restored for main player view')
+                } else if (currentURL.includes('configure.html') || currentURL.includes('activate.html')) {
+                    // Ensure alwaysOnTop stays disabled for configure/activate pages
+                    win.setAlwaysOnTop(false)
+                    log.info('AlwaysOnTop remains disabled for configure/activate page')
+                }
+            })
+
             //hide menu bar
             win.setSkipTaskbar(true)
             win.setAlwaysOnTop(true)
@@ -2027,6 +2045,10 @@ try {
                     if (checkScreens) clearInterval(checkScreens)
                 }
                 if (win) {
+                    // Disable alwaysOnTop for configure page to allow dialogs to appear properly
+                    win.setAlwaysOnTop(false)
+                    log.info('AlwaysOnTop disabled for configure page')
+                    
                     win.show()
                     win.setBounds({
                         x: mainPosX,
@@ -2273,29 +2295,25 @@ try {
                 fs.writeFile(appdir + '/config.json', JSON.stringify(enhancedConfig, null, 2), function (err, data) {
                     if (err) {
                         log.warn('Error saving config.json:', err)
+                        // Send error response to renderer
+                        event.reply('config-save-response', {
+                            success: false,
+                            error: 'Failed to save configuration file'
+                        })
                     } else {
                         log.info('Enhanced config.json updated.')
+                        
+                        // Send success response to renderer (no dialog blocking)
+                        // The renderer process will show the custom dialog
+                        event.reply('config-save-response', {
+                            success: true,
+                            message: 'Configuration has been updated successfully.',
+                            detail: 'Update successful for both config.js and config.json\n' +
+                                'Enhanced features are now available in the control panel.\n\n' +
+                                'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \n' +
+                                'www.closed-loop.biz'
+                        })
                     }
-
-                    const options = {
-                        type: 'info',
-                        buttons: ['Ok'],
-                        defaultId: 1,
-                        title: 'Setup and configuration',
-                        message: 'Configuration has been updated successfully.',
-                        detail: 'Update successful for both config.js and config.json\n' +
-                            'Enhanced features are now available in the control panel.\n\n' +
-                            'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \n' +
-                            'www.closed-loop.biz'
-                    }
-                    dialog.showMessageBox(null, options).then((data) => {
-                        log.info('Dialog show message: ', data)
-                        if (data.response == 0) {
-                            log.info('CLESS Player relaunch success.')
-                            app.exit()
-                            app.relaunch()
-                        }
-                    })
                 })
             })
 

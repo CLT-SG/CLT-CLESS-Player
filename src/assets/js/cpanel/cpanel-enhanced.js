@@ -925,7 +925,7 @@ function displayNetworkLicenseStatus(data) {
                 <div class="card-body p-2">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <strong>${getInterfaceIconCpanel(iface.type)} ${iface.interface}</strong>
+                            <strong>${iface.interface}</strong>
                             <span class="badge ${badgeClass} ms-2">${badgeText}</span>
                             <br>
                             <small class="text-muted">${iface.type}</small>
@@ -943,17 +943,6 @@ function displayNetworkLicenseStatus(data) {
     
     html += '</div>'
     container.html(html)
-}
-
-// Get icon for interface type (helper function for cpanel)
-function getInterfaceIconCpanel(type) {
-    switch (type) {
-        case 'Ethernet': return '🔌'
-        case 'WiFi': return '📶'
-        case 'USB Network': return '🔗'
-        case 'Bluetooth': return '📱'
-        default: return '💻'
-    }
 }
 
 // Enhanced system information display

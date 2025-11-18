@@ -18,6 +18,8 @@
     <script src="assets/js/bootstrap.min.js"></script>
     <!-- Enhanced configuration loader -->
     <script src="assets/js/config-loader.js"></script>
+    <!-- Custom Dialog System for alwaysOnTop compatibility -->
+    <script src="assets/js/custom-dialog.js"></script>
     <style>
         html,
         body {
@@ -179,6 +181,38 @@
 </body>
 <script>
     // Form population moved to populateForm() function above
+    
+    // Listen for configuration save response from main process
+    ipcRenderer.on('config-save-response', async (event, response) => {
+        console.log('eCLESS: Configuration save response received:', response)
+        
+        if (response.success) {
+            // Show success dialog with auto-dismiss
+            await customAlert(
+                response.detail || response.message, 
+                { 
+                    type: 'success',
+                    title: 'Configuration Saved',
+                    timeout: 5000,
+                    buttonText: 'OK'
+                }
+            )
+            
+            // Restart the application after user acknowledges or timeout
+            console.log('eCLESS: CLESS Player relaunch initiated')
+            ipcRenderer.send('app-reload')
+        } else {
+            // Show error dialog
+            await customAlert(
+                response.error || 'Failed to save configuration. Please try again.', 
+                { 
+                    type: 'error',
+                    title: 'Configuration Error',
+                    timeout: 5000
+                }
+            )
+        }
+    })
     
     $('#save').on('click', app_config)
     $('#home').on('click', function () {

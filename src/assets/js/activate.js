@@ -351,17 +351,6 @@ function displayAllMacAddresses(macAddresses) {
   container.innerHTML = html
 }
 
-// Get icon for interface type
-function getInterfaceIcon(type) {
-  switch (type) {
-    case 'Ethernet': return '🔌'
-    case 'WiFi': return '📶'
-    case 'USB Network': return '🔗'
-    case 'Bluetooth': return '📱'
-    default: return '💻'
-  }
-}
-
 // Copy individual MAC address
 function copyIndividualMac(mac) {
   try {
@@ -376,22 +365,28 @@ function copyIndividualMac(mac) {
     }
   } catch (error) {
     console.error('Failed to copy MAC address:', error)
-    alert('Failed to copy MAC address')
+    customAlert('Failed to copy MAC address', { type: 'error', timeout: 3000 })
   }
 }
 
 // Activation function
-function activate() {
+async function activate() {
   const key = document.getElementById('userkey').value.trim()
   
   if (!key) {
-    alert('Please enter a license key before activating.')
+    await customAlert('Please enter a license key before activating.', { 
+      type: 'warning', 
+      timeout: 3000 
+    })
     document.getElementById('userkey').focus()
     return
   }
 
   if (key.length < 10) {
-    alert('License key appears to be too short. Please check and try again.')
+    await customAlert('License key appears to be too short. Please check and try again.', { 
+      type: 'warning', 
+      timeout: 3000 
+    })
     return
   }
 
@@ -412,9 +407,12 @@ function activate() {
     body: JSON.stringify(configData)
   })
   .then(response => response.json())
-  .then(data => {
+  .then(async data => {
     if (data.success) {
-      alert(`License key submitted: ${key}\n\nThe application will now restart to apply the new license.`)
+      await customAlert(`License key submitted: ${key}\n\nThe application will now restart to apply the new license.`, {
+        type: 'success',
+        timeout: 5000
+      })
       
       // Then restart the application
       fetch('https://localhost:9000/api/restartapp')
@@ -434,23 +432,38 @@ function activate() {
             }
           }, 1000)
         })
-        .catch(error => {
+        .catch(async error => {
           console.error('Error restarting application:', error)
-          alert('License key saved, but failed to restart application. Please restart manually.')
+          await customAlert('License key saved, but failed to restart application. Please restart manually.', {
+            type: 'warning',
+            timeout: 5000
+          })
         })
     } else {
-      alert('Failed to save license key. Please try again.')
+      await customAlert('Failed to save license key. Please try again.', {
+        type: 'error',
+        timeout: 4000
+      })
     }
   })
-  .catch(error => {
+  .catch(async error => {
     console.error('Error saving license key:', error)
-    alert('Failed to save license key. Please check your connection and try again.')
+    await customAlert('Failed to save license key. Please check your connection and try again.', {
+      type: 'error',
+      timeout: 4000
+    })
   })
 }
 
 // Cancel function
-function cancel() {
-  if (confirm('Are you sure you want to cancel the activation process?')) {
+async function cancel() {
+  const confirmed = await customConfirm('Are you sure you want to cancel the activation process?', {
+    title: 'Cancel Activation',
+    confirmText: 'Yes, Cancel',
+    cancelText: 'No, Continue'
+  })
+  
+  if (confirmed) {
     console.log('Activation cancelled by user')
     try {
       if (remote && remote.getCurrentWindow) {
@@ -472,7 +485,7 @@ function copyMacAddress() {
   const macAddress = macElement.textContent
   
   if (macAddress === 'Loading...' || macAddress === 'Error' || macAddress === 'Not Available') {
-    alert('MAC address not available to copy')
+    customAlert('MAC address not available to copy', { type: 'warning', timeout: 3000 })
     return
   }
   
@@ -513,11 +526,11 @@ function fallbackCopyToClipboard(text, button) {
     if (successful) {
       showCopySuccess(button)
     } else {
-      alert('Failed to copy MAC address')
+      customAlert('Failed to copy MAC address', { type: 'error', timeout: 3000 })
     }
   } catch (error) {
     console.error('Fallback copy failed:', error)
-    alert('Failed to copy MAC address')
+    customAlert('Failed to copy MAC address', { type: 'error', timeout: 3000 })
   }
 }
 
