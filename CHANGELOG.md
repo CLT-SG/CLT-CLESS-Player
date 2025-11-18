@@ -1,5 +1,44 @@
 # Change Log
 
+## [2.6.12] 18 / 11 / 2025
+
+### Fixed
+- **Offline Mode Network Dependency** - Resolved critical offline mode functionality blocking issue
+  - Fixed network check logic to properly respect config.mode setting when set to 'offline'
+  - Resolved issue where offline mode required network connectivity despite having cached layout data
+  - Fixed application redirecting to offline.html error page when network disconnected in offline mode
+  - Corrected network state validation to only apply when config.mode is 'online'
+  - Fixed MAC address detection failure blocking offline mode startup
+
+### Enhanced
+- **Offline Mode Resilience** - Improved offline mode reliability and error handling
+  - Enhanced network check logic to bypass connectivity validation in offline mode
+  - Implemented graceful MAC address error handling that allows offline mode to proceed with cached data
+  - Added intelligent loading logic that uses layout-offline data from localStorage when network unavailable
+  - Improved error recovery by allowing offline mode to start even with MAC detection failures
+
+- **Offline Mode Debugging** - Comprehensive logging for offline mode troubleshooting
+  - Added detailed configuration mode logging showing current mode setting (online/offline)
+  - Implemented cache availability logging in getLayoutFromStorage() function
+  - Enhanced switchToLayoutOffline() with structured logging separators for better visibility
+  - Added layout data size reporting for cache verification and debugging
+  - Implemented cache key availability reporting showing all available layout-offline entries
+  - Added confirmation logging when layouts are successfully cached for offline use in looplayout.js
+
+### Technical Improvements
+- **Network Check Architecture** - Professional offline mode implementation
+  - Refactored network state validation to be mode-aware with proper conditional logic
+  - Separated online mode network requirements from offline mode cached data usage
+  - Implemented proper error handling chain for MAC address detection in offline scenarios
+  - Enhanced startup flow to prioritize cached data when operating in offline mode
+  - Added comprehensive logging throughout offline mode code paths for debugging support
+
+### Compatibility
+- Maintains full backward compatibility with existing online mode functionality
+- Online mode network validation remains unchanged and continues normal operation
+- All existing layout caching mechanisms preserved and enhanced
+- Offline mode now works as intended without network connectivity requirement
+
 ## [2.6.5] 15 / 10 / 2025
 
 ### Added
