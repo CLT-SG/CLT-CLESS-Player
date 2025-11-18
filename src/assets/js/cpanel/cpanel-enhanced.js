@@ -341,10 +341,18 @@ $(document).ready(function () {
     // Initialize enhanced configuration fields with default values
     initializeConfigurationFields()
     
+    // Load network interfaces and license status
+    loadNetworkLicenseStatus()
+    
     // Set up intervals for monitoring
     setInterval(function () {
         deviceinfo()
     }, 5000)
+    
+    // Refresh network license status every 30 seconds
+    setInterval(function () {
+        loadNetworkLicenseStatus()
+    }, 30000)
 
     // Set up system monitoring refresh
     setInterval(function () {
@@ -848,6 +856,104 @@ function initializeConfigurationFields() {
     }
     
     debug('Configuration fields initialized with default values')
+}
+
+// Load network interfaces and license status
+function loadNetworkLicenseStatus() {
+    $.ajax({
+        type: 'get',
+        url: '/api/network-license-status',
+        success: function (data) {
+            displayNetworkLicenseStatus(data)
+        },
+        error: function (xhr, status, error) {
+            console.error('Failed to load network license status:', error)
+            $('#networkLicenseStatus').html(
+                '<div class="alert alert-warning">' +
+                '<i class="bi bi-exclamation-triangle"></i> Failed to load network interface information' +
+                '</div>'
+            )
+        }
+    })
+}
+
+// Display network interfaces and license validation status
+function displayNetworkLicenseStatus(data) {
+    const container = $('#networkLicenseStatus')
+    
+    if (!data || !data.interfaces || data.interfaces.length === 0) {
+        container.html(
+            '<div class="alert alert-warning">' +
+            '<i class="bi bi-exclamation-circle"></i> No network interfaces detected' +
+            '</div>'
+        )
+        return
+    }
+    
+    let html = '<div class="network-license-status-container">'
+    
+    // License validation status
+    if (data.licenseValid) {
+        html += `
+            <div class="alert alert-success mb-3">
+                <i class="bi bi-check-circle-fill"></i> 
+                <strong>License Valid</strong> - Matched interface: <code>${data.matchedInterface.interface}</code> (${data.matchedInterface.type})
+            </div>
+        `
+    } else {
+        html += `
+            <div class="alert alert-danger mb-3">
+                <i class="bi bi-x-circle-fill"></i> 
+                <strong>License Invalid</strong> - ${data.validationReason || 'Serial key does not match any network interface'}
+            </div>
+        `
+    }
+    
+    // Network interfaces list
+    html += '<h6 class="mb-3">Detected Network Interfaces:</h6>'
+    
+    data.interfaces.forEach((iface, index) => {
+        const isMatched = data.licenseValid && 
+                         data.matchedInterface && 
+                         iface.mac === data.matchedInterface.mac
+        const cardClass = isMatched ? 'border-success' : 'border-secondary'
+        const badgeClass = isMatched ? 'bg-success' : 'bg-secondary'
+        const badgeText = isMatched ? '✓ Licensed' : 'Not Licensed'
+        
+        html += `
+            <div class="card mb-2 ${cardClass}">
+                <div class="card-body p-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${getInterfaceIconCpanel(iface.type)} ${iface.interface}</strong>
+                            <span class="badge ${badgeClass} ms-2">${badgeText}</span>
+                            <br>
+                            <small class="text-muted">${iface.type}</small>
+                        </div>
+                        <div class="text-end">
+                            <code class="text-primary">${iface.mac}</code>
+                            <br>
+                            <small class="text-muted">${iface.address || 'No IP'}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `
+    })
+    
+    html += '</div>'
+    container.html(html)
+}
+
+// Get icon for interface type (helper function for cpanel)
+function getInterfaceIconCpanel(type) {
+    switch (type) {
+        case 'Ethernet': return '🔌'
+        case 'WiFi': return '📶'
+        case 'USB Network': return '🔗'
+        case 'Bluetooth': return '📱'
+        default: return '💻'
+    }
 }
 
 // Enhanced system information display

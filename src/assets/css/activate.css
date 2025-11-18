@@ -7,18 +7,18 @@
 html, body {
   height: 100vh;
   width: 100vw;
-  overflow-x: hidden;
+  overflow: hidden;
   font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   color: #333;
 }
 
 .container {
-  min-height: 100vh;
+  height: 100vh;
   width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   padding: 10px;
   overflow: hidden;
@@ -27,47 +27,51 @@ html, body {
 .main-content {
   width: 100%;
   max-width: 900px;
+  height: calc(100vh - 20px);
   background: rgba(255, 255, 255, 0.95);
   border-radius: 20px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  padding: 20px;
+  padding: 15px;
   margin: 0;
   backdrop-filter: blur(10px);
-  max-height: calc(100vh - 20px);
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .title {
-  font-size: 2.5em;
+  font-size: 1.8em;
   color: #0062cc;
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   font-weight: bold;
 }
 
 .subtitle {
-  font-size: 1.2em;
+  font-size: 1em;
   color: #666;
-  margin-bottom: 5px;
+  margin-bottom: 3px;
 }
 
 .company {
-  font-size: 1em;
+  font-size: 0.85em;
   color: #888;
 }
 
 .activation-section {
   text-align: center;
-  margin: 15px 0;
+  margin: 10px 0;
+  flex-shrink: 0;
 }
 
 .activation-label {
-  font-size: 1.4em;
-  margin-bottom: 15px;
+  font-size: 1.1em;
+  margin-bottom: 8px;
   color: #0062cc;
   font-weight: bold;
 }
@@ -75,13 +79,13 @@ html, body {
 .key-input {
   width: 100%;
   max-width: 500px;
-  padding: 15px 20px;
-  font-size: 16px;
+  padding: 10px 15px;
+  font-size: 14px;
   border: 2px solid #ddd;
   border-radius: 10px;
   outline: none;
   transition: all 0.3s ease;
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
 .key-input:focus {
@@ -91,40 +95,43 @@ html, body {
 
 .instructions-section {
   background: #f8f9fa;
-  border-radius: 15px;
-  padding: 15px;
-  margin: 15px 0;
-  border-left: 5px solid #0062cc;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
+  border-left: 4px solid #0062cc;
+  flex-shrink: 0;
 }
 
 .instructions-title {
-  font-size: 1.4em;
+  font-size: 1.1em;
   color: #0062cc;
-  margin-bottom: 15px;
+  margin-bottom: 8px;
   text-align: center;
+  font-weight: bold;
 }
 
 .instruction-step {
   background: white;
-  padding: 10px 15px;
-  margin: 10px 0;
-  border-radius: 10px;
+  padding: 6px 10px;
+  margin: 6px 0;
+  border-radius: 8px;
   border-left: 3px solid #28a745;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-size: 0.85em;
 }
 
 .step-number {
   display: inline-block;
   background: #0062cc;
   color: white;
-  width: 25px;
-  height: 25px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   text-align: center;
-  line-height: 25px;
-  margin-right: 10px;
+  line-height: 20px;
+  margin-right: 6px;
   font-weight: bold;
-  font-size: 0.9em;
+  font-size: 0.85em;
 }
 
 .config-url {
@@ -142,12 +149,13 @@ html, body {
 .system-info {
   display: flex;
   justify-content: center;
-  margin: 15px 0;
+  margin: 10px 0;
+  flex-shrink: 0;
 }
 
 .info-card {
   background: white;
-  padding: 15px;
+  padding: 10px;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   text-align: center;
@@ -214,23 +222,162 @@ html, body {
   100% { transform: scale(1); }
 }
 
-.button-section {
+/* Multi-NIC MAC Address Display */
+.all-macs-section {
+  margin: 10px 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.all-mac-container {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 10px;
+  border: 2px solid #e9ecef;
+  height: 100%;
+}
+
+.mac-list-header {
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #0062cc;
+  margin-bottom: 8px;
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #0062cc;
+}
+
+.mac-item {
+  background: white;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  border-left: 3px solid #6c757d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.mac-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mac-item.primary {
+  border-left-color: #28a745;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fff4 100%);
+}
+
+.mac-item.error {
+  border-left-color: #dc3545;
+  color: #dc3545;
+  text-align: center;
+  padding: 20px;
+}
+
+.mac-interface-name {
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
   display: flex;
-  justify-content: center;
-  gap: 15px;
-  margin: 15px 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.interface-icon {
+  font-size: 1.1em;
+}
+
+.primary-badge {
+  background: #28a745;
+  color: white;
+  font-size: 0.7em;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: normal;
+  margin-left: 5px;
+}
+
+.mac-interface-type {
+  font-size: 0.75em;
+  color: #6c757d;
+  margin-bottom: 5px;
+}
+
+.mac-address-value {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.btn {
-  padding: 10px 25px;
+.mac-address-value code {
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.85em;
+  color: #0062cc;
+  flex-grow: 1;
+}
+
+.copy-mac-btn {
+  background: #0062cc;
+  color: white;
   border: none;
-  border-radius: 25px;
-  font-size: 1em;
+  border-radius: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  min-width: 30px;
+}
+
+.copy-mac-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+.mac-list-footer {
+  text-align: center;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #dee2e6;
+}
+
+.mac-list-footer small {
+  color: #6c757d;
+  font-size: 0.75em;
+}
+
+.loading-macs {
+  text-align: center;
+  color: #6c757d;
+  padding: 15px;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.button-section {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.9em;
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
-  min-width: 130px;
+  min-width: 110px;
 }
 
 .btn-primary {
@@ -257,15 +404,23 @@ html, body {
 
 .qr-section {
   text-align: center;
-  margin: 10px 0;
+  margin: 8px 0;
+  flex-shrink: 0;
+}
+
+.qr-section p {
+  margin: 3px 0;
+  font-size: 0.8em;
 }
 
 #qr-canvas {
   border: 2px solid #ddd;
-  border-radius: 10px;
+  border-radius: 8px;
   background: white;
   margin: 5px auto;
   display: block;
+  width: 150px;
+  height: 150px;
 }
 
 /* Responsive Design */
@@ -275,62 +430,200 @@ html, body {
   }
 
   .main-content {
-    padding: 20px;
-    margin: 10px;
+    padding: 10px;
+    height: calc(100vh - 10px);
   }
 
   .title {
-    font-size: 2em;
+    font-size: 1.5em;
+  }
+
+  .subtitle {
+    font-size: 0.9em;
+  }
+
+  .company {
+    font-size: 0.75em;
+  }
+
+  .header {
+    margin-bottom: 8px;
   }
 
   .system-info {
+    margin: 6px 0;
     grid-template-columns: 1fr;
-    gap: 15px;
+    gap: 10px;
   }
 
-  .button-section {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .btn {
-    width: 100%;
-    max-width: 300px;
-  }
-
-  .instruction-step {
-    padding: 12px 15px;
+  .info-card {
+    padding: 8px;
   }
 
   .instructions-section {
-    padding: 20px;
+    padding: 8px;
+    margin: 6px 0;
+  }
+
+  .instruction-step {
+    padding: 5px 8px;
+    margin: 4px 0;
+    font-size: 0.8em;
+  }
+
+  .step-number {
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    font-size: 0.75em;
+  }
+
+  .qr-section {
+    margin: 6px 0;
+  }
+
+  #qr-canvas {
+    width: 120px;
+    height: 120px;
+  }
+
+  .activation-section {
+    margin: 6px 0;
+  }
+
+  .activation-label {
+    font-size: 1em;
+    margin-bottom: 6px;
+  }
+
+  .key-input {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .button-section {
+    flex-direction: row;
+    gap: 8px;
+    margin: 8px 0;
+  }
+
+  .btn {
+    padding: 6px 15px;
+    font-size: 0.85em;
+    min-width: 90px;
+  }
+
+  .mac-item {
+    padding: 6px 8px;
+    margin: 4px 0;
+  }
+
+  .mac-interface-name {
+    font-size: 0.85em;
+  }
+
+  .mac-address-value code {
+    font-size: 0.75em;
+    padding: 3px 6px;
+  }
+
+  .all-macs-section {
+    margin: 6px 0;
+  }
+
+  .all-mac-container {
+    padding: 8px;
   }
 }
 
 @media (max-width: 480px) {
   .title {
-    font-size: 1.8em;
+    font-size: 1.3em;
+  }
+
+  .subtitle {
+    font-size: 0.85em;
   }
 
   .activation-label {
-    font-size: 1.2em;
+    font-size: 0.95em;
   }
 
   .key-input {
-    font-size: 14px;
-    padding: 12px 15px;
+    font-size: 12px;
+    padding: 6px 10px;
   }
 
   .main-content {
-    padding: 15px;
+    padding: 8px;
   }
 
   .instructions-section {
-    padding: 15px;
+    padding: 6px;
   }
 
   .instruction-step {
-    padding: 10px 12px;
+    padding: 4px 6px;
+    font-size: 0.75em;
+  }
+
+  #qr-canvas {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+/* Very small screen height */
+@media (max-height: 600px) {
+  .title {
+    font-size: 1.3em;
+    margin-bottom: 3px;
+  }
+
+  .subtitle {
+    font-size: 0.85em;
+  }
+
+  .company {
+    display: none;
+  }
+
+  .header {
+    margin-bottom: 5px;
+  }
+
+  .instructions-title {
+    font-size: 0.95em;
+    margin-bottom: 5px;
+  }
+
+  .instruction-step {
+    padding: 4px 6px;
+    margin: 3px 0;
+    font-size: 0.75em;
+  }
+
+  #qr-canvas {
+    width: 100px;
+    height: 100px;
+  }
+
+  .qr-section p {
+    font-size: 0.7em;
+    margin: 2px 0;
+  }
+
+  .activation-label {
+    font-size: 0.9em;
+  }
+
+  .key-input {
+    padding: 6px 10px;
+  }
+
+  .btn {
+    padding: 5px 12px;
+    font-size: 0.8em;
   }
 }
 

@@ -1,5 +1,280 @@
 # Change Log
 
+## [2.7.1] - 2025-11-18
+
+### Added
+- **Multi-NIC Serial Key Validation** - Any detected network interface MAC address can be used for license activation
+  - Serial key validation now checks against ALL detected physical network interfaces
+  - License is valid if the key matches ANY physical network adapter (Ethernet, WiFi, USB Network, Bluetooth)
+  - Flexible licensing system supports hardware changes and multiple network configurations
+  - Users can switch between Ethernet and WiFi without requiring new license keys
+  - USB network adapters and hot-pluggable interfaces fully supported
+  - Backward compatible with existing single-MAC serial keys
+
+- **All MAC Addresses Display** - Complete visibility of all network interfaces on activation screen
+  - Activation page now displays all detected physical network interfaces in a scrollable list
+  - Each interface shows: interface name, type, MAC address, and IP address
+  - Primary network interface clearly marked with badge
+  - Individual copy-to-clipboard buttons for each MAC address
+  - WhatsApp QR code includes all detected MAC addresses for easier license requests
+  - Real-time interface detection on page load
+
+- **Control Panel License Monitor** - Live license status for all network interfaces
+  - New "Network Interfaces & License Status" section in control panel
+  - Displays real-time validation status for each detected interface
+  - Visual badges show Licensed (green checkmark) or Not Licensed (gray) status
+  - New API endpoint: GET /api/network-license-status for interface validation data
+  - Auto-refresh every 30 seconds to monitor license status changes
+  - Comprehensive interface details including type, MAC address, and IP
+
+### Enhanced
+- **Serial Key Validation Architecture** - Professional multi-interface license validation system
+  - Created SerialKeyValidator.js module with comprehensive MAC address management
+  - getAllNetworkMACs() function detects all physical network adapters
+  - validateSerialKey() checks license key against all detected interfaces
+  - generateSerialKey() creates SHA-256 hash for any MAC address
+  - Smart virtual interface filtering excludes Docker, VMware, VirtualBox, WSL, Hyper-V, loopback
+  - Interface type detection categorizes adapters (Ethernet, WiFi, USB Network, Bluetooth, Other)
+  - 5-second caching mechanism for performance optimization
+
+- **Activation Page Enhancements** - Complete multi-NIC support in activation workflow
+  - Updated activate.js with getAllMacAddresses() for comprehensive interface detection
+  - displayAllMacAddresses() renders all interfaces with detailed information
+  - Enhanced QR code generation includes all MAC addresses in WhatsApp message
+  - Individual copy buttons for each detected MAC address with toast notifications
+  - Professional card-based layout for network interface list
+  - Primary interface badge highlights main network adapter
+
+- **Application Licensing Logic** - Flexible multi-interface validation in main application
+  - Updated index.js to validate serial key against all physical network interfaces
+  - License valid if key matches ANY detected physical interface
+  - Enhanced logging shows all detected interfaces and validation results
+  - Graceful offline mode fallback when no interfaces detected
+  - Maintains existing offline mode functionality
+  - Comprehensive validation reports for diagnostics
+
+- **Activation UI Improvements** - Refined user interface for better readability
+  - Removed emoji icons from network interface list for cleaner text-based display
+  - Network interface types now displayed as plain text (Ethernet, WiFi, USB Network, Bluetooth, Other)
+  - Improved visual clarity by removing decorative icons while maintaining all functionality
+  - Enhanced professional appearance with simplified interface type labels
+
+- **Responsive Layout Optimization** - Comprehensive responsive design for activation page
+  - Fixed page scrolling issues - viewport now locked to 100vh with no page scroll
+  - Implemented flexbox-based layout with scrollable network interfaces section only
+  - Added responsive breakpoints for tablets (768px), mobile (480px), and short screens (600px height)
+  - Optimized spacing and font sizes across all screen sizes (title: 1.8em desktop, 1.5em tablet, 1.3em mobile)
+  - QR code responsive sizing: 150px (desktop), 120px (tablet), 100px (mobile)
+  - All non-scrollable sections use flex-shrink:0 to prevent overflow
+  - Company name hidden on very short screens to maximize content space
+  - Button layout remains horizontal on mobile for better usability
+  - Ultra-compact spacing on small screens (margins reduced by 30-50%)
+
+### Technical Improvements
+- **SerialKeyValidator Module** - Professional utility class for multi-NIC management
+  - Comprehensive MAC address detection across all physical network interfaces
+  - Virtual interface filtering with 14 regex patterns (Docker, VMware, VirtualBox, WSL, etc.)
+  - Interface type detection and categorization
+  - SHA-256 hash generation for license keys with secret key 'Clt@2022'
+  - Performance caching with 5-second TTL
+  - Detailed validation reports for troubleshooting
+  - getValidationReport() provides diagnostic information
+
+- **Control Panel API** - New endpoints for network license management
+  - GET /api/network-license-status returns all interfaces with validation status
+  - Response includes interfaces array, licenseValid boolean, matchedInterface object
+  - Integration with SerialKeyValidator for consistent validation logic
+  - Real-time status updates via Socket.IO when configuration changes
+  - Comprehensive error handling and graceful degradation
+
+- **CSS Architecture** - Professional responsive design system
+  - Fixed html/body to overflow:hidden preventing unwanted page scrolling
+  - Container changed from min-height:100vh to fixed height:100vh
+  - Main content area uses flexbox column layout with proper height constraints
+  - Network interfaces section uses flex:1 with overflow-y:auto for isolated scrolling
+  - Media queries cover all common device sizes and orientations
+  - Maintains accessibility and usability across all screen sizes
+
+### UI/UX Enhancements
+- Better hardware flexibility - works seamlessly when switching between Ethernet and WiFi
+- USB network adapter support for hot-pluggable scenarios
+- Complete visibility of all network interfaces for easier license requests
+- Cleaner, more professional network interface display without emoji clutter
+- Better readability with text-only interface type labels
+- Improved mobile experience with optimized touch targets and spacing
+- No-scroll design ensures all critical elements remain visible
+- Consistent visual hierarchy across all device sizes
+- Toast notifications for copy actions provide better user feedback
+
+### Documentation
+- **Multi-NIC Implementation Guide** - Comprehensive technical documentation
+  - Created docs/MULTI-NIC-SERIAL-KEY.md with complete system architecture
+  - Detailed serial key generation process explanation
+  - End-user activation guide with troubleshooting section
+  - API reference documentation for developers
+  - Testing scenarios covering all use cases
+  - Migration guide for existing installations
+
+### Security
+- Maintained SHA-256 hashing algorithm for license key generation
+- Secret key unchanged: 'Clt@2022' for backward compatibility
+- Virtual interface filtering prevents VM-based license bypass attempts
+- Secure validation logic with proper error handling
+
+### Compatibility
+- Full backward compatibility with existing single-MAC serial keys
+- Existing licenses continue to work without any changes
+- No configuration changes required for current installations
+- Automatic detection and validation of all network interfaces
+- Graceful degradation when no interfaces detected
+
+### Key Benefits
+1. Hardware flexibility - switch between Ethernet/WiFi without relicensing
+2. USB adapter support - hot-pluggable network adapters work seamlessly
+3. Better diagnostics - all interfaces visible for troubleshooting
+4. Easier support - users can provide any MAC address for licensing
+5. Reduced relicensing - hardware changes don't require new keys
+6. Professional UI - clean, responsive activation experience
+
+## [2.7.0] - 2025-11-18
+
+### 🎉 Major Features - Multi-NIC Serial Key Validation System
+
+#### Professional Multi-Network Interface Detection
+- **Comprehensive NIC detection** - Automatically detects all physical network adapters (Ethernet, WiFi, USB Network, Bluetooth)
+- **Flexible license activation** - Serial key can be generated for ANY detected physical network interface
+- **Smart virtual interface filtering** - Excludes Docker, VMware, VirtualBox, WSL, Hyper-V and other virtual adapters
+- **Enhanced activation screen** - Displays all MAC addresses with copy-to-clipboard functionality
+- **Control panel license monitor** - Real-time validation status for all network interfaces
+- **Backward compatible** - Existing single-MAC serial keys continue to work seamlessly
+
+### ✨ New Components
+
+#### SerialKeyValidator Module (`SerialKeyValidator.js`)
+- Professional utility class for multi-NIC MAC address management
+- `getAllNetworkMACs()` - Retrieves all physical network interface MAC addresses
+- `generateSerialKey(mac)` - Generates SHA-256 hash for license keys  
+- `validateSerialKey(key)` - Validates against all detected interfaces
+- `getValidationReport(key)` - Detailed diagnostics for troubleshooting
+- Interface type detection: Ethernet, WiFi, USB Network, Bluetooth, Other
+- 5-second caching mechanism for performance optimization
+
+#### Enhanced Activation UI
+- Multi-MAC address display with interface details (type, MAC, IP)
+- Visual interface type icons (🔌 Ethernet, 📶 WiFi, 🔗 USB Network)
+- Primary interface badge for main adapter
+- Individual copy buttons for each MAC address
+- WhatsApp QR code includes ALL detected MACs
+- Toast notifications for copy actions
+- Responsive card-based layout
+
+#### Control Panel License Status
+- New "Network Interfaces & License Status" section
+- Real-time license validation display  
+- Visual badges: ✓ Licensed (green) / Not Licensed (gray)
+- Alert messages showing validation status
+- Interface details: name, type, MAC address, IP
+- API endpoint: `/api/network-license-status`
+- Auto-refresh every 30 seconds
+
+### 🔧 Technical Enhancements
+
+#### License Validation (`index.js`)
+- Replaced single MAC check with multi-NIC validation
+- Validates serial key against ALL physical interfaces
+- License valid if key matches ANY interface
+- Enhanced logging with interface details
+- Validation reports for diagnostics
+- Graceful offline mode fallback
+
+#### Logging & Diagnostics
+- Comprehensive network interface operation logging
+- Detailed validation results with success/failure reasons
+- Interface discovery logs showing all adapters
+- Debug mode with verbose output
+- Structured log prefixes: `SerialKeyValidator:`
+
+### 📚 Documentation
+
+#### New Files
+- **docs/MULTI-NIC-SERIAL-KEY.md** - Complete implementation guide
+  - Technical architecture and design
+  - Serial key generation process
+  - End-user activation guide
+  - Troubleshooting section
+  - API reference documentation
+  - Testing scenarios
+  - Migration guide
+
+#### Updated Documentation
+- CHANGELOG.md - Comprehensive 2.7.0 release notes
+- Enhanced code comments throughout
+
+### 🎨 UI/UX Improvements
+- Modern card-based layouts
+- Color-coded status indicators
+- Responsive design for all screens
+- Professional CSS styling
+- Improved visual hierarchy
+- Better error messages
+
+### 🐛 Bug Fixes
+- Fixed MAC address fallback in activation
+- Improved network interface error handling
+- Enhanced clipboard functionality
+- Fixed QR code with multiple MACs
+
+### ⚡ Performance
+- Network interface caching (5-sec TTL)
+- Reduced redundant system calls
+- Optimized validation algorithm
+- Efficient duplicate removal
+
+### 🔒 Security
+- Maintained SHA-256 hashing
+- Virtual interface filtering
+- Secure validation logic
+- Secret key unchanged: 'Clt@2022'
+
+### 🧪 Testing Coverage
+- ✅ Single NIC (Ethernet only)
+- ✅ Multiple NICs (Ethernet + WiFi)
+- ✅ USB network adapters
+- ✅ Virtual interface filtering
+- ✅ Backward compatibility
+- ✅ Offline mode operation
+
+### 🚀 Key Benefits
+1. **Hardware Flexibility** - Works across Ethernet/WiFi switches
+2. **USB Support** - Hot-pluggable adapters supported
+3. **Redundancy** - Multiple interfaces for reliability
+4. **Better Diagnostics** - Clear interface visibility
+5. **Easier Support** - All MACs visible for licensing
+6. **Improved UX** - Users see license status clearly
+
+### 📝 API Changes
+
+**New Endpoint:** `GET /api/network-license-status`
+
+Response:
+```json
+{
+  "interfaces": [...],
+  "licenseValid": boolean,
+  "matchedInterface": {...},
+  "validationReason": "string",
+  "timestamp": "ISO8601"
+}
+```
+
+### 🔄 Migration
+- ✅ No action required
+- ✅ Existing licenses remain valid
+- ✅ No configuration changes needed
+- ✅ Automatic upgrade on restart
+
+---
+
 ## [2.6.12] 18 / 11 / 2025
 
 ### Fixed
