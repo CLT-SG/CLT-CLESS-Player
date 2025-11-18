@@ -28,7 +28,7 @@
         "date-and-time": "^2.0.1",
         "electron-log": "^3.0.6",
         "electron-shutdown-command": "^2.0.1",
-        "electron-updater": "^4.3.9",
+        "electron-updater": "^6.6.2",
         "express": "^4.17.2",
         "express-csp-header": "^5.1.0",
         "ip": "^1.1.5",
