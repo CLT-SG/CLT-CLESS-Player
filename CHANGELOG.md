@@ -1,5 +1,45 @@
 # Change Log
 
+## [2.7.3] - 2025-11-18
+
+### Added
+- **Activation Page Application Restart** - Automatic application restart after license activation
+  - Implemented IPC communication pattern matching configure.html save button behavior
+  - Added config-save-response event listener for activation page
+  - Automatic application restart after successful license key activation
+  - Success dialog with 5-second auto-dismiss before restart
+  - Comprehensive error handling with user-friendly error messages
+
+### Enhanced
+- **License Activation Workflow** - Improved reliability and user experience
+  - Replaced fetch API calls with Electron IPC for more reliable communication
+  - Configuration preservation system ensures all settings maintained during activation
+  - Enhanced error feedback with detailed error messages
+  - Fallback to fetch API for edge cases where IPC is unavailable
+  - Consistent behavior with configuration save functionality
+
+### Fixed
+- **Manual Restart Required** - Resolved issue where activation required manual application restart
+  - Fixed activation page not restarting application after license key save
+  - Ensured proper IPC message flow from renderer to main process
+  - Corrected configuration object structure to match main process expectations
+  - Eliminated need for manual application restart after activation
+
+### Technical Improvements
+- **IPC Architecture** - Professional inter-process communication implementation
+  - Modified activate() function to use ipcRenderer.send('app-configsave')
+  - Added IPC listener in onDOMContentLoaded() for config-save-response
+  - Proper configuration object construction preserving all settings
+  - Maintained backward compatibility with fetch API fallback
+  - Comprehensive logging for debugging and troubleshooting
+
+### User Experience
+- Seamless activation workflow with automatic restart
+- Clear success feedback before application restart
+- No manual intervention required after activation
+- Consistent behavior across configuration and activation pages
+- Professional error handling with actionable error messages
+
 ## [2.7.2] - 2025-11-18
 
 ### Added
