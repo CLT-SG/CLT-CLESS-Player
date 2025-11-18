@@ -295,6 +295,7 @@ function layoutLoopUpdateXML() {
                   localStorage.setItem('layout-' + layoutID, JSON.stringify(xmlJSON)); // Store the layout data in local storage
                   localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(xmlJSON)); // Store the offline layout data in local storage
                   log.info(`${layoutURL} XML updated.`); // Log a successful loop XML retrieval
+                  log.info(`Layout cached for offline mode: layout-offline-${layoutID}`); // Enhanced logging for offline mode
                 },
                 error: function (xhr, textStatus, errorThrown) {
                   log.warn('GET Loop XML: Failed: URL: ' + layoutURL + ', ' + xhr.responseText); // Log a failed loop XML retrieval

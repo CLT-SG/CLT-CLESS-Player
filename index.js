@@ -2102,16 +2102,33 @@ try {
                 win.show()
                 win.focus()
                 var networkStat = await si.networkInterfaces('default')
-                log.info("Network state : " + networkStat.operstate) // Get the OS version
+                log.info("Network state : " + networkStat.operstate)
+                log.info("Configuration mode : " + config.mode)
                 const windowsVersion = os.release()
+                
+                // Enhanced offline mode support: Only show offline.html when network is down AND mode is 'online'
+                // When config.mode is 'offline', bypass network check and load from cached layout-offline data
                 if (networkStat.operstate == 'down' && config.mode == 'online' && !windowsVersion.startsWith('6.1')) {
-                    log.warn('Network state : network failed | ', windowsVersion, networkStat)
+                    log.warn('Network state : network failed | Mode: online | Redirecting to offline.html', windowsVersion, networkStat)
                     win.loadURL("file://" + __dirname + "/src/offline.html")
                 } else {
+                    // Network is up OR mode is 'offline' - proceed with normal startup
+                    if (config.mode == 'offline' && networkStat.operstate == 'down') {
+                        log.info('Offline mode active : Network is down but proceeding with cached layout data from localStorage')
+                    }
+                    
                     macaddress.one(function (err, mac) {
                         if (err) {
                             log.error('MAC error:', err)
-                            win.loadURL("file://" + __dirname + "/src/offline.html")
+                            // In offline mode, even MAC error should not prevent loading if we have cached data
+                            if (config.mode == 'offline') {
+                                log.warn('MAC error in offline mode : Proceeding with cached data anyway')
+                                // In offline mode, skip serial key verification if MAC detection fails
+                                log.info('ecless player startup (offline mode, MAC error bypassed)')
+                                win.loadURL("file://" + __dirname + "/src/index.html")
+                            } else {
+                                win.loadURL("file://" + __dirname + "/src/offline.html")
+                            }
                             return
                         }
 

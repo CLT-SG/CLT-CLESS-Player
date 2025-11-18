@@ -591,12 +591,14 @@ function getCurrentLayoutID(slotname, slotnameList) {
 function getLayoutFromStorage(layoutId) {
     try {
         console.log('=== OFFLINE LAYOUT: Getting layout from storage:', layoutId);
+        console.log('=== OFFLINE LAYOUT: Checking for cached layout data in localStorage');
 
         // Try to get layout data from localStorage
         var layoutKey = 'layout-' + layoutId;
         var layoutData = localStorage.getItem(layoutKey);
 
         if (!layoutData) {
+            console.log('=== OFFLINE LAYOUT: Primary key not found, trying offline variant');
             // Try offline variant
             layoutKey = 'layout-offline-' + layoutId;
             layoutData = localStorage.getItem(layoutKey);
@@ -604,10 +606,21 @@ function getLayoutFromStorage(layoutId) {
 
         if (layoutData) {
             var parsedLayout = JSON.parse(layoutData);
-            console.log('=== OFFLINE LAYOUT: Successfully retrieved layout:', layoutId);
+            console.log('=== OFFLINE LAYOUT: Successfully retrieved layout:', layoutId, 'from key:', layoutKey);
+            console.log('=== OFFLINE LAYOUT: Layout data size:', layoutData.length, 'bytes');
             return parsedLayout;
         } else {
             console.warn('=== OFFLINE LAYOUT: Layout not found in storage:', layoutId);
+            console.warn('=== OFFLINE LAYOUT: Tried keys:', 'layout-' + layoutId, 'and layout-offline-' + layoutId);
+            // Log available layouts for debugging
+            var availableKeys = [];
+            for (var i = 0; i < localStorage.length; i++) {
+                var key = localStorage.key(i);
+                if (key.startsWith('layout-')) {
+                    availableKeys.push(key);
+                }
+            }
+            console.warn('=== OFFLINE LAYOUT: Available layout keys in localStorage:', availableKeys);
             return null;
         }
     } catch (error) {
@@ -632,7 +645,11 @@ function validateLayoutData(layoutData) {
 // Helper function to switch to a layout using only localStorage data
 function switchToLayoutOffline(layoutId, callback, isTemporarySwitch) {
     try {
-        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId, 'Temporary:', !!isTemporarySwitch);
+        console.log('=== OFFLINE LAYOUT: ========================================');
+        console.log('=== OFFLINE LAYOUT: Switching to layout offline:', layoutId);
+        console.log('=== OFFLINE LAYOUT: Temporary switch:', !!isTemporarySwitch);
+        console.log('=== OFFLINE LAYOUT: Current loop mode (isLoopLyt):', isLoopLyt);
+        console.log('=== OFFLINE LAYOUT: ========================================');
 
         // Clear current layout state
         if (!isLoopLyt) {
