@@ -392,67 +392,108 @@ async function activate() {
 
   console.log('Attempting activation with key:', key)
   
-  // Save the serial key to configuration and restart the application
-  const configData = {
-    serialkey: key,
-    timestamp: new Date().toISOString()
-  }
+  // Use IPC communication pattern (same as configure.html) for reliable Electron restart
+  // This ensures proper configuration save and application restart sequence
   
-  // First, save the configuration
-  fetch('https://localhost:9000/api/config/save', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(configData)
-  })
-  .then(response => response.json())
-  .then(async data => {
-    if (data.success) {
-      await customAlert(`License key submitted: ${key}\n\nThe application will now restart to apply the new license.`, {
-        type: 'success',
-        timeout: 5000
-      })
+  if (typeof(require) !== "undefined" && ipcRenderer) {
+    // Load existing configuration to preserve all settings
+    const existingConfig = config || {}
+    
+    // Create configuration object matching main process expectations (same pattern as configure.html)
+    const argsObj = {
+      // Main process expects these exact property names
+      hostaddress: existingConfig.hostserver || hostserver || '',
+      dsid: existingConfig.id || dsid || '',
+      mode: existingConfig.mode || mode || 'online',
+      corsproxy: existingConfig.corsproxy || 'N',
+      autostartup: existingConfig.autoStartup !== undefined ? (existingConfig.autoStartup ? 'Y' : 'N') : (existingConfig.autostartup || 'Y'),
+      serialkey: key,  // Update with new license key
       
-      // Then restart the application
-      fetch('https://localhost:9000/api/restartapp')
-        .then(() => {
-          console.log('Application restart initiated')
-          // Close the activation window after a short delay
-          setTimeout(() => {
-            try {
-              if (remote && remote.getCurrentWindow) {
-                remote.getCurrentWindow().close()
-              } else {
-                window.close()
-              }
-            } catch (error) {
-              console.error('Error closing window:', error)
-              window.close()
-            }
-          }, 1000)
+      // Preserve enhanced settings if they exist
+      screenOnOff: existingConfig.screenOnOff !== undefined ? existingConfig.screenOnOff : true,
+      fullscreenMode: existingConfig.fullscreenMode !== undefined ? existingConfig.fullscreenMode : true,
+      screenTimeout: existingConfig.screenTimeout || 0,
+      updateInterval: existingConfig.updateInterval || 30,
+      logLevel: existingConfig.logLevel || 'info',
+      
+      // Preserve complex settings if they exist
+      displaySettings: existingConfig.displaySettings || {
+        resolution: 'auto',
+        orientation: 'landscape',
+        colorProfile: 'default',
+        powerManagement: true
+      },
+      networkSettings: existingConfig.networkSettings || {
+        autoConnect: true,
+        preferredInterface: 'auto'
+      },
+      mediaSettings: existingConfig.mediaSettings || {
+        defaultVolume: 50,
+        autoPlay: true,
+        loopMedia: true
+      },
+      systemSettings: existingConfig.systemSettings || {
+        enableRemoteControl: true,
+        allowShutdown: true,
+        enableSystemInfo: true
+      }
+    }
+    
+    console.log('eCLESS: Sending configuration save request via IPC (activation)')
+    
+    // Send configuration save request via IPC (same as configure.html)
+    ipcRenderer.send('app-configsave', argsObj)
+  } else {
+    // Fallback to fetch API if IPC is not available (shouldn't happen in Electron)
+    console.warn('IPC not available, falling back to fetch API')
+    
+    const configData = {
+      serialkey: key,
+      timestamp: new Date().toISOString()
+    }
+    
+    fetch('https://localhost:9000/api/config/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(configData)
+    })
+    .then(response => response.json())
+    .then(async data => {
+      if (data.success) {
+        await customAlert(`License key submitted: ${key}\n\nThe application will now restart to apply the new license.`, {
+          type: 'success',
+          timeout: 5000
         })
-        .catch(async error => {
-          console.error('Error restarting application:', error)
-          await customAlert('License key saved, but failed to restart application. Please restart manually.', {
-            type: 'warning',
-            timeout: 5000
+        
+        // Then restart the application
+        fetch('https://localhost:9000/api/restartapp')
+          .then(() => {
+            console.log('Application restart initiated')
           })
+          .catch(async error => {
+            console.error('Error restarting application:', error)
+            await customAlert('License key saved, but failed to restart application. Please restart manually.', {
+              type: 'warning',
+              timeout: 5000
+            })
+          })
+      } else {
+        await customAlert('Failed to save license key. Please try again.', {
+          type: 'error',
+          timeout: 4000
         })
-    } else {
-      await customAlert('Failed to save license key. Please try again.', {
+      }
+    })
+    .catch(async error => {
+      console.error('Error saving license key:', error)
+      await customAlert('Failed to save license key. Please check your connection and try again.', {
         type: 'error',
         timeout: 4000
       })
-    }
-  })
-  .catch(async error => {
-    console.error('Error saving license key:', error)
-    await customAlert('Failed to save license key. Please check your connection and try again.', {
-      type: 'error',
-      timeout: 4000
     })
-  })
+  }
 }
 
 // Cancel function
@@ -604,6 +645,39 @@ function onDOMContentLoaded() {
   
   // Focus on input field
   document.getElementById('userkey').focus()
+  
+  // Setup IPC listener for configuration save response (same pattern as configure.html)
+  if (typeof(require) !== "undefined" && ipcRenderer) {
+    ipcRenderer.on('config-save-response', async (event, response) => {
+      console.log('eCLESS: Configuration save response received (activation):', response)
+      
+      if (response.success) {
+        // Show success dialog with auto-dismiss
+        await customAlert(
+          'License key activated successfully!\n\nThe application will now restart to apply the new license.',
+          {
+            type: 'success',
+            timeout: 5000,
+            title: 'Activation Successful'
+          }
+        )
+        
+        // Restart the application after user acknowledges or timeout
+        console.log('eCLESS: CLESS Player relaunch initiated (activation)')
+        ipcRenderer.send('app-reload')
+      } else {
+        // Show error dialog
+        await customAlert(
+          'Failed to save license key.\n\n' + (response.error || 'Unknown error occurred'),
+          {
+            type: 'error',
+            timeout: 5000,
+            title: 'Activation Failed'
+          }
+        )
+      }
+    })
+  }
 }
 
 // Event listeners
