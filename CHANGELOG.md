@@ -1,6 +1,6 @@
 # Change Log
 
-## [2.7.4] - 2025-11-20
+## [2.7.5] - 2025-11-20
 
 ### Fixed
 - **Offline Mode Black Screen Issue** - Resolved critical offline mode functionality blocking error
@@ -8,6 +8,9 @@
   - Resolved issue where layoutLoopUpdateXML() attempted to call undefined getxml() function
   - Fixed application crash when network requests failed in offline mode without proper fallback
   - Corrected error handler to gracefully use cached data instead of calling unavailable functions
+  - Fixed "Cannot read properties of undefined (reading 'attributes')" error in loop layout playback
+  - Resolved issue where loopArr was empty causing playcurrentLayout() to fail on second loop iteration
+  - Fixed missing loop array population (loopArr, layoutURLList, layoutIDList) in offline mode
 
 ### Enhanced
 - **Offline Mode Data Loading** - Improved offline mode reliability and error handling
@@ -16,6 +19,8 @@
   - Enhanced cache verification system checking both layout-* and layout-offline-* storage keys
   - Added safety check to only call getxml() if function exists AND not in offline mode
   - Improved error recovery allowing playback to continue with available cached layouts
+  - Implemented loop array population system to ensure continuous loop playback in offline mode
+  - Added automatic extraction of layout URLs and IDs from cached DS data for loop management
 
 - **Offline Mode Debugging** - Comprehensive logging for offline mode troubleshooting
   - Added detailed logging for offline mode detection and cache usage
@@ -31,6 +36,10 @@
   - Implemented proper Promise resolution for both online and offline data loading
   - Added intelligent layout cache verification with graceful degradation
   - Enhanced error messaging with actionable information for troubleshooting
+  - Implemented loop array population in both offline mode detection and error handler sections
+  - Added forEach iteration to extract and populate layout metadata from cached DS elements
+  - Ensured loopNextLayout() can access valid layout data for all subsequent loop iterations
+  - Added comprehensive logging to confirm array population for debugging and verification
 
 ### Compatibility
 - Maintains full backward compatibility with existing online mode functionality
