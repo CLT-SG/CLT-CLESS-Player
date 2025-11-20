@@ -240,6 +240,22 @@ function layoutLoopUpdateXML() {
           
           if (result2['elements'][0]['elements'][0]['name'] == 'loop') {
             log.info('Layout Loop Update: Offline mode - Loop layout detected');
+            
+            // Populate loopArr, layoutURLList, and layoutIDList for offline mode
+            result2 = result2['elements'][0]['elements'][0]['elements'];
+            result2.forEach(function (layoutxml, oindex) {
+              var layoutURL = layoutxml['attributes']['url'];
+              var layoutID = layoutURL.split("layout/");
+              layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/'));
+              
+              layoutURLList[oindex] = layoutURL;
+              layoutIDList[oindex] = layoutID;
+              loopArr[oindex] = layoutxml;
+              
+              log.info('Layout Loop Update: Populated loop index ' + oindex + ' - layout-' + layoutID);
+            });
+            
+            log.info('Layout Loop Update: Loop array populated with ' + loopArr.length + ' layouts');
             resolve('loop');
           } else {
             log.info('Layout Loop Update: Offline mode - Single layout detected');
@@ -354,6 +370,19 @@ function layoutLoopUpdateXML() {
             if (result2['elements'][0]['elements'][0]['name'] == 'loop') { // Check if it's a loop layout
               result2 = result2['elements'][0]['elements'][0]['elements']; // Access the elements of the loop layout
               
+              // Populate loopArr, layoutURLList, and layoutIDList for error recovery
+              result2.forEach(function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split("layout/");
+                layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/'));
+                
+                layoutURLList[oindex] = layoutURL;
+                layoutIDList[oindex] = layoutID;
+                loopArr[oindex] = layoutxml;
+                
+                log.info('Layout Loop Update: Populated loop index ' + oindex + ' - layout-' + layoutID);
+              });
+              
               // Process each layout in the loop using cached data
               $.when.apply($, $.map(result2, function (layoutxml, oindex) {
                 var layoutURL = layoutxml['attributes']['url'];
@@ -375,9 +404,11 @@ function layoutLoopUpdateXML() {
                 }
               })).then(function () {
                 log.info('Layout Loop Update: All cached layouts verified');
+                log.info('Layout Loop Update: Loop array populated with ' + loopArr.length + ' layouts');
                 resolve('loop'); // Resolve with cached data
               }).fail(function() {
                 log.warn('Layout Loop Update: Some layouts not cached, continuing with available data');
+                log.info('Layout Loop Update: Loop array populated with ' + loopArr.length + ' layouts');
                 resolve('loop'); // Resolve anyway to continue playing
               });
             } else { // If it's a single layout
