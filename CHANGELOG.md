@@ -1,5 +1,43 @@
 # Change Log
 
+## [2.7.4] - 2025-11-20
+
+### Fixed
+- **Offline Mode Black Screen Issue** - Resolved critical offline mode functionality blocking error
+  - Fixed "getxml is not defined" error in looplayout.js that caused black screen in offline mode
+  - Resolved issue where layoutLoopUpdateXML() attempted to call undefined getxml() function
+  - Fixed application crash when network requests failed in offline mode without proper fallback
+  - Corrected error handler to gracefully use cached data instead of calling unavailable functions
+
+### Enhanced
+- **Offline Mode Data Loading** - Improved offline mode reliability and error handling
+  - Added offline mode detection at start of layoutLoopUpdateXML() to bypass network requests
+  - Implemented comprehensive error handler with intelligent fallback to cached localStorage data
+  - Enhanced cache verification system checking both layout-* and layout-offline-* storage keys
+  - Added safety check to only call getxml() if function exists AND not in offline mode
+  - Improved error recovery allowing playback to continue with available cached layouts
+
+- **Offline Mode Debugging** - Comprehensive logging for offline mode troubleshooting
+  - Added detailed logging for offline mode detection and cache usage
+  - Implemented structured log messages for successful cache operations
+  - Enhanced error logging with clear warnings for missing cached layouts
+  - Added cache verification logging showing available layout data
+  - Improved debugging visibility for offline mode operations
+
+### Technical Improvements
+- **Loop Layout Error Handling** - Professional offline mode implementation in looplayout.js
+  - Refactored layoutLoopUpdateXML() with early offline mode detection and exit
+  - Enhanced AJAX error handler with comprehensive try-catch blocks and cache fallback
+  - Implemented proper Promise resolution for both online and offline data loading
+  - Added intelligent layout cache verification with graceful degradation
+  - Enhanced error messaging with actionable information for troubleshooting
+
+### Compatibility
+- Maintains full backward compatibility with existing online mode functionality
+- Online mode network operations unchanged and continue normal operation
+- All existing layout caching mechanisms preserved and enhanced
+- Offline mode now works as originally intended without network dependency
+
 ## [2.7.3] - 2025-11-18
 
 ### Added
