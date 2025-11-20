@@ -229,6 +229,33 @@ function layoutLoopUpdateXML() {
   // Return a new Promise
   return new Promise((resolve, reject) => {
 
+    // Check if in offline mode - use cached data instead of fetching
+    if (config && config.mode === 'offline') {
+      log.info('Layout Loop Update: Offline mode detected, using cached data only');
+      try {
+        var cachedDsData = JSON.parse(localStorage.getItem(dsid));
+        if (cachedDsData && cachedDsData.elements && cachedDsData.elements[0]) {
+          log.info('Layout Loop Update: Successfully loaded cached DS data');
+          var result2 = cachedDsData;
+          
+          if (result2['elements'][0]['elements'][0]['name'] == 'loop') {
+            log.info('Layout Loop Update: Offline mode - Loop layout detected');
+            resolve('loop');
+          } else {
+            log.info('Layout Loop Update: Offline mode - Single layout detected');
+            resolve('single');
+          }
+        } else {
+          log.error('Layout Loop Update: No cached data available in offline mode');
+          reject('No cached data available for offline mode');
+        }
+      } catch (error) {
+        log.error('Layout Loop Update: Error loading cached data in offline mode:', error);
+        reject('Failed to load cached data: ' + error.message);
+      }
+      return; // Exit early in offline mode
+    }
+
     var serverAdd = config.hostserver; // Get the server address from the configuration
     log.info('Layout Loop: Updating xml..'); // Log the online mode
 
@@ -315,10 +342,62 @@ function layoutLoopUpdateXML() {
       },
       error: function (xhr, textStatus, errorThrown) {
         log.warn('GET XML: Failed: ' + textStatus); // Log a failed XML retrieval
-        var resultOffline = JSON.parse(localStorage.getItem(textStatus)); // Parse and retrieve data from local storage
-        log.info('GET XML: Recheck network again in 5 seconds: ' + textStatus); // Log a recheck of the network in 5 seconds
-        setTimeout(getxml, 5000); // Retry fetching XML data after 5 seconds
-        reject('Failed to get XML: ' + textStatus); // Reject the promise with an error message
+        log.info('Layout Loop Update: Attempting to use cached offline data'); // Log offline mode fallback
+        
+        // Try to use cached offline data instead of retrying
+        try {
+          var cachedDsData = JSON.parse(localStorage.getItem(dsid)); // Get cached DS data
+          if (cachedDsData && cachedDsData.elements && cachedDsData.elements[0]) {
+            log.info('Layout Loop Update: Using cached DS data from localStorage'); // Log cache usage
+            var result2 = cachedDsData; // Use cached data
+            
+            if (result2['elements'][0]['elements'][0]['name'] == 'loop') { // Check if it's a loop layout
+              result2 = result2['elements'][0]['elements'][0]['elements']; // Access the elements of the loop layout
+              
+              // Process each layout in the loop using cached data
+              $.when.apply($, $.map(result2, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split("layout/");
+                layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/'));
+                
+                // Try to load cached layout data
+                var cachedLayout = localStorage.getItem('layout-' + layoutID);
+                if (!cachedLayout) {
+                  cachedLayout = localStorage.getItem('layout-offline-' + layoutID);
+                }
+                
+                if (cachedLayout) {
+                  log.info('Layout Loop Update: Using cached layout-' + layoutID);
+                  return $.Deferred().resolve(); // Layout already cached
+                } else {
+                  log.warn('Layout Loop Update: Layout not cached: layout-' + layoutID);
+                  return $.Deferred().reject(); // Layout not cached
+                }
+              })).then(function () {
+                log.info('Layout Loop Update: All cached layouts verified');
+                resolve('loop'); // Resolve with cached data
+              }).fail(function() {
+                log.warn('Layout Loop Update: Some layouts not cached, continuing with available data');
+                resolve('loop'); // Resolve anyway to continue playing
+              });
+            } else { // If it's a single layout
+              log.info('Layout Loop Update: Single layout mode with cached data');
+              resolve('single'); // Resolve indicating completion
+            }
+          } else {
+            log.error('Layout Loop Update: No cached data available, cannot update in offline mode');
+            reject('No cached data available for offline mode'); // Reject if no cache
+          }
+        } catch (cacheError) {
+          log.error('Layout Loop Update: Error accessing cached data:', cacheError);
+          reject('Failed to access cached data: ' + cacheError.message);
+        }
+        
+        // Only retry with getxml if function is available and we're in online mode
+        if (typeof getxml === 'function' && config && config.mode !== 'offline') {
+          log.info('GET XML: Recheck network again in 5 seconds: ' + textStatus);
+          setTimeout(getxml, 5000); // Retry fetching XML data after 5 seconds
+        }
       }
     });
   });
