@@ -5,11 +5,12 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
 ## Features
 
 ### Core Features
-- Cross-platform support for Windows, Linux, and macOS
+- Cross-platform support for Windows, Linux, macOS, **Android, and iOS**
 - Digital signage content management
 - Real-time layout and media control
 - Remote VNC access for system management
 - ElectronJS-based desktop application
+- **Native mobile apps** for Android and iOS devices
 
 ### 🎯 Multi-Screen Synchronization System
 - **Master-Slave Architecture**: Coordinate multiple screens with one controlling timing
@@ -45,7 +46,7 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
 
 ## Installation
 
-### Quick Setup
+### Desktop Application (Windows, Linux, macOS)
 
 1. Install Electron globally:
    ```bash
@@ -61,6 +62,27 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
    ```bash
    npm start
    ```
+
+### Mobile Applications (Android, iOS)
+
+Build native mobile apps from the same codebase:
+
+```bash
+cd mobile
+npm install
+npm run build           # Build web assets
+npm run add:android     # Add Android platform (first time)
+npm run build:android   # Build and open Android Studio
+```
+
+See [mobile/README.md](./mobile/README.md) for complete mobile setup guide.
+
+**Mobile App Features:**
+- Full control panel dashboard on mobile devices
+- Touch-optimized interface for smartphones and tablets
+- Real-time system monitoring and remote control
+- Configuration and activation pages
+- Native Android and iOS apps via Capacitor
 
 ## Multi-Screen Synchronization
 
@@ -177,12 +199,15 @@ curl -X POST https://localhost:9000/api/config/save \
 
 See [CONTROL_PANEL_API.md](docs/CONTROL_PANEL_API.md) for complete API documentation.
 See [SYNCHRONIZATION.md](docs/SYNCHRONIZATION.md) for multi-screen sync setup and configuration.
+See [MOBILE-APP.md](docs/MOBILE-APP.md) for mobile app development and deployment.
 
 ## Building the Application
 
-To build the application and compile it into an executable for different platforms, use the following commands.
+### Desktop Application Builds
 
-### For Windows:
+To build the desktop application and compile it into an executable for different platforms, use the following commands.
+
+**For Windows:**
 - **Windows x64:**
    ```bash
    npm run win64
@@ -193,7 +218,7 @@ To build the application and compile it into an executable for different platfor
    npm run win32
    ```
 
-### For Ubuntu:
+**For Ubuntu:**
 - **Ubuntu x64:**
    ```bash
    npm run ubuntu64
@@ -203,6 +228,31 @@ To build the application and compile it into an executable for different platfor
    ```bash
    npm run ubuntu32
    ```
+
+### Mobile Application Builds
+
+Build native mobile apps for Android and iOS:
+
+```bash
+cd mobile
+npm install
+npm run build
+
+# Android
+npm run add:android      # First time only
+npm run build:android    # Opens Android Studio
+
+# iOS (macOS only)
+npm run add:ios          # First time only
+npm run build:ios        # Opens Xcode
+```
+
+**Release Builds:**
+- **Android APK**: `cd mobile/android && ./gradlew assembleRelease`
+- **Android AAB**: `cd mobile/android && ./gradlew bundleRelease`
+- **iOS**: Use Xcode Archive and submit to App Store
+
+See [mobile/README.md](./mobile/README.md) for detailed build instructions.
 
 ## Contributing
 Contributions are welcome! If you find any issues or have suggestions for improvements, feel free to create a pull request or open an issue in this repository.

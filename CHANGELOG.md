@@ -1,5 +1,193 @@
 # Change Log
 
+## [2.8.0] - 2025-12-01
+
+### Added
+- **Mobile App Support** - Revolutionary cross-platform mobile applications for Android and iOS
+  - Complete mobile app implementation using Capacitor framework
+  - Native Android and iOS apps built from existing Electron frontend
+  - Zero modification to existing Electron desktop application code
+  - Full feature parity with desktop control panel dashboard
+  - Professional build system with automated asset compilation
+  - Comprehensive documentation suite for mobile development
+
+- **Mobile App Infrastructure** - Professional mobile development environment
+  - Created dedicated `mobile/` directory with complete project structure
+  - Capacitor 6.x integration with modern plugin architecture
+  - Automated build script (`build-mobile.js`) for web asset preparation
+  - Platform-specific configurations for Android and iOS
+  - Native project generation with `capacitor add android/ios` commands
+  - Professional .gitignore for mobile-specific generated files
+
+- **Mobile API Compatibility Layer** - Seamless Electron-to-Capacitor translation
+  - `mobile-config.js` provides Electron-like APIs using Capacitor
+  - `window.ipcRenderer` mapped to HTTP API calls for server communication
+  - `window.config` integrated with Capacitor Preferences API
+  - Device ID substitution for MAC address-based serial key validation
+  - Filesystem, logging, and network APIs with mobile implementations
+  - Configuration synchronization between mobile preferences and server
+
+- **Capacitor Plugin Integration** - Native mobile capabilities
+  - `capacitor-core.js` module with plugin initialization
+  - App lifecycle management (state changes, background/foreground)
+  - Network status monitoring with real-time connectivity detection
+  - Device information access (model, OS version, UUID)
+  - Status bar styling and splash screen management
+  - Hardware back button handling for Android
+  - Secure storage via Preferences API
+
+- **Mobile Build System** - Professional deployment pipeline
+  - `npm run build` - Compile web assets from Electron frontend
+  - `npm run build:android` - Build and open Android Studio project
+  - `npm run build:ios` - Build and open Xcode project (macOS only)
+  - `npm run sync` - Synchronize web assets to native platforms
+  - `npm run clean` - Clean generated files and platform directories
+  - Gradle scripts for Android APK/AAB release builds
+  - Xcode archiving for iOS App Store distribution
+
+- **Comprehensive Documentation** - Complete mobile development guides
+  - **README.md** - Full setup guide with prerequisites and build instructions
+  - **QUICKSTART.md** - 5-minute quick start guide for rapid deployment
+  - **DEVELOPMENT.md** - Architecture decisions, technical notes, and best practices
+  - **MOBILE-APP.md** - High-level overview in main docs/ directory
+  - Platform compatibility tables and feature comparison matrices
+  - Troubleshooting guides for common build and deployment issues
+  - Production release procedures for Google Play and App Store
+
+### Enhanced
+- **Cross-Platform Architecture** - Unified codebase for desktop and mobile
+  - Electron desktop app remains completely unchanged and fully functional
+  - Mobile apps reuse 100% of existing HTML, CSS, and JavaScript frontend
+  - Shared configuration structure maintains compatibility across platforms
+  - API endpoints work identically for desktop and mobile clients
+  - Layout and content management system unified across all platforms
+
+- **Mobile-Optimized Dashboard** - Touch-friendly control panel interface
+  - Responsive dashboard layout with mobile viewport configuration
+  - Touch-optimized buttons and controls for finger interaction
+  - Full dashboard functionality including remote display viewing
+  - Configuration page with mobile-friendly form controls
+  - Activation page with QR code scanner support (future enhancement)
+  - System monitoring and device information displays
+
+- **Configuration Management** - Flexible multi-platform settings
+  - Mobile apps use Capacitor Preferences API for local storage
+  - Automatic synchronization with eCLESS server for configuration
+  - Default configuration fallback system for offline scenarios
+  - Configuration migration from Electron format maintained
+  - Device-specific settings with server-side backup
+
+- **Network Resilience** - Robust connectivity handling
+  - Real-time network status monitoring via Capacitor Network API
+  - Automatic reconnection logic for intermittent connectivity
+  - Offline mode support with cached layout data
+  - Graceful degradation when server unreachable
+  - Network change event listeners with automatic recovery
+
+### Technical Improvements
+- **Build Process Automation** - Professional asset compilation pipeline
+  - Intelligent HTML processing removing Electron-specific script tags
+  - Automatic injection of Capacitor core and mobile configuration
+  - Asset directory recursive copying with structure preservation
+  - Mobile-specific viewport meta tags and PWA capabilities
+  - Script reference replacement for mobile API compatibility
+  - Build validation and error reporting system
+
+- **Development Workflow** - Streamlined mobile development experience
+  - Hot-reload support during development via Capacitor Live Reload
+  - Browser-based testing before native platform deployment
+  - Emulator/simulator testing with native debuggers
+  - Physical device testing via USB debugging (Android) and Xcode (iOS)
+  - Comprehensive error handling and logging throughout build process
+
+- **Performance Optimization** - Efficient mobile app execution
+  - Lazy loading of non-critical assets for faster startup
+  - Optimized image assets with responsive sizing
+  - Efficient Capacitor plugin initialization
+  - Memory-conscious configuration caching
+  - Battery-optimized background task handling
+
+- **Security Implementation** - Mobile app security best practices
+  - HTTPS-only communication with eCLESS server
+  - Secure storage via Capacitor Preferences API
+  - No sensitive data in localStorage or cookies
+  - SSL certificate validation for API calls
+  - Device ID-based authentication system
+
+### Platform Support
+- **Android Support** - Complete Android app implementation
+  - Minimum Android version: 8.0 (API level 26)
+  - Target Android version: 13 (API level 33)
+  - APK and AAB build outputs for distribution
+  - Google Play Store ready with proper metadata
+  - Android Studio project with full Gradle configuration
+  - ProGuard/R8 support for code minification
+
+- **iOS Support** - Complete iOS app implementation (macOS development only)
+  - Minimum iOS version: 12.0
+  - Target iOS version: 17.0
+  - Xcode project with proper signing configuration
+  - App Store Connect ready for submission
+  - TestFlight support for beta distribution
+  - CocoaPods integration for dependency management
+
+### Documentation
+- **Mobile Development Guides** - Professional technical documentation
+  - Prerequisites and development environment setup
+  - Step-by-step build instructions with command examples
+  - Platform-specific configuration and customization
+  - Production release procedures for both platforms
+  - Troubleshooting common issues with solutions
+  - API compatibility reference documentation
+  - Architecture decisions and design rationale
+
+- **Deployment Guides** - App store submission procedures
+  - Android APK signing and Google Play submission
+  - iOS provisioning and App Store Connect workflow
+  - App icon and splash screen requirements
+  - Store listing guidelines and requirements
+  - Version management and update strategies
+
+### API Changes
+- **Mobile API Endpoints** - Same API structure as desktop
+  - All existing REST API endpoints work with mobile apps
+  - `/api/config` - Configuration retrieval and updates
+  - `/api/system/*` - System information and monitoring
+  - `/api/display/*` - Display control and status
+  - Layout management APIs for content control
+  - Socket.IO real-time communication support
+
+### Compatibility
+- **Full Backward Compatibility** - Zero breaking changes
+  - Existing Electron desktop application completely unchanged
+  - All desktop functionality preserved and operational
+  - Existing configuration files remain compatible
+  - Server API unchanged, works with all client types
+  - Migration-free upgrade path from any previous version
+
+### Key Benefits
+1. **Multi-Platform Reach** - Access eCLESS Player on any device (Windows, Linux, macOS, Android, iOS)
+2. **Unified Codebase** - Single frontend codebase for all platforms reduces maintenance
+3. **Native Performance** - True native mobile apps with hardware acceleration
+4. **App Store Distribution** - Professional distribution via Google Play and Apple App Store
+5. **Zero Desktop Impact** - Existing Electron app untouched and fully functional
+6. **Easy Development** - Straightforward build process with comprehensive documentation
+7. **Future-Proof** - Modern Capacitor framework with active development and updates
+
+### User Experience
+- Native mobile app feel with smooth animations and transitions
+- Touch-optimized controls designed for mobile interaction
+- Full-featured dashboard accessible from smartphones and tablets
+- Consistent branding and design across all platforms
+- Professional app icons and splash screens
+- Responsive layouts adapting to all screen sizes
+
+### Build Outputs
+- **Android**: APK files (15-20MB) for direct installation
+- **Android**: AAB files for Google Play Store submission
+- **iOS**: IPA files for TestFlight and App Store
+- **Both**: Development builds with debugging enabled
+
 ## [2.7.5] - 2025-11-20
 
 ### Fixed

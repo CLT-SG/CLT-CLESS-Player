@@ -1,0 +1,39 @@
+# eCLESS Player Mobile - .gitignore
+
+# Capacitor generated files
+www/index.html
+www/configure.html
+www/activate.html
+www/assets/
+
+# Android
+android/
+.gradle/
+*.apk
+*.aab
+
+# iOS
+ios/
+*.ipa
+Pods/
+*.xcworkspace
+*.xcuserdata
+
+# Node
+node_modules/
+package-lock.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
