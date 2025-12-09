@@ -496,6 +496,108 @@ Pending Device Testing
 - Test offline mode error recovery
 - Verify layouts load without maroon screen
 
+Latest Update - Mobile Activation UI Simplification (v2.10.1 - 2025-12-09)
+
+Problem
+- Mobile activation page showed too many device identifiers (Android ID, Device Model, Generated Serial Key)
+- Desktop app uses simple MAC address display, mobile showed 4 different IDs causing confusion
+- Emoji icons in buttons (lock, gear) looked unprofessional
+- Missing QR code for easy license requests via WhatsApp
+- Multi-identifier validation logic overcomplicated the licensing system
+- Instructions were too verbose with unnecessary details
+
+Design Goals
+- Match desktop app simplicity: show only primary identifier (UUID instead of MAC)
+- Professional button styling without emoji decorations
+- QR code for quick license requests
+- Simplified validation using UUID only (like desktop uses MAC only)
+- Clean, streamlined instructions (4 steps maximum)
+
+Fixes Implemented
+
+1. Simplified Mobile Activation UI (activate.html)
+   - Removed Android ID, Device Model, and Generated Serial Key sections
+   - Kept only Device UUID with copy button
+   - Added QR code canvas for WhatsApp license requests
+   - Updated instructions to 4-step process matching desktop
+   - Removed emoji icons from all buttons (Activate License, Cancel)
+   - Changed button text: removed lock and gear icons, kept text only
+
+2. UUID-Only Serial Validation (mobile-serial-validator.js)
+   - Simplified createDeviceString() to use UUID only (like desktop MAC address)
+   - Updated getDisplayInfo() to return only uuid and serialKey
+   - Removed multi-identifier logic (androidId, manufacturer, model)
+   - Updated getValidationReport() to show only essential UUID info
+   - Cleaner validation matching desktop architecture
+
+3. QR Code Generation (activate.html)
+   - Ported generateQRCode() function from desktop activate.js
+   - Implemented generateSimpleQRCode() for canvas-based visualization
+   - WhatsApp URL pre-filled with Device UUID
+   - Clickable QR code opens WhatsApp in browser
+   - Same user experience as desktop activation
+
+4. Professional Button Styling (activate.html)
+   - Changed "lock icon Activate License" to "Activate License"
+   - Changed "gear icon Configure Settings" to "Cancel"
+   - Removed all emoji decorations for clean appearance
+   - Consistent with desktop professional style
+
+5. Streamlined Instructions (activate.html)
+   - Step 1: Copy Device UUID
+   - Step 2: Request License via QR code or email
+   - Step 3: Enter received license key
+   - Step 4: Activate
+   - Removed references to other device identifiers
+
+Files Modified
+- mobile/www/activate.html (complete UI simplification and QR code addition)
+- mobile/www/assets/js/mobile/mobile-serial-validator.js (UUID-only validation)
+
+Technical Changes
+
+Activation Page Structure:
+- System Info: UUID only with copy button
+- Instructions: 4-step simplified process
+- QR Code: Canvas-based WhatsApp link generation
+- Input: License key text field
+- Buttons: "Activate License" and "Cancel" (no emojis)
+
+Serial Validator Changes:
+- createDeviceString(): returns deviceInfo.uuid only
+- getDisplayInfo(): returns { uuid, serialKey, isNative }
+- getValidationReport(): simplified device identifier section
+- Removed multi-part identifier concatenation logic
+
+QR Code Implementation:
+- generateQRCode(): creates WhatsApp URL with UUID
+- generateSimpleQRCode(): canvas drawing with click handler
+- WhatsApp message: "Hello, please generate my eCLESS Mobile Player license key. Device UUID: [uuid]. Thanks."
+- Fallback to simple visualization if QRCode library unavailable
+
+Key Benefits
+- Consistent user experience between desktop and mobile
+- Simplified licensing: one identifier per platform (MAC vs UUID)
+- Professional appearance without decorative emojis
+- Easier license requests with QR code
+- Reduced user confusion with minimal information display
+- Cleaner codebase with single-identifier validation
+
+Testing Status
+- Build completes successfully
+- Script modifications syntax-verified
+- QR code generation logic implemented
+- Button text updated without emojis
+- UUID-only validation logic simplified
+
+Pending Device Testing
+- Verify UUID displays correctly
+- Test copy-to-clipboard functionality
+- Validate QR code displays and links to WhatsApp
+- Test activation with valid license key
+- Verify buttons work without emoji icons
+- Confirm simplified instructions are clear
+
 Build System Automation (v2.9.3 - 2025-12-09)
 
 Problem

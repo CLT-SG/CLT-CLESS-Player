@@ -139,34 +139,14 @@ class MobileSerialKeyValidator {
 
     /**
      * Create unique device identifier string for hashing
-     * Combines multiple identifiers for better uniqueness
+     * Uses UUID only (matching desktop MAC address approach)
      * 
      * @param {Object} deviceInfo - Device information object
-     * @returns {string} Combined identifier string
+     * @returns {string} Device UUID string
      */
     createDeviceString(deviceInfo) {
-        const parts = [];
-        
-        // Primary identifier
-        if (deviceInfo.uuid) {
-            parts.push(deviceInfo.uuid);
-        }
-        
-        // Secondary identifier (Android only)
-        if (deviceInfo.androidId) {
-            parts.push(deviceInfo.androidId);
-        }
-        
-        // Add platform info for additional entropy
-        if (deviceInfo.manufacturer && deviceInfo.manufacturer !== 'unknown') {
-            parts.push(deviceInfo.manufacturer);
-        }
-        
-        if (deviceInfo.model && deviceInfo.model !== 'unknown') {
-            parts.push(deviceInfo.model);
-        }
-        
-        return parts.join('|').toLowerCase();
+        // Use UUID only, similar to desktop using MAC address
+        return (deviceInfo.uuid || '').toLowerCase();
     }
 
     /**
@@ -312,10 +292,7 @@ class MobileSerialKeyValidator {
             validationResult: validationResult,
             deviceIdentifier: {
                 uuid: deviceKeyInfo.deviceInfo.uuid,
-                androidId: deviceKeyInfo.deviceInfo.androidId || 'N/A',
                 platform: deviceKeyInfo.deviceInfo.platform,
-                model: deviceKeyInfo.deviceInfo.model,
-                manufacturer: deviceKeyInfo.deviceInfo.manufacturer,
                 isNative: deviceKeyInfo.deviceInfo.isNative
             },
             generatedSerialKey: deviceKeyInfo.serialKey.substring(0, 8) + '...',
@@ -336,6 +313,7 @@ class MobileSerialKeyValidator {
 
     /**
      * Get display-friendly device info for UI
+     * Returns UUID only (matching desktop MAC address display)
      * 
      * @returns {Promise<Object>} Device info formatted for display
      */
@@ -345,27 +323,17 @@ class MobileSerialKeyValidator {
             const deviceKeyInfo = await this.generateDeviceSerialKey();
 
             return {
-                primaryId: deviceInfo.uuid || 'Not Available',
-                secondaryId: deviceInfo.androidId || 'Not Available',
-                platform: deviceInfo.platform,
-                model: deviceInfo.model,
-                manufacturer: deviceInfo.manufacturer,
+                uuid: deviceInfo.uuid || 'Not Available',
                 serialKey: deviceKeyInfo.serialKey,
-                isNative: deviceInfo.isNative,
-                displayText: `${deviceInfo.platform} - ${deviceInfo.manufacturer} ${deviceInfo.model}`.trim()
+                isNative: deviceInfo.isNative
             };
 
         } catch (error) {
             this.log.error('MobileSerialValidator: Error getting display info', error);
             return {
-                primaryId: 'Error',
-                secondaryId: 'Error',
-                platform: 'unknown',
-                model: 'unknown',
-                manufacturer: 'unknown',
+                uuid: 'Error',
                 serialKey: 'error',
-                isNative: false,
-                displayText: 'Error retrieving device information'
+                isNative: false
             };
         }
     }

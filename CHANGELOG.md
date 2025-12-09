@@ -1,5 +1,96 @@
 # Change Log
 
+## [2.10.1] - 2025-12-09
+
+### Enhanced - Mobile Activation UI Simplification
+
+- **Streamlined Device Identification** - Simplified mobile activation to show UUID only
+  - Removed Android ID, Device Model, and Generated Serial Key displays
+  - Kept only Device UUID with copy-to-clipboard functionality
+  - Matches desktop app simplicity (desktop shows MAC, mobile shows UUID)
+  - Eliminated user confusion from multiple device identifiers
+
+- **Professional Button Styling** - Removed emoji decorations for clean appearance
+  - Changed "🔐 Activate License" to "Activate License"
+  - Changed "⚙️ Configure Settings" to "Cancel"
+  - Removed all emoji icons from activation buttons
+  - Consistent with desktop professional design aesthetic
+
+- **QR Code Generation** - Easy license requests via WhatsApp
+  - Ported QR code functionality from desktop activate.js
+  - Canvas-based QR visualization with WhatsApp deep link
+  - Pre-filled message with Device UUID for license request
+  - Clickable QR code opens WhatsApp in browser
+
+- **Simplified Validation Logic** - UUID-only serial key validation
+  - Modified mobile-serial-validator.js to use Device UUID exclusively
+  - Removed multi-identifier logic (Android ID, manufacturer, model)
+  - createDeviceString() now returns UUID only (like desktop MAC address)
+  - getDisplayInfo() returns only essential UUID and serialKey
+  - Cleaner validation architecture matching desktop pattern
+
+- **Streamlined Instructions** - Clear 4-step activation process
+  - Step 1: Copy Device UUID using copy button
+  - Step 2: Request license via QR code or email
+  - Step 3: Enter received license key in text field
+  - Step 4: Click "Activate License" to validate and activate
+  - Removed verbose explanations and unnecessary details
+
+### Technical Improvements
+
+**Serial Validator Simplification:**
+- Single identifier validation (UUID only)
+- Removed deviceString concatenation logic
+- Simplified getDisplayInfo() return object
+- Updated getValidationReport() for UUID-only display
+- Consistent with desktop MAC-based validation
+
+**Activation Page Architecture:**
+- System Info section: UUID only with copy button
+- QR Code section: Canvas element with WhatsApp link
+- Instructions section: 4-step simplified process
+- Activation Input: License key text field
+- Action Buttons: "Activate License" and "Cancel"
+
+**QR Code Implementation:**
+- generateQRCode() creates WhatsApp URL with UUID
+- generateSimpleQRCode() draws canvas-based visualization
+- Click handler opens WhatsApp in new browser tab
+- Retry logic if UUID not loaded yet
+
+### Files Modified
+
+- mobile/www/activate.html - Complete UI simplification and QR code addition
+- mobile/www/assets/js/mobile/mobile-serial-validator.js - UUID-only validation logic
+
+### User Experience Improvements
+
+- One device identifier to manage (UUID)
+- Professional appearance without emoji clutter
+- Quick license requests via QR code scan
+- Clear, concise instructions
+- Consistent experience with desktop app
+- Less visual noise on activation screen
+- Easier to understand and complete activation
+
+### Licensing Strategy Alignment
+
+**Desktop vs Mobile:**
+- Desktop: MAC Address-based (physical network interface identifier)
+- Mobile: Device UUID-based (persistent device unique identifier)
+- Both: Single identifier for simple, clear licensing
+- Both: SHA-256 hashing for secure key generation
+- Both: Copy-to-clipboard for easy license requests
+- Both: QR code for WhatsApp license requests
+
+### Compatibility
+
+- Full backward compatibility with existing mobile licensing
+- No changes to serial key validation algorithm
+- Same server-side license generation process
+- Configuration format unchanged
+- Works with all previously generated mobile license keys
+
 ## [2.10.0] - 2025-12-09
 
 ### Added - Mobile Activation and Configuration System
