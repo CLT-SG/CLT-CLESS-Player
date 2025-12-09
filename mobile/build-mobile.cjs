@@ -139,19 +139,190 @@ files.forEach(file => {
             socketIoScripts + '\n  <script src="assets/js/socketio-cpanel.js"></script>'
         );
         
-        // Add navigation buttons to dashboard and diagnostics
-        const navigationButton = `
-    <!-- Mobile Navigation -->
-    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 5px;">
-        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-            ⚙️ Dashboard
+        // Add mobile debug panel script in head (before body)
+        const debugPanelScript = `
+  <!-- Mobile Debug Panel -->
+  <script src="assets/js/mobile/mobile-debug-panel.js"></script>
+`;
+        content = content.replace(/<\/head>/i, debugPanelScript + '</head>');
+        
+        // Add loading screen, navigation buttons, and initialization script
+        const mobileEnhancements = `
+    <!-- Loading Screen -->
+    <div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="text-align: center; color: white;">
+            <h1 style="font-size: 2.5em; margin-bottom: 20px; font-weight: 300;">eCLESS Player</h1>
+            <div style="width: 300px; height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden; margin: 0 auto;">
+                <div id="loading-progress" style="width: 0%; height: 100%; background: white; border-radius: 4px; transition: width 0.3s ease;"></div>
+            </div>
+            <p id="loading-status" style="margin-top: 20px; font-size: 1.1em; opacity: 0.9;">Initializing...</p>
+            <p id="loading-substatus" style="margin-top: 10px; font-size: 0.9em; opacity: 0.7;"></p>
+        </div>
+    </div>
+
+    <!-- Mobile Navigation with Auto-Hide -->
+    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 8px; transition: opacity 0.3s ease, transform 0.3s ease;">
+        <button onclick="window.location.href='configure.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+            ⚙️ Settings
         </button>
-        <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);" title="System Diagnostics">
-            🔍
+        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+            📊 Dashboard
+        </button>
+        <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="System Diagnostics">
+            🔍 Diagnostics
+        </button>
+        <button onclick="window.debugPanel?.toggle()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Debug Console">
+            🐛 Debug
         </button>
     </div>
+
+    <script>
+        // Auto-hide navigation system
+        (function() {
+            const nav = document.getElementById('mobile-nav');
+            let hideTimeout;
+            let isHiding = false;
+
+            function showNav() {
+                nav.style.opacity = '1';
+                nav.style.transform = 'translateY(0)';
+                isHiding = false;
+                resetHideTimer();
+            }
+
+            function hideNav() {
+                if (!isHiding) {
+                    isHiding = true;
+                    nav.style.opacity = '0';
+                    nav.style.transform = 'translateY(-20px)';
+                }
+            }
+
+            function resetHideTimer() {
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(hideNav, 5000); // Hide after 5 seconds
+            }
+
+            // Show on user activity
+            document.addEventListener('touchstart', showNav);
+            document.addEventListener('click', showNav);
+            document.addEventListener('mousemove', showNav);
+
+            // Show when hovering near top-right corner
+            document.addEventListener('mousemove', function(e) {
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+                if (e.clientX > windowWidth * 0.75 && e.clientY < windowHeight * 0.25) {
+                    showNav();
+                }
+            });
+
+            // Start the hide timer
+            resetHideTimer();
+        })();
+
+        // Loading screen with initialization tracking
+        (function() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const loadingProgress = document.getElementById('loading-progress');
+            const loadingStatus = document.getElementById('loading-status');
+            const loadingSubstatus = document.getElementById('loading-substatus');
+            
+            let progress = 0;
+            let initialized = false;
+
+            function updateProgress(percent, status, substatus = '') {
+                progress = Math.min(percent, 100);
+                loadingProgress.style.width = progress + '%';
+                loadingStatus.textContent = status;
+                loadingSubstatus.textContent = substatus;
+                console.log(\`[Loading] \${progress}% - \${status} \${substatus}\`);
+            }
+
+            function hideLoadingScreen() {
+                if (initialized) return;
+                initialized = true;
+                console.log('[Loading] Complete - hiding loading screen');
+                updateProgress(100, 'Ready!', 'Starting player...');
+                setTimeout(() => {
+                    loadingOverlay.style.opacity = '0';
+                    loadingOverlay.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
+                }, 500);
+            }
+
+            function showErrorMessage(message, details = '', showRetry = true) {
+                loadingOverlay.innerHTML = \`
+                    <div style="text-align: center; color: white; max-width: 500px; padding: 20px;">
+                        <div style="font-size: 3em; margin-bottom: 20px;">⚠️</div>
+                        <h2 style="font-size: 1.5em; margin-bottom: 15px; font-weight: 400;">\${message}</h2>
+                        \${details ? \`<p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 20px;">\${details}</p>\` : ''}
+                        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            \${showRetry ? \`<button onclick="window.location.reload()" style="padding: 12px 24px; background: white; color: #667eea; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">Retry</button>\` : ''}
+                            <button onclick="window.location.href='configure.html'" style="padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500;">Settings</button>
+                            <button onclick="window.location.href='diagnostics.html'" style="padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500;">Diagnostics</button>
+                        </div>
+                    </div>
+                \`;
+            }
+
+            window.showErrorMessage = showErrorMessage;
+
+            // Track initialization stages
+            updateProgress(0, 'Starting...', 'Loading Capacitor');
+
+            // Stage 1: Capacitor ready (25%)
+            document.addEventListener('capacitorReady', function() {
+                updateProgress(25, 'Capacitor Ready', 'Loading configuration...');
+            });
+
+            // Stage 2: Config loaded (50%)
+            document.addEventListener('configLoaded', function(e) {
+                updateProgress(50, 'Configuration Loaded', 'Connecting to server...');
+            });
+
+            // Stage 3: Socket.IO connected or skipped (75%)
+            document.addEventListener('socketio-connected', function() {
+                updateProgress(75, 'Connected to Server', 'Initializing player...');
+            });
+
+            // Also listen for timeout (Socket.IO is optional)
+            window.addEventListener('socketio-timeout', function() {
+                updateProgress(75, 'Server Connection Skipped', 'Initializing player...');
+            });
+
+            // Stage 4: App ready (100%)
+            window.addEventListener('appReady', function() {
+                updateProgress(100, 'Ready!', 'Starting player...');
+                setTimeout(hideLoadingScreen, 500);
+            });
+
+            // Timeout fallback - hide loading screen after 20 seconds
+            setTimeout(function() {
+                if (!initialized) {
+                    console.warn('[Loading] Timeout reached - hiding loading screen anyway');
+                    // Check if we have config at least
+                    if (window.config && window.config.hostserver) {
+                        hideLoadingScreen();
+                    } else {
+                        showErrorMessage(
+                            'Initialization Timeout',
+                            'The app took too long to initialize. Please check your configuration.',
+                            true
+                        );
+                    }
+                }
+            }, 20000);
+
+            // Make functions globally available
+            window.hideLoadingScreen = hideLoadingScreen;
+            window.updateLoadingProgress = updateProgress;
+        })();
+    </script>
 `;
-        content = content.replace(/<body>/i, '<body>' + navigationButton);
+        content = content.replace(/<body>/i, '<body>' + mobileEnhancements);
     }
     
     // Dashboard specific adaptations

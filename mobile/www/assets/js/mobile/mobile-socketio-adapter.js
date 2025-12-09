@@ -23,24 +23,47 @@ console.log('=== MOBILE SOCKET.IO ADAPTER: Initializing ===');
      * Wait for mobile socket manager to be ready
      */
     async function waitForSocketManager() {
+        // First wait for config to be loaded
+        if (!window.config || !window.config.hostserver) {
+            console.log('Mobile Socket Adapter: Waiting for config first...');
+            await new Promise((resolve) => {
+                if (window.config && window.config.hostserver) {
+                    resolve();
+                } else {
+                    window.addEventListener('configLoaded', resolve, { once: true });
+                    // Timeout fallback
+                    setTimeout(resolve, 15000);
+                }
+            });
+        }
+
+        // Check if socket is not needed (no server configured)
+        if (!window.config || !window.config.hostserver) {
+            console.warn('Mobile Socket Adapter: No server configured, skipping socket connection');
+            return null;
+        }
+
         if (window.mobileSocketManager && window.mobileSocketManager.isConnected()) {
             return window.mobileSocketManager.getSocket();
         }
 
         return new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 50; // 5 seconds total
+            
             const checkInterval = setInterval(() => {
+                attempts++;
+                
                 if (window.mobileSocketManager && window.mobileSocketManager.getSocket()) {
                     clearInterval(checkInterval);
+                    console.log('Mobile Socket Adapter: Socket manager ready after', attempts * 100, 'ms');
                     resolve(window.mobileSocketManager.getSocket());
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    console.warn('Mobile Socket Adapter: Timeout waiting for socket manager (not critical)');
+                    resolve(null);
                 }
             }, 100);
-
-            // Timeout after 10 seconds
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                console.error('Mobile Socket Manager timeout - using fallback socket');
-                resolve(null);
-            }, 10000);
         });
     }
 

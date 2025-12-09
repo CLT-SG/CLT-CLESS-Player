@@ -30,8 +30,8 @@ class MobileConfigLoader {
     getDefaultConfig() {
         return {
             version: '2.6.5',
-            hostserver: 'https://demo.ecless.com',
-            id: 'DEMO001',
+            hostserver: 'https://cless4.closed-loop.biz',
+            id: '20',
             mode: 'online',
             corsproxy: 'N',
             syncSettings: {

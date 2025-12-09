@@ -32,15 +32,36 @@ class MobileSocketManager {
     async initialize() {
         console.log('MobileSocketManager: Waiting for configuration...');
         
-        // Wait for config to be available
-        if (!window.config) {
-            await new Promise((resolve) => {
-                window.addEventListener('configLoaded', resolve, { once: true });
-            });
+        // Wait for config to be available with timeout
+        if (!window.config || !window.config.hostserver) {
+            console.log('MobileSocketManager: Config not available, waiting for configLoaded event...');
+            try {
+                await Promise.race([
+                    new Promise((resolve) => {
+                        window.addEventListener('configLoaded', resolve, { once: true });
+                    }),
+                    new Promise((_, reject) => 
+                        setTimeout(() => reject(new Error('Config load timeout')), 15000)
+                    )
+                ]);
+            } catch (error) {
+                console.error('MobileSocketManager: Timeout waiting for configuration:', error);
+                // Fallback to default config if available
+                if (!window.config) {
+                    console.warn('MobileSocketManager: No config available, Socket.IO will not connect');
+                    return this;
+                }
+            }
         }
         
         this.config = window.config;
         console.log('MobileSocketManager: Configuration loaded', this.config);
+        
+        // Validate config has necessary properties
+        if (!this.config.hostserver && !this.config.masterServerAddress) {
+            console.warn('MobileSocketManager: No server address configured, Socket.IO will not auto-connect');
+            return this;
+        }
         
         // Setup app lifecycle listeners
         this.setupLifecycleListeners();
@@ -66,6 +87,13 @@ class MobileSocketManager {
             // Ensure config is loaded
             if (!this.config) {
                 await this.initPromise;
+            }
+            
+            // Validate config before attempting connection
+            if (!this.config || (!this.config.hostserver && !this.config.masterServerAddress)) {
+                console.warn('MobileSocketManager: No server address available, skipping Socket.IO connection');
+                this.isConnecting = false;
+                return null;
             }
 
             // Determine server address
