@@ -49,9 +49,30 @@ ecless-player-electron/
 
 2. **Android Studio** with Android SDK
    - Download from: https://developer.android.com/studio
-   - Install Android SDK Platform 33 or later
-   - Install Android SDK Build-Tools
-   - Set ANDROID_HOME environment variable
+   - Install Android SDK Platform 34 (or the version specified in `android/variables.gradle`)
+   - Install Android SDK Build-Tools (version 34.0.0 or later)
+   - **Configure Android SDK Location** (CRITICAL):
+     
+     **Option 1: Set Environment Variables (Recommended)**
+     Add to your `~/.bashrc` or `~/.zshrc`:
+     ```bash
+     export ANDROID_HOME=$HOME/Android/Sdk
+     export ANDROID_SDK_ROOT=$HOME/Android/Sdk
+     export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools
+     ```
+     Then reload your shell:
+     ```bash
+     source ~/.bashrc  # or source ~/.zshrc
+     ```
+     
+     **Option 2: Create local.properties File**
+     Create `mobile/android/local.properties` (auto-generated after first Android Studio sync):
+     ```properties
+     sdk.dir=/home/YOUR_USERNAME/Android/Sdk
+     ```
+     **Note**: Replace `/home/YOUR_USERNAME` with your actual home directory path.
+     
+     **⚠️ Important**: The `local.properties` file contains machine-specific paths and should NOT be committed to version control. It's already included in `.gitignore`.
 
 3. **Java Development Kit (JDK 17)**
    ```bash
@@ -318,14 +339,79 @@ Required sizes:
 
 ### Android Build Issues
 
-**Problem**: `ANDROID_HOME not set`
-```bash
-# Linux/macOS
-export ANDROID_HOME=$HOME/Android/Sdk
-export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
+#### **Problem**: SDK location not found / Gradle dependency resolution error
 
-# Add to ~/.bashrc or ~/.zshrc for persistence
+**Error Message**:
 ```
+Could not determine the dependencies of task ':app:compileDebugJavaWithJavac'.
+SDK location not found. Define a valid SDK location with an ANDROID_HOME 
+environment variable or by setting the sdk.dir path in your project's 
+local properties file at '.../mobile/android/local.properties'.
+```
+
+**Root Cause**: Gradle cannot locate the Android SDK, which is required for compiling the Android app. This happens when neither `ANDROID_HOME` environment variable is set nor `local.properties` file exists.
+
+**Solution 1 - Set Environment Variables (Recommended - Permanent Fix)**:
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+echo 'export ANDROID_HOME=$HOME/Android/Sdk' >> ~/.bashrc
+echo 'export ANDROID_SDK_ROOT=$HOME/Android/Sdk' >> ~/.bashrc
+echo 'export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/tools' >> ~/.bashrc
+
+# Reload shell configuration
+source ~/.bashrc  # or source ~/.zshrc for zsh
+```
+
+**Solution 2 - Create local.properties File (Quick Fix)**:
+```bash
+# Navigate to Android project directory
+cd mobile/android
+
+# Create local.properties with your SDK path
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
+
+# Verify the file was created
+cat local.properties
+```
+
+**Verification Steps**:
+```bash
+# 1. Check environment variables
+echo $ANDROID_HOME
+# Should output: /home/YOUR_USERNAME/Android/Sdk
+
+# 2. Check if local.properties exists
+cat mobile/android/local.properties
+# Should show: sdk.dir=/home/YOUR_USERNAME/Android/Sdk
+
+# 3. Test Gradle build
+cd mobile/android
+./gradlew tasks --no-daemon
+# Should list available Gradle tasks without errors
+
+# 4. Build the app
+./gradlew assembleDebug --no-daemon
+# Should complete with "BUILD SUCCESSFUL"
+```
+
+**Common SDK Locations**:
+- Linux: `$HOME/Android/Sdk` or `/usr/lib/android-sdk`
+- macOS: `$HOME/Library/Android/sdk`
+- Windows: `C:\Users\<username>\AppData\Local\Android\Sdk`
+
+**Finding Your SDK Location**:
+```bash
+# Check if Android SDK is installed
+ls -la ~/Android/Sdk
+
+# Or check Android Studio settings:
+# Android Studio → Settings → Appearance & Behavior → System Settings → Android SDK
+```
+
+**Important Notes**:
+- ⚠️ **DO NOT commit** `local.properties` to version control (it's in `.gitignore`)
+- The file contains machine-specific paths that vary between development environments
+- Each developer needs to create their own `local.properties` file
 
 **Problem**: Gradle build fails
 ```bash

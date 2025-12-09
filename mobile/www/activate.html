@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eCLESS Player - License Activation</title>
+  <link rel="stylesheet" type="text/css" href="assets/css/activate.css" />
+  <!-- Custom Dialog System for alwaysOnTop compatibility -->
+  <script src="assets/js/custom-dialog.js"></script>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
+  <script type="module" src="assets/js/capacitor-core.bundle.js"></script>
+  <script src="assets/js/mobile-electron-shim.js" defer></script>
+  <script src="assets/js/mobile-config.js" defer></script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="main-content">
+      <!-- Header -->
+      <div class="header">
+        <div class="title">eCLESS Player</div>
+        <div class="subtitle">License Activation</div>
+        <div class="company">Closed-Loop Technology Pte Ltd.</div>
+      </div>
+
+      <!-- System Information -->
+      <div class="system-info">
+        <div class="info-card">
+          <div class="info-label">Primary MAC Address</div>
+          <div class="mac-address-container">
+            <div class="info-value" id="macaddress">Loading...</div>
+            <button class="copy-btn" id="copyMacBtn" onclick="copyMacAddress()" title="Copy MAC Address">
+              📋
+            </button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- All Network Interfaces Section -->
+      <div class="all-macs-section">
+        <div id="all-mac-addresses" class="all-mac-container">
+          <div class="loading-macs">Loading network interfaces...</div>
+        </div>
+      </div>
+
+      <!-- Configuration Instructions -->
+      <div class="instructions-section">
+        <div class="instructions-title">Configuration Instructions</div>
+        
+        <div class="instruction-step">
+          <span class="step-number">1</span>
+          <strong>Access Configuration Panel:</strong> Open your web browser and navigate to: 
+          <span class="config-url" id="configUrl">Loading...</span>
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">2</span>
+          <strong>Navigate to System Configuration:</strong> Go to the System Configuration section in the control panel
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">3</span>
+          <strong>Enter License Key:</strong> Input your activation key in the Serial Key field
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">4</span>
+          <strong>Save & Activate:</strong> Click Save Configuration to activate your license
+        </div>
+      </div>
+
+      <!-- QR Code Section -->
+      <div class="qr-section">
+        <canvas id="qr-canvas" width="150" height="150"></canvas>
+        <p>Scan QR code to request license key via WhatsApp</p>
+        <p>or email: sales@closed-loop.biz</p>
+      </div>
+
+      <!-- Activation Input -->
+      <div class="activation-section">
+        <div class="activation-label">Enter your license key:</div>
+        <input type="text" id="userkey" class="key-input" placeholder="Enter your activation key here...">
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-section">
+        <button class="btn btn-primary" onclick="activate()">
+          🔐 Activate License
+        </button>
+        <button class="btn btn-secondary" onclick="cancel()">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/activate.js"></script>
+</body>
+</html>

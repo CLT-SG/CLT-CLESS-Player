@@ -1,0 +1,665 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  color: #333;
+}
+
+.container {
+  height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.main-content {
+  width: 100%;
+  max-width: 900px;
+  height: calc(100vh - 20px);
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  padding: 15px;
+  margin: 0;
+  backdrop-filter: blur(10px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 1.8em;
+  color: #0062cc;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+
+.subtitle {
+  font-size: 1em;
+  color: #666;
+  margin-bottom: 3px;
+}
+
+.company {
+  font-size: 0.85em;
+  color: #888;
+}
+
+.activation-section {
+  text-align: center;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+.activation-label {
+  font-size: 1.1em;
+  margin-bottom: 8px;
+  color: #0062cc;
+  font-weight: bold;
+}
+
+.key-input {
+  width: 100%;
+  max-width: 500px;
+  padding: 10px 15px;
+  font-size: 14px;
+  border: 2px solid #ddd;
+  border-radius: 10px;
+  outline: none;
+  transition: all 0.3s ease;
+  margin-bottom: 0;
+}
+
+.key-input:focus {
+  border-color: #0062cc;
+  box-shadow: 0 0 0 3px rgba(0, 98, 204, 0.1);
+}
+
+.instructions-section {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 10px;
+  margin: 10px 0;
+  border-left: 4px solid #0062cc;
+  flex-shrink: 0;
+}
+
+.instructions-title {
+  font-size: 1.1em;
+  color: #0062cc;
+  margin-bottom: 8px;
+  text-align: center;
+  font-weight: bold;
+}
+
+.instruction-step {
+  background: white;
+  padding: 6px 10px;
+  margin: 6px 0;
+  border-radius: 8px;
+  border-left: 3px solid #28a745;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  font-size: 0.85em;
+}
+
+.step-number {
+  display: inline-block;
+  background: #0062cc;
+  color: white;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 20px;
+  margin-right: 6px;
+  font-weight: bold;
+  font-size: 0.85em;
+}
+
+.config-url {
+  background: #e3f2fd;
+  padding: 8px 12px;
+  border-radius: 5px;
+  font-family: monospace;
+  color: #0062cc;
+  font-weight: bold;
+  word-break: break-all;
+  margin: 5px 0;
+  display: inline-block;
+}
+
+.system-info {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+.info-card {
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  max-width: 300px;
+}
+
+.info-label {
+  font-size: 0.9em;
+  color: #666;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.info-value {
+  font-size: 1.1em;
+  font-weight: bold;
+  color: #333;
+  font-family: monospace;
+}
+
+.mac-address-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.copy-btn {
+  background: #0062cc;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 35px;
+  height: 35px;
+}
+
+.copy-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 98, 204, 0.3);
+}
+
+.copy-btn:active {
+  transform: translateY(0);
+}
+
+.copy-btn.copied {
+  background: #28a745;
+  animation: copySuccess 0.3s ease;
+}
+
+@keyframes copySuccess {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* Multi-NIC MAC Address Display */
+.all-macs-section {
+  margin: 10px 0;
+  flex: 1;
+  min-height: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.all-mac-container {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 10px;
+  border: 2px solid #e9ecef;
+  min-height: 100%;
+}
+
+.mac-list-header {
+  font-size: 0.95em;
+  font-weight: bold;
+  color: #0062cc;
+  margin-bottom: 8px;
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #0062cc;
+}
+
+.mac-item {
+  background: white;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  border-left: 3px solid #6c757d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+  min-height: 36px;
+}
+
+.mac-item:hover {
+  transform: translateX(5px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+.mac-item.primary {
+  border-left-color: #28a745;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fff4 100%);
+}
+
+.mac-item.error {
+  border-left-color: #dc3545;
+  color: #dc3545;
+  text-align: center;
+  padding: 20px;
+  display: block;
+}
+
+.mac-interface-name {
+  font-size: 0.85em;
+  font-weight: bold;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 120px;
+  white-space: nowrap;
+}
+
+.interface-icon {
+  font-size: 1.1em;
+}
+
+.primary-badge {
+  background: #28a745;
+  color: white;
+  font-size: 0.65em;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-weight: normal;
+  white-space: nowrap;
+}
+
+.mac-interface-type {
+  font-size: 0.75em;
+  color: #6c757d;
+  flex-shrink: 0;
+  min-width: 70px;
+  white-space: nowrap;
+}
+
+.mac-address-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-grow: 1;
+  flex-shrink: 0;
+}
+
+.mac-address-value code {
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.8em;
+  color: #0062cc;
+  white-space: nowrap;
+}
+
+.copy-mac-btn {
+  background: #0062cc;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+  min-width: 30px;
+}
+
+.copy-mac-btn:hover {
+  background: #0056b3;
+  transform: translateY(-1px);
+}
+
+.mac-list-footer {
+  text-align: center;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #dee2e6;
+}
+
+.mac-list-footer small {
+  color: #6c757d;
+  font-size: 0.75em;
+}
+
+.loading-macs {
+  text-align: center;
+  color: #6c757d;
+  padding: 15px;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.button-section {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 20px;
+  font-size: 0.9em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 110px;
+}
+
+.btn-primary {
+  background: #0062cc;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 98, 204, 0.3);
+}
+
+.btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(108, 117, 125, 0.3);
+}
+
+.qr-section {
+  text-align: center;
+  margin: 8px 0;
+  flex-shrink: 0;
+}
+
+.qr-section p {
+  margin: 3px 0;
+  font-size: 0.8em;
+}
+
+#qr-canvas {
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  margin: 5px auto;
+  display: block;
+  width: 150px;
+  height: 150px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .container {
+    padding: 10px;
+  }
+
+  .main-content {
+    padding: 10px;
+    height: calc(100vh - 10px);
+  }
+
+  .title {
+    font-size: 1.5em;
+  }
+
+  .subtitle {
+    font-size: 0.9em;
+  }
+
+  .company {
+    font-size: 0.75em;
+  }
+
+  .header {
+    margin-bottom: 8px;
+  }
+
+  .system-info {
+    margin: 6px 0;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .info-card {
+    padding: 8px;
+  }
+
+  .instructions-section {
+    padding: 8px;
+    margin: 6px 0;
+  }
+
+  .instruction-step {
+    padding: 5px 8px;
+    margin: 4px 0;
+    font-size: 0.8em;
+  }
+
+  .step-number {
+    width: 18px;
+    height: 18px;
+    line-height: 18px;
+    font-size: 0.75em;
+  }
+
+  .qr-section {
+    margin: 6px 0;
+  }
+
+  #qr-canvas {
+    width: 120px;
+    height: 120px;
+  }
+
+  .activation-section {
+    margin: 6px 0;
+  }
+
+  .activation-label {
+    font-size: 1em;
+    margin-bottom: 6px;
+  }
+
+  .key-input {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .button-section {
+    flex-direction: row;
+    gap: 8px;
+    margin: 8px 0;
+  }
+
+  .btn {
+    padding: 6px 15px;
+    font-size: 0.85em;
+    min-width: 90px;
+  }
+
+  .mac-item {
+    padding: 6px 8px;
+    margin: 3px 0;
+    gap: 6px;
+    font-size: 0.9em;
+  }
+
+  .mac-interface-name {
+    font-size: 0.8em;
+    min-width: 90px;
+  }
+
+  .mac-interface-type {
+    font-size: 0.7em;
+    min-width: 60px;
+  }
+
+  .mac-address-value code {
+    font-size: 0.7em;
+    padding: 3px 5px;
+  }
+
+  .copy-mac-btn {
+    padding: 4px 6px;
+    font-size: 0.85em;
+  }
+
+  .all-macs-section {
+    margin: 6px 0;
+  }
+
+  .all-mac-container {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .title {
+    font-size: 1.3em;
+  }
+
+  .subtitle {
+    font-size: 0.85em;
+  }
+
+  .activation-label {
+    font-size: 0.95em;
+  }
+
+  .key-input {
+    font-size: 12px;
+    padding: 6px 10px;
+  }
+
+  .main-content {
+    padding: 8px;
+  }
+
+  .instructions-section {
+    padding: 6px;
+  }
+
+  .instruction-step {
+    padding: 4px 6px;
+    font-size: 0.75em;
+  }
+
+  #qr-canvas {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+/* Very small screen height */
+@media (max-height: 600px) {
+  .title {
+    font-size: 1.3em;
+    margin-bottom: 3px;
+  }
+
+  .subtitle {
+    font-size: 0.85em;
+  }
+
+  .company {
+    display: none;
+  }
+
+  .header {
+    margin-bottom: 5px;
+  }
+
+  .instructions-title {
+    font-size: 0.95em;
+    margin-bottom: 5px;
+  }
+
+  .instruction-step {
+    padding: 4px 6px;
+    margin: 3px 0;
+    font-size: 0.75em;
+  }
+
+  #qr-canvas {
+    width: 100px;
+    height: 100px;
+  }
+
+  .qr-section p {
+    font-size: 0.7em;
+    margin: 2px 0;
+  }
+
+  .activation-label {
+    font-size: 0.9em;
+  }
+
+  .key-input {
+    padding: 6px 10px;
+  }
+
+  .btn {
+    padding: 5px 12px;
+    font-size: 0.8em;
+  }
+}
+
+/* Animation for loading states */
+.loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

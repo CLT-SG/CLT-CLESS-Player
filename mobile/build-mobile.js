@@ -106,7 +106,7 @@ files.forEach(file => {
     const capacitorScripts = `
   
   <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
-  <script type="module" src="assets/js/capacitor-core.js"></script>
+  <script type="module" src="assets/js/capacitor-core.bundle.js"></script>
   <script src="assets/js/mobile-electron-shim.js" defer></script>
   <script src="assets/js/mobile-config.js" defer></script>
 `;
@@ -187,6 +187,20 @@ files.forEach(file => {
     fs.writeFileSync(destPath, content, 'utf8');
     console.log(`✓ Processed ${file.src} → ${file.dest}${file.isCMSPlayer ? ' (CMS Player)' : ''}`);
 });
+
+// Bundle Capacitor modules using Rollup
+console.log('\n📦 Bundling Capacitor modules...');
+const { execSync } = require('child_process');
+try {
+    execSync('npx rollup -c rollup.config.js', { 
+        cwd: mobileDir,
+        stdio: 'inherit'
+    });
+    console.log('✓ Capacitor modules bundled successfully');
+} catch (error) {
+    console.error('❌ Failed to bundle Capacitor modules:', error.message);
+    process.exit(1);
+}
 
 console.log('\n✅ Mobile build completed successfully!');
 console.log('\n📱 Mobile App Structure:');

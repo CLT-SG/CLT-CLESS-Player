@@ -1,61 +1,67 @@
-Mobile CMS Player Architecture Migration
+Android Mobile App Module Resolution and Initialization Fixes
 
-This PR restructures the mobile app to properly implement the CMS player as the main application, replacing the incorrect architecture where the dashboard was used as the primary interface.
+This PR resolves critical Android mobile app errors preventing the application from launching and running properly. The fixes address ES6 module import failures, configuration loading race conditions, and Socket.IO connection timeouts.
 
 Problem
 
-The mobile app was incorrectly using cpanel.html (dashboard/control panel) as the main entry point instead of index.html (CMS content player). The dashboard is meant for remote control and monitoring, not as the primary application interface.
+The mobile app failed to launch on Android devices with three critical errors:
 
-Before (Incorrect)
-- index.html was the dashboard (cpanel.html)
-- No CMS player functionality
-- Missing layout rendering and media playback
+1. Capacitor Module Import Error
+   - Error: "Failed to resolve module specifier '@capacitor/core'"
+   - Android WebView cannot resolve ES6 module imports from node_modules
+   - App crashed immediately on startup
 
-After (Correct)
-- index.html is the CMS Player (plays layouts and media)
-- dashboard.html is the control panel (accessible via navigation)
-- Proper dual-interface architecture matching desktop Electron app
+2. Configuration Undefined Access Error  
+   - Error: "Cannot read properties of undefined (reading 'hostserver')"
+   - looplayout.js accessed config.hostserver before configuration loaded
+   - Race condition between config loading and script execution
+
+3. Socket.IO Connection Timeout
+   - Error: "websocket error" and "Socket.IO connection error"
+   - Socket manager attempted connection before config was available
+   - Missing retry logic for failed initialization
 
 Solution
 
-Restructured the mobile app with comprehensive changes to build system, API compatibility layer, Socket.IO connection management, and navigation flow.
+Implemented comprehensive fixes addressing module resolution, configuration loading, and connection management through build system enhancements, bundler integration, and improved initialization sequences.
 
 Key Changes
 
-1. Build System Restructuring (build-mobile.js)
-   - Changed src/index.html to mobile/www/index.html (CMS Player)
-   - Changed src/cpanel.html to mobile/www/dashboard.html (Dashboard)
-   - Added Socket.IO CDN injection (v4.5.4)
-   - Injected mobile-specific scripts in correct order
-   - Added navigation buttons between interfaces
+1. Rollup Bundler Integration (NEW: rollup.config.js)
+   - Created Rollup configuration to bundle all Capacitor modules
+   - Installed @rollup/plugin-node-resolve and @rollup/plugin-commonjs
+   - Configured ES module output with inlined dynamic imports
+   - Integrated bundling into build process
 
-2. Electron API Compatibility Layer (NEW: mobile-electron-shim.js)
-   - Complete Electron API shims for mobile browsers
-   - window.log, window.xmljs, window.datetime, window.path, window.os
-   - window.fs, window.dns, window.isReachable, window.ipcRenderer, window.remote
-   - 400 lines of compatibility code
+2. Capacitor Module Fixes (capacitor-core.js)
+   - Fixed incorrect import: Changed Storage to Preferences from @capacitor/preferences
+   - Removed @capacitor/screen-orientation dependency (incompatible with Capacitor 6)
+   - Updated all API calls to use correct Preferences plugin
+   - Implemented CSS-based orientation handling as fallback
 
-3. Socket.IO Connection Management (NEW: mobile-socketio-manager.js)
-   - Dynamic server address from configuration
-   - Automatic reconnection with exponential backoff
-   - App lifecycle handling (pause/resume)
-   - Network change detection and recovery
-   - 316 lines of connection management
+3. Build System Enhancement (build-mobile.js)
+   - Added Rollup bundler execution step
+   - Updated script references to capacitor-core.bundle.js
+   - Automated bundle generation during npm run build
+   - Added error handling for bundler failures
 
-4. Socket.IO Integration (NEW: mobile-socketio-adapter.js)
-   - Bridges socketio-cpanel.js with managed socket
-   - Prevents duplicate connections
-   - 98 lines of adapter logic
+4. Configuration Loading Improvements (looplayout.js, index.html)
+   - Added null checks before accessing config.hostserver
+   - Implemented safe fallback for undefined config values
+   - Enhanced event-driven initialization with configLoaded listener
+   - Fixed race condition in config access timing
 
-5. Configuration Updates
-   - Updated capacitor.config.json with proper entry point
-   - Enhanced mobile-config.js for CMS compatibility
-   - Added cleartext support for development
+5. Socket.IO Initialization Enhancement (mobile-socketio-manager.js)
+   - Enhanced initialize() to properly wait for config
+   - Added retry logic with configLoaded event listener
+   - Improved URL validation with try-catch blocks
+   - Extended timeout and better error handling
 
-6. Navigation Implementation
-   - CMS Player: "Dashboard" button (top-right, blue)
-   - Dashboard: "Back to Player" button (top-left, green)
-   - Responsive design with Bootstrap Icons
+6. Mobile Config System (mobile-config.js)
+   - Extended Capacitor initialization timeout to 10 seconds
+   - Added comprehensive error handling and logging
+   - Improved event dispatching with detailed information
+   - Better synchronization with app initialization
 
 Modified Files
 - mobile/build-mobile.js - Restructured file processing and script injection
@@ -143,39 +149,39 @@ Compatibility
 
 Files Changed
 
-Modified
-- mobile/build-mobile.js (restructured file processing)
-- mobile/capacitor.config.json (entry point update)
-- mobile/README.md (architecture documentation)
-- mobile/QUICKSTART.md (migration notice)
+Modified Files
+- mobile/build-mobile.js (added Rollup bundling step)
+- mobile/package.json (added Rollup dev dependencies)
+- mobile/www/assets/js/capacitor-core.js (fixed imports)
+- mobile/www/assets/js/looplayout.js (added null checks)
+- mobile/www/assets/js/mobile-socketio-manager.js (enhanced initialization)
+- mobile/www/assets/js/mobile-config.js (extended timeout)
+- mobile/www/index.html (updated script reference)
 
 New
-- mobile/www/assets/js/mobile-electron-shim.js
-- mobile/www/assets/js/mobile-socketio-manager.js
-- mobile/www/assets/js/mobile-socketio-adapter.js
-- mobile/MIGRATION-SUMMARY.md
+- mobile/rollup.config.js (bundler configuration)
 
 Generated (by build script)
-- mobile/www/index.html
-- mobile/www/dashboard.html
+- mobile/www/assets/js/capacitor-core.bundle.js (bundled modules)
+- mobile/www/assets/js/capacitor-core.bundle.js.map (source map)
 
 Statistics
 
-- 3 new JavaScript modules (812 lines total)
-- 4 configuration and build files modified
-- 80+ lines of documentation added
-- Complete architecture restructuring
-- Fully automated build system
+- 1 new configuration file created (rollup.config.js)
+- 7 JavaScript files modified
+- 3 dev dependencies added (rollup and plugins)
+- Automated bundler integration
+- Build process enhanced with module bundling
 
 Next Steps
 
-1. Build Android APK: cd mobile && npm run build && npm run build:android
-2. Deploy to test device
-3. Verify CMS player launches correctly
-4. Test layout rendering and media playback
-5. Validate Socket.IO server connection
-6. Test navigation between player and dashboard
-7. Complete end-to-end flow testing
+1. Test on Android device or emulator
+2. Verify app launches without module resolution errors
+3. Confirm Capacitor plugins initialize correctly
+4. Test configuration loading from device storage
+5. Validate Socket.IO connection to configured server
+6. Test layout rendering and media playback
+7. Verify offline mode functionality
 
 Recent Updates
 

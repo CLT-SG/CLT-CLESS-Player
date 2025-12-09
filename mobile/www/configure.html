@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="us">
+
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta charset="utf-8">
+    <title>eCLESS Player</title>
+    <script>
+        if (typeof module === 'object') {
+            window.module = module
+            module = undefined
+        }
+    </script>
+    <!-- Latest compiled and minified CSS -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/bootstrap.min.js"></script>
+    <!-- Enhanced configuration loader -->
+    
+    <!-- Custom Dialog System for alwaysOnTop compatibility -->
+    <script src="assets/js/custom-dialog.js"></script>
+    <style>
+        html,
+        body {
+            height: 100%;
+            width: 100%;
+        }
+
+        .note {
+            text-align: center;
+            height: 80px;
+            background: -webkit-linear-gradient(left, #0072ff, #8811c5);
+            color: #fff;
+            font-weight: bold;
+            line-height: 80px;
+        }
+
+        .form-content {
+            padding: 5%;
+            border: 1px solid #ced4da;
+            margin-bottom: 2%;
+        }
+
+        .btnSubmit {
+            border: none;
+            border-radius: 1.5rem;
+            padding: 1%;
+            width: 20%;
+            cursor: pointer;
+            background: #0062cc;
+            color: #fff;
+        }
+    </style>
+    <script>
+        var ipcRenderer = window.mobileAPI.ipc
+        var remote = window.mobileAPI.remote
+        var path = window.path
+        var os = window.os
+        var config = window.config
+        var win = remote.getCurrentWebContents()
+        var homedir = os.homedir()
+        
+        // Wait for configuration to load
+        window.addEventListener('configLoaded', function(event) {
+            console.log('eCLESS: Configuration loaded for configure window -', event.detail.source)
+            console.log('eCLESS: Configuration data:', event.detail.config)
+            populateForm()
+        })
+        
+        // Load configuration on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if config is already loaded
+            if (window.configLoader && window.configLoader.config) {
+                console.log('eCLESS: Configuration already loaded, populating form')
+                populateForm()
+            } else {
+                console.log('eCLESS: Waiting for configuration to load...')
+            }
+        })
+        
+        function populateForm() {
+            if (!config || !window.configLoader || !window.configLoader.config) {
+                console.warn('eCLESS: No configuration available for form population')
+                setTimeout(populateForm, 500) // Retry after 500ms
+                return
+            }
+            
+            var configData = window.configLoader.getAll()
+            console.log('eCLESS: Populating form with config:', configData)
+            
+            $('#hostserver').val(configData.hostserver || '')
+            $('#dsid').val(configData.id || '')
+            $('#mode option[value="' + (configData.mode || 'online') + '"]').prop("selected", true)
+            $('#corsproxy option[value="' + (configData.corsproxy || 'N') + '"]').prop("selected", true)
+            
+            // Handle both old and new autostartup formats
+            var autostartupValue
+            if (configData.autoStartup !== undefined) {
+                // New format (boolean)
+                autostartupValue = configData.autoStartup ? 'Y' : 'N'
+            } else {
+                // Legacy format (string)
+                autostartupValue = configData.autostartup || 'Y'
+            }
+            $('#autostartup option[value="' + autostartupValue + '"]').prop("selected", true)
+            
+            $('#serialkey').val(configData.serialkey || '')
+            
+            console.log('eCLESS: Form populated successfully with values:')
+            console.log('  - Host server:', configData.hostserver)
+            console.log('  - DS ID:', configData.id)
+            console.log('  - Mode:', configData.mode)
+            console.log('  - CORS Proxy:', configData.corsproxy)
+            console.log('  - Auto startup:', autostartupValue)
+            console.log('  - Serial key:', configData.serialkey ? '***' + configData.serialkey.slice(-8) : 'empty')
+        }
+    </script>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
+  <script type="module" src="assets/js/capacitor-core.bundle.js"></script>
+  <script src="assets/js/mobile-electron-shim.js" defer></script>
+  <script src="assets/js/mobile-config.js" defer></script>
+</head>
+
+<body>
+    <div class="container register-form" style="margin-top:10%;">
+        <div class="form">
+            <div class="note">
+                <p>CLESS PLAYER - CONFIGURATION</p>
+            </div>
+
+            <div class="form-content">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>CLESS Server Address</div>
+                            <input type="text" id="hostserver" class="form-control" value="" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Digital Signage ID</div>
+                            <input type="text" id="dsid" class="form-control" value="" type="number" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Mode</div>
+                            <select class="form-control" id="mode">
+                                <option value="online">online</option>
+                                <option value="offline">offline</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Cors Proxy</div>
+                            <select class="form-control" id="corsproxy">
+                                <option value="Y">Enable</option>
+                                <option value="N">Disable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>Auto Startup</div>
+                            <select class="form-control" id="autostartup">
+                                <option value="Y">Enable</option>
+                                <option value="N">Disable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <div>License key</div>
+                            <input type="text" id="serialkey" class="form-control" value="" />
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btnSubmit" id="home">Exit</button>
+                <button type="button" class="btnSubmit" id="save">Save</button>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    // Form population moved to populateForm() function above
+    
+    // Listen for configuration save response from main process
+    ipcRenderer.on('config-save-response', async (event, response) => {
+        console.log('eCLESS: Configuration save response received:', response)
+        
+        if (response.success) {
+            // Show success dialog with auto-dismiss
+            await customAlert(
+                response.detail || response.message, 
+                { 
+                    type: 'success',
+                    title: 'Configuration Saved',
+                    timeout: 5000,
+                    buttonText: 'OK'
+                }
+            )
+            
+            // Restart the application after user acknowledges or timeout
+            console.log('eCLESS: CLESS Player relaunch initiated')
+            ipcRenderer.send('app-reload')
+        } else {
+            // Show error dialog
+            await customAlert(
+                response.error || 'Failed to save configuration. Please try again.', 
+                { 
+                    type: 'error',
+                    title: 'Configuration Error',
+                    timeout: 5000
+                }
+            )
+        }
+    })
+    
+    $('#save').on('click', app_config)
+    $('#home').on('click', function () {
+        appname = ipcRenderer.send('app-reload')
+    })
+
+    function app_config() {
+        var hostaddress = $('#hostserver').val()
+        var dsid = $('#dsid').val()
+        var mode = $('#mode').find(":selected").val()
+        var corsproxy = $('#corsproxy').find(":selected").val()
+        var autostartup = $('#autostartup').find(":selected").val()
+        var serialkey = $('#serialkey').val()
+        
+        console.log('eCLESS: Saving configuration with values:')
+        console.log('  - Host server:', hostaddress)
+        console.log('  - DS ID:', dsid)
+        console.log('  - Mode:', mode)
+        console.log('  - CORS Proxy:', corsproxy)
+        console.log('  - Auto startup:', autostartup)
+        console.log('  - Serial key:', serialkey ? '***' + serialkey.slice(-8) : 'empty')
+        
+        // Create configuration object matching main process expectations
+        var argsObj = {
+            // Main process expects these exact property names
+            hostaddress: hostaddress,  // NOT hostserver
+            dsid: dsid,
+            mode: mode,
+            corsproxy: corsproxy,
+            autostartup: autostartup,
+            serialkey: serialkey,
+            
+            // Enhanced settings - preserve existing values or use defaults
+            screenOnOff: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenOnOff !== undefined ? window.configLoader.config.screenOnOff : true : true,
+            fullscreenMode: (window.configLoader && window.configLoader.config) ? window.configLoader.config.fullscreenMode !== undefined ? window.configLoader.config.fullscreenMode : true : true,
+            screenTimeout: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenTimeout || 0 : 0,
+            updateInterval: (window.configLoader && window.configLoader.config) ? window.configLoader.config.updateInterval || 30 : 30,  
+            logLevel: (window.configLoader && window.configLoader.config) ? window.configLoader.config.logLevel || 'info' : 'info',
+            
+            // Preserve complex settings if they exist
+            displaySettings: (window.configLoader && window.configLoader.config && window.configLoader.config.displaySettings) ? window.configLoader.config.displaySettings : {
+                resolution: "auto",
+                orientation: "landscape", 
+                colorProfile: "default",
+                powerManagement: true
+            },
+            networkSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.networkSettings) ? window.configLoader.config.networkSettings : {
+                autoConnect: true,
+                preferredInterface: "auto"
+            },
+            mediaSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.mediaSettings) ? window.configLoader.config.mediaSettings : {
+                defaultVolume: 50,
+                autoPlay: true,
+                loopMedia: true
+            },
+            systemSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.systemSettings) ? window.configLoader.config.systemSettings : {
+                enableRemoteControl: true,
+                allowShutdown: true,
+                enableSystemInfo: true
+            }
+        }
+        
+        console.log('eCLESS: Configuration object to save:', argsObj)
+        
+        if (typeof(require) != "undefined") {
+            ipcRenderer.send('app-configsave', argsObj)
+        } else {
+            console.log('electron required')
+        }
+    }
+</script>
+
+</html>

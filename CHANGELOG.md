@@ -1,5 +1,117 @@
 # Change Log
 
+## [2.9.2] - 2025-12-09
+
+### Fixed
+
+- **Capacitor Module Import Resolution Error** - Resolved ES6 module import failure in Android WebView
+  - Fixed "Failed to resolve module specifier '@capacitor/core'" error preventing app startup
+  - Created Rollup bundler configuration to bundle all Capacitor modules into single file
+  - Generated capacitor-core.bundle.js (ES module format) with inlined dynamic imports
+  - Corrected @capacitor/preferences import (changed Storage to Preferences)
+  - Removed incompatible @capacitor/screen-orientation plugin (requires Capacitor 8+)
+
+- **Configuration Undefined Access Error** - Fixed null reference errors in layout processing
+  - Added null checks before accessing config.hostserver in looplayout.js
+  - Enhanced config initialization with proper event-driven loading
+  - Improved fallback logic to wait for configLoaded event before execution
+  - Fixed race condition where layout scripts ran before config was available
+
+- **Socket.IO Connection Initialization Timeout** - Resolved WebSocket connection failures
+  - Enhanced mobile-socketio-manager.js to properly wait for config initialization
+  - Added retry logic with configLoaded event listener for failed connections
+  - Improved URL validation with try-catch and fallback to localhost
+  - Extended initialization timeout and added comprehensive error handling
+
+### Added
+
+- **Rollup Build System** - Professional module bundling for mobile deployment
+  - Created rollup.config.js with @rollup/plugin-node-resolve and commonjs plugins
+  - Integrated bundling step into build-mobile.js build process
+  - Automatic generation of capacitor-core.bundle.js during npm run build
+  - Installed rollup as dev dependency for mobile build pipeline
+
+- **Enhanced Error Handling** - Comprehensive mobile initialization resilience
+  - Added graceful fallback when Capacitor fails to initialize
+  - Improved logging throughout initialization chain
+  - Better error messages with actionable guidance for users
+  - Automatic retry mechanisms for failed connections
+
+### Enhanced
+
+- **Configuration Loading System** - Improved reliability and timing
+  - Enhanced mobile-config.js with extended timeout (10 seconds)
+  - Added safe fallback checks for undefined config values
+  - Improved event dispatching with detailed logging
+  - Better synchronization between config load and app initialization
+
+- **Build Process** - Automated Capacitor module bundling
+  - Updated build-mobile.js to generate bundled Capacitor modules
+  - Changed script references from capacitor-core.js to capacitor-core.bundle.js
+  - Integrated Rollup bundler execution with error handling
+  - Added type: module warning suppression
+
+### Technical Improvements
+
+- **Module Resolution** - Native ES6 module support in Android WebView
+  - Bundled all @capacitor/* dependencies into single file
+  - Eliminated external module resolution in mobile environment
+  - Preserved ES module format for modern JavaScript features
+  - Optimized bundle size with tree-shaking
+
+- **Initialization Sequence** - Proper dependency loading order
+  - Capacitor Core (bundled) loads first as ES module
+  - Mobile Electron Shim provides API compatibility
+  - Mobile Config waits for Capacitor ready event
+  - Application scripts execute after config loaded event
+
+- **Socket.IO Architecture** - Robust connection management
+  - Proper initialization promise chain
+  - Config-aware connection establishment
+  - Network resilience with automatic reconnection
+  - Lifecycle management for mobile app states
+
+### Files Modified
+
+- mobile/rollup.config.js - Created bundler configuration for Capacitor modules
+- mobile/build-mobile.js - Added Rollup bundling step and updated script references
+- mobile/package.json - Added rollup and plugins as dev dependencies
+- mobile/www/assets/js/capacitor-core.js - Fixed imports (Preferences, removed ScreenOrientation)
+- mobile/www/assets/js/looplayout.js - Added config null checks and error handling
+- mobile/www/assets/js/mobile-socketio-manager.js - Enhanced initialization and retry logic
+- mobile/www/index.html - Updated script reference to capacitor-core.bundle.js
+
+### Files Generated
+
+- mobile/www/assets/js/capacitor-core.bundle.js - Bundled Capacitor modules (auto-generated)
+- mobile/www/assets/js/capacitor-core.bundle.js.map - Source map for debugging
+
+### Compatibility
+
+- Full backward compatibility with existing mobile app functionality
+- No changes to desktop Electron application
+- Works with Capacitor 6.x (Android API 24+, iOS 12.0+)
+- No breaking changes to configuration format or API
+- All existing build commands work as expected
+
+### Testing Status
+
+Verified
+- Build process completes without errors
+- Capacitor modules bundle successfully
+- Android sync completes successfully
+- All 7 Capacitor plugins detected and configured
+- No module resolution errors in bundled output
+- Proper script loading sequence in generated HTML
+
+Pending Device Testing
+- Physical Android device verification
+- App launch and Capacitor initialization
+- Configuration loading from device storage
+- Socket.IO connection to configured server
+- Layout rendering and media playback
+- End-to-end functionality testing
+
 ## [2.9.1] - 2025-12-09
 
 ### Fixed

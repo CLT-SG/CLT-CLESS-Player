@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>eCLESS Player - System Diagnostics</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #60a5fa;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #93c5fd;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-ok {
+            background: #10b981;
+            box-shadow: 0 0 10px #10b981;
+        }
+
+        .status-error {
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+
+        .status-warning {
+            background: #f59e0b;
+            box-shadow: 0 0 10px #f59e0b;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        .info-label {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #e2e8f0;
+            font-family: 'Courier New', monospace;
+            text-align: right;
+            word-break: break-all;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .logs-container {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .log-info {
+            color: #60a5fa;
+        }
+
+        .log-error {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .log-warn {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .plugin-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .plugin-card {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .plugin-name {
+            font-weight: 600;
+            color: #93c5fd;
+            margin-bottom: 5px;
+        }
+
+        .plugin-status {
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .section {
+                padding: 15px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+        }
+    </style>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
+  <script type="module" src="assets/js/capacitor-core.bundle.js"></script>
+  <script src="assets/js/mobile-electron-shim.js" defer></script>
+  <script src="assets/js/mobile-config.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 eCLESS Player Diagnostics</h1>
+        <p class="subtitle">System Status & Configuration Check</p>
+
+        <!-- Capacitor Status -->
+        <div class="section">
+            <h2>
+                <span id="capacitor-status" class="status-indicator status-warning"></span>
+                Capacitor Status
+            </h2>
+            <div class="info-row">
+                <span class="info-label">Platform:</span>
+                <span class="info-value" id="platform">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Native Platform:</span>
+                <span class="info-value" id="is-native">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">API Available:</span>
+                <span class="info-value" id="api-available">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Initialization Time:</span>
+                <span class="info-value" id="init-time">Measuring...</span>
+            </div>
+        </div>
+
+        <!-- Device Information -->
+        <div class="section">
+            <h2>
+                <span id="device-status" class="status-indicator status-warning"></span>
+                Device Information
+            </h2>
+            <div class="info-row">
+                <span class="info-label">Model:</span>
+                <span class="info-value" id="device-model">Loading...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Manufacturer:</span>
+                <span class="info-value" id="device-manufacturer">Loading...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">OS Version:</span>
+                <span class="info-value" id="device-os">Loading...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Device ID:</span>
+                <span class="info-value" id="device-id">Loading...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Battery Level:</span>
+                <span class="info-value" id="battery-level">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Network Status -->
+        <div class="section">
+            <h2>
+                <span id="network-status" class="status-indicator status-warning"></span>
+                Network Status
+            </h2>
+            <div class="info-row">
+                <span class="info-label">Connection Status:</span>
+                <span class="info-value" id="network-connected">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Connection Type:</span>
+                <span class="info-value" id="network-type">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Server Reachable:</span>
+                <span class="info-value" id="server-reachable">Testing...</span>
+            </div>
+        </div>
+
+        <!-- Configuration Status -->
+        <div class="section">
+            <h2>
+                <span id="config-status" class="status-indicator status-warning"></span>
+                Configuration Status
+            </h2>
+            <div class="info-row">
+                <span class="info-label">Config Loaded:</span>
+                <span class="info-value" id="config-loaded">Checking...</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Config Source:</span>
+                <span class="info-value" id="config-source">Unknown</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Host Server:</span>
+                <span class="info-value" id="config-server">Not loaded</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Device ID:</span>
+                <span class="info-value" id="config-dsid">Not loaded</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Mode:</span>
+                <span class="info-value" id="config-mode">Not loaded</span>
+            </div>
+        </div>
+
+        <!-- Capacitor Plugins -->
+        <div class="section">
+            <h2>
+                <span id="plugins-status" class="status-indicator status-warning"></span>
+                Capacitor Plugins
+            </h2>
+            <div class="plugin-grid" id="plugins-grid">
+                Loading plugins...
+            </div>
+        </div>
+
+        <!-- System Logs -->
+        <div class="section">
+            <h2>
+                <span class="status-indicator status-ok"></span>
+                System Logs
+            </h2>
+            <div class="logs-container" id="logs-container">
+                <div class="log-entry log-info">Initializing diagnostics...</div>
+            </div>
+            <div class="button-group">
+                <button onclick="clearLogs()">Clear Logs</button>
+                <button onclick="exportLogs()" class="btn-success">Export Logs</button>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="section">
+            <h2>Quick Actions</h2>
+            <div class="button-group">
+                <button onclick="location.href='index.html'">Go to Player</button>
+                <button onclick="location.href='dashboard.html'" class="btn-success">Go to Dashboard</button>
+                <button onclick="location.href='configure.html'" class="btn-success">Configure</button>
+                <button onclick="runDiagnostics()" class="btn-success">Refresh Diagnostics</button>
+                <button onclick="clearAllData()" class="btn-danger">Clear All Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const startTime = Date.now();
+        const logs = [];
+
+        function addLog(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = { timestamp, message, type };
+            logs.push(entry);
+            
+            const logsContainer = document.getElementById('logs-container');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function setStatus(elementId, status) {
+            const statusElement = document.getElementById(elementId);
+            if (statusElement) {
+                statusElement.className = `status-indicator status-${status}`;
+            }
+        }
+
+        async function runDiagnostics() {
+            addLog('Starting diagnostic checks...', 'info');
+
+            // Check Capacitor
+            try {
+                const capacitorAvailable = !!window.capacitorAPI;
+                document.getElementById('api-available').textContent = capacitorAvailable ? 'Yes' : 'No';
+                
+                if (capacitorAvailable) {
+                    document.getElementById('platform').textContent = window.capacitorAPI.platform || 'Unknown';
+                    document.getElementById('is-native').textContent = window.capacitorAPI.isNative ? 'Yes' : 'No (Web)';
+                    setStatus('capacitor-status', 'ok');
+                    addLog('Capacitor API is available', 'info');
+                } else {
+                    setStatus('capacitor-status', 'error');
+                    addLog('Capacitor API not available!', 'error');
+                }
+            } catch (error) {
+                addLog(`Capacitor check error: ${error.message}`, 'error');
+                setStatus('capacitor-status', 'error');
+            }
+
+            // Check Device Info
+            try {
+                if (window.capacitorAPI && window.capacitorAPI.getDeviceInfo) {
+                    const deviceInfo = await window.capacitorAPI.getDeviceInfo();
+                    if (deviceInfo) {
+                        document.getElementById('device-model').textContent = deviceInfo.model || 'Unknown';
+                        document.getElementById('device-manufacturer').textContent = deviceInfo.manufacturer || 'Unknown';
+                        document.getElementById('device-os').textContent = `${deviceInfo.platform || 'Unknown'} ${deviceInfo.osVersion || ''}`;
+                        document.getElementById('device-id').textContent = deviceInfo.identifier || 'Unknown';
+                        document.getElementById('battery-level').textContent = deviceInfo.battery ? `${Math.round(deviceInfo.battery.batteryLevel * 100)}%` : 'N/A';
+                        setStatus('device-status', 'ok');
+                        addLog('Device information retrieved successfully', 'info');
+                    }
+                } else {
+                    document.getElementById('device-model').textContent = 'N/A (Web mode)';
+                    document.getElementById('device-manufacturer').textContent = navigator.userAgent;
+                    setStatus('device-status', 'warning');
+                }
+            } catch (error) {
+                addLog(`Device info error: ${error.message}`, 'error');
+                setStatus('device-status', 'error');
+            }
+
+            // Check Network
+            try {
+                if (window.capacitorAPI && window.capacitorAPI.getNetworkStatus) {
+                    const networkStatus = await window.capacitorAPI.getNetworkStatus();
+                    document.getElementById('network-connected').textContent = networkStatus.connected ? 'Connected' : 'Disconnected';
+                    document.getElementById('network-type').textContent = networkStatus.connectionType || 'Unknown';
+                    setStatus('network-status', networkStatus.connected ? 'ok' : 'error');
+                    addLog(`Network status: ${networkStatus.connected ? 'Connected' : 'Disconnected'}`, networkStatus.connected ? 'info' : 'warn');
+                } else {
+                    document.getElementById('network-connected').textContent = navigator.onLine ? 'Connected' : 'Disconnected';
+                    document.getElementById('network-type').textContent = 'Unknown (Web mode)';
+                    setStatus('network-status', navigator.onLine ? 'warning' : 'error');
+                }
+            } catch (error) {
+                addLog(`Network check error: ${error.message}`, 'error');
+                setStatus('network-status', 'error');
+            }
+
+            // Check Configuration
+            try {
+                if (window.mobileConfigLoader) {
+                    const config = window.mobileConfigLoader.config;
+                    if (config) {
+                        document.getElementById('config-loaded').textContent = 'Yes';
+                        document.getElementById('config-source').textContent = localStorage.getItem('ecless-config-source') || 'Unknown';
+                        document.getElementById('config-server').textContent = config.hostserver || 'Not set';
+                        document.getElementById('config-dsid').textContent = config.id || 'Not set';
+                        document.getElementById('config-mode').textContent = config.mode || 'Not set';
+                        setStatus('config-status', 'ok');
+                        addLog('Configuration loaded successfully', 'info');
+                    } else {
+                        document.getElementById('config-loaded').textContent = 'No';
+                        setStatus('config-status', 'error');
+                        addLog('Configuration not loaded!', 'error');
+                    }
+                } else {
+                    document.getElementById('config-loaded').textContent = 'Config loader not available';
+                    setStatus('config-status', 'error');
+                    addLog('Configuration loader not initialized!', 'error');
+                }
+            } catch (error) {
+                addLog(`Configuration check error: ${error.message}`, 'error');
+                setStatus('config-status', 'error');
+            }
+
+            // Check Plugins
+            try {
+                const pluginsGrid = document.getElementById('plugins-grid');
+                pluginsGrid.innerHTML = '';
+                
+                const plugins = window.capacitorAPI ? window.capacitorAPI.plugins : {};
+                const pluginNames = Object.keys(plugins);
+                
+                if (pluginNames.length > 0) {
+                    pluginNames.forEach(name => {
+                        const card = document.createElement('div');
+                        card.className = 'plugin-card';
+                        card.innerHTML = `
+                            <div class="plugin-name">${name}</div>
+                            <div class="plugin-status">✓ Available</div>
+                        `;
+                        pluginsGrid.appendChild(card);
+                    });
+                    setStatus('plugins-status', 'ok');
+                    addLog(`Found ${pluginNames.length} Capacitor plugins`, 'info');
+                } else {
+                    pluginsGrid.innerHTML = '<div style="color: #94a3b8;">No plugins available (Web mode)</div>';
+                    setStatus('plugins-status', 'warning');
+                }
+            } catch (error) {
+                addLog(`Plugin check error: ${error.message}`, 'error');
+                setStatus('plugins-status', 'error');
+            }
+
+            // Calculate init time
+            const initTime = Date.now() - startTime;
+            document.getElementById('init-time').textContent = `${initTime}ms`;
+            
+            addLog('Diagnostic checks completed', 'info');
+        }
+
+        function clearLogs() {
+            logs.length = 0;
+            document.getElementById('logs-container').innerHTML = '<div class="log-entry log-info">Logs cleared</div>';
+        }
+
+        function exportLogs() {
+            const logText = logs.map(log => `[${log.timestamp}] [${log.type.toUpperCase()}] ${log.message}`).join('\n');
+            const blob = new Blob([logText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ecless-diagnostics-${Date.now()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            addLog('Logs exported', 'info');
+        }
+
+        async function clearAllData() {
+            if (confirm('This will clear ALL app data including configuration. Are you sure?')) {
+                try {
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    
+                    if (window.capacitorAPI && window.capacitorAPI.plugins.Storage) {
+                        // Clear Capacitor storage
+                        addLog('Clearing Capacitor storage...', 'warn');
+                    }
+                    
+                    addLog('All data cleared!', 'info');
+                    alert('All data cleared. Please restart the app.');
+                } catch (error) {
+                    addLog(`Error clearing data: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        // Wait for page load
+        window.addEventListener('load', () => {
+            addLog('Diagnostics page loaded', 'info');
+            
+            // Wait for Capacitor to be ready
+            if (window.capacitorAPI) {
+                runDiagnostics();
+            } else {
+                addLog('Waiting for Capacitor initialization...', 'warn');
+                window.addEventListener('capacitorReady', () => {
+                    addLog('Capacitor ready event received', 'info');
+                    runDiagnostics();
+                });
+                
+                // Fallback timeout
+                setTimeout(() => {
+                    if (!window.capacitorAPI) {
+                        addLog('Capacitor initialization timeout, running diagnostics anyway', 'warn');
+                    }
+                    runDiagnostics();
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
