@@ -51,52 +51,68 @@
   
   <script type="text/javascript">
     try {
-      var asd = 'gasd'
-      var ipcRenderer = window.mobileAPI.ipc
-      var remote = window.mobileAPI.remote
-
-      var log = window.log
-      var convert = window.xmljs
-      var now = new Date()
-      var datetime = window.datetime
-      var meridiem = window.meridiem
-      var ordinal = window.ordinal
-      datetime.plugin(meridiem)
-      datetime.plugin(ordinal)
-      var path = window.path
-      var os = window.os
-      var fs = window.fs
-      var dns = window.dns
-      var isReachable = window.isReachable
-
-      var homedir = os.homedir()
+      // Declare variables in global scope
+      var asd = 'gasd';
+      var ipcRenderer, remote, log, convert, now, datetime, meridiem, ordinal;
+      var path, os, fs, dns, isReachable, homedir, config, logdir, datelog;
+      var hostserver, dsid, mode;
       
-      // Enhanced configuration loading
-      var config = window.config
-      var logdir = window.logdir
-      var datelog = datetime.format(now, 'YYYY-MM-DD')
-      log.transports.file.file = logdir + datelog + '.log'
-      
-      // Configuration values (will be available after config loads)
-      var hostserver, dsid, mode
-      
-      // Wait for config to load before using values
-      window.addEventListener('configLoaded', function(event) {
-        hostserver = config.hostserver
-        dsid = config.id
-        mode = config.mode
-        console.log('eCLESS: Configuration loaded for main player -', event.detail.source)
-        
-        // Initialize application with loaded config
-        if (typeof initializeWithConfig === 'function') {
-          initializeWithConfig()
+      // Initialize variables safely after shim loads
+      function initializeAPIs() {
+        if (!window.mobileAPI || !window.log) {
+          console.error('eCLESS: window.mobileAPI or window.log not available yet, retrying...');
+          setTimeout(initializeAPIs, 100);
+          return;
         }
-      })
+        
+        ipcRenderer = window.mobileAPI.ipc;
+        remote = window.mobileAPI.remote;
+        log = window.log;
+        convert = window.xmljs;
+        now = new Date();
+        datetime = window.datetime;
+        meridiem = window.meridiem;
+        ordinal = window.ordinal;
+        datetime.plugin(meridiem);
+        datetime.plugin(ordinal);
+        path = window.path;
+        os = window.os;
+        fs = window.fs;
+        dns = window.dns;
+        isReachable = window.isReachable;
+
+        homedir = os.homedir();
+        
+        // Enhanced configuration loading
+        config = window.config;
+        logdir = window.logdir;
+        datelog = datetime.format(now, 'YYYY-MM-DD');
+        log.transports.file.file = logdir + datelog + '.log';
+        
+        console.log('eCLESS: APIs initialized successfully in index.html');
+        
+        // Configuration values (will be available after config loads)
+        // Wait for config to load before using values
+        window.addEventListener('configLoaded', function(event) {
+          hostserver = config.hostserver;
+          dsid = config.id;
+          mode = config.mode;
+          console.log('eCLESS: Configuration loaded for main player -', event.detail.source);
+          
+          // Initialize application with loaded config
+          if (typeof initializeWithConfig === 'function') {
+            initializeWithConfig();
+          }
+        });
+        
+        // Fallback for immediate access (may be undefined until config loads)
+        hostserver = config.hostserver;
+        dsid = config.id;
+        mode = config.mode;
+      }
       
-      // Fallback for immediate access (may be undefined until config loads)
-      hostserver = config.hostserver
-      dsid = config.id
-      mode = config.mode
+      // Call initialization immediately
+      initializeAPIs()
       
     } catch (e) {
       console.warn('error loading configuration: ' + e)

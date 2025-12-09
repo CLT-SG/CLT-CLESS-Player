@@ -245,6 +245,18 @@ class MobileConfigLoader {
     }
 
     /**
+     * Get all configuration values
+     */
+    getAll() {
+        if (!this.config) {
+            console.warn('MobileConfig: Configuration not loaded yet, returning defaults');
+            return { ...this.defaultConfig };
+        }
+        
+        return { ...this.config };
+    }
+
+    /**
      * Set specific config value
      */
     async set(key, value) {

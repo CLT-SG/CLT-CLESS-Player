@@ -58,14 +58,86 @@
             color: #fff;
         }
     </style>
+  
+  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  
+  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+  
     <script>
-        var ipcRenderer = window.mobileAPI.ipc
-        var remote = window.mobileAPI.remote
-        var path = window.path
-        var os = window.os
-        var config = window.config
-        var win = remote.getCurrentWebContents()
-        var homedir = os.homedir()
+        // Declare variables in global scope
+        var ipcRenderer, remote, path, os, config, win, homedir;
+        
+        // Set up IPC listeners (defined before initializeAPIs calls it)
+        function setupIPCListeners() {
+            if (!ipcRenderer) {
+                console.error('eCLESS: ipcRenderer not initialized, cannot set up listeners');
+                return;
+            }
+            
+            console.log('eCLESS: Setting up IPC listeners');
+            
+            // Listen for configuration save response from main process
+            ipcRenderer.on('config-save-response', async (event, response) => {
+                console.log('eCLESS: Configuration save response received:', response);
+                
+                if (response.success) {
+                    // Show success dialog with auto-dismiss
+                    await customAlert(
+                        response.detail || response.message, 
+                        { 
+                            type: 'success',
+                            title: 'Configuration Saved',
+                            timeout: 5000,
+                            buttonText: 'OK'
+                        }
+                    );
+                    
+                    // Restart the application after user acknowledges or timeout
+                    console.log('eCLESS: CLESS Player relaunch initiated');
+                    ipcRenderer.send('app-reload');
+                } else {
+                    // Show error dialog
+                    await customAlert(
+                        response.error || 'Failed to save configuration. Please try again.', 
+                        { 
+                            type: 'error',
+                            title: 'Configuration Error',
+                            timeout: 5000
+                        }
+                    );
+                }
+            });
+        }
+        
+        // Initialize variables safely after shim loads
+        function initializeAPIs() {
+            if (!window.mobileAPI) {
+                console.error('eCLESS: window.mobileAPI not available yet, retrying...');
+                setTimeout(initializeAPIs, 100);
+                return;
+            }
+            
+            ipcRenderer = window.mobileAPI.ipc;
+            remote = window.mobileAPI.remote;
+            path = window.path;
+            os = window.os;
+            config = window.config;
+            win = remote.getCurrentWindow(); // Fixed: use getCurrentWindow instead of getCurrentWebContents
+            homedir = os.homedir();
+            
+            console.log('eCLESS: APIs initialized successfully');
+            
+            // Set up IPC listener after initialization
+            setupIPCListeners();
+        }
+        
+        // Call initialization immediately (after shim scripts have loaded)
+        initializeAPIs();
         
         // Wait for configuration to load
         window.addEventListener('configLoaded', function(event) {
@@ -77,23 +149,36 @@
         // Load configuration on page load
         document.addEventListener('DOMContentLoaded', function() {
             // Check if config is already loaded
-            if (window.configLoader && window.configLoader.config) {
-                console.log('eCLESS: Configuration already loaded, populating form')
-                populateForm()
+            if (window.configLoader && window.configLoader.config && typeof window.configLoader.getAll === 'function') {
+                console.log('eCLESS: Configuration already loaded, populating form');
+                populateForm();
             } else {
-                console.log('eCLESS: Waiting for configuration to load...')
+                console.log('eCLESS: Waiting for configuration to load...');
+                // Start polling for config
+                setTimeout(populateForm, 300);
             }
         })
         
         function populateForm() {
-            if (!config || !window.configLoader || !window.configLoader.config) {
-                console.warn('eCLESS: No configuration available for form population')
-                setTimeout(populateForm, 500) // Retry after 500ms
-                return
+            // Wait for both configLoader and its config to be ready
+            if (!window.configLoader) {
+                console.warn('eCLESS: configLoader not available yet, retrying...');
+                setTimeout(populateForm, 200);
+                return;
             }
             
-            var configData = window.configLoader.getAll()
-            console.log('eCLESS: Populating form with config:', configData)
+            if (!window.configLoader.config) {
+                console.warn('eCLESS: configLoader.config not loaded yet, retrying...');
+                setTimeout(populateForm, 200);
+                return;
+            }
+            
+            // Get all config using getAll() method or fallback to config object
+            var configData = (typeof window.configLoader.getAll === 'function') 
+                ? window.configLoader.getAll() 
+                : window.configLoader.config;
+            
+            console.log('eCLESS: Populating form with config:', configData);
             
             $('#hostserver').val(configData.hostserver || '')
             $('#dsid').val(configData.id || '')
@@ -122,12 +207,6 @@
             console.log('  - Serial key:', configData.serialkey ? '***' + configData.serialkey.slice(-8) : 'empty')
         }
     </script>
-
-  
-  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
-  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  <script src="assets/js/mobile/mobile-electron-shim.js" defer></script>
-  <script src="assets/js/mobile/mobile-config.js" defer></script>
 </head>
 
 <body>
@@ -192,44 +271,13 @@
     </div>
 </body>
 <script>
-    // Form population moved to populateForm() function above
-    
-    // Listen for configuration save response from main process
-    ipcRenderer.on('config-save-response', async (event, response) => {
-        console.log('eCLESS: Configuration save response received:', response)
-        
-        if (response.success) {
-            // Show success dialog with auto-dismiss
-            await customAlert(
-                response.detail || response.message, 
-                { 
-                    type: 'success',
-                    title: 'Configuration Saved',
-                    timeout: 5000,
-                    buttonText: 'OK'
-                }
-            )
-            
-            // Restart the application after user acknowledges or timeout
-            console.log('eCLESS: CLESS Player relaunch initiated')
-            ipcRenderer.send('app-reload')
-        } else {
-            // Show error dialog
-            await customAlert(
-                response.error || 'Failed to save configuration. Please try again.', 
-                { 
-                    type: 'error',
-                    title: 'Configuration Error',
-                    timeout: 5000
-                }
-            )
-        }
-    })
-    
-    $('#save').on('click', app_config)
-    $('#home').on('click', function () {
-        appname = ipcRenderer.send('app-reload')
-    })
+    // jQuery event handlers - set up after DOM is ready
+    $(document).ready(function() {
+        $('#save').on('click', app_config);
+        $('#home').on('click', function () {
+            ipcRenderer.send('app-reload');
+        });
+    });
 
     function app_config() {
         var hostaddress = $('#hostserver').val()
@@ -290,9 +338,9 @@
         console.log('eCLESS: Configuration object to save:', argsObj)
         
         if (typeof(require) != "undefined") {
-            ipcRenderer.send('app-configsave', argsObj)
+            ipcRenderer.send('app-configsave', argsObj);
         } else {
-            console.log('electron required')
+            console.log('electron required');
         }
     }
 </script>

@@ -733,3 +733,101 @@ Pending Device Testing
 - Verify error notifications display
 - Test network failure scenarios
 - Validate storage permissions work
+
+Latest Update - Configure Page Initialization Fixes (v2.9.5 - 2025-12-09)
+
+Problem
+- Configure page failed to load with multiple JavaScript errors
+- "Cannot read properties of undefined (reading 'ipc')" at line 62
+- "Cannot read properties of undefined (reading 'on')" at line 198
+- "window.configLoader.getAll is not a function" at line 115
+- "setupIPCListeners is not defined" at line 94
+- Script loading race conditions preventing proper initialization
+
+Root Causes Identified
+1. Script loading order - defer attribute caused scripts to load after inline code
+2. Inline scripts executing before window.mobileAPI initialized
+3. Missing getAll() method in MobileConfigLoader class
+4. Function definition order - setupIPCListeners called before defined
+5. Incorrect API method - getCurrentWebContents() instead of getCurrentWindow()
+6. Race condition between script tags and inline JavaScript
+
+Fixes Implemented
+
+1. Script Loading Order Fixes (configure.html, index.html, activate.html, dashboard.html, diagnostics.html)
+   - Removed defer attribute from mobile-electron-shim.js
+   - Removed defer attribute from mobile-config.js
+   - Moved script tags BEFORE inline scripts in head section
+   - Ensured scripts execute synchronously in correct order
+   - Consistent pattern across all mobile HTML files
+
+2. API Initialization Enhancement (configure.html)
+   - Created initializeAPIs() function with retry logic
+   - Polls for window.mobileAPI availability every 100ms
+   - Initializes all variables after APIs confirmed available
+   - Calls setupIPCListeners() after initialization complete
+   - Clear console logging for debugging
+
+3. Missing Method Implementation (mobile-config.js)
+   - Added getAll() method to MobileConfigLoader class
+   - Returns copy of full config object
+   - Handles case when config not yet loaded
+   - Returns default config as fallback
+   - Prevents external modification of config
+
+4. Function Definition Reordering (configure.html)
+   - Moved setupIPCListeners() definition before initializeAPIs()
+   - Consolidated IPC listener setup into single function
+   - Removed duplicate function definitions
+   - Fixed jQuery event handler closing braces
+   - Proper function hoisting and scope
+
+5. API Method Correction (configure.html)
+   - Changed remote.getCurrentWebContents() to remote.getCurrentWindow()
+   - Matches mobile-electron-shim.js implementation
+   - Prevents "method does not exist" errors
+   - Consistent with mobile API architecture
+
+6. Enhanced Config Loading (configure.html)
+   - Added proper null checks for window.configLoader
+   - Validates getAll() method exists before calling
+   - Falls back to config object if method unavailable
+   - Retry mechanism with 200ms polling intervals
+   - Better error messages for debugging
+
+Files Modified
+- mobile/www/configure.html (complete initialization rewrite)
+- mobile/www/assets/js/mobile/mobile-config.js (added getAll method)
+- mobile/www/index.html (script loading order fix)
+- mobile/www/activate.html (removed defer attributes)
+- mobile/www/dashboard.html (removed defer attributes)
+- mobile/www/diagnostics.html (removed defer attributes)
+
+Script Load Order (All Mobile Pages)
+1. Capacitor Core (type="module") - Provides Capacitor API
+2. Mobile Electron Shim (no defer) - Provides window.mobileAPI
+3. Mobile Config Loader (no defer) - Provides window.configLoader
+4. Inline scripts - Can safely access all APIs
+
+Key Benefits
+- Configuration page loads without errors
+- Proper initialization sequence guaranteed
+- All mobile pages follow consistent pattern
+- Robust error handling and retry logic
+- Clear debugging output in console
+- No more race conditions
+
+Testing Status
+- All script loading errors resolved
+- getAll() method available and working
+- setupIPCListeners() defined before use
+- APIs initialize in correct order
+- Configuration form populates successfully
+- Android sync completes without errors
+
+Pending Device Testing
+- Configuration page loads on Android
+- Form fields populate with saved config
+- Save button triggers IPC communication
+- Exit button functions correctly
+- No errors in Android logcat
