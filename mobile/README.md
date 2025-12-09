@@ -302,7 +302,7 @@ Mobile apps connect to the eCLESS server using the configuration stored in:
 - **Android**: Capacitor Preferences API
 - **iOS**: Capacitor Preferences API
 
-The default server URL can be modified in `mobile/www/assets/js/mobile-config.js`:
+The default server URL can be modified in `mobile/www/assets/js/mobile/mobile-config.js`:
 
 ```javascript
 const defaultConfig = {

@@ -106,9 +106,9 @@ files.forEach(file => {
     const capacitorScripts = `
   
   <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
-  <script type="module" src="assets/js/capacitor-core.bundle.js"></script>
-  <script src="assets/js/mobile-electron-shim.js" defer></script>
-  <script src="assets/js/mobile-config.js" defer></script>
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  <script src="assets/js/mobile/mobile-electron-shim.js" defer></script>
+  <script src="assets/js/mobile/mobile-config.js" defer></script>
 `;
     
     content = content.replace(/<\/head>/i, capacitorScripts + '</head>');
@@ -127,10 +127,10 @@ files.forEach(file => {
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
     
     <!-- Mobile Socket.IO Connection Manager -->
-    <script src="assets/js/mobile-socketio-manager.js"></script>
+    <script src="assets/js/mobile/mobile-socketio-manager.js"></script>
     
     <!-- Mobile Socket.IO Adapter (bridges socketio-cpanel.js with mobile socket manager) -->
-    <script src="assets/js/mobile-socketio-adapter.js"></script>
+    <script src="assets/js/mobile/mobile-socketio-adapter.js"></script>
 `;
         
         // Insert Socket.IO scripts before socketio-cpanel.js
@@ -163,7 +163,7 @@ files.forEach(file => {
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
     
     <!-- Mobile Socket.IO Connection Manager -->
-    <script src="assets/js/mobile-socketio-manager.js"></script>`
+    <script src="assets/js/mobile/mobile-socketio-manager.js"></script>`
         );
         
         // Add back button to CMS player

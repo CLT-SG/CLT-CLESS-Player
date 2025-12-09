@@ -14,8 +14,7 @@ import { App } from '@capacitor/app';
 import { Device } from '@capacitor/device';
 import { Network } from '@capacitor/network';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
-import { Storage } from '@capacitor/preferences';
-import { ScreenOrientation } from '@capacitor/screen-orientation';
+import { Preferences } from '@capacitor/preferences';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 
@@ -34,8 +33,7 @@ class CapacitorAPI {
             Device,
             Network,
             Filesystem,
-            Storage,
-            ScreenOrientation,
+            Preferences,
             StatusBar,
             SplashScreen
         };
@@ -184,7 +182,7 @@ class CapacitorAPI {
      */
     async getPreference(key) {
         try {
-            const { value } = await Storage.get({ key });
+            const { value } = await Preferences.get({ key });
             return value;
         } catch (error) {
             console.error(`Failed to get preference ${key}:`, error);
@@ -194,7 +192,7 @@ class CapacitorAPI {
 
     async setPreference(key, value) {
         try {
-            await Storage.set({ key, value });
+            await Preferences.set({ key, value });
             return true;
         } catch (error) {
             console.error(`Failed to set preference ${key}:`, error);
@@ -204,7 +202,7 @@ class CapacitorAPI {
 
     async removePreference(key) {
         try {
-            await Storage.remove({ key });
+            await Preferences.remove({ key });
             return true;
         } catch (error) {
             console.error(`Failed to remove preference ${key}:`, error);
@@ -234,22 +232,30 @@ class CapacitorAPI {
     }
 
     /**
-     * Screen orientation
+     * Screen orientation (using CSS approach for Capacitor 6)
+     * For Capacitor 8+, install @capacitor/screen-orientation plugin
      */
     async lockOrientation(orientation = 'landscape') {
         try {
-            await ScreenOrientation.lock({ orientation });
+            // Use CSS orientation lock for Capacitor 6
+            // Set in capacitor.config.json or AndroidManifest.xml/Info.plist
+            console.log(`Screen orientation lock to ${orientation} should be configured in capacitor.config.json`);
+            
+            // Add CSS media query support
+            const style = document.createElement('style');
+            style.textContent = `
+                @media screen and (orientation: portrait) {
+                    html { transform: rotate(-90deg); transform-origin: left top; width: 100vh; height: 100vw; overflow-x: hidden; position: absolute; top: 100%; left: 0; }
+                }
+            `;
+            document.head.appendChild(style);
         } catch (error) {
             console.warn('Failed to lock orientation:', error);
         }
     }
 
     async unlockOrientation() {
-        try {
-            await ScreenOrientation.unlock();
-        } catch (error) {
-            console.warn('Failed to unlock orientation:', error);
-        }
+        console.log('Orientation unlock - remove any custom CSS transforms');
     }
 
     /**

@@ -387,6 +387,11 @@ window.remote = {
 };
 
 /**
+ * Log directory for compatibility (not used on mobile)
+ */
+window.logdir = '/storage/emulated/0/eCLESS/logs/';
+
+/**
  * Mobile API wrapper for better organization
  */
 window.mobileAPI = {
@@ -397,4 +402,4 @@ window.mobileAPI = {
 };
 
 console.log('=== MOBILE ELECTRON SHIM: Initialized successfully ===');
-console.log('Available APIs: log, xmljs, datetime, path, os, fs, dns, isReachable, ipcRenderer, remote');
+console.log('Available APIs: log, xmljs, datetime, path, os, fs, dns, isReachable, ipcRenderer, remote, logdir');

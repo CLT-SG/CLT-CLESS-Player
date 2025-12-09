@@ -25,7 +25,7 @@ Migrate the mobile app from incorrectly using the dashboard (cpanel.html) as the
 - ✅ Maintained asset copying with .gz file exclusion
 
 ### 3. **Electron API Compatibility Layer** ✓
-**File: `mobile/www/assets/js/mobile-electron-shim.js`** (NEW)
+**File: `mobile/www/assets/js/mobile/mobile-electron-shim.js`** (NEW)
 - ✅ `window.log` - Console-based logging (electron-log compatible)
 - ✅ `window.xmljs` - XML to JSON parser using DOMParser
 - ✅ `window.datetime` - Date formatting with plugin support
@@ -39,7 +39,7 @@ Migrate the mobile app from incorrectly using the dashboard (cpanel.html) as the
 - ✅ Plugin system for meridiem and ordinal
 
 ### 4. **Socket.IO Connection Management** ✓
-**File: `mobile/www/assets/js/mobile-socketio-manager.js`** (NEW)
+**File: `mobile/www/assets/js/mobile/mobile-socketio-manager.js`** (NEW)
 - ✅ Dynamic server address from config
 - ✅ Automatic reconnection with exponential backoff
 - ✅ App lifecycle handling (pause/resume)
@@ -48,14 +48,14 @@ Migrate the mobile app from incorrectly using the dashboard (cpanel.html) as the
 - ✅ WebSocket and polling transport support
 - ✅ Self-signed certificate support
 
-**File: `mobile/www/assets/js/mobile-socketio-adapter.js`** (NEW)
+**File: `mobile/www/assets/js/mobile/mobile-socketio-adapter.js`** (NEW)
 - ✅ Bridges socketio-cpanel.js with managed socket
 - ✅ Intercepts socket initialization
 - ✅ Provides single managed connection
 - ✅ Prevents duplicate connections
 
 ### 5. **Configuration Management** ✓
-**File: `mobile/www/assets/js/mobile-config.js`** (EXISTING - Enhanced)
+**File: `mobile/www/assets/js/mobile/mobile-config.js`** (EXISTING - Enhanced)
 - ✅ Loads config from Capacitor Filesystem or localStorage
 - ✅ Supports both config.json and default fallback
 - ✅ Version 2.6.5 schema with syncSettings
@@ -89,13 +89,13 @@ Migrate the mobile app from incorrectly using the dashboard (cpanel.html) as the
 
 ## 📁 New Files Created
 
-1. **mobile/www/assets/js/mobile-electron-shim.js** (390 lines)
+1. **mobile/www/assets/js/mobile/mobile-electron-shim.js** (390 lines)
    - Complete Electron API compatibility layer
    
-2. **mobile/www/assets/js/mobile-socketio-manager.js** (294 lines)
+2. **mobile/www/assets/js/mobile/mobile-socketio-manager.js** (294 lines)
    - Socket.IO connection manager with lifecycle handling
    
-3. **mobile/www/assets/js/mobile-socketio-adapter.js** (88 lines)
+3. **mobile/www/assets/js/mobile/mobile-socketio-adapter.js** (88 lines)
    - Adapter for socketio-cpanel.js integration
 
 ## 📝 Modified Files
@@ -254,7 +254,7 @@ Auto-reconnect on Failure
 ## 💡 Configuration Notes
 
 ### Before Building
-Update server configuration in `mobile/www/assets/js/mobile-config.js` or via the mobile app's configuration screen:
+Update server configuration in `mobile/www/assets/js/mobile/mobile-config.js` or via the mobile app's configuration screen:
 
 ```json
 {

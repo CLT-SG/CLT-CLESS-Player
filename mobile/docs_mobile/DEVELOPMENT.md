@@ -35,7 +35,7 @@ No Electron files are modified - all mobile-specific changes happen during build
 
 ### 1. API Compatibility Layer
 
-`mobile/www/assets/js/mobile-config.js` provides:
+`mobile/www/assets/js/mobile/mobile-config.js` provides:
 - `window.ipcRenderer` → HTTP API wrapper
 - `window.config` → Capacitor Preferences
 - `window.macaddress` → Device ID

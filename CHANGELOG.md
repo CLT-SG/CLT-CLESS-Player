@@ -4,12 +4,43 @@
 
 ### Fixed
 
-- **Capacitor Module Import Resolution Error** - Resolved ES6 module import failure in Android WebView
-  - Fixed "Failed to resolve module specifier '@capacitor/core'" error preventing app startup
+- **Rollup Build Module Resolution Errors** - Resolved critical build failures preventing mobile compilation
+  - Fixed "Storage is not exported by @capacitor/preferences" error causing build failure
+  - Changed incorrect Storage import to correct Preferences import from @capacitor/preferences package
+  - Updated all Storage.get/set/remove API calls to use Preferences.get/set/remove throughout capacitor-core.js
+  - Removed incompatible @capacitor/screen-orientation dependency (requires Capacitor 8+, incompatible with Capacitor 6)
+  - Replaced screen orientation methods with CSS-based fallback approach for Capacitor 6 compatibility
+  - Fixed MODULE_TYPELESS_PACKAGE_JSON warning by adding "type": "module" to package.json
   - Created Rollup bundler configuration to bundle all Capacitor modules into single file
   - Generated capacitor-core.bundle.js (ES module format) with inlined dynamic imports
-  - Corrected @capacitor/preferences import (changed Storage to Preferences)
-  - Removed incompatible @capacitor/screen-orientation plugin (requires Capacitor 8+)
+
+- **Build System ES Module Compatibility** - Resolved CommonJS/ES Module conflicts in build process
+  - Renamed build-mobile.js to build-mobile.cjs to maintain CommonJS compatibility with Node.js
+  - Updated all npm scripts (build, prebuild) to reference build-mobile.cjs instead of .js
+  - Enhanced rollup.config.js with proper node resolution settings and CommonJS plugin
+  - Added custom warning handler to suppress unresolved import warnings gracefully
+  - Configured moduleDirectories for better node_modules package resolution
+  - Added error handling for Rollup bundler failures with exit code 1
+
+- **Mobile App Initialization Race Condition** - Fixed critical timing issues causing maroon background and no layout loading
+  - Wrapped all initialization code in DOMContentLoaded event listener for proper load order
+  - Implemented polling mechanism (100ms intervals) to wait for mobile APIs availability
+  - Added 10-second timeout with user-friendly error messages and alert dialogs
+  - Fixed race condition where inline scripts ran before deferred mobile-electron-shim.js loaded
+  - Added missing window.logdir variable (/storage/emulated/0/eCLESS/logs/) for electron-log compatibility
+  - Made all variable access safe with proper null checks and fallback values
+  - Fixed undefined window.mobileAPI.ipc and window.mobileAPI.remote access errors
+
+- **Missing Error Handling and User Feedback** - Comprehensive debugging and recovery system
+  - Added detailed console logging with === markers throughout entire initialization sequence
+  - Implemented visual error displays for configuration errors with "Configure Now" button
+  - Added network error handling with automatic retry countdown and "Retry Connection" button
+  - Enhanced getxml() function with comprehensive error logging and detailed AJAX error handling
+  - Added fallback to offline localStorage data when network requests fail
+  - Implemented loading indicators and progress messages during initialization
+  - Added graceful degradation with informative feedback instead of silent failures
+  - Created user-friendly error screens for missing offline data, invalid XML, and critical errors
+  - Added navigation buttons to Configuration and Diagnostics pages from error screens
 
 - **Configuration Undefined Access Error** - Fixed null reference errors in layout processing
   - Added null checks before accessing config.hostserver in looplayout.js
@@ -25,28 +56,52 @@
 
 ### Added
 
+- **Comprehensive Initialization Logging** - Detailed debugging system for mobile app startup
+  - Added console.log statements with === markers for all major initialization steps
+  - Added logging for Capacitor core initialization, mobile API availability checks
+  - Added logging for configuration loading events and values
+  - Added logging for DOM ready, jQuery availability, and application startup
+  - Added logging for XML fetching with URL, status codes, and error details
+  - Added logging for offline data retrieval and localStorage operations
+  
+- **User-Friendly Error Displays** - Visual feedback system for all failure scenarios
+  - Configuration error screen with red background and "Go to Configuration" button
+  - Network error screen with auto-retry countdown and manual "Retry Connection" button
+  - Missing offline data screen with yellow warning and "Switch to Online Mode" button
+  - Invalid XML data screen showing received data preview and "Retry" button
+  - Critical application error screen with stack trace and "Reload App" / "View Diagnostics" buttons
+  - Loading overlay during initialization with status messages
+
 - **Rollup Build System** - Professional module bundling for mobile deployment
   - Created rollup.config.js with @rollup/plugin-node-resolve and commonjs plugins
-  - Integrated bundling step into build-mobile.js build process
+  - Integrated bundling step into build-mobile.cjs build process
   - Automatic generation of capacitor-core.bundle.js during npm run build
-  - Installed rollup as dev dependency for mobile build pipeline
-
-- **Enhanced Error Handling** - Comprehensive mobile initialization resilience
-  - Added graceful fallback when Capacitor fails to initialize
-  - Improved logging throughout initialization chain
-  - Better error messages with actionable guidance for users
-  - Automatic retry mechanisms for failed connections
+  - Installed rollup and plugins as dev dependencies for mobile build pipeline
+  - Added custom warning handler for cleaner build output
 
 ### Enhanced
+
+- **Initialization Sequence** - Completely rewritten for reliability and proper timing
+  - Wrapped all initialization in DOMContentLoaded event listener
+  - Implemented API availability polling with 100ms check interval
+  - Added 10-second timeout with error handling and user alerts
+  - Made all variable access safe with null checks
+  - Improved synchronization between mobile APIs and application code
+  - Fixed load order: Capacitor Core > Mobile Shim > Mobile Config > Application
 
 - **Configuration Loading System** - Improved reliability and timing
   - Enhanced mobile-config.js with extended timeout (10 seconds)
   - Added safe fallback checks for undefined config values
   - Improved event dispatching with detailed logging
   - Better synchronization between config load and app initialization
+  - Added window.config global reference for backward compatibility
 
-- **Build Process** - Automated Capacitor module bundling
-  - Updated build-mobile.js to generate bundled Capacitor modules
+- **Build Process** - Automated Capacitor module bundling with ES module support
+  - Renamed build-mobile.js to build-mobile.cjs for CommonJS compatibility
+  - Updated all npm scripts to reference build-mobile.cjs
+  - Integrated Rollup bundler execution into build process
+  - Added build failure exit codes for proper CI/CD integration
+  - Enhanced error messages during build process
   - Changed script references from capacitor-core.js to capacitor-core.bundle.js
   - Integrated Rollup bundler execution with error handling
   - Added type: module warning suppression
@@ -54,15 +109,19 @@
 ### Technical Improvements
 
 - **Module Resolution** - Native ES6 module support in Android WebView
-  - Bundled all @capacitor/* dependencies into single file
+  - Bundled all @capacitor/* dependencies into single capacitor-core.bundle.js file
   - Eliminated external module resolution in mobile environment
   - Preserved ES module format for modern JavaScript features
-  - Optimized bundle size with tree-shaking
+  - Optimized bundle size with tree-shaking and inlined dynamic imports
+  - Fixed all import paths to use correct exported names (Preferences not Storage)
 
-- **Initialization Sequence** - Proper dependency loading order
-  - Capacitor Core (bundled) loads first as ES module
-  - Mobile Electron Shim provides API compatibility
-  - Mobile Config waits for Capacitor ready event
+- **Initialization Sequence** - Proper dependency loading order with polling
+  - Capacitor Core (bundled) loads first as ES module with type="module"
+  - Mobile Electron Shim provides API compatibility layer (deferred)
+  - Mobile Config waits for Capacitor ready event (deferred)
+  - Application code polls for API availability before execution
+  - 100ms polling interval with 10-second timeout
+  - Proper event-driven initialization chain
   - Application scripts execute after config loaded event
 
 - **Socket.IO Architecture** - Robust connection management
@@ -73,18 +132,23 @@
 
 ### Files Modified
 
-- mobile/rollup.config.js - Created bundler configuration for Capacitor modules
-- mobile/build-mobile.js - Added Rollup bundling step and updated script references
-- mobile/package.json - Added rollup and plugins as dev dependencies
-- mobile/www/assets/js/capacitor-core.js - Fixed imports (Preferences, removed ScreenOrientation)
+- mobile/package.json - Added "type": "module", updated scripts to reference build-mobile.cjs
+- mobile/build-mobile.js - Renamed to build-mobile.cjs for CommonJS compatibility
+- mobile/rollup.config.js - Enhanced with better node resolution and CommonJS plugin
+- mobile/www/assets/js/mobile/capacitor-core.js - Fixed all imports (Preferences, removed ScreenOrientation)
+- mobile/www/assets/js/mobile/mobile-electron-shim.js - Added window.logdir variable
+- mobile/www/index.html - Complete initialization rewrite with error handling and logging
 - mobile/www/assets/js/looplayout.js - Added config null checks and error handling
-- mobile/www/assets/js/mobile-socketio-manager.js - Enhanced initialization and retry logic
-- mobile/www/index.html - Updated script reference to capacitor-core.bundle.js
+- mobile/www/assets/js/mobile/mobile-socketio-manager.js - Enhanced initialization and retry logic
+
+### Files Created
+
+- mobile/FIXES-APPLIED.md - Comprehensive technical documentation of all fixes
 
 ### Files Generated
 
-- mobile/www/assets/js/capacitor-core.bundle.js - Bundled Capacitor modules (auto-generated)
-- mobile/www/assets/js/capacitor-core.bundle.js.map - Source map for debugging
+- mobile/www/assets/js/mobile/capacitor-core.bundle.js - Bundled Capacitor modules (auto-generated, 568ms build time)
+- mobile/www/assets/js/mobile/capacitor-core.bundle.js.map - Source map for debugging
 
 ### Compatibility
 
@@ -216,7 +280,7 @@ Pending Device Testing
 ### Files Modified
 
 - mobile/capacitor.config.json - Removed invalid server.url
-- mobile/www/assets/js/mobile-config.js - Enhanced error handling and timeout
+- mobile/www/assets/js/mobile/mobile-config.js - Enhanced error handling and timeout
 - mobile/www/index.html - Added diagnostics navigation button
 - mobile/build-mobile.js - Fixed script injection order and positioning
 
@@ -381,9 +445,9 @@ Modified
 - mobile/QUICKSTART.md - Added architecture change notice and migration notes
 
 New Files
-- mobile/www/assets/js/mobile-electron-shim.js (400 lines) - Complete Electron API compatibility
-- mobile/www/assets/js/mobile-socketio-manager.js (316 lines) - Socket.IO connection manager
-- mobile/www/assets/js/mobile-socketio-adapter.js (98 lines) - Socket.IO integration adapter
+- mobile/www/assets/js/mobile/mobile-electron-shim.js (400 lines) - Complete Electron API compatibility
+- mobile/www/assets/js/mobile/mobile-socketio-manager.js (316 lines) - Socket.IO connection manager
+- mobile/www/assets/js/mobile/mobile-socketio-adapter.js (98 lines) - Socket.IO integration adapter
 - mobile/MIGRATION-SUMMARY.md - Comprehensive technical migration summary
 
 Generated Files (by build script)
@@ -449,7 +513,7 @@ Pending Device Testing
 
 ### Configuration Required
 
-Before building, update server configuration in mobile/www/assets/js/mobile-config.js or via app:
+Before building, update server configuration in mobile/www/assets/js/mobile/mobile-config.js or via app:
 
 {
   "hostserver": "https://your-ecless-server.com",

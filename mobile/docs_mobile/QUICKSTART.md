@@ -86,7 +86,7 @@ npm run clean         # Clean generated files
 
 ## Configuration
 
-Edit `mobile/www/assets/js/mobile-config.js` to set default server:
+Edit `mobile/www/assets/js/mobile/mobile-config.js` to set default server:
 
 ```javascript
 const defaultConfig = {

@@ -838,9 +838,6 @@ const SplashScreen = registerPlugin('SplashScreen', {
  */
 
 
-// Note: ScreenOrientation plugin requires Capacitor 8+
-// For Capacitor 6, we'll use CSS orientation lock instead
-
 console.log('=== CAPACITOR CORE: Initializing ===');
 
 /**
@@ -1055,7 +1052,6 @@ class CapacitorAPI {
     }
 
     /**
-    /**
      * Screen orientation (using CSS approach for Capacitor 6)
      * For Capacitor 8+, install @capacitor/screen-orientation plugin
      */
@@ -1069,7 +1065,7 @@ class CapacitorAPI {
             const style = document.createElement('style');
             style.textContent = `
                 @media screen and (orientation: portrait) {
-                    body { transform: rotate(90deg); transform-origin: left top; }
+                    html { transform: rotate(-90deg); transform-origin: left top; width: 100vh; height: 100vw; overflow-x: hidden; position: absolute; top: 100%; left: 0; }
                 }
             `;
             document.head.appendChild(style);
@@ -1079,12 +1075,9 @@ class CapacitorAPI {
     }
 
     async unlockOrientation() {
-        try {
-            console.log('Orientation unlock - remove CSS transforms if needed');
-        } catch (error) {
-            console.warn('Failed to unlock orientation:', error);
-        }
+        console.log('Orientation unlock - remove any custom CSS transforms');
     }
+
     /**
      * Status bar control
      */
