@@ -49,6 +49,13 @@ Key Changes
    - Added null checks before accessing config.hostserver
    - Implemented safe fallback for undefined config values
 
+7. XML Data Type Handling Fix (mobile-http.js, index.html, looplayout.js)
+   - Fixed Capacitor HTTP returning XML as strings instead of XMLDocument objects
+   - Added proper XML parsing using DOMParser in mobile-http.js get() method
+   - Added dataType: 'xml' to all AJAX requests for explicit type handling
+   - Implemented XML validation with parser error detection
+   - Fixed "unable to read or data was string format" errors in layout loading
+
 5. CORS Policy Bypass Implementation (mobile-http.js, capacitor-core.js)
    - Integrated CapacitorHttp from @capacitor/core for native HTTP requests
    - Updated mobile-http.js to use window.Capacitor.Plugins.CapacitorHttp

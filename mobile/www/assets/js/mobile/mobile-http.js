@@ -64,22 +64,50 @@ class MobileHTTP {
                         method: 'GET',
                         headers: headers,
                         connectTimeout: timeout,
-                        readTimeout: timeout
+                        readTimeout: timeout,
+                        responseType: 'text' // Force text response for proper parsing
                     });
 
                     console.log('MobileHTTP: Native request successful, status:', response.status);
                     
-                    // Parse XML if needed
-                    if (dataType === 'xml' && response.data) {
+                    // Validate response status
+                    if (response.status < 200 || response.status >= 300) {
+                        throw new Error(`HTTP ${response.status}: ${response.url}`);
+                    }
+                    
+                    // Parse XML if needed - CRITICAL FIX
+                    if (dataType === 'xml') {
+                        if (!response.data || response.data.trim() === '') {
+                            throw new Error('Empty XML response received');
+                        }
+                        
                         const parser = new DOMParser();
-                        // response.data is already a string for text responses
-                        const xmlString = typeof response.data === 'string' ? response.data : response.data;
-                        return parser.parseFromString(xmlString, 'text/xml');
+                        // Ensure we have a string to parse
+                        const xmlString = typeof response.data === 'string' ? response.data : String(response.data);
+                        
+                        console.log('MobileHTTP: Parsing XML, length:', xmlString.length, 'chars');
+                        
+                        const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+                        
+                        // Check for parsing errors
+                        const parserError = xmlDoc.getElementsByTagName('parsererror');
+                        if (parserError && parserError.length > 0) {
+                            console.error('MobileHTTP: XML parsing error:', parserError[0].textContent);
+                            throw new Error('Invalid XML format: ' + parserError[0].textContent);
+                        }
+                        
+                        console.log('MobileHTTP: XML parsed successfully, root element:', xmlDoc.documentElement?.tagName);
+                        
+                        // Return XMLDocument object (same as jQuery $.ajax with dataType: 'xml')
+                        return xmlDoc;
                     }
                     
                     // Parse JSON if needed
-                    if (dataType === 'json' && typeof response.data === 'string') {
-                        return JSON.parse(response.data);
+                    if (dataType === 'json') {
+                        if (typeof response.data === 'string') {
+                            return JSON.parse(response.data);
+                        }
+                        return response.data;
                     }
                     
                     return response.data;
@@ -89,7 +117,7 @@ class MobileHTTP {
             }
 
             // Fallback: Use fetch API with error handling
-            console.log('MobileHTTP: Using fetch API');
+            console.log('MobileHTTP: Using fetch API (fallback mode)');
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -111,8 +139,22 @@ class MobileHTTP {
                 
                 // Parse XML if needed
                 if (dataType === 'xml') {
+                    if (!data || data.trim() === '') {
+                        throw new Error('Empty XML response received (fetch fallback)');
+                    }
+                    
                     const parser = new DOMParser();
-                    return parser.parseFromString(data, 'text/xml');
+                    const xmlDoc = parser.parseFromString(data, 'text/xml');
+                    
+                    // Check for parsing errors
+                    const parserError = xmlDoc.getElementsByTagName('parsererror');
+                    if (parserError && parserError.length > 0) {
+                        console.error('MobileHTTP: XML parsing error (fetch):', parserError[0].textContent);
+                        throw new Error('Invalid XML format: ' + parserError[0].textContent);
+                    }
+                    
+                    console.log('MobileHTTP: XML parsed via fetch, root element:', xmlDoc.documentElement?.tagName);
+                    return xmlDoc;
                 }
                 
                 if (dataType === 'json') {
@@ -155,7 +197,7 @@ class MobileHTTP {
         } = options;
 
         try {
-            console.log('MobileHTTP: AJAX request:', type, url);
+            console.log('MobileHTTP: AJAX request:', type, url, 'dataType:', dataType);
             
             const useProxy = window.config && window.config.corsproxy === 'Y';
             
@@ -166,7 +208,23 @@ class MobileHTTP {
                 useProxy
             });
 
-            console.log('MobileHTTP: AJAX request successful');
+            console.log('MobileHTTP: AJAX request successful, data type:', 
+                dataType === 'xml' ? 'XMLDocument' : typeof data);
+            
+            // Validate XML data before passing to success callback
+            if (dataType === 'xml') {
+                if (typeof data === 'string') {
+                    console.error('MobileHTTP: CRITICAL - XML data is string instead of XMLDocument');
+                    throw new Error('XML parsing failed: received string instead of XMLDocument');
+                }
+                
+                if (!data || !data.documentElement) {
+                    console.error('MobileHTTP: Invalid XMLDocument received');
+                    throw new Error('Invalid XMLDocument: missing documentElement');
+                }
+                
+                console.log('MobileHTTP: Valid XMLDocument with root:', data.documentElement.tagName);
+            }
             
             if (success && typeof success === 'function') {
                 success(data);

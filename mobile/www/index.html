@@ -519,26 +519,44 @@
       $.ajax({
         url: urlServer, // Specify the URL for the AJAX request
         type: 'GET', // Use the GET method
+        dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
         timeout: 5000, // Set a timeout of 5 seconds for the request
         success: function (data) {
           log.info('GET XML: OK') // Log a successful XML retrieval
-          if (typeof data === 'string') {
-            log.warn('get xml : unable to read or ddata was string format : ' + data, urlServer)
-            location.href = 'offline.html' // Redirect to offline.html if data is a string
-            remote.getCurrentWindow().focus() // Focus on the current window
-          } else {
-            // Read DS XML
-            var xmlText = new XMLSerializer().serializeToString(data) // Serialize XML data to text
-            var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText // Create a well-formed XML string
-            var result2 = convert.xml2json(xml, {
-              compact: false,
-              spaces: 4,
-              trim: false
-            }) // Convert XML to JSON
-            result2 = JSON.parse(result2) // Parse the JSON result
-            playonlineds(result2) // Play the online data
-            localStorage.setItem(dsid, JSON.stringify(result2)) // Store the data in local storage
+          log.info('XML data: ', data) // Log the XMLDocument object
+          
+          // Validate XMLDocument (mobile-http now returns XMLDocument, not string)
+          if (!data || !data.documentElement) {
+            log.error('get xml : invalid XML structure received', urlServer)
+            location.href = 'offline.html' // Redirect to offline.html if invalid
+            if (remote && remote.getCurrentWindow) {
+              remote.getCurrentWindow().focus() // Focus on the current window
+            }
+            return
           }
+          
+          // Legacy check: This should NOT happen with fixed mobile-http.js
+          if (typeof data === 'string') {
+            log.error('get xml : CRITICAL - received string instead of XMLDocument', urlServer)
+            log.error('This indicates mobile-http.js is not working correctly')
+            location.href = 'offline.html' // Redirect to offline.html if data is a string
+            if (remote && remote.getCurrentWindow) {
+              remote.getCurrentWindow().focus() // Focus on the current window
+            }
+            return
+          }
+          
+          // Read DS XML - data is now guaranteed to be XMLDocument
+          var xmlText = new XMLSerializer().serializeToString(data) // Serialize XMLDocument to text
+          var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText // Create a well-formed XML string
+          var result2 = convert.xml2json(xml, {
+            compact: false,
+            spaces: 4,
+            trim: false
+          }) // Convert XML to JSON
+          result2 = JSON.parse(result2) // Parse the JSON result
+          playonlineds(result2) // Play the online data
+          localStorage.setItem(dsid, JSON.stringify(result2)) // Store the data in local storage
         },
         error: function (xhr, textStatus, errorThrown) {
           // Comprehensive error logging
@@ -626,29 +644,47 @@
               return $.ajax({
                 url: layoutURL, // Specify the URL for the AJAX request
                 type: 'GET', // Use the GET method
+                dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
                 success: function (data) {
                   log.info('GET Loop XML: OK') // Log a successful loop XML retrieval
+                  
+                  // Validate XMLDocument (mobile-http now returns XMLDocument, not string)
+                  if (!data || !data.documentElement) {
+                    log.error('get xml : invalid loop XML structure received', layoutURL)
+                    location.href = 'offline.html' // Redirect to offline.html if invalid
+                    if (remote && remote.getCurrentWindow) {
+                      remote.getCurrentWindow().focus() // Focus on the current window
+                    }
+                    return
+                  }
+                  
+                  // Legacy check: This should NOT happen with fixed mobile-http.js
                   if (typeof data === 'string') {
-                    log.warn('get xml : unable to read or data was string format : ' + data, layoutURL)
+                    log.error('get xml : CRITICAL - received string instead of XMLDocument', layoutURL)
+                    log.error('This indicates mobile-http.js is not working correctly for loop layouts')
                     location.href = 'offline.html' // Redirect to offline.html if data is a string
-                    remote.getCurrentWindow().focus() // Focus on the current window
-                  } else {
-                    // Read DS XML
-                    var xmlText = new XMLSerializer().serializeToString(data) // Serialize XML data to text
-                    var xml = '<?xml version="1.0" encoding="utf-8"?>' +
-                      xmlText // Create a well-formed XML string
-                    var xmlJSON = convert.xml2json(xml, {
-                      compact: false,
-                      spaces: 4
-                    }) // Convert XML to JSON
-                    xmlJSON = JSON.parse(xmlJSON) // Parse the JSON result
-                    localStorage.setItem('layout-' + layoutID, JSON.stringify(
-                      xmlJSON)) // Store the layout data in local storage
-                    localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(
-                      xmlJSON)) // Store the offline layout data in local storage
-                    var lytname = xmlJSON['elements']['0']['attributes']['layout'] // Get the layout name
-                    var lytslotlist = xmlJSON['elements']['0']['elements']['0']['elements']['0'][
-                      'elements'] // Access the slot list
+                    if (remote && remote.getCurrentWindow) {
+                      remote.getCurrentWindow().focus() // Focus on the current window
+                    }
+                    return
+                  }
+                  
+                  // Read DS XML - data is now guaranteed to be XMLDocument
+                  var xmlText = new XMLSerializer().serializeToString(data) // Serialize XMLDocument to text
+                  var xml = '<?xml version="1.0" encoding="utf-8"?>' +
+                    xmlText // Create a well-formed XML string
+                  var xmlJSON = convert.xml2json(xml, {
+                    compact: false,
+                    spaces: 4
+                  }) // Convert XML to JSON
+                  xmlJSON = JSON.parse(xmlJSON) // Parse the JSON result
+                  localStorage.setItem('layout-' + layoutID, JSON.stringify(
+                    xmlJSON)) // Store the layout data in local storage
+                  localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(
+                    xmlJSON)) // Store the offline layout data in local storage
+                  var lytname = xmlJSON['elements']['0']['attributes']['layout'] // Get the layout name
+                  var lytslotlist = xmlJSON['elements']['0']['elements']['0']['elements']['0'][
+                    'elements'] // Access the slot list
                       
                     if (lytslotlist && lytslotlist.length > 0) {
                       lytslotlist.forEach(function (slot, index) {
@@ -666,7 +702,6 @@
                         }
                       })
                     }
-                  }
                 },
                 error: function (xhr, textStatus, errorThrown) {
                   log.warn('GET Loop XML: Failed: ' + xhr.responseText) // Log a failed loop XML retrieval

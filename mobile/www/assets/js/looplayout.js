@@ -305,15 +305,33 @@ async function layoutLoopUpdateXML() {
     $.ajax({
       url: urlServer, // Specify the URL for the AJAX request
       type: 'GET', // Use the GET method
+      dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
       timeout: 5000, // Set a timeout of 5 seconds for the request
       success: function (dsData) {
         log.info('GET XML: OK'); // Log a successful XML retrieval
+        
+        // Validate XMLDocument (mobile-http now returns XMLDocument, not string)
+        if (!dsData || !dsData.documentElement) {
+          log.error('get xml : invalid XML structure received', urlServer)
+          location.href = 'offline.html'; // Redirect to offline.html if invalid
+          if (remote && remote.getCurrentWindow) {
+            remote.getCurrentWindow().focus(); // Focus on the current window
+          }
+          reject('Invalid XML structure received');
+          return
+        }
+        
+        // Legacy check: This should NOT happen with fixed mobile-http.js
         if (typeof dsData === 'string') {
-          log.warn('get xml : unable to read or data was string format : ' + data, urlServer)
+          log.error('get xml : CRITICAL - received string instead of XMLDocument', urlServer)
+          log.error('This indicates mobile-http.js is not working correctly in looplayout')
           location.href = 'offline.html'; // Redirect to offline.html if dsData is a string
-          remote.getCurrentWindow().focus(); // Focus on the current window
+          if (remote && remote.getCurrentWindow) {
+            remote.getCurrentWindow().focus(); // Focus on the current window
+          }
           reject('Data is in string format, redirected to offline.html'); // Reject the promise with an error message
-        } else {
+          return
+        }
           // Read DS XML
           var xmlText = new XMLSerializer().serializeToString(dsData); // Serialize XML dsData to text
           var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText; // Create a well-formed XML string
@@ -346,10 +364,23 @@ async function layoutLoopUpdateXML() {
               return $.ajax({
                 url: layoutURL, // Specify the URL for the AJAX request
                 type: 'GET', // Use the GET method
+                dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
                 success: function (data) {
                   log.info('GET Loop XML: OK'); // Log a successful loop XML retrieval
-                  // Read DS XML
-                  var xmlText = new XMLSerializer().serializeToString(data); // Serialize XML data to text
+                  
+                  // Validate XMLDocument
+                  if (!data || !data.documentElement) {
+                    log.error('Loop layout XML: invalid structure', layoutURL)
+                    return
+                  }
+                  
+                  if (typeof data === 'string') {
+                    log.error('Loop layout XML: received string instead of XMLDocument', layoutURL)
+                    return
+                  }
+                  
+                  // Read DS XML - data is now guaranteed to be XMLDocument
+                  var xmlText = new XMLSerializer().serializeToString(data); // Serialize XMLDocument to text
                   var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText; // Create a well-formed XML string
                   var xmlJSON = convert.xml2json(xml, {
                     compact: false,
@@ -375,7 +406,6 @@ async function layoutLoopUpdateXML() {
             getLayoutXML(result2); // Get the layout XML
             resolve('single'); // Resolve the promise indicating completion
           }
-        }
       },
       error: function (xhr, textStatus, errorThrown) {
         log.warn('GET XML: Failed: ' + textStatus); // Log a failed XML retrieval
