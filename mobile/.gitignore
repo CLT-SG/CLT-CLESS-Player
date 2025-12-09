@@ -3,11 +3,9 @@
 # Capacitor generated files
 
 # Android
-android/
 .gradle/
 *.apk
 *.aab
-local.properties
 
 # iOS
 ios/

@@ -104,6 +104,10 @@
   </script>
   <!-- https://github.com/videojs -->
   <script src="assets/js/jquery.min.js"></script>
+  
+  <!-- Mobile HTTP Module (CORS bypass for native apps) -->
+  <script src="assets/js/mobile/mobile-http.js"></script>
+  
   <!-- http://pagination.js.org// -->
   <script src="assets/js/pagination.min.js"></script>
   <!-- https://github.com/aamirafridi/jQuery.Marquee -->
@@ -141,13 +145,20 @@
   <script src="assets/js/slot-tickerscrollerfader.js"></script>
 
   
-  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
+  <!-- Capacitor Mobile Initialization (MUST load first) -->
   <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  <script src="assets/js/mobile/mobile-electron-shim.js" defer></script>
-  <script src="assets/js/mobile/mobile-config.js" defer></script>
+  
+  <!-- Mobile Electron Shim (provides window.log, etc.) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
 
   <!-- Mobile Debug Panel -->
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
+  
+  <!-- Mobile Error Notification System -->
+  <script src="assets/js/mobile/mobile-error-notification.js"></script>
 </head>
 
 <body>
@@ -340,18 +351,40 @@
     
     // Main application startup function
     function startApplication() {
+      console.log('eCLESS: Starting application...')
+      
+      // Ensure all dependencies are loaded
+      if (typeof $ === 'undefined') {
+        console.error('eCLESS: jQuery not loaded yet!')
+        setTimeout(startApplication, 100)
+        return
+      }
+      
       // Initialize the document when it's ready
       $(document).ready(function () {
+        console.log('eCLESS: Document ready, initializing player')
+        
         var resultOffline = JSON.parse(localStorage.getItem(dsid)) // Parse and retrieve data from local storage
+        
+        // Dispatch appReady event to hide loading screen
+        window.dispatchEvent(new CustomEvent('appReady', {
+          detail: { mode: mode, hasOfflineData: !!resultOffline }
+        }))
+        
         if (mode == 'offline') {
           console.log('eCLESS: Mode - offline') // Log the offline mode
           if (resultOffline) {
             playofflineds(resultOffline) // Play offline data if available
+          } else {
+            console.error('eCLESS: No offline data available')
+            window.showErrorMessage('No Offline Data', 'Please connect to internet for initial setup', false)
           }
         } else {
-        playcheckNetwork(resultOffline) // Check the network for online mode
-      }
-    })
+          console.log('eCLESS: Mode - online, checking network...')
+          playcheckNetwork(resultOffline) // Check the network for online mode
+        }
+      })
+    }
 
     // Function to fetch XML data from the server
     function getxml() {
@@ -394,12 +427,52 @@
           }
         },
         error: function (xhr, textStatus, errorThrown) {
-          log.warn('GET XML: Failed: ' + textStatus) // Log a failed XML retrieval
-          var resultOffline = JSON.parse(localStorage.getItem(
-            textStatus)) // Parse and retrieve data from local storage
-          log.info('GET XML: Recheck network again in 5 seconds: ' +
-            textStatus) // Log a recheck of the network in 5 seconds
-          setTimeout(getxml, 5000) // Retry fetching XML data after 5 seconds
+          // Comprehensive error logging
+          log.error('GET XML: Failed!')
+          log.error('  Status: ' + xhr.status)
+          log.error('  Status Text: ' + textStatus)
+          log.error('  Error: ' + errorThrown)
+          log.error('  Response: ' + xhr.responseText)
+          log.error('  URL: ' + urlServer)
+          
+          // Show detailed error on screen for debugging
+          console.error('AJAX Error Details:', {
+            status: xhr.status,
+            statusText: textStatus,
+            error: errorThrown,
+            response: xhr.responseText,
+            url: urlServer,
+            readyState: xhr.readyState
+          })
+          
+          // Show visual error notification
+          if (window.errorNotification) {
+            let errorMsg = 'Failed to load content from server'
+            if (xhr.status === 0) {
+              errorMsg = 'Network connection failed. Check your internet or server address.'
+            } else if (xhr.status === 404) {
+              errorMsg = 'Content not found on server (404). Check Device ID: ' + dsid
+            } else if (xhr.status === 403) {
+              errorMsg = 'Access denied (403). Check authentication.'
+            } else if (textStatus === 'timeout') {
+              errorMsg = 'Server request timed out. Slow connection or server down.'
+            }
+            
+            window.errorNotification.error('Server Connection Failed', errorMsg, 10000)
+          }
+          
+          // Try to load from offline cache
+          var resultOffline = JSON.parse(localStorage.getItem(dsid))
+          if (resultOffline) {
+            log.warn('GET XML: Using cached offline data')
+            if (window.errorNotification) {
+              window.errorNotification.info('Using Offline Mode', 'Loading cached content', 3000)
+            }
+            playofflineds(resultOffline)
+          } else {
+            log.error('GET XML: No offline data available, will retry')
+            setTimeout(getxml, 5000) // Retry fetching XML data after 5 seconds
+          }
         }
       })
     }
@@ -559,48 +632,103 @@
 
     // Check the network status and display a message if it's offline
     const playcheckNetwork = async (resultoffline) => {
-      // Get the server address from the config
-      const serverAddress = await config.hostserver
-      // Split the server address to extract the hostname
-      const hostname = serverAddress.split('/')[2]
-      // Log the hostname
-      log.info('server name:', hostname)
-      // Check the server status using isReachable()
-      const serverStatus = await isReachable(serverAddress)
-      if (serverStatus) {
-        // Connection is OK, log a message and get the XML data
-        log.warn('connection : ok')
-        getxml()
-      } else {
-        // Connection failed, log a message and display a network error message
-        log.warn('connection : failed')
-        // Resize the window to fullscreen
-        //remote.getCurrentWindow().setBounds({
-        //    y: 0,
-        //    x: 0,
-        //    width: screen.width,
-        //    height: screen.height
-        //})
-        // Create a countdown message
-        const countdownMessage = $('<div class="no-network"></div>')
-        $('body').append(countdownMessage)
-        // Set a countdown timer
-        let countDown = 15
-        const countdownTimeout = setInterval(() => {
-          countDown -= 1
-          // Update the countdown message
-          countdownMessage.html(`Please check network connection. Auto close : ${countDown} sec`)
-          // If the countdown reaches 0, remove the message and proceed with the offline behavior
-          if (countDown === 0) {
-            countdownMessage.remove()
-            clearInterval(countdownTimeout)
-            playofflineds(resultoffline)
+      try {
+        // Get the server address from the config
+        const serverAddress = await config.hostserver
+        const hostname = serverAddress.split('/')[2]
+        
+        log.info('Checking network connectivity...')
+        log.info('Server: ' + serverAddress)
+        log.info('Hostname: ' + hostname)
+        
+        // First check if device has internet connection (Capacitor Network API)
+        let hasNetworkConnection = true
+        if (window.capacitorAPI && window.capacitorAPI.isNative) {
+          const networkStatus = await window.capacitorAPI.getNetworkStatus()
+          hasNetworkConnection = networkStatus.connected
+          log.info('Device network status: ' + (hasNetworkConnection ? 'Connected' : 'Disconnected'))
+          
+          if (!hasNetworkConnection) {
+            log.warn('No network connection detected')
+            if (window.errorNotification) {
+              window.errorNotification.warning('No Internet', 'Device is not connected to internet', 5000)
+            }
+            // Go to offline mode immediately
+            if (resultoffline) {
+              playofflineds(resultoffline)
+            } else {
+              if (window.errorNotification) {
+                window.errorNotification.error('No Content Available', 'No internet and no cached content. Please connect to internet.', 0)
+              }
+            }
+            return
           }
-        }, 1500)
-        // Add a fade-in/out animation to the countdown message
-        fadeLoop('.no-network', 3000)
-        // Schedule the next network check
-        keepcheckNetwork()
+        }
+        
+        // Check if server is reachable
+        log.info('Checking server reachability...')
+        const serverStatus = await isReachable(serverAddress)
+        
+        if (serverStatus) {
+          // Connection is OK
+          log.info('Server connection: OK')
+          if (window.errorNotification) {
+            window.errorNotification.success('Connected', 'Connected to server successfully', 2000)
+          }
+          getxml()
+        } else {
+          // Server not reachable
+          log.warn('Server connection: FAILED')
+          
+          if (window.errorNotification) {
+            window.errorNotification.warning(
+              'Server Unreachable',
+              'Cannot connect to ' + hostname + '. Will use cached content.',
+              8000
+            )
+          }
+          
+          // Try offline mode
+          if (resultoffline) {
+            log.info('Switching to offline mode with cached content')
+            playofflineds(resultoffline)
+            
+            // Keep checking in background
+            keepcheckNetwork()
+          } else {
+            log.error('No offline data available')
+            
+            if (window.errorNotification) {
+              window.errorNotification.error(
+                'Cannot Start Player',
+                'Server unreachable and no cached content available. Please check connection.',
+                0
+              )
+            }
+            
+            // Show retry options
+            const retryDiv = $('<div class="no-network"></div>')
+            retryDiv.html(`
+              <div style="text-align: center; padding: 20px;">
+                <h2>Cannot Connect to Server</h2>
+                <p>Server: ${serverAddress}</p>
+                <p>No cached content available</p>
+                <button onclick="window.location.reload()" style="margin: 10px; padding: 10px 20px;">Retry</button>
+                <button onclick="window.location.href='configure.html'" style="margin: 10px; padding: 10px 20px;">Configure</button>
+              </div>
+            `)
+            $('body').append(retryDiv)
+            
+            // Keep trying in background
+            keepcheckNetwork()
+          }
+        }
+      } catch (error) {
+        log.error('playcheckNetwork error: ' + error)
+        console.error('Network check failed:', error)
+        
+        // Fallback to getxml
+        getxml()
       }
     }
 
@@ -623,7 +751,6 @@
         log.warn('connection : failed and retry')
         setTimeout(keepcheckNetwork, 10000)
       }
-    }
     } // Close startApplication function
     
     // If config is already loaded, start immediately

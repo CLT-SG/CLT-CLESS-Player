@@ -585,3 +585,151 @@ Before building, update server configuration in mobile/www/assets/js/mobile/mobi
   \"masterServerPort\": 9000,
   \"id\": \"YOUR_DEVICE_ID\"
 }
+
+Latest Update - Mobile App Content Loading Fixes (v2.9.4 - 2025-12-09)
+
+Problem
+- Mobile app displayed only maroon background with no CMS content
+- No error messages shown to users when initialization failed
+- AJAX requests failed silently without detailed logging
+- CORS restrictions blocking server requests on mobile
+- Configuration loading race conditions preventing proper startup
+- Missing Android storage permissions causing config access failures
+- No visual feedback for network failures or errors
+
+Root Causes Identified
+1. Script loading race conditions - defer attributes on critical scripts
+2. Missing Android permissions - only INTERNET permission declared
+3. Poor error handling - generic error messages without details
+4. CORS restrictions - mobile WebView blocking cross-origin requests
+5. No visual feedback - errors only in console logs
+6. Initialization timing issues - config not loaded before app start
+7. Network detection failures - no proper offline mode handling
+
+Fixes Implemented
+
+1. Initialization Sequence Fixes (index.html)
+   - Removed defer attribute from mobile-electron-shim.js
+   - Removed defer attribute from mobile-config.js
+   - Ensured proper script load order: Capacitor > Shim > Config > App
+   - Added jQuery availability check before app initialization
+   - Implemented appReady event dispatch to hide loading screen
+   - Added error message display when no offline data available
+   - Enhanced startup sequence with dependency validation
+
+2. Android Permissions (AndroidManifest.xml)
+   - Added READ_EXTERNAL_STORAGE permission
+   - Added WRITE_EXTERNAL_STORAGE permission
+   - Added ACCESS_NETWORK_STATE permission
+   - Enabled Capacitor Filesystem API for config storage
+
+3. Comprehensive Error Handling (index.html)
+   - Added detailed AJAX error logging with status codes
+   - Log HTTP status, status text, error message
+   - Log response body and request URL
+   - Added visual error notifications for users
+   - Implemented automatic offline cache fallback
+   - Added retry logic with 5-second backoff
+
+4. CORS Bypass Implementation (NEW: mobile-http.js)
+   - Created mobile HTTP module using Capacitor native HTTP
+   - Bypasses CORS restrictions on native platforms
+   - Falls back to fetch API for web mode
+   - jQuery.ajax wrapper for compatibility
+   - Automatic proxy support via config.corsproxy
+   - Timeout handling and error recovery
+
+5. Visual Error Notification System (NEW: mobile-error-notification.js)
+   - Toast-style notifications with color coding
+   - Error (red), Warning (yellow), Info (blue), Success (green)
+   - Auto-dismiss or persistent based on severity
+   - Click to dismiss functionality
+   - Slide-in/out animations
+   - Integrated with all error handlers
+
+6. Enhanced Network Detection (index.html - playcheckNetwork)
+   - Uses Capacitor Network API for device connectivity
+   - Checks server reachability separately
+   - Shows appropriate error notifications
+   - Auto-switches to offline mode with cached data
+   - Continues background retry attempts
+   - Clear user feedback for all network states
+
+7. Offline Mode Improvements (index.html)
+   - Proper detection when to use offline mode
+   - Automatic localStorage cache utilization
+   - Clear visual indication of offline status
+   - Graceful degradation with user guidance
+   - Retry options for first-time users
+
+Files Modified
+- mobile/www/index.html (initialization, error handling, network detection)
+- mobile/android/app/src/main/AndroidManifest.xml (permissions)
+
+New Files
+- mobile/www/assets/js/mobile/mobile-http.js (CORS bypass HTTP module)
+- mobile/www/assets/js/mobile/mobile-error-notification.js (visual notifications)
+- mobile/FIXES-APPLIED-2024-12-09.md (technical documentation)
+- mobile/TESTING-GUIDE.md (comprehensive testing guide)
+
+Key Features Implemented
+- CORS-free HTTP requests using Capacitor native plugin
+- Visual error feedback with actionable messages
+- Proper initialization sequence without race conditions
+- Comprehensive error logging for debugging
+- Automatic offline mode with cache fallback
+- Network status monitoring and recovery
+- User-friendly error messages with retry options
+- Professional notification system
+
+Expected Behavior After Fixes
+
+On Success:
+1. Loading screen shows initialization progress
+2. Config loads from storage or defaults
+3. Connection check with visual feedback
+4. Content loads and displays
+5. Loading screen hides smoothly
+
+On Network Failure:
+1. Device connectivity check
+2. Visual notification: \"No Internet\"
+3. Automatic offline mode
+4. Cached content displays
+5. Background retry attempts
+
+On Server Failure:
+1. Network check passes
+2. Server unreachable detected
+3. Visual notification: \"Server Unreachable\"
+4. Offline mode with cache
+5. Periodic reconnection attempts
+
+On First Run (No Cache):
+1. Network/server checks
+2. If connection fails: error notification, retry button, settings access
+3. Debug panel accessible for diagnostics
+
+Debug Tools Available
+- Debug Panel (Debug button) - real-time console logs
+- Error Notifications - visual toast messages
+- Diagnostics Page - device and network info
+- Android Logcat - detailed system logs
+
+Testing Status
+- Build completes successfully
+- Scripts load in correct order
+- Permissions configured properly
+- HTTP module implements CORS bypass
+- Notification system integrated
+- Network detection enhanced
+- Offline mode improved
+
+Pending Device Testing
+- Verify maroon background resolved
+- Test content loading from server
+- Validate CORS bypass functionality
+- Test offline mode with cache
+- Verify error notifications display
+- Test network failure scenarios
+- Validate storage permissions work
