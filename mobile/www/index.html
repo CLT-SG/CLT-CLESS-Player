@@ -170,6 +170,9 @@
   <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
 
+  <!-- Mobile Serial Key Validator -->
+  <script src="assets/js/mobile/mobile-serial-validator.js"></script>
+
   <!-- Mobile Debug Panel -->
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
   
@@ -307,6 +310,11 @@
             document.addEventListener('capacitorReady', function() {
                 updateProgress(25, 'Capacitor Ready', 'Loading configuration...');
             });
+            
+            // Stage 2: Config loaded (50%)
+            window.addEventListener('configLoaded', function() {
+                updateProgress(50, 'Configuration Loaded', 'Validating license...');
+            });
 
             // Stage 2: Config loaded (50%)
             document.addEventListener('configLoaded', function(e) {
@@ -356,18 +364,108 @@
 <script>
   try {
     
+    // Function to validate serial key before launching app
+    async function validateActivation() {
+      try {
+        console.log('eCLESS: Validating serial key activation...');
+        window.updateLoadingProgress(60, 'Validating License', 'Checking device authorization...');
+        
+        // Initialize serial key validator
+        const serialKeyValidator = new MobileSerialKeyValidator({
+          secret: 'Clt@2022',
+          debug: true,
+          logger: window.log
+        });
+        
+        // Get device identifier
+        const deviceInfo = await serialKeyValidator.getDeviceIdentifier();
+        console.log('eCLESS: Device identifier retrieved', deviceInfo);
+        
+        // Check if serial key exists in config
+        const serialKey = config.serialkey || config.licenseKey || '';
+        
+        if (!serialKey || serialKey.trim() === '') {
+          console.warn('eCLESS: No serial key found in configuration');
+          window.updateLoadingProgress(100, 'Activation Required', 'Redirecting to activation screen...');
+          
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 1000);
+          return false;
+        }
+        
+        // Validate serial key
+        console.log('eCLESS: Validating serial key against device...');
+        const validationResult = await serialKeyValidator.validateSerialKey(serialKey);
+        
+        if (validationResult.valid) {
+          console.log('eCLESS: Serial key validation SUCCESS');
+          console.log(`eCLESS: Device UUID: ${validationResult.deviceInfo.uuid}`);
+          window.updateLoadingProgress(75, 'License Valid', 'Initializing player...');
+          return true;
+        } else {
+          console.warn('eCLESS: Serial key validation FAILED');
+          console.warn(`eCLESS: Reason: ${validationResult.reason}`);
+          
+          // Generate validation report for troubleshooting
+          const validationReport = await serialKeyValidator.getValidationReport(serialKey);
+          console.debug('eCLESS: Validation report:', validationReport);
+          
+          window.updateLoadingProgress(100, 'Invalid License', 'Redirecting to activation screen...');
+          
+          // Show error message before redirect
+          if (window.showErrorMessage) {
+            await window.showErrorMessage(
+              'License validation failed. Please activate your device.',
+              validationResult.reason,
+              false
+            );
+          }
+          
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 2000);
+          return false;
+        }
+        
+      } catch (error) {
+        console.error('eCLESS: Error during activation validation:', error);
+        
+        // In offline mode or on error, allow proceeding with warning
+        if (config.mode === 'offline') {
+          console.warn('eCLESS: Offline mode - proceeding without strict validation');
+          window.updateLoadingProgress(75, 'Offline Mode', 'Loading player...');
+          return true;
+        } else {
+          window.updateLoadingProgress(100, 'Validation Error', 'Redirecting to activation...');
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 2000);
+          return false;
+        }
+      }
+    }
+    
     // Function to initialize app with loaded configuration
     function initializeWithConfig() {
       console.log('eCLESS: Initializing application with configuration')
       console.log('eCLESS: Server:', hostserver, 'ID:', dsid, 'Mode:', mode)
       
-      // Now safe to use config values
-      startApplication()
+      // Validate activation before starting application
+      validateActivation().then(isValid => {
+        if (isValid) {
+          console.log('eCLESS: Activation validated, starting application');
+          startApplication();
+        } else {
+          console.warn('eCLESS: Activation validation failed, redirecting handled');
+        }
+      });
     }
     
     // Main application startup function
     function startApplication() {
       console.log('eCLESS: Starting application...')
+      window.updateLoadingProgress(80, 'Starting Player', 'Initializing components...');
       
       // Ensure all dependencies are loaded
       if (typeof $ === 'undefined') {

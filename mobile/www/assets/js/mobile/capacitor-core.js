@@ -42,19 +42,36 @@ class CapacitorAPI {
     }
 
     /**
-     * Get device information
+     * Get device information including unique identifiers
      */
     async getDeviceInfo() {
         try {
             const info = await Device.getInfo();
+            const id = await Device.getId();
             const batteryInfo = await Device.getBatteryInfo();
+            
             return {
                 ...info,
-                battery: batteryInfo
+                uuid: id.identifier || id.uuid,
+                identifier: id.identifier || id.uuid,
+                androidId: info.androidId || null,
+                battery: batteryInfo,
+                platform: this.platform,
+                isNative: this.isNative
             };
         } catch (error) {
             console.error('Failed to get device info:', error);
-            return null;
+            // Return fallback info
+            return {
+                uuid: null,
+                identifier: null,
+                androidId: null,
+                platform: this.platform,
+                model: 'Unknown',
+                manufacturer: 'Unknown',
+                isNative: this.isNative,
+                battery: null
+            };
         }
     }
 

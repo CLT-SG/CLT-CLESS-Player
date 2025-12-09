@@ -23,6 +23,9 @@
   
   <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
+  
+  <!-- Mobile Serial Key Validator -->
+  <script src="assets/js/mobile/mobile-serial-validator.js"></script>
 </head>
 
 <body>
@@ -31,81 +34,281 @@
       <!-- Header -->
       <div class="header">
         <div class="title">eCLESS Player</div>
-        <div class="subtitle">License Activation</div>
+        <div class="subtitle">Mobile License Activation</div>
         <div class="company">Closed-Loop Technology Pte Ltd.</div>
       </div>
 
       <!-- System Information -->
       <div class="system-info">
         <div class="info-card">
-          <div class="info-label">Primary MAC Address</div>
+          <div class="info-label">Device UUID</div>
           <div class="mac-address-container">
-            <div class="info-value" id="macaddress">Loading...</div>
-            <button class="copy-btn" id="copyMacBtn" onclick="copyMacAddress()" title="Copy MAC Address">
+            <div class="info-value" id="deviceUuid">Loading...</div>
+            <button class="copy-btn" id="copyUuidBtn" onclick="copyDeviceId('deviceUuid')" title="Copy Device UUID">
+              📋
+            </button>
+          </div>
+        </div>
+        
+        <div class="info-card">
+          <div class="info-label">Android ID</div>
+          <div class="mac-address-container">
+            <div class="info-value" id="androidId">Loading...</div>
+            <button class="copy-btn" id="copyAndroidBtn" onclick="copyDeviceId('androidId')" title="Copy Android ID">
+              📋
+            </button>
+          </div>
+        </div>
+        
+        <div class="info-card">
+          <div class="info-label">Device Model</div>
+          <div class="info-value" id="deviceModel">Loading...</div>
+        </div>
+        
+        <div class="info-card">
+          <div class="info-label">Generated Serial Key</div>
+          <div class="mac-address-container">
+            <div class="info-value" id="generatedKey" style="font-size: 0.85em; word-break: break-all;">Loading...</div>
+            <button class="copy-btn" id="copyKeyBtn" onclick="copyDeviceId('generatedKey')" title="Copy Serial Key">
               📋
             </button>
           </div>
         </div>
       </div>
-      
-      <!-- All Network Interfaces Section -->
-      <div class="all-macs-section">
-        <div id="all-mac-addresses" class="all-mac-container">
-          <div class="loading-macs">Loading network interfaces...</div>
-        </div>
-      </div>
 
-      <!-- Configuration Instructions -->
+      <!-- Mobile Activation Instructions -->
       <div class="instructions-section">
-        <div class="instructions-title">Configuration Instructions</div>
+        <div class="instructions-title">Activation Instructions</div>
         
         <div class="instruction-step">
           <span class="step-number">1</span>
-          <strong>Access Configuration Panel:</strong> Open your web browser and navigate to: 
-          <span class="config-url" id="configUrl">Loading...</span>
+          <strong>Copy Device Identifier:</strong> Use the copy button to copy your Device UUID or Android ID
         </div>
 
         <div class="instruction-step">
           <span class="step-number">2</span>
-          <strong>Navigate to System Configuration:</strong> Go to the System Configuration section in the control panel
+          <strong>Request License:</strong> Send your device identifier to sales@closed-loop.biz or contact via WhatsApp
         </div>
 
         <div class="instruction-step">
           <span class="step-number">3</span>
-          <strong>Enter License Key:</strong> Input your activation key in the Serial Key field
+          <strong>Enter License Key:</strong> Once received, enter your activation key below
         </div>
 
         <div class="instruction-step">
           <span class="step-number">4</span>
-          <strong>Save & Activate:</strong> Click Save Configuration to activate your license
+          <strong>Activate:</strong> Click "Activate License" to validate and activate your mobile player
         </div>
       </div>
 
-      <!-- QR Code Section -->
+      <!-- Contact Section -->
       <div class="qr-section">
-        <canvas id="qr-canvas" width="150" height="150"></canvas>
-        <p>Scan QR code to request license key via WhatsApp</p>
-        <p>or email: sales@closed-loop.biz</p>
+        <p><strong>Need Help?</strong></p>
+        <p>📧 Email: sales@closed-loop.biz</p>
+        <p>📱 WhatsApp: +65 XXXX XXXX</p>
+        <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
+          Copy your Device UUID or Generated Serial Key and send it to us for activation
+        </p>
       </div>
 
       <!-- Activation Input -->
       <div class="activation-section">
         <div class="activation-label">Enter your license key:</div>
         <input type="text" id="userkey" class="key-input" placeholder="Enter your activation key here...">
-      </div>
-
       <!-- Action Buttons -->
       <div class="button-section">
-        <button class="btn btn-primary" onclick="activate()">
+        <button class="btn btn-primary" id="activateBtn" onclick="activateMobile()">
           🔐 Activate License
         </button>
-        <button class="btn btn-secondary" onclick="cancel()">
-          Cancel
+        <button class="btn btn-secondary" onclick="goToConfigure()">
+          ⚙️ Configure Settings
         </button>
       </div>
     </div>
   </div>
 
-  <script src="assets/js/activate.js"></script>
+  <script>
+    // Mobile Activation Script
+    let serialKeyValidator = null;
+    let deviceDisplayInfo = null;
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async function() {
+      console.log('eCLESS Activate: Initializing mobile activation page');
+      
+      try {
+        // Wait for Capacitor to be ready
+        await waitForCapacitor();
+        
+        // Initialize serial key validator
+        serialKeyValidator = new MobileSerialKeyValidator({
+          secret: 'Clt@2022',
+          debug: true,
+          logger: window.log
+        });
+        
+        // Load device information
+        await loadDeviceInfo();
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Initialization error', error);
+        document.getElementById('deviceUuid').textContent = 'Error loading device info';
+        document.getElementById('androidId').textContent = 'Error';
+        document.getElementById('deviceModel').textContent = 'Error';
+        document.getElementById('generatedKey').textContent = 'Error';
+      }
+    });
+    
+    // Wait for Capacitor to be ready
+    function waitForCapacitor() {
+      return new Promise((resolve) => {
+        if (window.capacitorAPI) {
+          resolve();
+        } else {
+          window.addEventListener('capacitorReady', () => resolve(), { once: true });
+          setTimeout(() => resolve(), 5000); // Timeout fallback
+        }
+      });
+    }
+    
+    // Load and display device information
+    async function loadDeviceInfo() {
+      try {
+        console.log('eCLESS Activate: Loading device information...');
+        
+        // Get display info from validator
+        deviceDisplayInfo = await serialKeyValidator.getDisplayInfo();
+        
+        console.log('eCLESS Activate: Device info loaded', deviceDisplayInfo);
+        
+        // Update UI
+        document.getElementById('deviceUuid').textContent = deviceDisplayInfo.primaryId;
+        document.getElementById('androidId').textContent = deviceDisplayInfo.secondaryId;
+        document.getElementById('deviceModel').textContent = deviceDisplayInfo.displayText;
+        document.getElementById('generatedKey').textContent = deviceDisplayInfo.serialKey;
+        
+        // Pre-fill the user key input with generated key (for testing)
+        // In production, users would receive this from your licensing server
+        document.getElementById('userkey').placeholder = 'Enter the license key you received...';
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Error loading device info', error);
+        throw error;
+      }
+    }
+    
+    // Copy device identifier to clipboard
+    function copyDeviceId(elementId) {
+      const element = document.getElementById(elementId);
+      const text = element.textContent;
+      
+      // Try to copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Copied to clipboard: ' + text);
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+    
+    // Fallback copy method for older browsers
+    function fallbackCopy(text) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        alert('Copied to clipboard: ' + text);
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Failed to copy. Please manually copy: ' + text);
+      }
+      
+      document.body.removeChild(textArea);
+    }
+    
+    // Activate license with provided key
+    async function activateMobile() {
+      const activateBtn = document.getElementById('activateBtn');
+      const userKey = document.getElementById('userkey').value.trim();
+      
+      if (!userKey) {
+        alert('Please enter a license key');
+        return;
+      }
+      
+      try {
+        // Disable button and show progress
+        activateBtn.disabled = true;
+        activateBtn.textContent = '⏳ Validating...';
+        
+        console.log('eCLESS Activate: Validating license key...');
+        
+        // Validate the key
+        const validationResult = await serialKeyValidator.validateSerialKey(userKey);
+        
+        if (validationResult.valid) {
+          console.log('eCLESS Activate: License key validation SUCCESS');
+          
+          activateBtn.textContent = '✓ Valid! Saving...';
+          
+          // Save the valid key to configuration
+          if (window.configLoader) {
+            const currentConfig = window.configLoader.config || {};
+            currentConfig.serialkey = userKey;
+            currentConfig.licenseKey = userKey;
+            
+            await window.configLoader.saveConfiguration(currentConfig);
+            
+            console.log('eCLESS Activate: License saved to configuration');
+            
+            alert('✓ License activated successfully!\n\nThe app will now start.');
+            
+            // Redirect to main player after short delay
+            setTimeout(() => {
+              window.location.href = 'index.html';
+            }, 1500);
+            
+          } else {
+            throw new Error('Configuration system not available');
+          }
+          
+        } else {
+          console.warn('eCLESS Activate: License validation FAILED', validationResult.reason);
+          
+          activateBtn.disabled = false;
+          activateBtn.textContent = '🔐 Activate License';
+          
+          alert('❌ Invalid License Key\n\n' + 
+                'The license key does not match this device.\n\n' +
+                'Reason: ' + validationResult.reason + '\n\n' +
+                'Please ensure you are using the correct key for this device.');
+        }
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Activation error', error);
+        
+        activateBtn.disabled = false;
+        activateBtn.textContent = '🔐 Activate License';
+        
+        alert('❌ Activation Error\n\n' + error.message);
+      }
+    }
+    
+    // Navigate to configuration page
+    function goToConfigure() {
+      window.location.href = 'configure.html';
+    }
+  </script>
+</body>
+</html>pt src="assets/js/activate.js"></script>
 </body>
 </html>

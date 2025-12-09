@@ -275,11 +275,20 @@
     $(document).ready(function() {
         $('#save').on('click', app_config);
         $('#home').on('click', function () {
-            ipcRenderer.send('app-reload');
+            console.log('eCLESS: Exit button clicked - reloading app');
+            
+            // For mobile, reload the app to apply any potential changes
+            if (window.mobileAPI && window.mobileAPI.isNative) {
+                // Native mobile - reload the app
+                window.location.href = 'index.html';
+            } else {
+                // Web - simple reload
+                window.location.href = 'index.html';
+            }
         });
     });
 
-    function app_config() {
+    async function app_config() {
         var hostaddress = $('#hostserver').val()
         var dsid = $('#dsid').val()
         var mode = $('#mode').find(":selected").val()
@@ -295,52 +304,70 @@
         console.log('  - Auto startup:', autostartup)
         console.log('  - Serial key:', serialkey ? '***' + serialkey.slice(-8) : 'empty')
         
-        // Create configuration object matching main process expectations
-        var argsObj = {
-            // Main process expects these exact property names
-            hostaddress: hostaddress,  // NOT hostserver
-            dsid: dsid,
+        // Create configuration object for mobile
+        var configToSave = {
+            version: window.configLoader.config.version || '2.6.5',
+            hostserver: hostaddress,
+            id: dsid,
             mode: mode,
             corsproxy: corsproxy,
             autostartup: autostartup,
             serialkey: serialkey,
             
-            // Enhanced settings - preserve existing values or use defaults
-            screenOnOff: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenOnOff !== undefined ? window.configLoader.config.screenOnOff : true : true,
-            fullscreenMode: (window.configLoader && window.configLoader.config) ? window.configLoader.config.fullscreenMode !== undefined ? window.configLoader.config.fullscreenMode : true : true,
-            screenTimeout: (window.configLoader && window.configLoader.config) ? window.configLoader.config.screenTimeout || 0 : 0,
-            updateInterval: (window.configLoader && window.configLoader.config) ? window.configLoader.config.updateInterval || 30 : 30,  
-            logLevel: (window.configLoader && window.configLoader.config) ? window.configLoader.config.logLevel || 'info' : 'info',
-            
-            // Preserve complex settings if they exist
-            displaySettings: (window.configLoader && window.configLoader.config && window.configLoader.config.displaySettings) ? window.configLoader.config.displaySettings : {
-                resolution: "auto",
-                orientation: "landscape", 
-                colorProfile: "default",
-                powerManagement: true
+            // Preserve enhanced settings from existing config
+            syncSettings: window.configLoader.config.syncSettings || {
+                enabled: false,
+                role: 'none',
+                masterIp: '',
+                syncInterval: 5000,
+                syncPort: 9000
             },
-            networkSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.networkSettings) ? window.configLoader.config.networkSettings : {
-                autoConnect: true,
-                preferredInterface: "auto"
+            masterServerAddress: window.configLoader.config.masterServerAddress || 'localhost',
+            masterServerPort: window.configLoader.config.masterServerPort || 9000,
+            displaySettings: window.configLoader.config.displaySettings || {
+                orientation: 'landscape',
+                fullscreen: true,
+                hideStatusBar: true
             },
-            mediaSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.mediaSettings) ? window.configLoader.config.mediaSettings : {
-                defaultVolume: 50,
-                autoPlay: true,
-                loopMedia: true
-            },
-            systemSettings: (window.configLoader && window.configLoader.config && window.configLoader.config.systemSettings) ? window.configLoader.config.systemSettings : {
-                enableRemoteControl: true,
-                allowShutdown: true,
-                enableSystemInfo: true
+            networkSettings: window.configLoader.config.networkSettings || {
+                timeout: 5000,
+                retryAttempts: 3,
+                offlineMode: true
             }
-        }
+        };
         
-        console.log('eCLESS: Configuration object to save:', argsObj)
+        console.log('eCLESS: Configuration object to save:', configToSave);
         
-        if (typeof(require) != "undefined") {
-            ipcRenderer.send('app-configsave', argsObj);
-        } else {
-            console.log('electron required');
+        try {
+            // Save configuration using mobile config loader
+            if (window.configLoader && typeof window.configLoader.saveConfiguration === 'function') {
+                console.log('eCLESS: Saving configuration via mobile config loader...');
+                
+                // Show saving indicator
+                $('#save').prop('disabled', true).text('Saving...');
+                
+                const saveResult = await window.configLoader.saveConfiguration(configToSave);
+                
+                console.log('eCLESS: Configuration saved successfully', saveResult);
+                
+                // Show success message
+                alert('Configuration saved successfully! The app will now reload.');
+                
+                // Reload app after short delay
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+                
+            } else {
+                console.error('eCLESS: Mobile config loader not available');
+                alert('Error: Configuration system not initialized. Please restart the app.');
+                $('#save').prop('disabled', false).text('Save');
+            }
+            
+        } catch (error) {
+            console.error('eCLESS: Error saving configuration:', error);
+            alert('Failed to save configuration: ' + error.message);
+            $('#save').prop('disabled', false).text('Save');
         }
     }
 </script>
