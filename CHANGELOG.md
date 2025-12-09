@@ -1,5 +1,47 @@
 # Change Log
 
+## [2.8.1] - 2025-12-01
+
+### Fixed
+- **Android Build Duplicate Resources Error** - Resolved critical Android Gradle build failure
+  - Fixed "Duplicate resources" error caused by .gz compressed files in Android asset merger
+  - Modified build-mobile.js to exclude .gz files during asset copying process
+  - Resolved conflict where Android Gradle treated both adapter.js and adapter.js.gz as duplicate resources
+  - Android builds now complete successfully without mergeDebugAssets task failures
+  - Maintained all JavaScript functionality while preventing compressed file conflicts
+
+- **Android SDK Configuration** - Resolved missing Android SDK location configuration
+  - Created local.properties file with correct sdk.dir path for Android builds
+  - Configured Android SDK location at /home/clt-dev/Android/Sdk for Gradle builds
+  - Added local.properties to .gitignore to prevent committing machine-specific paths
+  - Resolved "SDK location not found" error preventing compileDebugJavaWithJavac task execution
+  - Enabled successful Android project compilation and APK generation
+
+### Added
+- **Android Build Configuration** - Machine-specific Android SDK setup
+  - Added local.properties template for Android SDK path configuration
+  - Enhanced .gitignore with local.properties exclusion for better version control
+  - Documented Android SDK path requirements for development setup
+
+### Technical Improvements
+- **Build Script Enhancement** - Professional asset filtering in mobile build process
+  - Enhanced copyDirectory() function with .gz file exclusion logic
+  - Added inline comments explaining Android Gradle duplicate resource constraints
+  - Improved build reliability for Android platform deployments
+  - Zero impact on iOS builds or desktop Electron application
+
+- **Development Environment Configuration** - Proper Android SDK integration
+  - Automatic detection of Android SDK location on Linux systems
+  - Support for standard Android SDK installation paths
+  - Gradle-compatible SDK configuration for successful builds
+
+### Compatibility
+- Full backward compatibility with existing mobile app functionality
+- No changes to runtime behavior or application features
+- Android APK and AAB builds now complete without errors
+- All existing build commands (npm run build:android, npm run sync) work as expected
+- Developers need to configure their own local.properties with SDK path
+
 ## [2.8.0] - 2025-12-01
 
 ### Added

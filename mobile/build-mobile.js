@@ -40,7 +40,11 @@ function copyDirectory(src, dest) {
         if (entry.isDirectory()) {
             copyDirectory(srcPath, destPath);
         } else {
-            fs.copyFileSync(srcPath, destPath);
+            // Skip .gz files to avoid duplicate resource errors in Android builds
+            // Android Gradle treats both file.js and file.js.gz as the same resource
+            if (!entry.name.endsWith('.gz')) {
+                fs.copyFileSync(srcPath, destPath);
+            }
         }
     }
 }
