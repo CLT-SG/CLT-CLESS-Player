@@ -1,97 +1,189 @@
-Fix Android Build Errors - Duplicate Resources and SDK Configuration
+Mobile CMS Player Architecture Migration
 
-This PR resolves two critical Android Gradle build failures that prevented successful compilation of the mobile application.
+This PR restructures the mobile app to properly implement the CMS player as the main application, replacing the incorrect architecture where the dashboard was used as the primary interface.
 
-Problems
+Problem
 
-1. Duplicate Resources Error
-   - Android Gradle mergeDebugAssets task failed with duplicate resource error
-   - Both adapter.js and adapter.js.gz files were being copied to assets
-   - Android treats file.js and file.js.gz as the same resource path
-   - Build could not complete, preventing APK/AAB generation
+The mobile app was incorrectly using cpanel.html (dashboard/control panel) as the main entry point instead of index.html (CMS content player). The dashboard is meant for remote control and monitoring, not as the primary application interface.
 
-2. Missing Android SDK Configuration
-   - SDK location not found error during compilation
-   - Task compileDebugJavaWithJavac could not determine dependencies
-   - Missing local.properties file with sdk.dir configuration
-   - ANDROID_HOME environment variable not set
+Before (Incorrect)
+- index.html was the dashboard (cpanel.html)
+- No CMS player functionality
+- Missing layout rendering and media playback
 
-Root Causes
+After (Correct)
+- index.html is the CMS Player (plays layouts and media)
+- dashboard.html is the control panel (accessible via navigation)
+- Proper dual-interface architecture matching desktop Electron app
 
-1. The build-mobile.js script copied all files recursively including .gz compressed versions. Android's resource merger considers both the original file and its .gz variant as duplicate resources.
+Solution
 
-2. The Android project requires a local.properties file specifying the SDK location for Gradle builds. This machine-specific file was missing.
+Restructured the mobile app with comprehensive changes to build system, API compatibility layer, Socket.IO connection management, and navigation flow.
 
-Solutions
+Key Changes
 
-1. Modified copyDirectory() function in build-mobile.js to skip .gz files during asset copying
-2. Created local.properties file with Android SDK path configuration
-3. Added local.properties to .gitignore to prevent committing machine-specific paths
+1. Build System Restructuring (build-mobile.js)
+   - Changed src/index.html to mobile/www/index.html (CMS Player)
+   - Changed src/cpanel.html to mobile/www/dashboard.html (Dashboard)
+   - Added Socket.IO CDN injection (v4.5.4)
+   - Injected mobile-specific scripts in correct order
+   - Added navigation buttons between interfaces
 
-Changes Made
+2. Electron API Compatibility Layer (NEW: mobile-electron-shim.js)
+   - Complete Electron API shims for mobile browsers
+   - window.log, window.xmljs, window.datetime, window.path, window.os
+   - window.fs, window.dns, window.isReachable, window.ipcRenderer, window.remote
+   - 400 lines of compatibility code
+
+3. Socket.IO Connection Management (NEW: mobile-socketio-manager.js)
+   - Dynamic server address from configuration
+   - Automatic reconnection with exponential backoff
+   - App lifecycle handling (pause/resume)
+   - Network change detection and recovery
+   - 316 lines of connection management
+
+4. Socket.IO Integration (NEW: mobile-socketio-adapter.js)
+   - Bridges socketio-cpanel.js with managed socket
+   - Prevents duplicate connections
+   - 98 lines of adapter logic
+
+5. Configuration Updates
+   - Updated capacitor.config.json with proper entry point
+   - Enhanced mobile-config.js for CMS compatibility
+   - Added cleartext support for development
+
+6. Navigation Implementation
+   - CMS Player: "Dashboard" button (top-right, blue)
+   - Dashboard: "Back to Player" button (top-left, green)
+   - Responsive design with Bootstrap Icons
 
 Modified Files
-- mobile/build-mobile.js - Added .gz file exclusion logic in copyDirectory function
-- mobile/.gitignore - Added local.properties to ignore list
-- CHANGELOG.md - Documented fixes in version 2.8.1
+- mobile/build-mobile.js - Restructured file processing and script injection
+- mobile/capacitor.config.json - Updated entry point to index.html
+- mobile/README.md - Comprehensive architecture documentation
+- mobile/QUICKSTART.md - Added architecture change notice
 
-New Files (Not Tracked in Git)
-- mobile/android/local.properties - Android SDK path configuration
+New Files
+- mobile/www/assets/js/mobile-electron-shim.js (400 lines)
+- mobile/www/assets/js/mobile-socketio-manager.js (316 lines)
+- mobile/www/assets/js/mobile-socketio-adapter.js (98 lines)
+- mobile/MIGRATION-SUMMARY.md - Complete technical summary
 
-Technical Implementation
+Generated Files (by build script)
+- mobile/www/index.html - CMS Player from src/index.html
+- mobile/www/dashboard.html - Dashboard from src/cpanel.html
 
-Fix 1 - Duplicate Resources
-- Enhanced copyDirectory() function to skip .gz files during asset copying
-- Added inline comments explaining Android Gradle constraints
-- No impact on runtime functionality or other platforms
+Technical Architecture
 
-Fix 2 - SDK Configuration  
-- Created local.properties with sdk.dir pointing to Android SDK installation
-- Automatic detection of SDK at standard Linux location
-- Added to .gitignore for developer-specific configuration
+Script Load Order (CMS Player)
+1. Capacitor Core (Module)
+2. Mobile Electron Shim (API compatibility)
+3. Mobile Config (Configuration loader)
+4. Socket.IO CDN (v4.5.4)
+5. Mobile Socket.IO Manager (Connection manager)
+6. Mobile Socket.IO Adapter (Bridge to socketio-cpanel.js)
+7. socketio-cpanel.js (Socket.IO event handlers)
+8. Layout and slot rendering scripts
 
-Impact
+Data Flow
+App Launch > Load Config > Initialize Electron Shims > Connect Socket.IO > Load DS XML > Parse and Render > Play Media > Handle Updates
 
-- Android builds complete successfully without errors
-- APK and AAB files generate correctly
-- No changes to application runtime behavior
-- No impact on iOS builds or desktop Electron application
-- All existing build commands work as expected
-- Each developer configures their own local.properties with SDK path
+Key Features Implemented
 
-Testing
+CMS Player Features
+- Layout XML parsing and rendering
+- Media playback (video.js, HLS, FLV)
+- Content slots (text, ticker, scroller, fader, datetime, table, HTML)
+- Layout loops and scheduling
+- Offline mode with localStorage caching
+- Real-time updates via Socket.IO
+- Navigation to dashboard
 
-Verified Successfully
-- Android Studio Gradle builds
-- npm run build:android command
-- npm run sync command
-- APK generation and installation
-- Application runs normally on Android devices
+Dashboard Features
+- Remote layout switching
+- Text and media slot updates
+- System monitoring
+- Configuration management
+- Device information
+- Navigation back to player
+
+Mobile Optimizations
+- Touch-friendly navigation
+- Responsive design
+- Network resilience
+- App lifecycle management
+- Background/foreground handling
+- Offline capability
+
+Testing Status
+
+Completed
+- Build system execution
+- File generation verification
+- Socket.IO script injection
+- Navigation button injection
+- Configuration structure
+- Documentation
+
+Pending Device Testing
+- Video playback on Android
+- Layout rendering verification
+- Offline mode testing
+- Socket.IO connection testing
+- Dashboard functionality
+- End-to-end flow testing
 
 Compatibility
 
-- Full backward compatibility maintained
-- No breaking changes to mobile app functionality
-- Desktop Electron application unaffected
-- iOS builds unaffected
-- Developer setup requires local.properties configuration (documented in mobile/README.md)
+- Desktop Electron application completely unchanged
+- iOS and Android platforms supported
+- No breaking changes to existing functionality
+- Follows desktop app architecture pattern
+- Same API endpoints and server communication
 
 Files Changed
 
 Modified
-- mobile/build-mobile.js
-- mobile/.gitignore  
-- CHANGELOG.md
+- mobile/build-mobile.js (restructured file processing)
+- mobile/capacitor.config.json (entry point update)
+- mobile/README.md (architecture documentation)
+- mobile/QUICKSTART.md (migration notice)
 
-New (Not Tracked)
-- mobile/android/local.properties
+New
+- mobile/www/assets/js/mobile-electron-shim.js
+- mobile/www/assets/js/mobile-socketio-manager.js
+- mobile/www/assets/js/mobile-socketio-adapter.js
+- mobile/MIGRATION-SUMMARY.md
 
-Related to Version 2.8.0
+Generated (by build script)
+- mobile/www/index.html
+- mobile/www/dashboard.html
 
-This fix enables the mobile app feature introduced in version 2.8.0 to build successfully on Android platform.
+Statistics
 
-Notes
+- 3 new JavaScript modules (812 lines total)
+- 4 configuration and build files modified
+- 80+ lines of documentation added
+- Complete architecture restructuring
+- Fully automated build system
 
-- Each developer needs to create their own local.properties file with their Android SDK path
-- See mobile/README.md for complete Android SDK setup instructions
-- local.properties is intentionally not tracked in git as it contains machine-specific paths
+Next Steps
+
+1. Build Android APK: cd mobile && npm run build && npm run build:android
+2. Deploy to test device
+3. Verify CMS player launches correctly
+4. Test layout rendering and media playback
+5. Validate Socket.IO server connection
+6. Test navigation between player and dashboard
+7. Complete end-to-end flow testing
+
+Configuration Required
+
+Before building, update server configuration in mobile/www/assets/js/mobile-config.js:
+
+{
+  "hostserver": "https://your-ecless-server.com",
+  "masterServerAddress": "your-ecless-server.com",
+  "masterServerPort": 9000,
+  "id": "YOUR_DEVICE_ID"
+}

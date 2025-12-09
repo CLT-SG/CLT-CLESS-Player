@@ -6,16 +6,30 @@ This guide explains how to build Android and iOS mobile applications from the eC
 
 ## Architecture
 
+The mobile app provides **TWO main interfaces**:
+
+1. **CMS Player** (index.html) - The main content player that displays layouts, media, and content
+2. **Dashboard** (dashboard.html) - Remote control panel for managing the player
+
 ```
 ecless-player-electron/
 ├── src/                    # Original Electron frontend (untouched)
+│   ├── index.html          # CMS Player (source)
+│   ├── cpanel.html         # Dashboard (source)
+│   └── assets/             # Shared assets
 ├── index.js                # Electron main process (untouched)
-├── mobile/                 # NEW: Mobile app directory
+├── mobile/                 # Mobile app directory
 │   ├── www/                # Built web assets for mobile
-│   │   ├── index.html      # Main dashboard (from cpanel.html)
-│   │   ├── configure.html  # Configuration page
-│   │   ├── activate.html   # Activation page
-│   │   └── assets/         # CSS, JS, images (copied from src/)
+│   │   ├── index.html      # ✨ CMS Player (Main App - plays layouts/media)
+│   │   ├── dashboard.html  # 🎛️ Control Panel (remote management)
+│   │   ├── configure.html  # ⚙️ Configuration page
+│   │   ├── activate.html   # 🔑 Activation page
+│   │   └── assets/         # CSS, JS, images
+│   │       └── js/
+│   │           ├── mobile-electron-shim.js      # Electron API compatibility
+│   │           ├── mobile-config.js             # Configuration loader
+│   │           ├── mobile-socketio-manager.js   # Socket.IO connection manager
+│   │           └── mobile-socketio-adapter.js   # Socket.IO adapter
 │   ├── android/            # Android project (generated)
 │   ├── ios/                # iOS project (generated)
 │   ├── resources/          # App icons and splash screens
@@ -78,10 +92,15 @@ npm run build
 ```
 
 This script will:
-- Copy HTML files from `src/` to `mobile/www/`
-- Copy all assets (CSS, JS, images)
-- Remove Electron-specific code
-- Add Capacitor plugins and mobile configuration
+- Copy `src/index.html` → `mobile/www/index.html` (CMS Player)
+- Copy `src/cpanel.html` → `mobile/www/dashboard.html` (Control Panel)
+- Copy configuration and activation pages
+- Copy all assets (CSS, JS, images, excluding .gz files)
+- Remove Electron-specific code (preload.js references)
+- Inject Capacitor Core and mobile-specific scripts
+- Add Electron API shims for mobile compatibility
+- Configure Socket.IO with dynamic server connection
+- Add navigation buttons between player and dashboard
 
 ### Step 3: Add Mobile Platforms
 
@@ -132,6 +151,64 @@ From Xcode:
 - Select a simulator or connected device
 - Click "Run" or press `Cmd + R`
 - App will install and launch
+
+## Mobile App Architecture
+
+### Dual-Interface Design
+
+The mobile app provides two distinct interfaces:
+
+#### 1. **CMS Player** (`index.html`)
+- **Purpose**: Primary content display application
+- **Features**:
+  - Plays layout XML from eCLESS server
+  - Displays media (images, videos, HLS/FLV streams)
+  - Renders content slots (text, ticker, scroller, fader, datetime, tables, HTML)
+  - Handles layout loops and scheduling
+  - Offline mode with localStorage caching
+  - Real-time content updates via Socket.IO
+- **Entry Point**: App launches to this screen by default
+- **Navigation**: "Dashboard" button in top-right corner
+
+#### 2. **Dashboard** (`dashboard.html`)
+- **Purpose**: Remote control and monitoring interface
+- **Features**:
+  - View current layout and content
+  - Switch layouts remotely
+  - Update text and media slots
+  - System monitoring (CPU, memory, network)
+  - Configuration management
+  - Device information display
+- **Access**: Via "Dashboard" button from CMS Player
+- **Navigation**: "Back to Player" button returns to CMS Player
+
+### Mobile-Specific Adaptations
+
+#### Socket.IO Connection Management
+- **Dynamic Server Configuration**: Reads server address from config.json
+- **Automatic Reconnection**: Handles network changes and app lifecycle
+- **Background/Foreground Support**: Reconnects when app resumes
+- **Fallback Handling**: Graceful degradation when server unreachable
+
+#### Electron API Compatibility Layer
+The app includes a comprehensive shim (`mobile-electron-shim.js`) that provides:
+- `window.log` - Console-based logging (replaces electron-log)
+- `window.xmljs` - XML to JSON conversion (browser-based parser)
+- `window.datetime` - Date formatting utilities
+- `window.path` - Path manipulation (browser-compatible)
+- `window.os` - Operating system info (mobile-adapted)
+- `window.fs` - File system stubs (localStorage fallback)
+- `window.dns` - DNS lookup stubs
+- `window.isReachable` - Network reachability checks (fetch-based)
+- `window.ipcRenderer` - IPC events (browser event system)
+- `window.remote` - Remote module (app lifecycle methods)
+
+#### Configuration Management
+- **Storage**: Uses Capacitor Filesystem API or localStorage
+- **Location**: `Documents/ecless/config.json` on device
+- **Format**: JSON with same structure as Electron version
+- **Auto-loading**: Config loaded before app initialization
+- **Hot Reload**: Configuration changes dispatch update events
 
 ## Build Commands Reference
 

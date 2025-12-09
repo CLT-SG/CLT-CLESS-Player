@@ -2,6 +2,23 @@
 
 Get the eCLESS Player running on Android/iOS in 5 minutes.
 
+## 🎯 Important: Architecture Change
+
+The mobile app has been **restructured** to properly implement the CMS player:
+
+### Before (Incorrect ❌)
+- `index.html` was the dashboard (cpanel.html)
+
+### After (Correct ✅)
+- `index.html` = **CMS Player** (plays layouts/media) ← App starts here
+- `dashboard.html` = Dashboard (remote control) ← Accessible via button
+
+**Navigation**: 
+- CMS Player has "Dashboard" button (top-right)
+- Dashboard has "Back to Player" button (top-left)
+
+See [MIGRATION-SUMMARY.md](./MIGRATION-SUMMARY.md) for complete details.
+
 ## Prerequisites
 
 - Node.js 16+

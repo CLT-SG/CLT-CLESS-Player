@@ -4,12 +4,14 @@
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
+    "url": "index.html",
     "androidScheme": "https",
     "iosScheme": "https",
     "hostname": "app.ecless.local",
     "allowNavigation": [
       "*"
-    ]
+    ],
+    "cleartext": true
   },
   "android": {
     "buildOptions": {

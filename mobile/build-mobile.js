@@ -59,9 +59,13 @@ if (fs.existsSync(srcAssetsDir)) {
 
 // Files to process
 const files = [
-    { src: 'cpanel.html', dest: 'index.html', isMain: true },
-    { src: 'configure.html', dest: 'configure.html', isMain: false },
-    { src: 'activate.html', dest: 'activate.html', isMain: false }
+    // Main CMS Player - this is the primary app that plays layouts/media
+    { src: 'index.html', dest: 'index.html', isMain: true, isCMSPlayer: true },
+    // Dashboard/Control Panel - for remote control (optional, accessible via navigation)
+    { src: 'cpanel.html', dest: 'dashboard.html', isMain: false, isCMSPlayer: false },
+    // Configuration and activation pages
+    { src: 'configure.html', dest: 'configure.html', isMain: false, isCMSPlayer: false },
+    { src: 'activate.html', dest: 'activate.html', isMain: false, isCMSPlayer: false }
 ];
 
 console.log('\n📝 Processing HTML files...');
@@ -89,7 +93,10 @@ files.forEach(file => {
     <!-- Capacitor Core -->
     <script type="module" src="assets/js/capacitor-core.js"></script>
     
-    <!-- Mobile Configuration -->
+    <!-- Electron API Shim for Mobile -->
+    <script src="assets/js/mobile-electron-shim.js"></script>
+    
+    <!-- Mobile Configuration ${file.isCMSPlayer ? '(CMS Player Mode)' : '(Dashboard Mode)'} -->
     <script src="assets/js/mobile-config.js"></script>
     
     <!-- Viewport meta for mobile -->
@@ -101,6 +108,68 @@ files.forEach(file => {
     
     content = content.replace(/<head>/i, '<head>' + capacitorScripts);
     
+    // CMS Player specific adaptations
+    if (file.isCMSPlayer) {
+        // Remove hardcoded Socket.IO script and replace with dynamic loader
+        content = content.replace(
+            /<script[^>]*src=["']https:\/\/localhost:9000\/socket\.io\/socket\.io\.js["'][^>]*><\/script>/gi,
+            '<!-- Socket.IO will be loaded dynamically by mobile-socketio-manager.js -->'
+        );
+        
+        // Add Socket.IO CDN and mobile manager before socketio-cpanel.js
+        const socketIoScripts = `
+    <!-- Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Mobile Socket.IO Connection Manager -->
+    <script src="assets/js/mobile-socketio-manager.js"></script>
+    
+    <!-- Mobile Socket.IO Adapter (bridges socketio-cpanel.js with mobile socket manager) -->
+    <script src="assets/js/mobile-socketio-adapter.js"></script>
+`;
+        
+        // Insert Socket.IO scripts before socketio-cpanel.js
+        content = content.replace(
+            /<script[^>]*src=["']assets\/js\/socketio-cpanel\.js["'][^>]*><\/script>/i,
+            socketIoScripts + '\n  <script src="assets/js/socketio-cpanel.js"></script>'
+        );
+        
+        // Add navigation button to dashboard
+        const navigationButton = `
+    <!-- Mobile Navigation -->
+    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000;">
+        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+            <i class="bi bi-gear"></i> Dashboard
+        </button>
+    </div>
+`;
+        content = content.replace(/<body>/i, '<body>' + navigationButton);
+    }
+    
+    // Dashboard specific adaptations
+    if (!file.isCMSPlayer && file.src === 'cpanel.html') {
+        // Replace Socket.IO script with CDN version
+        content = content.replace(
+            /<script[^>]*src=["']\/socket\.io\/socket\.io\.js["'][^>]*><\/script>/gi,
+            `<!-- Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Mobile Socket.IO Connection Manager -->
+    <script src="assets/js/mobile-socketio-manager.js"></script>`
+        );
+        
+        // Add back button to CMS player
+        const backButton = `
+    <!-- Mobile Navigation -->
+    <div id="mobile-nav-back" style="position: fixed; top: 10px; left: 10px; z-index: 10000;">
+        <button onclick="window.location.href='index.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+            <i class="bi bi-arrow-left"></i> Back to Player
+        </button>
+    </div>
+`;
+        content = content.replace(/<body>/i, '<body>' + backButton);
+    }
+    
     // Remove Electron IPC references in inline scripts
     content = content.replace(/window\.ipcRenderer/g, 'window.mobileAPI.ipc');
     content = content.replace(/window\.remote/g, 'window.mobileAPI.remote');
@@ -108,15 +177,21 @@ files.forEach(file => {
     
     // Write mobile version
     fs.writeFileSync(destPath, content, 'utf8');
-    console.log(`✓ Processed ${file.src} → ${file.dest}`);
+    console.log(`✓ Processed ${file.src} → ${file.dest}${file.isCMSPlayer ? ' (CMS Player)' : ''}`);
 });
 
 console.log('\n✅ Mobile build completed successfully!');
-console.log('\n📱 Next steps:');
+console.log('\n📱 Mobile App Structure:');
+console.log('   - index.html      → CMS Player (Main App - plays layouts/media)');
+console.log('   - dashboard.html  → Control Panel (Remote management)');
+console.log('   - configure.html  → Configuration page');
+console.log('   - activate.html   → Activation page');
+console.log('\n🔧 Next steps:');
 console.log('   1. cd mobile');
 console.log('   2. npm install');
 console.log('   3. npm run add:android  (first time only)');
 console.log('   4. npm run build:android');
 console.log('\n   For iOS:');
 console.log('   3. npm run add:ios  (first time only)');
-console.log('   4. npm run build:ios\n');
+console.log('   4. npm run build:ios');
+console.log('\n💡 Note: Update Socket.IO server address in mobile/www/index.html before building!\n');
