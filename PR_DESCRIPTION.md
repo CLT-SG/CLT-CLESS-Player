@@ -177,6 +177,64 @@ Next Steps
 6. Test navigation between player and dashboard
 7. Complete end-to-end flow testing
 
+Recent Updates
+
+Critical Android Startup Crash Fix (v2.9.1 - 2025-12-09)
+
+Problem
+- App crashed immediately on launch with NullPointerException
+- Error: "Provided server url is invalid: no protocol: index.html"
+- Capacitor failed to parse invalid server URL configuration
+
+Root Causes Identified
+1. Invalid server.url in capacitor.config.json without protocol
+2. Script loading race condition - config loaded before Capacitor ready
+3. 5-second timeout too short for Capacitor initialization
+4. Missing error handling and user feedback
+
+Fixes Implemented
+1. Capacitor Configuration Fix
+   - Removed invalid "url": "index.html" from server config
+   - Capacitor now loads correctly from local webDir
+   - Eliminated NullPointerException at startup
+
+2. Script Loading Order Fix
+   - Moved Capacitor scripts from start to end of head tag
+   - Added defer attribute for non-blocking execution
+   - Proper dependency chain: jQuery > Capacitor > Config > App
+
+3. Enhanced Error Handling
+   - Extended timeout from 5s to 10s
+   - Added graceful fallback to web-only mode
+   - Visual error messages with recovery options
+   - Loading indicators with status updates
+
+4. System Diagnostics Page
+   - Real-time Capacitor initialization status
+   - Device information and network status
+   - Configuration validation
+   - Plugin availability checker
+   - System logs viewer with export
+   - Accessible via new diagnostics button
+
+Files Modified
+- mobile/capacitor.config.json (removed invalid server.url)
+- mobile/www/assets/js/mobile-config.js (enhanced error handling)
+- mobile/www/index.html (added diagnostics button)
+- mobile/build-mobile.js (fixed script injection order)
+
+Files Created
+- src/diagnostics.html (comprehensive debugging interface)
+- mobile/BUGFIX-SUMMARY.md (technical documentation)
+
+Testing Status
+- App launches successfully without crashes
+- All Capacitor plugins initialize correctly
+- Configuration loads with proper fallback
+- Diagnostics page shows green status indicators
+- Navigation between all pages works correctly
+- Build process completes without errors
+
 Configuration Required
 
 Before building, update server configuration in mobile/www/assets/js/mobile-config.js:

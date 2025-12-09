@@ -5,8 +5,9 @@ www/index.html
 www/configure.html
 www/activate.html
 www/dashboard.html
+www/diagnostics.html
 www/assets/
-
+www2/
 # Android
 android/
 .gradle/

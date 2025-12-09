@@ -65,7 +65,9 @@ const files = [
     { src: 'cpanel.html', dest: 'dashboard.html', isMain: false, isCMSPlayer: false },
     // Configuration and activation pages
     { src: 'configure.html', dest: 'configure.html', isMain: false, isCMSPlayer: false },
-    { src: 'activate.html', dest: 'activate.html', isMain: false, isCMSPlayer: false }
+    { src: 'activate.html', dest: 'activate.html', isMain: false, isCMSPlayer: false },
+    // System diagnostics page for debugging
+    { src: 'diagnostics.html', dest: 'diagnostics.html', isMain: false, isCMSPlayer: false }
 ];
 
 console.log('\n📝 Processing HTML files...');
@@ -88,25 +90,28 @@ files.forEach(file => {
     content = content.replace(/<script[^>]*src=["'].*?config-loader\.js["'][^>]*><\/script>/gi, '');
     content = content.replace(/<script[^>]*src=["'].*?config-loader-browser\.js["'][^>]*><\/script>/gi, '');
     
-    // Add Capacitor scripts and mobile config at the start of <head>
-    const capacitorScripts = `
-    <!-- Capacitor Core -->
-    <script type="module" src="assets/js/capacitor-core.js"></script>
-    
-    <!-- Electron API Shim for Mobile -->
-    <script src="assets/js/mobile-electron-shim.js"></script>
-    
-    <!-- Mobile Configuration ${file.isCMSPlayer ? '(CMS Player Mode)' : '(Dashboard Mode)'} -->
-    <script src="assets/js/mobile-config.js"></script>
-    
-    <!-- Viewport meta for mobile -->
+    // Add viewport meta at the START of <head> for proper mobile rendering
+    const viewportMeta = `
+    <!-- Viewport meta for mobile (MUST come first) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 `;
     
-    content = content.replace(/<head>/i, '<head>' + capacitorScripts);
+    content = content.replace(/<head>/i, '<head>' + viewportMeta);
+    
+    // Add Capacitor scripts and mobile config at the END of <head>, just before </head>
+    // This ensures all dependencies (jQuery, etc.) are loaded first
+    const capacitorScripts = `
+  
+  <!-- Capacitor Mobile Initialization (MUST load last in head, before body) -->
+  <script type="module" src="assets/js/capacitor-core.js"></script>
+  <script src="assets/js/mobile-electron-shim.js" defer></script>
+  <script src="assets/js/mobile-config.js" defer></script>
+`;
+    
+    content = content.replace(/<\/head>/i, capacitorScripts + '</head>');
     
     // CMS Player specific adaptations
     if (file.isCMSPlayer) {
@@ -134,12 +139,15 @@ files.forEach(file => {
             socketIoScripts + '\n  <script src="assets/js/socketio-cpanel.js"></script>'
         );
         
-        // Add navigation button to dashboard
+        // Add navigation buttons to dashboard and diagnostics
         const navigationButton = `
     <!-- Mobile Navigation -->
-    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000;">
+    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 5px;">
         <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-            <i class="bi bi-gear"></i> Dashboard
+            ⚙️ Dashboard
+        </button>
+        <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);" title="System Diagnostics">
+            🔍
         </button>
     </div>
 `;
