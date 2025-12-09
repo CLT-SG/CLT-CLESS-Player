@@ -48,6 +48,20 @@ Key Changes
 4. Configuration Loading Improvements (looplayout.js, index.html)
    - Added null checks before accessing config.hostserver
    - Implemented safe fallback for undefined config values
+
+5. CORS Policy Bypass Implementation (mobile-http.js, capacitor-core.js)
+   - Integrated CapacitorHttp from @capacitor/core for native HTTP requests
+   - Updated mobile-http.js to use window.Capacitor.Plugins.CapacitorHttp
+   - Enhanced native platform detection with multiple fallback checks
+   - Added comprehensive logging for HTTP request debugging
+   - Fixed XML and JSON response parsing for native requests
+
+6. Android Network Configuration (AndroidManifest.xml, network_security_config.xml)
+   - Added usesCleartextTraffic="true" to application tag
+   - Created network security config allowing cleartext traffic
+   - Configured domain permissions for eCLESS servers
+   - Added support for HTTP and HTTPS endpoints
+   - Enabled localhost and private network access
    - Enhanced event-driven initialization with configLoaded listener
    - Fixed race condition in config access timing
 

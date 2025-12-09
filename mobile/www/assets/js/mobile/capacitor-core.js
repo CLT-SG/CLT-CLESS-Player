@@ -9,7 +9,7 @@
  */
 
 // Import Capacitor Core and Plugins
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
 import { App } from '@capacitor/app';
 import { Device } from '@capacitor/device';
 import { Network } from '@capacitor/network';
@@ -35,7 +35,8 @@ class CapacitorAPI {
             Filesystem,
             Preferences,
             StatusBar,
-            SplashScreen
+            SplashScreen,
+            CapacitorHttp
         };
         
         console.log(`eCLESS Mobile: Running on ${this.platform} (native: ${this.isNative})`);

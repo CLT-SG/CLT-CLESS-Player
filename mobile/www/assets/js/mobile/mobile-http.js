@@ -16,8 +16,13 @@ console.log('=== MOBILE HTTP: Initializing ===');
  */
 class MobileHTTP {
     constructor() {
-        this.isNative = window.capacitorAPI && window.capacitorAPI.isNative;
+        // Check multiple sources for native platform detection
+        this.isNative = (window.capacitorAPI && window.capacitorAPI.isNative) || 
+                       (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        
         console.log('MobileHTTP: Running in', this.isNative ? 'native' : 'web', 'mode');
+        console.log('MobileHTTP: capacitorAPI.isNative =', window.capacitorAPI?.isNative);
+        console.log('MobileHTTP: Capacitor.isNativePlatform() =', window.Capacitor?.isNativePlatform?.());
     }
 
     /**
@@ -49,27 +54,37 @@ class MobileHTTP {
             if (this.isNative && window.Capacitor && window.Capacitor.Plugins) {
                 console.log('MobileHTTP: Using native Capacitor HTTP');
                 
-                const { Http } = window.Capacitor.Plugins;
+                const { CapacitorHttp } = window.Capacitor.Plugins;
                 
-                if (Http) {
-                    const response = await Http.request({
+                if (CapacitorHttp) {
+                    console.log('MobileHTTP: CapacitorHttp plugin found, making native request...');
+                    
+                    const response = await CapacitorHttp.request({
                         url: url,
                         method: 'GET',
                         headers: headers,
                         connectTimeout: timeout,
-                        readTimeout: timeout,
-                        responseType: dataType === 'json' ? 'json' : 'text'
+                        readTimeout: timeout
                     });
 
-                    console.log('MobileHTTP: Native request successful');
+                    console.log('MobileHTTP: Native request successful, status:', response.status);
                     
                     // Parse XML if needed
                     if (dataType === 'xml' && response.data) {
                         const parser = new DOMParser();
-                        return parser.parseFromString(response.data, 'text/xml');
+                        // response.data is already a string for text responses
+                        const xmlString = typeof response.data === 'string' ? response.data : response.data;
+                        return parser.parseFromString(xmlString, 'text/xml');
+                    }
+                    
+                    // Parse JSON if needed
+                    if (dataType === 'json' && typeof response.data === 'string') {
+                        return JSON.parse(response.data);
                     }
                     
                     return response.data;
+                } else {
+                    console.warn('MobileHTTP: CapacitorHttp plugin not found, falling back to fetch');
                 }
             }
 

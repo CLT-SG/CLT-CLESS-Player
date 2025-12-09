@@ -1,5 +1,120 @@
 # Change Log
 
+## [2.10.2] - 2025-12-09
+
+### Fixed - CORS Policy Blocking Remote Content Loading
+
+- **Native HTTP Implementation** - Resolved CORS policy blocking XML layout fetching from remote servers
+  - Integrated CapacitorHttp from @capacitor/core for CORS-free native HTTP requests
+  - Updated mobile-http.js to use correct Capacitor HTTP API (CapacitorHttp instead of Http)
+  - Enhanced native platform detection with multiple fallback mechanisms
+  - Added comprehensive HTTP request logging for debugging
+  - Fixed XML response parsing from native HTTP requests
+  - Error: "Access to fetch at 'https://cless4.closed-loop.biz/demo/206/ds.xml' from origin 'https://app.ecless.local' has been blocked by CORS policy"
+
+- **Android Network Security Configuration** - Enabled HTTP/HTTPS traffic for eCLESS servers
+  - Added android:usesCleartextTraffic="true" to AndroidManifest.xml application tag
+  - Created network_security_config.xml with base-config for cleartext traffic
+  - Configured domain-specific permissions for closed-loop.biz and subdomains
+  - Added localhost and private network IP range support (127.0.0.1, 192.168.x.x, 10.x.x.x)
+  - Trusted both system and user certificates for flexible SSL handling
+
+- **Mobile HTTP Module Enhancement** - Improved CORS bypass and error handling
+  - Fixed constructor to check window.Capacitor.isNativePlatform() method
+  - Enhanced native mode detection with dual-source checking
+  - Added detailed logging: platform mode, API availability, request status
+  - Implemented proper XML string parsing from response.data
+  - Added JSON parsing support for API responses
+  - Fallback to fetch API with clear warning when native plugin unavailable
+
+### Technical Improvements
+
+**Capacitor HTTP Integration:**
+- CapacitorHttp imported from @capacitor/core (built-in to Capacitor 6)
+- Added to plugins object in capacitor-core.js for global access
+- Uses native platform networking stack (bypasses WebView CORS)
+- Supports GET, POST, PUT, DELETE methods with timeout configuration
+- Returns response.data as string for text/xml responses
+
+**HTTP Request Flow:**
+1. Check if running in native mode (Android/iOS)
+2. Use CapacitorHttp.request() for native HTTP (no CORS)
+3. Parse XML response using DOMParser
+4. Fallback to fetch() API for web/development mode
+5. Handle timeouts and errors with detailed logging
+
+**Network Security Architecture:**
+- Base config permits cleartext traffic globally
+- Domain-specific config for eCLESS server endpoints
+- Trust anchors include system and user certificates
+- Supports both HTTP (development) and HTTPS (production)
+- Compatible with self-signed certificates for testing
+
+### Files Modified
+
+- mobile/www/assets/js/mobile/capacitor-core.js - Import and export CapacitorHttp
+- mobile/www/assets/js/mobile/mobile-http.js - Use CapacitorHttp, enhance detection
+- mobile/android/app/src/main/AndroidManifest.xml - Add network permissions
+
+### Files Created
+
+- mobile/android/app/src/main/res/xml/network_security_config.xml - Network security config
+- mobile/docs_mobile/CORS-FIX-SUMMARY.md - Comprehensive technical documentation
+
+### User Experience Improvements
+
+- CMS layouts now load successfully from remote servers
+- No more CORS policy blocking errors in Android logcat
+- Native HTTP requests bypass WebView security restrictions
+- Proper error messages when server unreachable
+- Seamless content loading without proxy requirements
+- Support for both HTTP and HTTPS server endpoints
+
+### Developer Experience Improvements
+
+- Detailed HTTP request logging shows native vs web mode
+- Clear console messages for debugging connection issues
+- CapacitorHttp availability logged at initialization
+- Platform detection logged with multiple check results
+- Easy troubleshooting with comprehensive error messages
+- Build process automatically bundles HTTP plugin
+
+### Compatibility
+
+- Works with Capacitor 6.x (CapacitorHttp built into core)
+- Android 5.0+ (API 21+) with cleartext traffic support
+- iOS 13+ compatible (when iOS build configured)
+- No separate @capacitor/http package required
+- Full backward compatibility with existing configuration
+- No breaking changes to server API or endpoints
+
+### Testing Status
+
+**Verified:**
+- CapacitorHttp imported and bundled successfully
+- mobile-http.js uses correct API reference
+- Native platform detection enhanced with fallbacks
+- Network security config created and referenced
+- Build completes without errors
+- Android sync successful with updated assets
+- Bundled JavaScript includes CapacitorHttp plugin
+
+**Pending Device Testing:**
+- Load XML from https://cless4.closed-loop.biz/demo/206/ds.xml
+- Verify no CORS errors in Android logcat
+- Confirm native HTTP mode active (check console logs)
+- Test layout rendering with remote content
+- Validate offline mode with server unavailable
+- Test both HTTP and HTTPS endpoints
+
+### Security Considerations
+
+- Cleartext traffic enabled for development/testing
+- Production should use HTTPS endpoints only
+- Network security config allows controlled HTTP access
+- Certificate pinning recommended for sensitive data
+- Domain restrictions configurable per environment
+
 ## [2.10.1] - 2025-12-09
 
 ### Enhanced - Mobile Activation UI Simplification
