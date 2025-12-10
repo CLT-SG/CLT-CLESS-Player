@@ -20,6 +20,42 @@
 console.log('=== MOBILE ELECTRON SHIM: Initializing API compatibility layer ===');
 
 /**
+ * Utility: Safe object stringification with circular reference handling
+ * @param {*} obj - Object to stringify
+ * @param {number} indent - Indentation level (default: 2)
+ * @returns {string} - Stringified object
+ */
+window.safeStringify = function(obj, indent = 2) {
+    const seen = new WeakSet();
+    try {
+        return JSON.stringify(obj, (key, value) => {
+            // Handle circular references
+            if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                    return '[Circular Reference]';
+                }
+                seen.add(value);
+            }
+            // Handle functions
+            if (typeof value === 'function') {
+                return `[Function: ${value.name || 'anonymous'}]`;
+            }
+            // Handle undefined
+            if (value === undefined) {
+                return '[undefined]';
+            }
+            // Handle DOM elements
+            if (value instanceof Element) {
+                return `[Element: ${value.tagName}${value.id ? '#' + value.id : ''}]`;
+            }
+            return value;
+        }, indent);
+    } catch (error) {
+        return `[Object: ${Object.prototype.toString.call(obj)}] - Error: ${error.message}`;
+    }
+};
+
+/**
  * Electron-log compatible logging API
  * Uses console with proper formatting for mobile
  */

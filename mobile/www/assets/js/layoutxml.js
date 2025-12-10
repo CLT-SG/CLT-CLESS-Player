@@ -276,41 +276,82 @@ function getLayoutXML(result2) {
                 }
 
                 //customize text slot when available
-                textCustomFunc(slot, slotid)
+                try {
+                    textCustomFunc(slot, slotid)
+                } catch (error) {
+                    console.error('[LayoutXML] Error in textCustomFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                }
+                
                 //slot statements
                 //media slot
                 if (slot['name'] == 'media') {
-                    mediaFunc(slotitem, slotid, mediapath)
+                    try {
+                        mediaFunc(slotitem, slotid, mediapath)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in mediaFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //text slot
                 else if (slot['name'] == 'text') {
-                    textFunc(slotitem, slotid, index)
+                    try {
+                        textFunc(slotitem, slotid, index)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in textFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //ticker slot
                 else if (slot['name'] == 'ticker') {
-                    tickerFunc(slot, slotid)
+                    try {
+                        tickerFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in tickerFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //scroller slot
                 else if (slot['name'] == 'scroller') {
-                    scrollerFunc(slot, slotid)
+                    try {
+                        scrollerFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in scrollerFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //text fader slot
                 else if (slot['name'] == 'fader') {
-                    faderFunc(slot, slotid)
+                    try {
+                        faderFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in faderFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //date slot 
                 else if (slot['name'] == 'date') {
-                    dateFunc(slot, slotid)
+                    try {
+                        dateFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in dateFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //time slot 
                 else if (slot['name'] == 'time') {
-                    timeFunc(slot, slotid)
+                    try {
+                        timeFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in timeFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //html slot
                 else if (slot['name'] == 'html') {
-                    htmlFunc(slotitem, slotid)
+                    try {
+                        htmlFunc(slotitem, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in htmlFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //table slot
                 else if (slot['name'] == 'table') {
-                    if (tablefirstrun) {
-                        var tableRecordList = result2['elements']['0']['elements']['1']['elements']
-                        if (!tableRecordList[0]['elements']) {
-                            tableNorecords(slotitem, slotid, slot['attributes'])
-                            return
+                    try {
+                        if (tablefirstrun) {
+                            var tableRecordList = result2['elements']['0']['elements']['1']['elements']
+                            if (!tableRecordList[0]['elements']) {
+                                tableNorecords(slotitem, slotid, slot['attributes'])
+                                return
+                            }
+                            tableFunc(slotitem, slotid, slot['attributes'])
                         }
-                        tableFunc(slotitem, slotid, slot['attributes'])
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in table slot for slot:', slotid, 'Error:', error.message, error.stack);
                     }
                 }
 
@@ -321,14 +362,18 @@ function getLayoutXML(result2) {
             //check if table record available
             //table record
             if (index === lytslotlist.length - 1) {
-                if (result2['elements']['0']['elements']['1']) {
-                    var tableRecordList = result2['elements']['0']['elements']['1']['elements']
-                    if (tableRecordList && !tableRecordList[0]['elements']) return
-                    if (tableRecordList) {
-                        tableRecordList.forEach(function (records, tindex) {
-                            tableRecord(records['elements'], slotid, records['attributes'])
-                        })
+                try {
+                    if (result2['elements']['0']['elements']['1']) {
+                        var tableRecordList = result2['elements']['0']['elements']['1']['elements']
+                        if (tableRecordList && !tableRecordList[0]['elements']) return
+                        if (tableRecordList) {
+                            tableRecordList.forEach(function (records, tindex) {
+                                tableRecord(records['elements'], slotid, records['attributes'])
+                            })
+                        }
                     }
+                } catch (error) {
+                    console.error('[LayoutXML] Error processing table records:', error.message, error.stack);
                 }
             }
         })

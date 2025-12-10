@@ -24,14 +24,36 @@ function mediaFunc(slotitem, slotid, mediapath) {
         medialoop[slotid] = []
     }
     slotitem.forEach(function (media, mindex) {
-        // Defensive check for undefined elements
-        if (!media || !media['elements'] || !media['elements']['0'] || !media['elements']['0']['text']) {
-            console.error('[mediaFunc] Invalid media element at index', mindex, 'for slot', slotid);
+        // Enhanced defensive check for undefined elements
+        if (!media) {
+            console.error('[mediaFunc] Media element is null/undefined at index', mindex, 'for slot', slotid);
             return; // Skip this iteration
         }
         
-        var src = media['elements']['0']['text'].replace('{', '').replace('}', '')
-        var duration = media['attributes']['duration']
+        if (!media['elements']) {
+            console.error('[mediaFunc] No elements array in media element at index', mindex, 'for slot', slotid);
+            return;
+        }
+        
+        if (!media['elements']['0']) {
+            console.error('[mediaFunc] No elements[0] in media element at index', mindex, 'for slot', slotid);
+            return;
+        }
+        
+        if (!media['elements']['0']['text']) {
+            console.error('[mediaFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+            return;
+        }
+        
+        var src = media['elements']['0']['text'].replace('{', '').replace('}', '');
+        
+        // Validate duration attribute
+        if (!media['attributes'] || !media['attributes']['duration']) {
+            console.warn('[mediaFunc] Missing duration attribute at index', mindex, 'for slot', slotid, '- using default 5s');
+            var duration = 5;
+        } else {
+            var duration = media['attributes']['duration'];
+        }
         var n = src.lastIndexOf('.')
         var mediamode = src.substring(n + 1)
         var ytbe = src.split("/")

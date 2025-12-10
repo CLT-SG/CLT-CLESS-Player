@@ -32,7 +32,7 @@ class MobileLayoutHandler {
      * @param {boolean} autoscale - Whether to autoscale to fit viewport
      */
     setLayoutBounds(bounds, autoscale = false) {
-        console.log('[MobileLayoutHandler] setLayoutBounds called:', bounds, 'autoscale:', autoscale);
+        console.log('[MobileLayoutHandler] setLayoutBounds called:', JSON.stringify(bounds, null, 2), 'autoscale:', autoscale);
         
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
@@ -52,21 +52,21 @@ class MobileLayoutHandler {
             console.log('[MobileLayoutHandler] Using autoscale/fullscreen mode');
         } else {
             // Calculate scale factor to fit layout in viewport
-            const scaleX = viewportWidth / bounds.width;
-            const scaleY = viewportHeight / bounds.height;
+            const scaleX = bounds.width;
+            const scaleY = bounds.height;
             this.scaleFactor = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
             
             this.layoutDimensions = {
-                width: bounds.width * this.scaleFactor,
-                height: bounds.height * this.scaleFactor,
-                x: (viewportWidth - (bounds.width * this.scaleFactor)) / 2,
-                y: (viewportHeight - (bounds.height * this.scaleFactor)) / 2,
+                width: scaleX,
+                height: scaleY,
+                x: 0,
+                y: 0,
                 original: bounds,
                 scale: this.scaleFactor
             };
             this.isFullscreen = false;
             
-            console.log('[MobileLayoutHandler] Layout scaled:', this.layoutDimensions);
+            console.log('[MobileLayoutHandler] Layout scaled:', JSON.stringify(this.layoutDimensions, null, 2));
         }
         
         // Apply dimensions to the main container

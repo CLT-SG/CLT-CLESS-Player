@@ -59,18 +59,39 @@
               return;
           }
           
+          // Enhanced defensive check for nested elements
+          var src = '';
           if (!text['elements']) {
-              var src = ''
+              console.warn('[textFunc] No elements array in text element at index', mindex, 'for slot', slotid);
+              src = '';
+          } else if (!text['elements'][0]) {
+              console.warn('[textFunc] Empty elements array in text element at index', mindex, 'for slot', slotid);
+              src = '';
+          } else if (!text['elements'][0]['text']) {
+              console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+              src = '';
           } else {
-              var src = text['elements'][0]['text']
+              src = text['elements'][0]['text'];
           }
-          var duration = text['attributes']['duration']
+          
+          // Validate duration attribute
+          if (!text['attributes'] || !text['attributes']['duration']) {
+              console.warn('[textFunc] Missing duration attribute at index', mindex, 'for slot', slotid);
+              var duration = 5; // Default 5 seconds
+          } else {
+              var duration = text['attributes']['duration'];
+          }
+          
           var contentObj = new Object()
           contentObj.text = src
           contentObj.duration = parseInt(duration) * 1000
           textloop[slotid].push(contentObj)
           if (mindex === slotitem.length - 1) {
-              appendTextElement(textloop[slotid][0])
+              if (textloop[slotid][0]) {
+                  appendTextElement(textloop[slotid][0])
+              } else {
+                  console.error('[textFunc] No valid text content to display for slot', slotid);
+              }
           }
       })
 

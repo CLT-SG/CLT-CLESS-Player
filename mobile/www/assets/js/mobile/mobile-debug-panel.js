@@ -58,16 +58,43 @@ class MobileDebugPanel {
     }
 
     /**
+     * Safely stringify objects with circular reference handling
+     */
+    safeStringify(obj, indent = 2) {
+        const seen = new WeakSet();
+        return JSON.stringify(obj, (key, value) => {
+            // Handle circular references
+            if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                    return '[Circular Reference]';
+                }
+                seen.add(value);
+            }
+            // Handle functions
+            if (typeof value === 'function') {
+                return `[Function: ${value.name || 'anonymous'}]`;
+            }
+            // Handle undefined
+            if (value === undefined) {
+                return '[undefined]';
+            }
+            return value;
+        }, indent);
+    }
+
+    /**
      * Add log entry
      */
     addLog(type, args) {
         const timestamp = new Date().toISOString();
         const message = args.map(arg => {
-            if (typeof arg === 'object') {
+            if (typeof arg === 'object' && arg !== null) {
                 try {
-                    return JSON.stringify(arg);
+                    // Use safe stringify with pretty printing for better readability
+                    return this.safeStringify(arg, 2);
                 } catch (e) {
-                    return String(arg);
+                    // Fallback to string representation
+                    return `[Object: ${Object.prototype.toString.call(arg)}]`;
                 }
             }
             return String(arg);
