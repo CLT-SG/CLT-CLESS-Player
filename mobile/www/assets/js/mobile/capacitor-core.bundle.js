@@ -918,16 +918,18 @@ class CapacitorAPI {
     /**
      * Read file from device storage
      */
-    async readFile(path, directory = Directory.Documents) {
+    async readFile(path, directory = Directory.Data) {
         try {
+            // Use DATA directory by default for app-private storage (no permissions needed)
+            const targetDir = directory || Directory.Data;
             const result = await Filesystem.readFile({
                 path,
-                directory,
+                directory: targetDir,
                 encoding: Encoding.UTF8
             });
             return result.data;
         } catch (error) {
-            console.error(`Failed to read file ${path}:`, error);
+            console.error(`Failed to read file ${path} from ${directory}:`, error);
             throw error;
         }
     }
@@ -935,18 +937,26 @@ class CapacitorAPI {
     /**
      * Write file to device storage
      */
-    async writeFile(path, data, directory = Directory.Documents) {
+    async writeFile(path, data, directory = Directory.Data) {
         try {
+            // Use DATA directory by default for app-private storage (no permissions needed)
+            const targetDir = directory || Directory.Data;
+            
+            console.log(`Writing file to ${targetDir}: ${path}`);
+            
             await Filesystem.writeFile({
                 path,
                 data,
-                directory,
+                directory: targetDir,
                 encoding: Encoding.UTF8,
                 recursive: true
             });
+            
+            console.log(`Successfully wrote file to ${targetDir}: ${path}`);
             return true;
         } catch (error) {
-            console.error(`Failed to write file ${path}:`, error);
+            console.error(`Failed to write file ${path} to ${directory}:`, error);
+            console.error('Error details:', error.message, error.code);
             throw error;
         }
     }
@@ -954,11 +964,12 @@ class CapacitorAPI {
     /**
      * Check if file exists
      */
-    async fileExists(path, directory = Directory.Documents) {
+    async fileExists(path, directory = Directory.Data) {
         try {
+            const targetDir = directory || Directory.Data;
             await Filesystem.stat({
                 path,
-                directory
+                directory: targetDir
             });
             return true;
         } catch {
@@ -969,11 +980,12 @@ class CapacitorAPI {
     /**
      * Delete file
      */
-    async deleteFile(path, directory = Directory.Documents) {
+    async deleteFile(path, directory = Directory.Data) {
         try {
+            const targetDir = directory || Directory.Data;
             await Filesystem.deleteFile({
                 path,
-                directory
+                directory: targetDir
             });
             return true;
         } catch (error) {
@@ -985,11 +997,12 @@ class CapacitorAPI {
     /**
      * Create directory
      */
-    async createDirectory(path, directory = Directory.Documents) {
+    async createDirectory(path, directory = Directory.Data) {
         try {
+            const targetDir = directory || Directory.Data;
             await Filesystem.mkdir({
                 path,
-                directory,
+                directory: targetDir,
                 recursive: true
             });
             return true;
@@ -1002,11 +1015,12 @@ class CapacitorAPI {
     /**
      * List directory contents
      */
-    async readDirectory(path, directory = Directory.Documents) {
+    async readDirectory(path, directory = Directory.Data) {
         try {
+            const targetDir = directory || Directory.Data;
             const result = await Filesystem.readdir({
                 path,
-                directory
+                directory: targetDir
             });
             return result.files;
         } catch (error) {
@@ -1138,9 +1152,13 @@ class CapacitorAPI {
 // Initialize and expose global Capacitor API
 const capacitorAPI = new CapacitorAPI();
 
+// Add Directory enum to capacitorAPI for easy access
+capacitorAPI.Directory = Directory;
+
 // Make it globally accessible
 window.capacitor = Capacitor;
 window.capacitorAPI = capacitorAPI;
+window.CapacitorDirectory = Directory; // Also expose Directory enum globally
 
 // Mobile-specific initialization
 (async function initMobile() {
