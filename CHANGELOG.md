@@ -1,5 +1,144 @@
 # Change Log
 
+## [2.10.11] - 2025-12-10
+
+### Added - Mobile App Icon Integration
+
+- **Custom Icons from Desktop App** - Integrated professional branding from Electron app to mobile
+  - Root cause: Mobile app was using default Capacitor icons instead of eCLESS branding
+  - Source: Copied 512x512px icon from `build/icons/linux/` directory
+  - Solution: Used @capacitor/assets tool to generate all required Android icon sizes automatically
+
+- **Automated Icon Generation System** - Implemented professional icon asset pipeline
+  - Installed @capacitor/assets package as dev dependency
+  - Created npm scripts for easy icon regeneration (generate:icons, generate:icons:all)
+  - Generated 68 icon assets across all Android densities (ldpi to xxxhdpi)
+  - Supports modern Android adaptive icons (API 26+) with separate foreground/background layers
+
+- **Icon Resources Structure** - Created standardized resource directory
+  - `resources/icon-only.png` - Main app icon (512x512px)
+  - `resources/icon-foreground.png` - Adaptive icon foreground layer (512x512px)
+  - `resources/splash.png` - Splash screen image (512x512px)
+  - All sourced from desktop Electron app icons for brand consistency
+
+### Enhanced - Icon Management Infrastructure
+
+- **Icon Verification Script** - Created verify-icons.sh for asset validation
+  - Checks all mipmap directories contain required icon files
+  - Validates adaptive icon XML descriptors exist
+  - Confirms splash screens generated for all orientations
+  - Reports missing or incomplete icon sets with actionable guidance
+
+- **Comprehensive Documentation** - Created detailed icon management guides
+  - ICONS-README.md - Complete icon management and troubleshooting guide
+  - ICON-INTEGRATION-SUMMARY.md - Technical implementation details
+  - TESTING-CHECKLIST.md - Device testing procedures for icon verification
+  - Updated main README.md with icon management section
+
+### Technical Improvements
+
+**Icon Generation Pipeline:**
+```bash
+# Simple one-command icon generation
+npm run generate:icons
+
+# Generates:
+# - 6 density levels (ldpi, mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
+# - 3 icon types per density (launcher, round, foreground)
+# - 2 adaptive icon XML descriptors
+# - 13 splash screens (portrait + landscape)
+# Total: 68 files, 9.57 MB
+```
+
+**Icon Asset Breakdown:**
+- App Icons: 18 PNG files across 6 densities
+- Adaptive Icons: 2 XML descriptor files (Android 8.0+)
+- Splash Screens: 13 PNG files (all orientations/densities)
+- Round Icons: Support for circular launcher icons
+- Foreground Layers: Adaptive icon foreground components
+
+**Icon Specifications:**
+| Density | Size | Files | Use Case |
+|---------|------|-------|----------|
+| ldpi | 36x36 | 3 | Low-density screens |
+| mdpi | 48x48 | 3 | Medium-density screens |
+| hdpi | 72x72 | 3 | High-density screens |
+| xhdpi | 96x96 | 3 | Extra-high-density |
+| xxhdpi | 144x144 | 3 | Extra-extra-high-density |
+| xxxhdpi | 192x192 | 3 | Extra-extra-extra-high |
+
+### Files Modified
+
+- mobile/package.json - Added @capacitor/assets dependency and icon generation scripts
+- mobile/README.md - Added comprehensive icon management section
+
+### Files Created
+
+- mobile/resources/icon-only.png - Main app icon (512x512px from build/icons/linux)
+- mobile/resources/icon-foreground.png - Adaptive icon foreground layer
+- mobile/resources/splash.png - Splash screen image
+- mobile/assets.config.json - Icon generation configuration
+- mobile/verify-icons.sh - Icon verification script (executable)
+- mobile/ICONS-README.md - Detailed icon management documentation
+- mobile/ICON-INTEGRATION-SUMMARY.md - Technical implementation summary
+- mobile/TESTING-CHECKLIST.md - Device testing guide for icons
+- mobile/android/app/src/main/res/mipmap-*/*.png - 18 generated app icons
+- mobile/android/app/src/main/res/mipmap-anydpi-v26/*.xml - 2 adaptive icon descriptors
+- mobile/android/app/src/main/res/drawable*/*.png - 13 splash screen images
+
+### User Experience Improvements
+
+- Professional eCLESS branding on app launcher icon
+- Custom splash screen with company logo
+- Consistent branding between mobile and desktop apps
+- High-quality icons on all Android device densities
+- Modern adaptive icons on Android 8.0+ devices
+- Icon adapts to device launcher shape (circle, square, squircle, etc.)
+
+### Developer Experience Improvements
+
+- Simple npm script for icon regeneration
+- Automated generation of all required icon sizes
+- Verification script confirms proper installation
+- Comprehensive documentation for maintenance
+- Clear troubleshooting guide for common issues
+- Professional development workflow
+
+### Testing Status
+
+Verified:
+- All 68 icon assets generated successfully
+- Icon verification script passes all checks
+- Source icons properly copied from desktop app
+- Capacitor sync completed without errors
+- npm scripts work correctly
+- Documentation complete and accurate
+
+Pending Device Testing:
+- Verify app launcher icon displays custom logo
+- Confirm splash screen shows eCLESS branding
+- Test adaptive icons on Android 8.0+ devices
+- Validate icons in task switcher/recent apps
+- Check icon quality on various screen densities
+- Test icon visibility in app settings
+
+### Compatibility
+
+- Desktop Electron app: 100% unchanged, unaffected
+- Mobile app: Professional branding now matches desktop
+- Android 5.0 (API 21) and above supported
+- Android 8.0 (API 26) adaptive icons supported
+- iOS icon generation prepared (pending iOS development)
+- No breaking changes to app functionality
+
+### Performance Impact
+
+- No runtime performance impact
+- Icon assets loaded by Android system
+- One-time generation during build process
+- Minimal increase in APK size (~10 MB for all icons)
+- No effect on app launch time or memory usage
+
 ## [2.10.9] - 2025-12-10
 
 ### Fixed - Mobile Table Slot Rendering

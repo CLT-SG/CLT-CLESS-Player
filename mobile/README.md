@@ -244,6 +244,123 @@ The app includes a comprehensive shim (`mobile-electron-shim.js`) that provides:
 | `npm run open:android` | Open Android Studio |
 | `npm run open:ios` | Open Xcode |
 | `npm run clean` | Clean all generated files |
+| `npm run generate:icons` | Generate Android icons from source |
+| `npm run generate:icons:all` | Generate icons for all platforms |
+
+## App Icon and Splash Screen Management
+
+### Overview
+
+The mobile app uses the same icons as the desktop Electron app, automatically generating all required sizes for Android and iOS. Icons are sourced from `../build/icons/linux/512x512.png`.
+
+### Icon Resources
+
+Icon source files are located in `mobile/resources/`:
+- `icon-only.png` - Main app icon (512x512px)
+- `icon-foreground.png` - Adaptive icon foreground layer (512x512px)
+- `splash.png` - Splash screen image (512x512px)
+
+### Quick Start: Update Icons
+
+To update the app icon, simply run:
+
+```bash
+npm run generate:icons
+```
+
+This will automatically:
+1. Use the source icon from `resources/`
+2. Generate all Android icon sizes (ldpi, mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
+3. Create adaptive icons for Android 8.0+ devices
+4. Generate splash screens for all orientations and densities
+
+### Manual Icon Update Process
+
+If you need to change the source icon:
+
+```bash
+# 1. Copy new icon (must be 512x512px PNG)
+cp ../build/icons/linux/512x512.png resources/icon-only.png
+cp ../build/icons/linux/512x512.png resources/icon-foreground.png
+cp ../build/icons/linux/512x512.png resources/splash.png
+
+# 2. Generate all icon sizes
+npm run generate:icons
+
+# 3. Sync with Android project
+npm run sync:android
+
+# 4. Rebuild the app
+npm run build:android
+```
+
+### Verify Icon Installation
+
+Run the verification script to confirm all icons are properly installed:
+
+```bash
+./verify-icons.sh
+```
+
+Expected output:
+```
+✅ All icons verified successfully!
+  ✓ Source icons in resources/
+  ✓ Generated icons in all mipmap densities (ldpi to xxxhdpi)
+  ✓ Adaptive icon XML descriptors
+  ✓ Splash screens for all orientations
+```
+
+### Generated Icon Assets
+
+The icon generation tool automatically creates:
+
+**App Icons** (in `android/app/src/main/res/mipmap-*/`):
+- `ic_launcher.png` - Standard square launcher icons
+- `ic_launcher_round.png` - Round launcher icons
+- `ic_launcher_foreground.png` - Adaptive icon foreground layers
+- Adaptive icon XML descriptors (Android 8.0+)
+
+**Splash Screens** (in `android/app/src/main/res/drawable-*/`):
+- Portrait splash screens (all densities)
+- Landscape splash screens (all densities)
+
+### Icon Specifications
+
+| Density | Icon Size | Example Device |
+|---------|-----------|----------------|
+| ldpi | 36x36 | Low-density screens |
+| mdpi | 48x48 | Medium-density screens |
+| hdpi | 72x72 | High-density screens |
+| xhdpi | 96x96 | Extra-high-density screens |
+| xxhdpi | 144x144 | Extra-extra-high-density |
+| xxxhdpi | 192x192 | Extra-extra-extra-high-density |
+
+### Troubleshooting Icons
+
+**Icons not updating on device?**
+
+1. Clean the Android build:
+   ```bash
+   cd android && ./gradlew clean && cd ..
+   ```
+
+2. Regenerate icons:
+   ```bash
+   npm run generate:icons
+   ```
+
+3. Reinstall the app:
+   ```bash
+   npm run build:android
+   ```
+
+**Icon appears blurry?**
+- Ensure source icon is at least 512x512px
+- Use PNG format with transparent background
+- Verify icon quality with `identify resources/icon-only.png`
+
+For detailed icon management documentation, see [ICONS-README.md](./ICONS-README.md).
 
 ## Production Release
 
