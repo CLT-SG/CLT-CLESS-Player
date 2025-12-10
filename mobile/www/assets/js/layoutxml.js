@@ -99,8 +99,8 @@ function getLayoutXML(result2) {
     lyheight = lytresolution.split('_')[0].split("x").pop()
     var isTableslot = result2['elements']['0']['elements']['1']['elements']
 
-    console.log('[LayoutXML] Layout result:', JSON.stringify(result2, null, 2));
-    
+    console.log('[LayoutXML] Layout result:', JSON.stringify(result2));
+
     //custom background - CREATE #main FIRST before any dimension calculations
     $('body *').not('.no-network').remove()
     $('body').append('<div id="main"></div>')
@@ -201,14 +201,30 @@ function getLayoutXML(result2) {
     if (lytslotlist && lytslotlist.length > 0) {
         //slots
         lytslotlist.forEach(function (slot, index) {
+            // Defensive check for slot structure
+            if (!slot) {
+                console.error('[LayoutXML] Slot is null/undefined at index:', index);
+                return; // Skip this slot
+            }
+            
+            if (!slot['attributes']) {
+                console.error('[LayoutXML] Slot has no attributes at index:', index);
+                return; // Skip this slot
+            }
+            
+            if (!slot['name']) {
+                console.error('[LayoutXML] Slot has no name at index:', index);
+                return; // Skip this slot
+            }
+            
             var slotid = slot['attributes']['id']
-            var slotbgColor = slot['attributes']['bgcolor']
-            var slottop = slot['attributes']['top']
-            var slotleft = slot['attributes']['left']
-            var slotwidth = slot['attributes']['width']
-            var slotheight = slot['attributes']['height']
+            var slotbgColor = slot['attributes']['bgcolor'] || '#000000'
+            var slottop = slot['attributes']['top'] || 0
+            var slotleft = slot['attributes']['left'] || 0
+            var slotwidth = slot['attributes']['width'] || 100
+            var slotheight = slot['attributes']['height'] || 100
             var slotlayer = index
-            var slottransparent = slot['attributes']['transparent']
+            var slottransparent = slot['attributes']['transparent'] || 'N'
             var slotitem = slot['elements']
 
             //if slot name found

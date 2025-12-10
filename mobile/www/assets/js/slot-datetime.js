@@ -3,8 +3,14 @@ var dateInterval
 var timeInterval
 
 function dateFunc(slotitem, index) {
+    // Defensive check for slotitem
+    if (!slotitem || !slotitem['attributes']) {
+        console.error('[dateFunc] Invalid slotitem for slot:', index);
+        return;
+    }
+    
     const now = new Date()
-    var srcformat = slotitem['attributes']['format']
+    var srcformat = slotitem['attributes']['format'] || 'dd/mm/yyyy'
     if (srcformat == 'dd/mm/yy') {
         srcformat = datetime.format(now, 'DD/MM/YY')
     } else if (srcformat == 'dd/mm/yyyy') {
@@ -37,8 +43,14 @@ function dateFunc(slotitem, index) {
 
 //time function
 function timeFunc(slotitem, index) {
+    // Defensive check for slotitem
+    if (!slotitem || !slotitem['attributes']) {
+        console.error('[timeFunc] Invalid slotitem for slot:', index);
+        return;
+    }
+    
     const now = new Date()
-    var srcformat = slotitem['attributes']['format']
+    var srcformat = slotitem['attributes']['format'] || 'hh:nn'
     if (srcformat == 'hh:nn') {
         srcformat = datetime.format(now, 'HH:mm')
     } else if (srcformat == 'hh:nn:ss') {

@@ -50,21 +50,36 @@ async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
         }
         
         if (!media['elements']) {
-            console.error('[mediaFunc] No elements array in media element at index', mindex, 'for slot', slotid);
+            console.error('[mediaFunc] No elements property in media element at index', mindex, 'for slot', slotid);
+            console.error('[mediaFunc] Media structure:', JSON.stringify(media));
             continue;
         }
         
-        if (!media['elements']['0']) {
+        // Check if elements is empty or has no items (handle both array and object)
+        var hasElements = false;
+        if (Array.isArray(media['elements'])) {
+            hasElements = media['elements'].length > 0 && media['elements'][0];
+        } else if (typeof media['elements'] === 'object') {
+            hasElements = media['elements']['0'] !== undefined;
+        }
+        
+        if (!hasElements) {
             console.error('[mediaFunc] No elements[0] in media element at index', mindex, 'for slot', slotid);
+            console.error('[mediaFunc] Elements type:', Array.isArray(media['elements']) ? 'array' : typeof media['elements']);
+            console.error('[mediaFunc] Elements content:', JSON.stringify(media['elements']));
             continue;
         }
         
-        if (!media['elements']['0']['text']) {
+        // Get first element (support both array and object notation)
+        var firstElement = Array.isArray(media['elements']) ? media['elements'][0] : media['elements']['0'];
+        
+        if (!firstElement || !firstElement['text']) {
             console.error('[mediaFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+            console.error('[mediaFunc] First element:', JSON.stringify(firstElement));
             continue;
         }
         
-        var src = media['elements']['0']['text'].replace('{', '').replace('}', '');
+        var src = firstElement['text'].replace('{', '').replace('}', '');
         
         // Validate duration attribute
         if (!media['attributes'] || !media['attributes']['duration']) {

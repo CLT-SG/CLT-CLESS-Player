@@ -7,10 +7,20 @@ function tickerFunc(slotitem, index) {
     }
     
     var txtDirection
-    if (slotitem['elements'][0]['elements'] && slotitem['elements'][0]['elements']['0']) {
-        var src = slotitem['elements'][0]['elements']['0']['text'] || ''
-    } else {
-        var src = ''
+    var src = ''
+    
+    if (slotitem['elements'][0]['elements']) {
+        // Handle both array and object-based elements
+        var firstElement = null;
+        if (Array.isArray(slotitem['elements'][0]['elements'])) {
+            firstElement = slotitem['elements'][0]['elements'][0];
+        } else if (typeof slotitem['elements'][0]['elements'] === 'object') {
+            firstElement = slotitem['elements'][0]['elements']['0'];
+        }
+        
+        if (firstElement && firstElement['text']) {
+            src = firstElement['text'];
+        }
     }
     //TICKER SPEED
     if (slotitem['attributes']['speed'] == '5') {
@@ -65,8 +75,21 @@ function tickerFunc(slotitem, index) {
 function scrollerFunc(slotitem, index) {
     // Defensive checks
     if (!slotitem || !slotitem['elements'] || !slotitem['elements'][0] || 
-        !slotitem['elements'][0]['elements'] || !slotitem['elements'][0]['elements']['0']) {
+        !slotitem['elements'][0]['elements']) {
         console.error('[scrollerFunc] Invalid slotitem for slot', index);
+        return;
+    }
+    
+    // Handle both array and object-based elements
+    var firstElement = null;
+    if (Array.isArray(slotitem['elements'][0]['elements'])) {
+        firstElement = slotitem['elements'][0]['elements'][0];
+    } else if (typeof slotitem['elements'][0]['elements'] === 'object') {
+        firstElement = slotitem['elements'][0]['elements']['0'];
+    }
+    
+    if (!firstElement || !firstElement['text']) {
+        console.error('[scrollerFunc] No text content in slotitem for slot', index);
         return;
     }
     
@@ -82,7 +105,7 @@ function scrollerFunc(slotitem, index) {
     } else {
         var txtSpeed = 6000
     }
-    var src = slotitem['elements'][0]['elements']['0']['text']
+    var src = firstElement['text']
     if (slotitem['attributes']['direction'] == 'scrollup') {
         txtDirection = 'up'
     } else {
@@ -102,8 +125,21 @@ function scrollerFunc(slotitem, index) {
 function faderFunc(slotitem, index) {
     // Defensive checks
     if (!slotitem || !slotitem['elements'] || !slotitem['elements'][0] || 
-        !slotitem['elements'][0]['elements'] || !slotitem['elements'][0]['elements']['0']) {
+        !slotitem['elements'][0]['elements']) {
         console.error('[faderFunc] Invalid slotitem for slot', index);
+        return;
+    }
+    
+    // Handle both array and object-based elements
+    var firstElement = null;
+    if (Array.isArray(slotitem['elements'][0]['elements'])) {
+        firstElement = slotitem['elements'][0]['elements'][0];
+    } else if (typeof slotitem['elements'][0]['elements'] === 'object') {
+        firstElement = slotitem['elements'][0]['elements']['0'];
+    }
+    
+    if (!firstElement || !firstElement['text']) {
+        console.error('[faderFunc] No text content in slotitem for slot', index);
         return;
     }
     
@@ -118,7 +154,7 @@ function faderFunc(slotitem, index) {
     } else {
         var txtSpeed = 4500
     }
-    var src = slotitem['elements'][0]['elements']['0']['text']
+    var src = firstElement['text']
     var faderParent = '<div id="fader-parent-' + index + '"></div>'
     $('#slot-' + index).append(faderParent)
     var renderEl = '<div id="fader-' + index + '" class="fader-slot">' + src + '</div>'

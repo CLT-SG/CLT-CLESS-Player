@@ -47,8 +47,8 @@
       textloop[slotid] = []
       
       // Defensive check for slotitem
-      if (!slotitem || !Array.isArray(slotitem)) {
-          console.error('[textFunc] Invalid slotitem for slot', slotid);
+      if (!slotitem || !Array.isArray(slotitem) || slotitem.length === 0) {
+          console.error('[textFunc] Invalid slotitem for slot:', slotid, 'Type:', typeof slotitem);
           return;
       }
       
@@ -59,19 +59,29 @@
               return;
           }
           
-          // Enhanced defensive check for nested elements
+          // Enhanced defensive check for nested elements - handle both array and object
           var src = '';
           if (!text['elements']) {
-              console.warn('[textFunc] No elements array in text element at index', mindex, 'for slot', slotid);
-              src = '';
-          } else if (!text['elements'][0]) {
-              console.warn('[textFunc] Empty elements array in text element at index', mindex, 'for slot', slotid);
-              src = '';
-          } else if (!text['elements'][0]['text']) {
-              console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+              console.warn('[textFunc] No elements property in text element at index', mindex, 'for slot', slotid);
               src = '';
           } else {
-              src = text['elements'][0]['text'];
+              // Handle both array and object-based elements
+              var firstElement = null;
+              if (Array.isArray(text['elements'])) {
+                  firstElement = text['elements'][0];
+              } else if (typeof text['elements'] === 'object') {
+                  firstElement = text['elements']['0'];
+              }
+              
+              if (!firstElement) {
+                  console.warn('[textFunc] Empty elements in text element at index', mindex, 'for slot', slotid);
+                  src = '';
+              } else if (!firstElement['text']) {
+                  console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+                  src = '';
+              } else {
+                  src = firstElement['text'];
+              }
           }
           
           // Validate duration attribute

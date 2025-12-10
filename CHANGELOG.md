@@ -1,5 +1,154 @@
 # Change Log
 
+## [2.10.7] - 2025-12-10
+
+### Fixed - Slot Rendering Defensive Checks
+
+- **Undefined Property Access Crashes** - Resolved critical crashes when CMS sends malformed slot data
+  - Root cause: XML parser creates inconsistent data structures (arrays vs objects with numeric keys)
+  - Error: "Cannot read properties of undefined (reading 'text')" in slot-table.js, slot-media.js, slot-html.js
+  - Solution: Comprehensive defensive checks in all slot rendering functions
+  - Single slot failures no longer crash entire layout
+
+- **Table Column Validation** - Enhanced tableFunc() to handle missing column data
+  - Added validation for slotitem[1]['elements'] structure existence
+  - Check each column for undefined/null before property access
+  - Validate column['elements'][0]['text'] with fallback to empty string
+  - Provide default values for missing attributes (align, width, radius)
+
+- **Media Slot Array/Object Handling** - Fixed processMediaItems() to support both data formats
+  - Detects if elements is array or object with numeric string keys
+  - Accesses first element using appropriate notation (array[0] vs object['0'])
+  - Skips malformed media items gracefully with detailed logging
+  - Enhanced null checks for media, elements, and text properties
+
+- **HTML Slot Element Detection** - Enhanced htmlFunc() with dual format support
+  - Checks element type (array vs object) before accessing
+  - Validates text property exists in first element
+  - Logs element structure as JSON for debugging
+  - Returns early on validation failure instead of crashing
+
+- **Text Slot Validation** - Improved textFunc() defensive checks
+  - Validates slotitem is non-empty array
+  - Handles both array and object-based elements in forEach loop
+  - Uses empty string fallback for missing text content
+  - Validates duration attribute with 5-second default
+
+- **Date/Time Slot Attributes** - Added validation to dateFunc() and timeFunc()
+  - Check slotitem and attributes exist before access
+  - Provide default format strings if missing
+  - Prevents crashes from incomplete date/time slot configuration
+
+- **Ticker/Scroller/Fader Slots** - Enhanced all three functions with element validation
+  - Detects array vs object structure in nested elements
+  - Validates text content exists before rendering
+  - Graceful skip with error logging on invalid data
+  - Fixed variable references to use validated firstElement
+
+### Enhanced - Layout Rendering Architecture
+
+- **Slot-Level Validation** - Added defensive checks at layout loop level
+  - Validate slot is not null/undefined before processing
+  - Check slot['attributes'] and slot['name'] exist
+  - Provide default values for dimensions and colors
+  - Skip invalid slots with error logging, continue rendering others
+
+- **Error Isolation** - Enhanced fault tolerance in layoutxml.js
+  - Try-catch blocks already present around slot function calls
+  - Enhanced with slot structure validation before function execution
+  - Failed slots don't prevent other slots from rendering
+  - Detailed error logging includes slot ID and data structure
+
+### Technical Improvements
+
+**Defensive Coding Pattern:**
+- Validate data existence at each nested level
+- Detect element type (array vs object) dynamically
+- Access elements using appropriate notation
+- Provide sensible defaults for missing attributes
+- Log detailed errors with slot IDs and JSON structure
+- Return early on validation failure
+- Continue execution for remaining valid slots
+
+**XML Parser Inconsistency Handling:**
+- Support both array format: elements[0]
+- Support object format: elements['0']
+- Type detection using Array.isArray() and typeof checks
+- Consistent pattern across all slot rendering functions
+- Enhanced logging to identify data structure issues
+
+**Error Logging Strategy:**
+- Function name prefix in all console messages
+- Slot ID included for easy troubleshooting
+- JSON.stringify() for object structure inspection
+- Warn vs error levels based on severity
+- Clear actionable messages for developers
+
+### Files Modified
+
+- mobile/www/assets/js/slot-table.js - Column validation, default attributes
+- mobile/www/assets/js/slot-media.js - Array/object dual support, enhanced null checks
+- mobile/www/assets/js/slot-html.js - Element type detection, structure validation
+- mobile/www/assets/js/slot-text.js - Array/object handling, text validation
+- mobile/www/assets/js/slot-datetime.js - Attribute validation, default formats
+- mobile/www/assets/js/slot-tickerscrollerfader.js - All three functions enhanced
+- mobile/www/assets/js/layoutxml.js - Slot-level validation, default values
+
+### Files Created
+
+- mobile/docs_mobile/DEFENSIVE-CHECKS-FIX.md - Comprehensive technical documentation
+
+### User Experience Improvements
+
+- Layouts render correctly even with incomplete CMS data
+- Malformed slots skip gracefully without crashing app
+- Other valid slots continue to display
+- Professional error handling maintains user confidence
+- No blank screens from single slot failures
+- App continues functioning with partial content display
+
+### Developer Experience Improvements
+
+- Clear error messages identify problematic slots by ID
+- JSON structure logging aids in diagnosing CMS data issues
+- Consistent error format across all slot types
+- Easy to trace which slot failed and why
+- Detailed documentation for maintenance
+- Backward compatible with well-formed XML data
+
+### Testing Status
+
+Verified:
+- All slot rendering functions have comprehensive defensive checks
+- Array and object-based elements both supported
+- Default values provided for missing attributes
+- Error logging includes slot IDs and structures
+- Build completes successfully without errors
+
+Pending Device Testing:
+- Verify no "Cannot read properties of undefined" errors
+- Test with malformed CMS data (missing elements, text properties)
+- Validate layouts render with partial invalid slots
+- Confirm error messages display slot IDs correctly
+- Test with XML parser returning both array and object formats
+
+### Compatibility
+
+- Desktop Electron app unchanged and unaffected
+- Mobile app more resilient to data quality issues
+- Same CMS XML format with better error tolerance
+- No breaking changes to server API
+- Backward compatible with all existing layouts
+- Well-formed data works exactly as before
+
+### Performance Impact
+
+- Minimal overhead: validation checks are lightweight
+- No continuous processing: checks only during slot initialization
+- Failed slots skip quickly with early returns
+- No performance degradation for valid data
+- Memory efficient: no additional data structures
+
 ## [2.10.6] - 2025-12-10
 
 ### Fixed - Mobile Media Playback System

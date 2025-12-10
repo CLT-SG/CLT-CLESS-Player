@@ -92,15 +92,44 @@ function tableFunc(slotitem, index, slotattr) {
     $('.slot-thead-' + tableid).append('<tr class="first-row"></tr>')
 
     //head column
+    // Defensive check: Ensure slotitem[1] and its elements exist
+    if (!slotitem[1] || !slotitem[1]['elements'] || !Array.isArray(slotitem[1]['elements'])) {
+        console.error('[tableFunc] Invalid slotitem[1] structure for table:', tableid);
+        console.error('[tableFunc] slotitem[1]:', slotitem[1]);
+        return;
+    }
+    
     slotitem[1]['elements'].forEach(function (column, cindex) {
+        // Defensive check: Validate column structure
+        if (!column) {
+            console.warn('[tableFunc] Column is undefined at index:', cindex, 'for table:', tableid);
+            return; // Skip this column
+        }
+        
+        if (!column['elements'] || !column['elements'][0]) {
+            console.warn('[tableFunc] Missing elements in column at index:', cindex, 'for table:', tableid);
+            return; // Skip this column
+        }
+        
+        if (!column['elements'][0]['text']) {
+            console.warn('[tableFunc] Missing text in column elements[0] at index:', cindex, 'for table:', tableid);
+            // Use empty string as fallback
+            column['elements'][0]['text'] = '';
+        }
+        
+        if (!column['attributes']) {
+            console.warn('[tableFunc] Missing attributes in column at index:', cindex, 'for table:', tableid);
+            column['attributes'] = {}; // Default empty attributes
+        }
+        
         var columnIndex = cindex + 1
         var columnText = column['elements'][0]['text']
-        var columnAlign = column['attributes']['align']
-        var columnWidth = column['attributes']['width']
-        var cellTopRightRadius = column['attributes']['tlradius']
-        var cellTopLeftRadius = column['attributes']['trradius']
-        var cellBottomRightRadius = column['attributes']['blradius']
-        var cellBottomLeftRadius = column['attributes']['brradius']
+        var columnAlign = column['attributes']['align'] || 'c' // Default to center
+        var columnWidth = column['attributes']['width'] || 100 // Default width
+        var cellTopRightRadius = column['attributes']['tlradius'] || 0
+        var cellTopLeftRadius = column['attributes']['trradius'] || 0
+        var cellBottomRightRadius = column['attributes']['blradius'] || 0
+        var cellBottomLeftRadius = column['attributes']['brradius'] || 0
         if (columnAlign == 'c') {
             columnAlign = 'center'
         } else if (columnAlign == 'l') {
