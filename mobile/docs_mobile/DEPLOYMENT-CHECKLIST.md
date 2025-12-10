@@ -130,7 +130,7 @@ Expected logs:
 ### If Critical Issues Found
 ```bash
 # Stop deployment
-adb uninstall biz.closedloop.ecless.player
+adb uninstall sg.closedloop.ecless.player
 
 # Rollback code
 cd /home/clt-dev/app/ecless-player-electron
@@ -173,7 +173,7 @@ npm run build:android
 ### Debug Commands
 ```bash
 # View app logs
-adb logcat | grep "biz.closedloop.ecless.player"
+adb logcat | grep "sg.closedloop.ecless.player"
 
 # View Capacitor-specific logs
 adb logcat | grep "Capacitor"
@@ -182,7 +182,7 @@ adb logcat | grep "Capacitor"
 adb logcat | grep "Capacitor/Console"
 
 # Clear app data (if needed)
-adb shell pm clear biz.closedloop.ecless.player
+adb shell pm clear sg.closedloop.ecless.player
 ```
 
 ### Common Issues & Solutions

@@ -121,7 +121,7 @@ adb logcat | grep "MobileHTTP"
 adb logcat | grep "GET XML\|GET Loop XML\|XML data"
 
 # Filter for errors only
-adb logcat *:E | grep "biz.closedloop.ecless.player"
+adb logcat *:E | grep "sg.closedloop.ecless.player"
 ```
 
 ### Key Messages to Look For
@@ -221,8 +221,8 @@ Use this checklist when testing:
 ### Issue: Still seeing "string format" errors
 **Solution:** Clear app cache and reinstall
 ```bash
-adb shell pm clear biz.closedloop.ecless.player
-adb uninstall biz.closedloop.ecless.player
+adb shell pm clear sg.closedloop.ecless.player
+adb uninstall sg.closedloop.ecless.player
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 

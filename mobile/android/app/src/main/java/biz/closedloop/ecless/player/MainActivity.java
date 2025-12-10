@@ -1,4 +1,4 @@
-package biz.closedloop.ecless.player;
+package sg.closedloop.ecless.player;
 
 import com.getcapacitor.BridgeActivity;
 
