@@ -84,15 +84,20 @@ window.xmljs = {
                     obj.text = node.childNodes[0].nodeValue;
                 }
                 
-                // Handle child elements
+                // Handle child elements (only add elements array if there are actual element children)
+                const elementChildren = [];
                 if (node.childNodes.length > 0) {
-                    obj.elements = [];
                     for (let i = 0; i < node.childNodes.length; i++) {
                         const child = node.childNodes[i];
                         if (child.nodeType === 1) { // Element node
-                            obj.elements.push(xmlToJson(child));
+                            elementChildren.push(xmlToJson(child));
                         }
                     }
+                }
+                
+                // Only add elements array if there are actual element children
+                if (elementChildren.length > 0) {
+                    obj.elements = elementChildren;
                 }
                 
                 return obj;

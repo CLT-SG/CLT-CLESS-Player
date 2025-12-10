@@ -106,24 +106,25 @@ function tableFunc(slotitem, index, slotattr) {
             return; // Skip this column
         }
         
-        if (!column['elements'] || !column['elements'][0]) {
-            console.warn('[tableFunc] Missing elements in column at index:', cindex, 'for table:', tableid);
-            return; // Skip this column
-        }
-        
-        if (!column['elements'][0]['text']) {
-            console.warn('[tableFunc] Missing text in column elements[0] at index:', cindex, 'for table:', tableid);
-            // Use empty string as fallback
-            column['elements'][0]['text'] = '';
-        }
-        
         if (!column['attributes']) {
             console.warn('[tableFunc] Missing attributes in column at index:', cindex, 'for table:', tableid);
             column['attributes'] = {}; // Default empty attributes
         }
         
+        // Extract column text - handle both direct text property and nested elements[0].text
+        var columnText = '';
+        if (column['text']) {
+            // Text directly on the column item (new mobile XML parser behavior)
+            columnText = column['text'];
+        } else if (column['elements'] && column['elements'][0] && column['elements'][0]['text']) {
+            // Text nested in elements[0] (legacy behavior or different XML structure)
+            columnText = column['elements'][0]['text'];
+        } else {
+            console.warn('[tableFunc] Missing text in column at index:', cindex, 'for table:', tableid);
+            columnText = ''; // Use empty string as fallback
+        }
+        
         var columnIndex = cindex + 1
-        var columnText = column['elements'][0]['text']
         var columnAlign = column['attributes']['align'] || 'c' // Default to center
         var columnWidth = column['attributes']['width'] || 100 // Default width
         var cellTopRightRadius = column['attributes']['tlradius'] || 0

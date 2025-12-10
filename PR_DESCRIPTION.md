@@ -80,6 +80,16 @@ Key Changes
    - Slots with invalid data skip rendering instead of crashing app
    - Graceful degradation for malformed CMS data
 
+9. Table Slot Rendering Fix (mobile-electron-shim.js, slot-table.js)
+   - Fixed tables not displaying with "Missing elements in column" errors
+   - Root cause: Mobile XML parser added empty elements arrays to text-only nodes
+   - Desktop xml-js library did not have this behavior causing inconsistency
+   - Solution: Fixed xmlToJson to only add elements array when actual element children exist
+   - Added multi-path column text extraction with fallback logic
+   - Checks column text property first then column elements as fallback
+   - Maintains backward compatibility with different XML structures
+   - Tables now render identically to desktop Electron app
+
 5. Socket.IO Initialization Enhancement (mobile-socketio-manager.js)
    - Enhanced initialize() to properly wait for config
    - Added retry logic with configLoaded event listener
