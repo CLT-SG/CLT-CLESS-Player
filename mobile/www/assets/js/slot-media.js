@@ -23,26 +23,45 @@ function mediaFunc(slotitem, slotid, mediapath) {
     if (mediapath.length != 0) {
         medialoop[slotid] = []
     }
-    slotitem.forEach(function (media, mindex) {
+    
+    // Process all media items (potentially async)
+    processMediaItems(slotitem, slotid, mediapath, serverAdd);
+}
+
+/**
+ * Process media items asynchronously (supports mobile and desktop)
+ */
+async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
+    // Ensure media manager is initialized (mobile only)
+    if (window.mediaManager && !window.mediaManager.initialized) {
+        console.log('[mediaFunc] Waiting for media manager initialization...');
+        await window.mediaManager.initialize().catch(err => {
+            console.error('[mediaFunc] Media manager init failed:', err);
+        });
+    }
+    
+    for (let mindex = 0; mindex < slotitem.length; mindex++) {
+        const media = slotitem[mindex];
+        
         // Enhanced defensive check for undefined elements
         if (!media) {
             console.error('[mediaFunc] Media element is null/undefined at index', mindex, 'for slot', slotid);
-            return; // Skip this iteration
+            continue; // Skip this iteration
         }
         
         if (!media['elements']) {
             console.error('[mediaFunc] No elements array in media element at index', mindex, 'for slot', slotid);
-            return;
+            continue;
         }
         
         if (!media['elements']['0']) {
             console.error('[mediaFunc] No elements[0] in media element at index', mindex, 'for slot', slotid);
-            return;
+            continue;
         }
         
         if (!media['elements']['0']['text']) {
             console.error('[mediaFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
-            return;
+            continue;
         }
         
         var src = media['elements']['0']['text'].replace('{', '').replace('}', '');
@@ -66,23 +85,65 @@ function mediaFunc(slotitem, slotid, mediapath) {
             if (src != 'none') {
                 var mediaName = src.split('/')
                 mediaName = mediaName[1]
-                //add source to media list and isnert to cpanel
+                //add source to media list and insert to cpanel
                 mediafilenameList.push(mediaName)
-                mediaLocalPath = homedir + '/clessapp/res/' + mediaName
-                if (!fs.existsSync(mediaLocalPath)) {
-                    //using ipc to download media cause electron not allow to use axios
-                    //https://stackoverflow.com/questions/65602941/axios-error-data-pipe-is-not-a-function
-                    ipcRenderer.invoke('app-downloadmedia', {
-                        mediaURL: mediaDownloadURL,
-                        mediaPathSrc: mediaLocalPath
-                    }).then((result) => {
-                        log.info('Saved to ' + mediaLocalPath)
-                    })
+                
+                // MOBILE vs DESKTOP PATH HANDLING
+                if (window.mediaManager) {
+                    // === MOBILE MODE: Use Capacitor Filesystem ===
+                    console.log('[mediaFunc] Mobile mode: Using media manager for', mediaName);
+                    
+                    try {
+                        // Check if file exists in cache
+                        const exists = await window.mediaManager.checkMediaExists(mediaName);
+                        
+                        if (!exists) {
+                            // Download to cache
+                            console.log('[mediaFunc] Downloading media:', mediaDownloadURL);
+                            await window.mediaManager.downloadMedia(mediaDownloadURL, mediaName);
+                        } else {
+                            console.log('[mediaFunc] Media cached:', mediaName);
+                        }
+                        
+                        // Get web-accessible URI for the file
+                        mediaLocalPath = await window.mediaManager.getMediaUri(mediaName);
+                        
+                        if (!mediaLocalPath) {
+                            console.error('[mediaFunc] Failed to get media URI for:', mediaName);
+                            // Fallback to direct URL
+                            mediaLocalPath = mediaDownloadURL;
+                        }
+                        
+                    } catch (error) {
+                        console.error('[mediaFunc] Mobile media error:', error);
+                        // Fallback to direct URL (streaming from server)
+                        mediaLocalPath = mediaDownloadURL;
+                    }
+                    
+                } else if (typeof ipcRenderer !== 'undefined') {
+                    // === DESKTOP MODE: Use Electron IPC ===
+                    mediaLocalPath = homedir + '/clessapp/res/' + mediaName;
+                    if (!fs.existsSync(mediaLocalPath)) {
+                        //using ipc to download media cause electron not allow to use axios
+                        //https://stackoverflow.com/questions/65602941/axios-error-data-pipe-is-not-a-function
+                        ipcRenderer.invoke('app-downloadmedia', {
+                            mediaURL: mediaDownloadURL,
+                            mediaPathSrc: mediaLocalPath
+                        }).then((result) => {
+                            log.info('Saved to ' + mediaLocalPath)
+                        }).catch((error) => {
+                            log.error('Download failed:', error);
+                        });
+                    }
+                } else {
+                    // === FALLBACK: Direct URL (no local caching) ===
+                    console.warn('[mediaFunc] No media manager or IPC - using direct URL');
+                    mediaLocalPath = mediaDownloadURL;
                 }
             }
         }
 
-        //add source to media list and isnert to column image inside table slot
+        //add source to media list and insert to column image inside table slot
         mediasrcList.push(mediaLocalPath)
 
         if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(mediamode)) { //image format
@@ -122,13 +183,15 @@ function mediaFunc(slotitem, slotid, mediapath) {
             medialoop[slotid].push(contentObj)
         } else { //none 
         }
+        
+        // Check if this is the last media item
         if (mindex === slotitem.length - 1) {
             if (!medialoop[slotid][0]) {
                 medialoop[slotid][0] = 10
             }
             appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
         }
-    })
+    }
 }
 
 //play next media after current media has finished

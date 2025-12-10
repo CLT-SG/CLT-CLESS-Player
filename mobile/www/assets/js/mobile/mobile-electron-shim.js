@@ -259,30 +259,154 @@ window.os = {
 };
 
 /**
- * File system operations (limited, localStorage-based)
+ * File system operations (Capacitor Filesystem API wrapper)
+ * Provides Node.js fs-like API using Capacitor under the hood
  */
 window.fs = {
+    /**
+     * Synchronous existence check (returns false, use async version)
+     * @deprecated Use fs.existsAsync() instead for proper mobile support
+     */
     existsSync: (path) => {
-        console.warn('fs.existsSync stub - always returns false on mobile');
+        console.warn('fs.existsSync: Synchronous file operations not supported on mobile. Use fs.existsAsync() instead.');
         return false;
     },
     
+    /**
+     * Async existence check using Capacitor Filesystem API
+     * @param {string} path - File path to check
+     * @returns {Promise<boolean>} - True if file exists
+     */
+    existsAsync: async (path) => {
+        try {
+            if (!window.capacitorAPI || !window.capacitorAPI.fileExists) {
+                console.warn('fs.existsAsync: Capacitor API not available');
+                return false;
+            }
+            
+            return await window.capacitorAPI.fileExists(path);
+            
+        } catch (error) {
+            console.warn('fs.existsAsync: Error checking file existence:', error);
+            return false;
+        }
+    },
+    
+    /**
+     * Synchronous file read (not supported)
+     * @deprecated Use fs.readFileAsync() instead
+     */
     readFileSync: (path, encoding) => {
-        console.warn('fs.readFileSync stub - not implemented on mobile');
+        console.warn('fs.readFileSync: Synchronous file operations not supported on mobile. Use fs.readFileAsync() instead.');
         return '';
     },
     
+    /**
+     * Async file read using Capacitor Filesystem API
+     * @param {string} path - File path to read
+     * @param {string} encoding - Encoding (default: 'utf8')
+     * @returns {Promise<string>} - File contents
+     */
+    readFileAsync: async (path, encoding = 'utf8') => {
+        try {
+            if (!window.capacitorAPI || !window.capacitorAPI.readFile) {
+                throw new Error('Capacitor API not available');
+            }
+            
+            return await window.capacitorAPI.readFile(path);
+            
+        } catch (error) {
+            console.error('fs.readFileAsync: Error reading file:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Synchronous file write (not supported)
+     * @deprecated Use fs.writeFileAsync() instead
+     */
     writeFileSync: (path, data, encoding) => {
-        console.warn('fs.writeFileSync stub - not implemented on mobile');
+        console.warn('fs.writeFileSync: Synchronous file operations not supported on mobile. Use fs.writeFileAsync() instead.');
     },
     
+    /**
+     * Async file write using Capacitor Filesystem API
+     * @param {string} path - File path to write
+     * @param {string} data - Data to write
+     * @param {string} encoding - Encoding (default: 'utf8')
+     * @returns {Promise<boolean>} - True if successful
+     */
+    writeFileAsync: async (path, data, encoding = 'utf8') => {
+        try {
+            if (!window.capacitorAPI || !window.capacitorAPI.writeFile) {
+                throw new Error('Capacitor API not available');
+            }
+            
+            await window.capacitorAPI.writeFile(path, data);
+            return true;
+            
+        } catch (error) {
+            console.error('fs.writeFileAsync: Error writing file:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Synchronous directory creation (not supported)
+     * @deprecated Use fs.mkdirAsync() instead
+     */
     mkdirSync: (path, options) => {
-        console.warn('fs.mkdirSync stub - not implemented on mobile');
+        console.warn('fs.mkdirSync: Synchronous file operations not supported on mobile. Use fs.mkdirAsync() instead.');
     },
     
+    /**
+     * Async directory creation using Capacitor Filesystem API
+     * @param {string} path - Directory path to create
+     * @param {object} options - Options (recursive, etc.)
+     * @returns {Promise<boolean>} - True if successful
+     */
+    mkdirAsync: async (path, options = {}) => {
+        try {
+            if (!window.capacitorAPI || !window.capacitorAPI.createDirectory) {
+                throw new Error('Capacitor API not available');
+            }
+            
+            await window.capacitorAPI.createDirectory(path);
+            return true;
+            
+        } catch (error) {
+            console.error('fs.mkdirAsync: Error creating directory:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Synchronous directory read (not supported)
+     * @deprecated Use fs.readdirAsync() instead
+     */
     readdirSync: (path) => {
-        console.warn('fs.readdirSync stub - not implemented on mobile');
+        console.warn('fs.readdirSync: Synchronous file operations not supported on mobile. Use fs.readdirAsync() instead.');
         return [];
+    },
+    
+    /**
+     * Async directory read using Capacitor Filesystem API
+     * @param {string} path - Directory path to read
+     * @returns {Promise<Array>} - Array of file/directory names
+     */
+    readdirAsync: async (path) => {
+        try {
+            if (!window.capacitorAPI || !window.capacitorAPI.readDirectory) {
+                throw new Error('Capacitor API not available');
+            }
+            
+            const files = await window.capacitorAPI.readDirectory(path);
+            return files.map(f => f.name || f);
+            
+        } catch (error) {
+            console.error('fs.readdirAsync: Error reading directory:', error);
+            throw error;
+        }
     }
 };
 

@@ -99,6 +99,8 @@ function getLayoutXML(result2) {
     lyheight = lytresolution.split('_')[0].split("x").pop()
     var isTableslot = result2['elements']['0']['elements']['1']['elements']
 
+    console.log('[LayoutXML] Layout result:', JSON.stringify(result2, null, 2));
+    
     //custom background - CREATE #main FIRST before any dimension calculations
     $('body *').not('.no-network').remove()
     $('body').append('<div id="main"></div>')

@@ -61,8 +61,7 @@ class MobileLayoutHandler {
                 height: scaleY,
                 x: 0,
                 y: 0,
-                original: bounds,
-                scale: this.scaleFactor
+                original: bounds
             };
             this.isFullscreen = false;
             

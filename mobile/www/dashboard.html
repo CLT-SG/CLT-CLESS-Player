@@ -1141,10 +1141,193 @@
                     <div id="diskInfoTable" class="loading">Loading storage information...</div>
                 </div>
             </div>
+
+            <!-- Media Cache Management (Mobile Only) -->
+            <div class="row" id="mediaCacheSection" style="display: none;">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-images"></i>
+                        Media Cache Manager
+                    </h3>
+                    <div class="card-content">
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i>
+                            Cached media files are stored locally for faster playback and offline access.
+                        </div>
+                        
+                        <!-- Cache Statistics -->
+                        <div class="stats-grid mb-3">
+                            <div class="stat-item">
+                                <div class="stat-label">Cached Files</div>
+                                <div class="stat-value" id="cacheFilesCount">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Cache Size</div>
+                                <div class="stat-value" id="cacheSize">0 MB</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Cache Hits</div>
+                                <div class="stat-value" id="cacheHits">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Downloads</div>
+                                <div class="stat-value" id="downloadCount">0</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cache Actions -->
+                        <div class="btn-group mb-3" style="display: flex; gap: 10px;">
+                            <button class="modern-btn btn-secondary" onclick="refreshMediaCache()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button class="modern-btn btn-warning" onclick="clearMediaCache()">
+                                <i class="bi bi-trash"></i> Clear Cache
+                            </button>
+                        </div>
+                        
+                        <!-- Cached Files List -->
+                        <div id="cachedFilesList" class="loading">Loading cached files...</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     </div>
 </body>
+
+<!-- Mobile Media Manager -->
+<script src="assets/js/mobile/mobile-media-manager.js"></script>
+
+<!-- Media Cache Dashboard Script -->
+<script>
+    // Show media cache section only on mobile
+    if (window.mediaManager) {
+        document.getElementById('mediaCacheSection').style.display = 'block';
+        
+        // Initialize media cache display
+        setTimeout(() => {
+            refreshMediaCache();
+        }, 1000);
+    }
+    
+    // Refresh media cache statistics and file list
+    async function refreshMediaCache() {
+        try {
+            if (!window.mediaManager) {
+                console.warn('Media manager not available');
+                return;
+            }
+            
+            // Ensure media manager is initialized
+            if (!window.mediaManager.initialized) {
+                await window.mediaManager.initialize();
+            }
+            
+            // Get cache statistics
+            const stats = window.mediaManager.getStats();
+            document.getElementById('cacheFilesCount').textContent = stats.cachedFilesCount || 0;
+            document.getElementById('cacheHits').textContent = stats.cacheHits || 0;
+            document.getElementById('downloadCount').textContent = stats.totalDownloads || 0;
+            
+            // Get cache size
+            const cacheSize = await window.mediaManager.getCacheSize();
+            const cacheSizeMB = (cacheSize / (1024 * 1024)).toFixed(2);
+            document.getElementById('cacheSize').textContent = cacheSizeMB + ' MB';
+            
+            // Get cached files list
+            const files = await window.mediaManager.getCachedFiles();
+            const filesList = document.getElementById('cachedFilesList');
+            
+            if (files.length === 0) {
+                filesList.innerHTML = '<p class="text-muted">No cached files yet.</p>';
+            } else {
+                let html = '<div class="table-responsive"><table class="table table-striped table-sm">';
+                html += '<thead><tr><th>Filename</th><th>Size</th><th>Actions</th></tr></thead><tbody>';
+                
+                files.forEach(file => {
+                    const fileName = file.name || file;
+                    const fileSize = file.size ? (file.size / 1024).toFixed(2) + ' KB' : 'Unknown';
+                    
+                    html += `<tr>
+                        <td><small>${fileName}</small></td>
+                        <td><small>${fileSize}</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteMediaFile('${fileName}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+                filesList.innerHTML = html;
+            }
+            
+        } catch (error) {
+            console.error('Error refreshing media cache:', error);
+            document.getElementById('cachedFilesList').innerHTML = 
+                '<div class="alert alert-danger">Error loading cache information</div>';
+        }
+    }
+    
+    // Clear all cached media files
+    async function clearMediaCache() {
+        if (!confirm('Are you sure you want to clear all cached media files? This will delete all locally stored images and videos.')) {
+            return;
+        }
+        
+        try {
+            if (!window.mediaManager) {
+                alert('Media manager not available');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('cachedFilesList').innerHTML = '<p>Clearing cache...</p>';
+            
+            // Clear cache
+            const result = await window.mediaManager.clearCache();
+            
+            if (result) {
+                alert('Cache cleared successfully');
+                refreshMediaCache();
+            } else {
+                alert('Failed to clear cache');
+            }
+            
+        } catch (error) {
+            console.error('Error clearing cache:', error);
+            alert('Error clearing cache: ' + error.message);
+        }
+    }
+    
+    // Delete individual media file
+    async function deleteMediaFile(filename) {
+        if (!confirm(`Delete ${filename} from cache?`)) {
+            return;
+        }
+        
+        try {
+            if (!window.mediaManager) {
+                alert('Media manager not available');
+                return;
+            }
+            
+            const result = await window.mediaManager.deleteFile(filename);
+            
+            if (result) {
+                refreshMediaCache();
+            } else {
+                alert('Failed to delete file');
+            }
+            
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            alert('Error deleting file: ' + error.message);
+        }
+    }
+</script>
+
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
 <script type="text/javascript" src="assets/js/cpanel.js"></script>
 
