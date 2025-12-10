@@ -46,6 +46,45 @@
   </style>
   <link href="assets/css/video-js.min.css" rel="stylesheet" />
   
+  <!-- Mobile Layout Optimization Styles -->
+  <style>
+    /* Ensure proper mobile viewport handling */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      position: fixed;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Mobile-specific optimizations */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    /* Main container mobile optimizations */
+    #main {
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      overflow: hidden;
+    }
+    
+    /* Prevent scrolling on mobile */
+    body.mobile-player {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  
   <!-- Enhanced configuration loader (supports both config.js and config.json) -->
   
   
@@ -167,6 +206,9 @@
   <!-- Mobile Electron Shim (provides window.log, etc.) - NO DEFER -->
   <script src="assets/js/mobile/mobile-electron-shim.js"></script>
   
+  <!-- Mobile Layout Handler (dimension management for mobile) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-layout-handler.js"></script>
+  
   <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
 
@@ -210,6 +252,11 @@
     </div>
 
     <script>
+        // Apply mobile-player class to body for mobile optimizations
+        if (window.mobileAPI || window.capacitorAPI) {
+            document.body.classList.add('mobile-player');
+        }
+        
         // Auto-hide navigation system
         (function() {
             const nav = document.getElementById('mobile-nav');

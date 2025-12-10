@@ -314,7 +314,7 @@ async function layoutLoopUpdateXML() {
         if (!dsData || !dsData.documentElement) {
           log.error('get xml : invalid XML structure received', urlServer)
           location.href = 'offline.html'; // Redirect to offline.html if invalid
-          if (remote && remote.getCurrentWindow) {
+          if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().focus === 'function') {
             remote.getCurrentWindow().focus(); // Focus on the current window
           }
           reject('Invalid XML structure received');
@@ -326,7 +326,7 @@ async function layoutLoopUpdateXML() {
           log.error('get xml : CRITICAL - received string instead of XMLDocument', urlServer)
           log.error('This indicates mobile-http.js is not working correctly in looplayout')
           location.href = 'offline.html'; // Redirect to offline.html if dsData is a string
-          if (remote && remote.getCurrentWindow) {
+          if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().focus === 'function') {
             remote.getCurrentWindow().focus(); // Focus on the current window
           }
           reject('Data is in string format, redirected to offline.html'); // Reject the promise with an error message

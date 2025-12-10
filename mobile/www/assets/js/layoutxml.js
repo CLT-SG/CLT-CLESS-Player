@@ -77,7 +77,10 @@ function getLayoutXML(result2) {
     }
     //if layout cannot read go to offline page
     if (!result2) {
-        remote.getCurrentWindow().focus()
+        // Defensive check before calling remote API
+        if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().focus === 'function') {
+            remote.getCurrentWindow().focus()
+        }
         log.warn('layout xml : unable to read : ' + result2)
         location.href = 'offline.html'
     }
@@ -96,29 +99,74 @@ function getLayoutXML(result2) {
     lyheight = lytresolution.split('_')[0].split("x").pop()
     var isTableslot = result2['elements']['0']['elements']['1']['elements']
 
-    //adjust window size
-    if (lytautoscale == 'Y') {
-        remote.getCurrentWindow().setBounds({
-            y: 0,
-            x: 0,
-            width: screen.width,
-            height: screen.height
-        })
-    } else {
-        remote.getCurrentWindow().setBounds({
-            y: 0,
-            x: 0,
-            width: parseInt(lywidth),
-            height: parseInt(lyheight)
-        })
-    }
-
-    //custom background
+    //custom background - CREATE #main FIRST before any dimension calculations
     $('body *').not('.no-network').remove()
     $('body').append('<div id="main"></div>')
     $('#main').css({
         "background-color": "black",
     })
+
+    //adjust window size
+    // Check if we're on mobile or desktop
+    var isMobile = window.mobileLayoutHandler || (window.mobileAPI && window.mobileAPI.isNative);
+    
+    if (isMobile) {
+        // Mobile: Use mobile layout handler
+        console.log('[LayoutXML] Mobile detected, using mobile layout handler');
+        
+        if (window.mobileLayoutHandler) {
+            // Use the mobile layout handler for proper dimension management
+            var autoscale = (lytautoscale == 'Y');
+            window.mobileLayoutHandler.setLayoutBounds({
+                x: 0,
+                y: 0,
+                width: parseInt(lywidth),
+                height: parseInt(lyheight)
+            }, autoscale);
+        } else {
+            console.warn('[LayoutXML] mobileLayoutHandler not available, using fallback');
+            // Fallback: ensure setBounds exists before calling
+            if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().setBounds === 'function') {
+                // setBounds should now be implemented in mobile-electron-shim.js
+                if (lytautoscale == 'Y') {
+                    remote.getCurrentWindow().setBounds({
+                        y: 0,
+                        x: 0,
+                        width: screen.width,
+                        height: screen.height
+                    });
+                } else {
+                    remote.getCurrentWindow().setBounds({
+                        y: 0,
+                        x: 0,
+                        width: parseInt(lywidth),
+                        height: parseInt(lyheight)
+                    });
+                }
+            }
+        }
+    } else {
+        // Desktop Electron: Use standard setBounds
+        if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().setBounds === 'function') {
+            if (lytautoscale == 'Y') {
+                remote.getCurrentWindow().setBounds({
+                    y: 0,
+                    x: 0,
+                    width: screen.width,
+                    height: screen.height
+                });
+            } else {
+                remote.getCurrentWindow().setBounds({
+                    y: 0,
+                    x: 0,
+                    width: parseInt(lywidth),
+                    height: parseInt(lyheight)
+                });
+            }
+        }
+    }
+
+    //apply remaining background styles
     $('#main').css({
         "background-color": lytbgcolor,
         "background-repeat": "no-repeat",

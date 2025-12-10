@@ -24,6 +24,12 @@ function mediaFunc(slotitem, slotid, mediapath) {
         medialoop[slotid] = []
     }
     slotitem.forEach(function (media, mindex) {
+        // Defensive check for undefined elements
+        if (!media || !media['elements'] || !media['elements']['0'] || !media['elements']['0']['text']) {
+            console.error('[mediaFunc] Invalid media element at index', mindex, 'for slot', slotid);
+            return; // Skip this iteration
+        }
+        
         var src = media['elements']['0']['text'].replace('{', '').replace('}', '')
         var duration = media['attributes']['duration']
         var n = src.lastIndexOf('.')

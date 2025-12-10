@@ -45,7 +45,20 @@
   function textFunc(slotitem, slotid, index) {
       textCurIndex[slotid] = 1
       textloop[slotid] = []
+      
+      // Defensive check for slotitem
+      if (!slotitem || !Array.isArray(slotitem)) {
+          console.error('[textFunc] Invalid slotitem for slot', slotid);
+          return;
+      }
+      
       slotitem.forEach(function (text, mindex) {
+          // Defensive check for text element
+          if (!text) {
+              console.error('[textFunc] Invalid text element at index', mindex, 'for slot', slotid);
+              return;
+          }
+          
           if (!text['elements']) {
               var src = ''
           } else {

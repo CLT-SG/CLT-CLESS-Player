@@ -1,8 +1,14 @@
 //ticker function
 function tickerFunc(slotitem, index) {
+    // Defensive checks
+    if (!slotitem || !slotitem['elements'] || !slotitem['elements'][0]) {
+        console.error('[tickerFunc] Invalid slotitem for slot', index);
+        return;
+    }
+    
     var txtDirection
-    if (slotitem['elements'][0]['elements']) {
-        var src = slotitem['elements'][0]['elements']['0']['text']
+    if (slotitem['elements'][0]['elements'] && slotitem['elements'][0]['elements']['0']) {
+        var src = slotitem['elements'][0]['elements']['0']['text'] || ''
     } else {
         var src = ''
     }
@@ -57,6 +63,13 @@ function tickerFunc(slotitem, index) {
 
 //scroller function
 function scrollerFunc(slotitem, index) {
+    // Defensive checks
+    if (!slotitem || !slotitem['elements'] || !slotitem['elements'][0] || 
+        !slotitem['elements'][0]['elements'] || !slotitem['elements'][0]['elements']['0']) {
+        console.error('[scrollerFunc] Invalid slotitem for slot', index);
+        return;
+    }
+    
     var txtDirection
     if (slotitem['attributes']['speed'] == '5') {
         var txtSpeed = 1 * 2000
@@ -87,6 +100,13 @@ function scrollerFunc(slotitem, index) {
 
 //text fader function
 function faderFunc(slotitem, index) {
+    // Defensive checks
+    if (!slotitem || !slotitem['elements'] || !slotitem['elements'][0] || 
+        !slotitem['elements'][0]['elements'] || !slotitem['elements'][0]['elements']['0']) {
+        console.error('[faderFunc] Invalid slotitem for slot', index);
+        return;
+    }
+    
     if (slotitem['attributes']['speed'] == '5') {
         var txtSpeed = 1 * 1500
     } else if (slotitem['attributes']['speed'] == '4') {

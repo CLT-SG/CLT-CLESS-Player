@@ -370,6 +370,64 @@ window.remote = {
             },
             setFullScreen: (flag) => {
                 console.log('setFullScreen:', flag);
+            },
+            /**
+             * setBounds - Mobile-compatible implementation
+             * On mobile, we cannot resize windows like Electron desktop.
+             * Instead, we ensure the viewport is properly configured and
+             * store the intended dimensions for layout scaling purposes.
+             * 
+             * @param {Object} bounds - { x, y, width, height }
+             */
+            setBounds: (bounds) => {
+                console.log('[Mobile] setBounds called with:', bounds);
+                
+                // On mobile, we work with viewport dimensions
+                // Store the intended layout dimensions for scaling calculations
+                if (typeof bounds === 'object' && bounds !== null) {
+                    window.layoutDimensions = {
+                        width: bounds.width || window.innerWidth,
+                        height: bounds.height || window.innerHeight,
+                        x: bounds.x || 0,
+                        y: bounds.y || 0
+                    };
+                    
+                    console.log('[Mobile] Layout dimensions stored:', window.layoutDimensions);
+                    
+                    // Emit event for any listeners that need to know about dimension changes
+                    window.dispatchEvent(new CustomEvent('layout-dimensions-changed', {
+                        detail: window.layoutDimensions
+                    }));
+                    
+                    // On mobile, always use fullscreen viewport
+                    // Ensure body and html are properly sized
+                    document.documentElement.style.width = '100%';
+                    document.documentElement.style.height = '100%';
+                    document.body.style.width = '100%';
+                    document.body.style.height = '100%';
+                    document.body.style.margin = '0';
+                    document.body.style.padding = '0';
+                    document.body.style.overflow = 'hidden';
+                }
+            },
+            /**
+             * getBounds - Return current viewport bounds
+             * @returns {Object} { x, y, width, height }
+             */
+            getBounds: () => {
+                return window.layoutDimensions || {
+                    x: 0,
+                    y: 0,
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                };
+            },
+            /**
+             * center - Center window (no-op on mobile)
+             * On mobile, the viewport is always fullscreen, so centering doesn't apply
+             */
+            center: () => {
+                console.log('[Mobile] center() called - no-op on mobile (always fullscreen)');
             }
         };
     },

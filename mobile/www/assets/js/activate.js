@@ -47,12 +47,21 @@ function setupWindow() {
   try {
     if (remote && remote.getCurrentWindow) {
       const currentWindow = remote.getCurrentWindow()
-      currentWindow.setBounds({
-        width: screen.width,
-        height: screen.height
-      })
-      currentWindow.center()
-      console.log('Window maximized and centered')
+      
+      // Check if setBounds exists before calling
+      if (typeof currentWindow.setBounds === 'function') {
+        currentWindow.setBounds({
+          width: screen.width,
+          height: screen.height
+        })
+      }
+      
+      // Check if center exists before calling
+      if (typeof currentWindow.center === 'function') {
+        currentWindow.center()
+      }
+      
+      console.log('Window setup complete')
     }
   } catch (error) {
     console.warn('Could not set window bounds:', error)
@@ -507,7 +516,7 @@ async function cancel() {
   if (confirmed) {
     console.log('Activation cancelled by user')
     try {
-      if (remote && remote.getCurrentWindow) {
+      if (remote && remote.getCurrentWindow && typeof remote.getCurrentWindow().close === 'function') {
         remote.getCurrentWindow().close()
       } else {
         window.close()
