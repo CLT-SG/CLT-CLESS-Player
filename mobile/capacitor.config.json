@@ -1,5 +1,5 @@
 {
-  "appId": "sg.closedloop.ecless.player",
+  "appId": "biz.closedloop.ecless.player",
   "appName": "eCLESS Player",
   "webDir": "www",
   "server": {

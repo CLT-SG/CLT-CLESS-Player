@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "sg.closedloop.ecless.player"
+    namespace "biz.closedloop.ecless.player"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "sg.closedloop.ecless.player"
+        applicationId "biz.closedloop.ecless.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
