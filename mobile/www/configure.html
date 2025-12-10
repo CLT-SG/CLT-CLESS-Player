@@ -142,7 +142,7 @@
         // Wait for configuration to load
         window.addEventListener('configLoaded', function(event) {
             console.log('eCLESS: Configuration loaded for configure window -', event.detail.source)
-            console.log('eCLESS: Configuration data:', event.detail.config)
+            // Note: Full config not logged to prevent exposing sensitive data (serial key)
             populateForm()
         })
         
@@ -178,7 +178,7 @@
                 ? window.configLoader.getAll() 
                 : window.configLoader.config;
             
-            console.log('eCLESS: Populating form with config:', configData);
+            console.log('eCLESS: Populating form with configuration data');
             
             $('#hostserver').val(configData.hostserver || '')
             $('#dsid').val(configData.id || '')
@@ -336,7 +336,7 @@
             }
         };
         
-        console.log('eCLESS: Configuration object to save:', configToSave);
+        console.log('eCLESS: Configuration prepared for saving (serialkey masked)');
         
         try {
             // Save configuration using mobile config loader

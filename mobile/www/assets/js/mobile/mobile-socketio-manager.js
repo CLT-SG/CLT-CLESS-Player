@@ -27,6 +27,22 @@ class MobileSocketManager {
     }
 
     /**
+     * Sanitize config for logging (mask sensitive data)
+     * @private
+     */
+    _sanitizeConfig(config) {
+        if (!config) return null;
+        const sanitized = { ...config };
+        if (sanitized.serialkey) {
+            sanitized.serialkey = sanitized.serialkey.substring(0, 8) + '...[REDACTED]';
+        }
+        if (sanitized.licenseKey) {
+            sanitized.licenseKey = sanitized.licenseKey.substring(0, 8) + '...[REDACTED]';
+        }
+        return sanitized;
+    }
+
+    /**
      * Initialize the socket manager
      */
     async initialize() {
@@ -55,7 +71,9 @@ class MobileSocketManager {
         }
         
         this.config = window.config;
-        console.log('MobileSocketManager: Configuration loaded', this.config);
+        // Log config without sensitive data
+        const sanitizedConfig = this._sanitizeConfig(this.config);
+        console.log('MobileSocketManager: Configuration loaded', sanitizedConfig);
         
         // Validate config has necessary properties
         if (!this.config.hostserver && !this.config.masterServerAddress) {

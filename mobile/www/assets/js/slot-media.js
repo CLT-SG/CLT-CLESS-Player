@@ -8,6 +8,29 @@ var mediasrcList = new Array()
 var mediafilenameList = new Array()
 var videoIdIncrease = new Array()
 
+/**
+ * Sanitize media URLs for logging (truncate base64 data)
+ * @param {string} url - The media URL (may contain base64 data)
+ * @returns {string} Sanitized URL safe for logging
+ */
+function sanitizeMediaUrlForLog(url) {
+    if (!url || typeof url !== 'string') return url;
+    
+    // Check if it's a data URL with base64
+    if (url.startsWith('data:')) {
+        const parts = url.split(',');
+        if (parts.length === 2 && parts[0].includes('base64')) {
+            // Return format: data:image/png;base64,[TRUNCATED-123-chars]
+            const base64Data = parts[1];
+            const truncated = base64Data.substring(0, 40) + '...[TRUNCATED-' + base64Data.length + '-chars]';
+            return parts[0] + ',' + truncated;
+        }
+    }
+    
+    // If not base64 data URL, return as-is
+    return url;
+}
+
 function generateRandomNumber() {
     const minDigits = 7;
     const randomNumber = Math.floor(Math.random() * Math.pow(10, minDigits - 1)) + Math.pow(10, minDigits - 1);
@@ -196,7 +219,7 @@ async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
         }
 
         //add source to media list and insert to column image inside table slot
-        console.log('[mediaFunc] Media local path for', src, ':', mediaLocalPath);
+        console.log('[mediaFunc] Media local path for', src, ':', sanitizeMediaUrlForLog(mediaLocalPath));
         mediasrcList.push(mediaLocalPath)
 
         if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(mediamode)) { //image format
@@ -222,7 +245,7 @@ async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
             contentObj.mediaType = "STREAM"
             medialoop[slotid].push(contentObj)
         } else if (['mp4', 'webm', 'mkv'].includes(mediamode)) { //video mp4/webm format
-            console.log('[mediaFunc] Creating VIDEO content object - URL:', mediaLocalPath, '- Duration:', duration);
+            console.log('[mediaFunc] Creating VIDEO content object - URL:', sanitizeMediaUrlForLog(mediaLocalPath), '- Duration:', duration);
             var contentObj = new Object()
             contentObj.contentUrl = mediaLocalPath
             contentObj.contentDuration = duration
@@ -329,7 +352,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         })
     } else if (asset.mediaType == "VIDEO") { //basic video player
         console.log('[appendMediaElement] Creating VIDEO player - SlotID:', slotid, 'VideoJSID:', videojsid);
-        console.log('[appendMediaElement] Video URL:', asset.contentUrl);
+        console.log('[appendMediaElement] Video URL:', sanitizeMediaUrlForLog(asset.contentUrl));
         console.log('[appendMediaElement] Video Duration:', asset.contentDuration, 'Type:', asset.contentType);
         
         mediaEl[slotid] =

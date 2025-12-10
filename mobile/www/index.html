@@ -457,9 +457,9 @@
           console.warn('eCLESS: Serial key validation FAILED');
           console.warn(`eCLESS: Reason: ${validationResult.reason}`);
           
-          // Generate validation report for troubleshooting
+          // Generate validation report for troubleshooting (without logging sensitive data)
           const validationReport = await serialKeyValidator.getValidationReport(serialKey);
-          console.debug('eCLESS: Validation report:', validationReport);
+          console.debug('eCLESS: Validation failed - Device UUID:', validationReport.deviceIdentifier?.uuid);
           
           window.updateLoadingProgress(100, 'Invalid License', 'Redirecting to activation screen...');
           

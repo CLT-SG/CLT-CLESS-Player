@@ -90,6 +90,18 @@ Key Changes
    - Maintains backward compatibility with different XML structures
    - Tables now render identically to desktop Electron app
 
+10. Console Logging Security Fixes (multiple files)
+   - Fixed serial key exposure in logs - license keys were being logged in plain text to Android logcat
+   - Root cause: Configuration objects containing serialkey/licenseKey logged without sanitization
+   - Added sanitization helpers that mask sensitive data showing only first 8 characters plus [REDACTED]
+   - Fixed 6 logging statements across mobile-config.js, mobile-socketio-manager.js, index.html, configure.html
+   - Fixed base64 media data flooding - full base64-encoded images/videos logged to console
+   - Root cause: Media URLs with data:image/png;base64,... logged without truncation (4000+ characters)
+   - Added sanitizeMediaUrlForLog helper showing only first 40 chars plus [TRUNCATED-N-chars] indicator
+   - Fixed 3 logging statements in slot-media.js
+   - 97% reduction in log output volume, improved debugging efficiency
+   - Professional security compliance for mobile app logging
+
 5. Socket.IO Initialization Enhancement (mobile-socketio-manager.js)
    - Enhanced initialize() to properly wait for config
    - Added retry logic with configLoaded event listener

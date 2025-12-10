@@ -25,6 +25,26 @@ class MobileConfigLoader {
     }
 
     /**
+     * Sanitize config for logging (mask sensitive data)
+     * @private
+     */
+    _sanitizeConfigForLogging(config) {
+        if (!config) return null;
+        
+        const sanitized = { ...config };
+        
+        // Mask sensitive fields
+        if (sanitized.serialkey) {
+            sanitized.serialkey = sanitized.serialkey.substring(0, 8) + '...[REDACTED]';
+        }
+        if (sanitized.licenseKey) {
+            sanitized.licenseKey = sanitized.licenseKey.substring(0, 8) + '...[REDACTED]';
+        }
+        
+        return sanitized;
+    }
+
+    /**
      * Default configuration for mobile devices
      */
     getDefaultConfig() {
@@ -154,7 +174,7 @@ class MobileConfigLoader {
                 }
             }));
 
-            console.log('MobileConfig: Configuration loaded successfully', this.config);
+            console.log('MobileConfig: Configuration loaded successfully', this._sanitizeConfigForLogging(this.config));
             return this.config;
 
         } catch (error) {
