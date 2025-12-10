@@ -602,9 +602,22 @@
           var result2 = convert.xml2json(xml, {
             compact: false,
             spaces: 4,
-            trim: false
+            trim: false,
+            textKey: 'text',
+            ignoreDeclaration: false,
+            ignoreComment: true
           }) // Convert XML to JSON
           result2 = JSON.parse(result2) // Parse the JSON result
+          
+          // DEBUG: Log the parsed structure to understand data format
+          console.log('[getxml] XML conversion result:', JSON.stringify(result2).substring(0, 500));
+          if (result2 && result2.elements && result2.elements[0]) {
+            console.log('[getxml] Root element:', result2.elements[0].name);
+            if (result2.elements[0].elements && result2.elements[0].elements[0]) {
+              console.log('[getxml] Layout element:', result2.elements[0].elements[0].name);
+            }
+          }
+          
           playonlineds(result2) // Play the online data
           localStorage.setItem(dsid, JSON.stringify(result2)) // Store the data in local storage
         },
@@ -725,7 +738,11 @@
                     xmlText // Create a well-formed XML string
                   var xmlJSON = convert.xml2json(xml, {
                     compact: false,
-                    spaces: 4
+                    spaces: 4,
+                    trim: false,
+                    textKey: 'text',
+                    ignoreDeclaration: false,
+                    ignoreComment: true
                   }) // Convert XML to JSON
                   xmlJSON = JSON.parse(xmlJSON) // Parse the JSON result
                   localStorage.setItem('layout-' + layoutID, JSON.stringify(

@@ -100,6 +100,8 @@ function getLayoutXML(result2) {
     var isTableslot = result2['elements']['0']['elements']['1']['elements']
 
     console.log('[LayoutXML] Layout result:', JSON.stringify(result2));
+    console.log('[LayoutXML] Slot list length:', lytslotlist ? lytslotlist.length : 'undefined');
+    console.log('[LayoutXML] Media path:', mediapath);
 
     //custom background - CREATE #main FIRST before any dimension calculations
     $('body *').not('.no-network').remove()
@@ -304,6 +306,15 @@ function getLayoutXML(result2) {
                 //media slot
                 if (slot['name'] == 'media') {
                     try {
+                        console.log('[LayoutXML] ===== MEDIA SLOT DETECTED =====');
+                        console.log('[LayoutXML] Slot ID:', slotid);
+                        console.log('[LayoutXML] Media path:', mediapath);
+                        console.log('[LayoutXML] Slotitem length:', slotitem ? slotitem.length : 'undefined');
+                        console.log('[LayoutXML] Full slotitem:', JSON.stringify(slotitem));
+                        if (slotitem && slotitem.length > 0) {
+                            console.log('[LayoutXML] First media item attributes:', slotitem[0]['attributes'] ? Object.keys(slotitem[0]['attributes']) : 'none');
+                            console.log('[LayoutXML] First media item properties:', Object.keys(slotitem[0]));
+                        }
                         mediaFunc(slotitem, slotid, mediapath)
                     } catch (error) {
                         console.error('[LayoutXML] Error in mediaFunc for slot:', slotid, 'Error:', error.message, error.stack);
@@ -353,6 +364,12 @@ function getLayoutXML(result2) {
                 } //html slot
                 else if (slot['name'] == 'html') {
                     try {
+                        console.log('[LayoutXML] HTML slot detected - slotid:', slotid);
+                        console.log('[LayoutXML] HTML slotitem structure:', JSON.stringify(slotitem).substring(0, 500));
+                        console.log('[LayoutXML] HTML slotitem length:', slotitem ? slotitem.length : 'undefined');
+                        if (slotitem && slotitem.length > 0) {
+                            console.log('[LayoutXML] First HTML item:', JSON.stringify(slotitem[0]));
+                        }
                         htmlFunc(slotitem, slotid)
                     } catch (error) {
                         console.error('[LayoutXML] Error in htmlFunc for slot:', slotid, 'Error:', error.message, error.stack);

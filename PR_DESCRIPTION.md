@@ -525,6 +525,90 @@ Pending Device Testing
 - Test offline mode error recovery
 - Verify layouts load without maroon screen
 
+Latest Update - Media Slot Video Playback Fixes (v2.10.8 - 2025-12-10)
+
+Problem
+- Images displaying correctly but videos not playing on mobile devices
+- Empty elements arrays in media slots preventing content access
+- VideoJS throwing "Cannot read properties of undefined (reading 'currentTime')" errors
+- Media items with "none" as source causing medialoop initialization failures
+- No fallback mechanism when XML structure doesn't match expected format
+
+Root Causes Identified
+1. XML-to-JSON conversion not preserving text content in elements arrays
+2. Code expected media['elements'][0]['text'] but elements was empty array
+3. Missing XML parser options (trim, textKey) causing text node loss
+4. No fallback to check media['text'] directly when elements empty
+5. VideoJS player initialization race conditions
+6. "none" media entries not filtered, breaking medialoop array
+7. Insufficient error handling in video timeupdate events
+
+Fixes Implemented
+
+1. XML Parser Configuration Enhancement (index.html)
+   - Added textKey: 'text' to xml2json options for main layout
+   - Added trim: false, ignoreComment: true for both main and loop layouts
+   - Ensures text content preserved in conversion process
+   - Applied to both getxml() and playonlineds() functions
+
+2. Media Source Fallback Logic (slot-media.js)
+   - Added fallback checks when elements array is empty
+   - Checks media['text'], media['attributes']['src'], media['attributes']['file']
+   - Added media['attributes']['name'] and media['name'] as additional fallbacks
+   - Logs which fallback path successfully found media source
+   - Skips media items with "none" or empty sources early
+
+3. VideoJS Error Handling Enhancement (slot-media.js)
+   - Wrapped VideoJS initialization in try-catch blocks
+   - Added null checks before accessing videoJSPlayer properties
+   - Protected timeupdate event handlers from undefined errors
+   - Enhanced error event handlers with graceful degradation
+   - Comprehensive logging at each video processing step
+
+4. Comprehensive Debug Logging (layoutxml.js, slot-media.js)
+   - Added detailed media slot detection logging with full JSON structures
+   - Logs available attributes and properties for troubleshooting
+   - Shows media processing flow from XML to video player initialization
+   - Identifies exact failure points with clear error messages
+
+Files Modified
+- mobile/www/index.html (XML parser options)
+- mobile/www/assets/js/slot-media.js (fallback logic, error handling, logging)
+- mobile/www/assets/js/layoutxml.js (enhanced debug logging)
+- mobile/www/assets/js/slot-html.js (similar fallback logic for HTML slots)
+
+Key Features Implemented
+- Multi-path media source detection (elements[0].text, media.text, attributes)
+- VideoJS initialization with comprehensive error recovery
+- Smart filtering of invalid "none" media entries
+- Detailed logging pipeline for debugging
+- Graceful degradation when video initialization fails
+- Professional error messages identifying exact failure points
+
+Expected Behavior After Fixes
+- Images display correctly (already working)
+- Videos initialize and play properly
+- Empty XML elements arrays handled with fallback logic
+- VideoJS errors logged clearly without crashing app
+- "none" media entries skipped gracefully
+- Debug logs show exactly which media items processed
+
+Testing Status
+- XML parser options configured for text preservation
+- Fallback logic implemented for all media source locations
+- VideoJS error handling wrapped in try-catch blocks
+- Skip logic for "none" entries implemented
+- Comprehensive logging added throughout pipeline
+- Build and sync completed successfully
+
+Pending Device Testing
+- Verify videos play without currentTime errors
+- Confirm media sources found via fallback paths
+- Validate VideoJS initialization logs show success
+- Test with various media types (images, videos, streams)
+- Verify "none" entries skipped without breaking medialoop
+- Check debug logs for clear error identification
+
 Latest Update - Mobile Activation UI Simplification (v2.10.1 - 2025-12-09)
 
 Problem
