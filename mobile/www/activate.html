@@ -11,21 +11,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>eCLESS Player - License Activation</title>
   <link rel="stylesheet" type="text/css" href="assets/css/activate.css" />
-  <!-- Custom Dialog System for alwaysOnTop compatibility -->
-  <script src="assets/js/custom-dialog.js"></script>
-
   
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <!-- ========================================
+       CRITICAL: Mobile Initialization Order
+       ======================================== -->
+  
+  <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
   <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
   
-  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
+  <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
   <script src="assets/js/mobile/mobile-electron-shim.js"></script>
   
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <!-- 3. Mobile Config Loader (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
   
-  <!-- Mobile Serial Key Validator -->
+  <!-- 4. Mobile Serial Key Validator -->
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
+  
+  <!-- 5. Other Scripts (load AFTER mobile initialization) -->
+  <!-- Custom Dialog System for alwaysOnTop compatibility -->
+  <script src="assets/js/custom-dialog.js"></script>
 </head>
 
 <body>

@@ -85,9 +85,23 @@
     }
   </style>
   
-  <!-- Enhanced configuration loader (supports both config.js and config.json) -->
+  <!-- ========================================
+       CRITICAL: Mobile Initialization Order
+       ======================================== -->
   
+  <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
   
+  <!-- 2. Mobile Electron Shim (provides window.log, window.mobileAPI, etc.) -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- 3. Mobile Config Loader (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+  
+  <!-- 4. Mobile Layout Handler (dimension management for mobile) -->
+  <script src="assets/js/mobile/mobile-layout-handler.js"></script>
+  
+  <!-- Enhanced configuration loader initialization script -->
   <script type="text/javascript">
     try {
       // Declare variables in global scope
@@ -199,29 +213,10 @@
   <script src="assets/js/slot-table.js"></script>
   <script src="assets/js/slot-tickerscrollerfader.js"></script>
 
-  
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
-  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  
-  <!-- Mobile Electron Shim (provides window.log, etc.) - NO DEFER -->
-  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
-  
-  <!-- Mobile Layout Handler (dimension management for mobile) - NO DEFER -->
-  <script src="assets/js/mobile/mobile-layout-handler.js"></script>
-  
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
-  <script src="assets/js/mobile/mobile-config.js"></script>
-
-  <!-- Mobile Media Manager (handles local media caching and retrieval) -->
+  <!-- Additional Mobile Modules -->
   <script src="assets/js/mobile/mobile-media-manager.js"></script>
-
-  <!-- Mobile Serial Key Validator -->
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
-
-  <!-- Mobile Debug Panel -->
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
-  
-  <!-- Mobile Error Notification System -->
   <script src="assets/js/mobile/mobile-error-notification.js"></script>
 </head>
 

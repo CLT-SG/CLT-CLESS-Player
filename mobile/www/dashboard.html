@@ -11,16 +11,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>eCLESS Player Dashboard</title>
 
-    <!-- Preload critical resources -->
-    <link rel="preload" href="assets/css/bootstrap.min.css" as="style">
-    <link rel="preload" href="assets/js/jquery.min.js" as="script">
-
     <!-- CSS -->
     <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
     <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="assets/css/cpanel.css" rel="stylesheet">
 
-    <!-- JavaScript - Load require.js first -->
+    <!-- ========================================
+         CRITICAL: Mobile Initialization Order
+         ======================================== -->
+    
+    <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
+    <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+    
+    <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
+    <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+    
+    <!-- 3. Mobile Config Loader (needs window.log from shim) -->
+    <script src="assets/js/mobile/mobile-config.js"></script>
+    
+    <!-- 4. Other Scripts (load AFTER mobile initialization) -->
+    <!-- JavaScript - Load require.js -->
     <script type="text/javascript" src="assets/js/cpanel/require.min.js"></script>
     <script type="text/javascript" src="assets/js/cpanel/module.min.js"></script>
     
@@ -31,18 +41,9 @@
     <script src="assets/js/mobile/mobile-socketio-manager.js"></script>
     <script type="text/javascript" src="assets/js/jquery.min.js"></script>
     <script type="text/javascript" src="assets/js/bootstrap.min.js"></script>
+    
     <!-- Error handler for graceful degradation -->
     <script src="assets/js/cpanel/error-handler.js"></script>
-
-  
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
-  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  
-  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
-  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
-  
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
-  <script src="assets/js/mobile/mobile-config.js"></script>
 </head>
 
 <body>

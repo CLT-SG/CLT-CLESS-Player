@@ -10,22 +10,38 @@
 
     <meta charset="utf-8">
     <title>eCLESS Player</title>
+    
+    <!-- Latest compiled and minified CSS -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    
+    <!-- ========================================
+         CRITICAL: Mobile Initialization Order
+         ======================================== -->
+    
+    <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
+    <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+    
+    <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
+    <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+    
+    <!-- 3. Mobile Config Loader (needs window.log from shim) -->
+    <script src="assets/js/mobile/mobile-config.js"></script>
+    
+    <!-- 4. Other Scripts (load AFTER mobile initialization) -->
     <script>
         if (typeof module === 'object') {
             window.module = module
             module = undefined
         }
     </script>
-    <!-- Latest compiled and minified CSS -->
-    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-
+    
     <!-- Latest compiled and minified JavaScript -->
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/js/bootstrap.min.js"></script>
-    <!-- Enhanced configuration loader -->
     
     <!-- Custom Dialog System for alwaysOnTop compatibility -->
     <script src="assets/js/custom-dialog.js"></script>
+    
     <style>
         html,
         body {
@@ -58,16 +74,7 @@
             color: #fff;
         }
     </style>
-  
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
-  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  
-  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
-  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
-  
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
-  <script src="assets/js/mobile/mobile-config.js"></script>
-  
+    
     <script>
         // Declare variables in global scope
         var ipcRenderer, remote, path, os, config, win, homedir;
