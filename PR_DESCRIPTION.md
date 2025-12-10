@@ -49,6 +49,13 @@ Key Changes
    - Added null checks before accessing config.hostserver
    - Implemented safe fallback for undefined config values
 
+12. DateTime Format Fixes (slot-datetime.js)
+   - Fixed incorrect date-and-time library format tokens in both mobile and desktop versions
+   - Changed DDD to DD for proper day formatting (01-31 with leading zero)
+   - Fixed time format for 24-hour with seconds (hh:mm:ss to HH:mm:ss)
+   - Removed default fallback values that could mask configuration issues
+   - Applied fixes to both src/ (Electron) and mobile/www/ (Capacitor) versions
+
 7. XML Data Type Handling Fix (mobile-http.js, index.html, looplayout.js)
    - Fixed Capacitor HTTP returning XML as strings instead of XMLDocument objects
    - Added proper XML parsing using DOMParser in mobile-http.js get() method

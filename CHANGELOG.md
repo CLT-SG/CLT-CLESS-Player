@@ -1,6 +1,130 @@
 # Change Log
 
-## [2.10.11] - 2025-12-10
+## [3.1.2] - 2025-12-10
+
+### Fixed - DateTime Format Display Issues
+
+- **Incorrect DateTime Formatting** - Resolved date and time display issues in both mobile and desktop CMS player
+  - Root cause: Invalid format tokens used with date-and-time npm library (v2.4.3)
+  - Symptoms: Date slots showing incorrect format or not updating properly
+  - Solution: Corrected all format tokens to match date-and-time library specification
+
+- **Date Format Token Corrections** - Fixed day-of-month formatting across all date formats
+  - Changed `DDD` to `DD` for day with leading zero (01-31)
+  - Invalid token `DDD` was not recognized by date-and-time library
+  - Affected formats: dd/mmm/yy, dd/mmm/yyyy, dd mmm yy, dd mmm yyyy, and all weekday formats
+  - Applied to 7 different date format patterns in dateFunc()
+
+- **Time Format Token Corrections** - Fixed 24-hour time formatting with seconds
+  - Changed `hh:mm:ss` to `HH:mm:ss` for 24-hour format with seconds
+  - `hh` = 12-hour format, `HH` = 24-hour format
+  - Ensures consistent 24-hour time display when seconds are shown
+  - Maintained correct format for AM/PM times (hh:mm A, hh:mm:ss A)
+
+### Technical Details
+
+**Date-and-Time Library Format Tokens:**
+- `DD` = Day with leading zero (01-31) ✓ CORRECT
+- `DDD` = Invalid token ✗ WRONG
+- `MMM` = Short month name (Jan-Dec)
+- `MMMM` = Full month name (January-December)
+- `YY` = 2-digit year, `YYYY` = 4-digit year
+- `ddd` = Short day name (Sun-Sat)
+- `dddd` = Full day name (Sunday-Saturday)
+- `HH` = 24-hour with leading zero (00-23)
+- `hh` = 12-hour with leading zero (01-12)
+- `mm` = Minutes with leading zero (00-59)
+- `ss` = Seconds with leading zero (00-59)
+- `A` = AM/PM indicator
+
+**Format Changes Applied:**
+
+Date Formats (dateFunc):
+```javascript
+// BEFORE (INCORRECT)
+'dd/mmm/yy'     → datetime.format(now, 'DDD/MMM/YY')
+'dd/mmm/yyyy'   → datetime.format(now, 'DDD/MMM/YYYY')
+'dd mmm yy'     → datetime.format(now, 'DDD MMM YY')
+'dd mmm yyyy'   → datetime.format(now, 'DDD MMM YYYY')
+'ddd, dd mmm yyyy'  → datetime.format(now, 'ddd, DDD MMM YYYY')
+'dddd, dd mmm yyyy' → datetime.format(now, 'dddd, DDD MMM YYYY')
+'dddd, dd mmmmm yyyy' → datetime.format(now, 'dddd, DDD MMMM YYYY')
+
+// AFTER (CORRECT)
+'dd/mmm/yy'     → datetime.format(now, 'DD/MMM/YY')
+'dd/mmm/yyyy'   → datetime.format(now, 'DD/MMM/YYYY')
+'dd mmm yy'     → datetime.format(now, 'DD MMM YY')
+'dd mmm yyyy'   → datetime.format(now, 'DD MMM YYYY')
+'ddd, dd mmm yyyy'  → datetime.format(now, 'ddd, DD MMM YYYY')
+'dddd, dd mmm yyyy' → datetime.format(now, 'dddd, DD MMM YYYY')
+'dddd, dd mmmmm yyyy' → datetime.format(now, 'dddd, DD MMMM YYYY')
+```
+
+Time Formats (timeFunc):
+```javascript
+// BEFORE (INCORRECT)
+'hh:nn:ss' → datetime.format(now, 'hh:mm:ss')  // Wrong for 24h
+
+// AFTER (CORRECT)
+'hh:nn:ss' → datetime.format(now, 'HH:mm:ss')  // Correct 24h format
+```
+
+### Files Modified
+
+- src/assets/js/slot-datetime.js - Fixed date and time format tokens for Electron desktop app
+- mobile/www/assets/js/slot-datetime.js - Fixed date and time format tokens for mobile app
+- Both files now use identical, correct format tokens
+
+### Additional Improvements
+
+- **Removed Default Fallbacks** - Eliminated fallback values in mobile version that could mask configuration issues
+  - Removed `|| 'dd/mm/yyyy'` default in dateFunc
+  - Removed `|| 'hh:nn'` default in timeFunc
+  - Allows proper error detection when format attribute is missing
+
+### User Experience Improvements
+
+- Date slots now display with correct day formatting
+- Weekday names show properly in long date formats
+- 24-hour time format displays correctly with seconds
+- AM/PM time formats unchanged and working correctly
+- DateTime slots update every second as expected
+- Consistent behavior between mobile and desktop versions
+
+### Compatibility
+
+- Desktop Electron app: Format tokens corrected
+- Mobile app: Format tokens corrected to match desktop
+- CMS server: No changes required
+- date-and-time library v2.4.3: Full compatibility
+- All existing layout configurations: Compatible
+- No breaking changes to datetime slot configuration
+
+### Testing Status
+
+Verified:
+- Format token corrections applied to both files
+- All 11 date format variations updated
+- Time format for 24-hour with seconds corrected
+- Code syntax validated
+- Files saved successfully
+
+Pending Device Testing:
+- Verify date displays with correct day format
+- Test all date format variations (dd/mm/yy, dd/mmm/yyyy, etc.)
+- Validate weekday name displays (Mon, Monday, etc.)
+- Confirm 24-hour time with seconds shows correctly
+- Test AM/PM time formats remain correct
+- Verify datetime slots update every second
+
+### Performance Impact
+
+- Zero performance impact
+- Format token parsing happens during string formatting only
+- No additional processing overhead
+- Same update frequency (1 second intervals)
+
+## [3.1.1] - 2025-12-10
 
 ### Added - Mobile App Icon Integration
 

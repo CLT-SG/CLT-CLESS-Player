@@ -10,23 +10,23 @@ function dateFunc(slotitem, index) {
     } else if (srcformat == 'dd/mm/yyyy') {
         srcformat = datetime.format(now, 'DD/MM/YYYY')
     } else if (srcformat == 'dd/mmm/yy') {
-        srcformat = datetime.format(now, 'DDD/MMM/YY')
+        srcformat = datetime.format(now, 'DD/MMM/YY')
     } else if (srcformat == 'dd/mmm/yyyy') {
-        srcformat = datetime.format(now, 'DDD/MMM/YYYY')
+        srcformat = datetime.format(now, 'DD/MMM/YYYY')
     } else if (srcformat == 'dd mm yy') {
         srcformat = datetime.format(now, 'DD MM YY')
     } else if (srcformat == 'dd mm yyyy') {
         srcformat = datetime.format(now, 'DD MM YYYY')
     } else if (srcformat == 'dd mmm yy') {
-        srcformat = datetime.format(now, 'DDD MMM YY')
+        srcformat = datetime.format(now, 'DD MMM YY')
     } else if (srcformat == 'dd mmm yyyy') {
-        srcformat = datetime.format(now, 'DDD MMM YYYY')
+        srcformat = datetime.format(now, 'DD MMM YYYY')
     } else if (srcformat == 'ddd, dd mmm yyyy') {
-        srcformat = datetime.format(now, 'ddd, DDD MMM YYYY')
+        srcformat = datetime.format(now, 'ddd, DD MMM YYYY')
     } else if (srcformat == 'dddd, dd mmm yyyy') {
-        srcformat = datetime.format(now, 'dddd, DDD MMM YYYY')
+        srcformat = datetime.format(now, 'dddd, DD MMM YYYY')
     } else if (srcformat == 'dddd, dd mmmmm yyyy') {
-        srcformat = datetime.format(now, 'dddd, DDD MMMM YYYY')
+        srcformat = datetime.format(now, 'dddd, DD MMMM YYYY')
     }
     var renderEl = '<div id="date-' + index + '" class="date-slot">' + srcformat + '</div>'
     $('#slot-' + index).html(renderEl)
@@ -42,7 +42,7 @@ function timeFunc(slotitem, index) {
     if (srcformat == 'hh:nn') {
         srcformat = datetime.format(now, 'HH:mm')
     } else if (srcformat == 'hh:nn:ss') {
-        srcformat = datetime.format(now, 'hh:mm:ss')
+        srcformat = datetime.format(now, 'HH:mm:ss')
     } else if (srcformat == 'HH:nn AM/PM') {
         srcformat = datetime.format(now, 'hh:mm A')
     } else if (srcformat == 'HH:nn:ss AM/PM') {
