@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>eCLESS Player - License Activation</title>
+  <link rel="stylesheet" type="text/css" href="assets/css/activate.css" />
+  <!-- Custom Dialog System for alwaysOnTop compatibility -->
+  <script src="assets/js/custom-dialog.js"></script>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  
+  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+  
+  <!-- Mobile Serial Key Validator -->
+  <script src="assets/js/mobile/mobile-serial-validator.js"></script>
+</head>
+
+<body>
+  <div class="container">
+    <div class="main-content">
+      <!-- Header -->
+      <div class="header">
+        <div class="title">eCLESS Player</div>
+        <div class="subtitle">Mobile License Activation</div>
+        <div class="company">Closed-Loop Technology Pte Ltd.</div>
+      </div>
+
+      <!-- System Information -->
+      <div class="system-info">
+        <div class="info-card">
+          <div class="info-label">Device UUID</div>
+          <div class="mac-address-container">
+            <div class="info-value" id="deviceUuid">Loading...</div>
+            <button class="copy-btn" id="copyUuidBtn" onclick="copyUUID()" title="Copy Device UUID">
+              📋
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile Activation Instructions -->
+      <div class="instructions-section">
+        <div class="instructions-title">Activation Instructions</div>
+        
+        <div class="instruction-step">
+          <span class="step-number">1</span>
+          <strong>Copy Device UUID:</strong> Use the copy button to copy your Device UUID
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">2</span>
+          <strong>Request License:</strong> Scan QR code below or email sales@closed-loop.biz with your UUID
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">3</span>
+          <strong>Enter License Key:</strong> Once received, enter your activation key below
+        </div>
+
+        <div class="instruction-step">
+          <span class="step-number">4</span>
+          <strong>Activate:</strong> Click "Activate License" to validate and activate your mobile player
+        </div>
+      </div>
+
+      <!-- QR Code Section -->
+      <div class="qr-section">
+        <canvas id="qr-canvas" width="150" height="150"></canvas>
+        <p>Scan QR code to request license key via WhatsApp</p>
+        <p>or email: sales@closed-loop.biz</p>
+      </div>
+
+      <!-- Activation Input -->
+      <div class="activation-section">
+        <div class="activation-label">Enter your license key:</div>
+        <input type="text" id="userkey" class="key-input" placeholder="Enter your activation key here...">
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="button-section">
+        <button class="btn btn-primary" id="activateBtn" onclick="activateMobile()">
+          Activate License
+        </button>
+        <button class="btn btn-secondary" onclick="cancel()">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Mobile Activation Script
+    let serialKeyValidator = null;
+    let deviceUUID = null;
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', async function() {
+      console.log('eCLESS Activate: Initializing mobile activation page');
+      
+      try {
+        // Wait for Capacitor to be ready
+        await waitForCapacitor();
+        
+        // Initialize serial key validator
+        serialKeyValidator = new MobileSerialKeyValidator({
+          secret: 'Clt@2022',
+          debug: true,
+          logger: window.log
+        });
+        
+        // Load device information
+        await loadDeviceInfo();
+        
+        // Generate QR code after device info is loaded
+        generateQRCode();
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Initialization error', error);
+        document.getElementById('deviceUuid').textContent = 'Error loading device info';
+      }
+    });
+    
+    // Wait for Capacitor to be ready
+    function waitForCapacitor() {
+      return new Promise((resolve) => {
+        if (window.capacitorAPI) {
+          resolve();
+        } else {
+          window.addEventListener('capacitorReady', () => resolve(), { once: true });
+          setTimeout(() => resolve(), 5000); // Timeout fallback
+        }
+      });
+    }
+    
+    // Load and display device information
+    async function loadDeviceInfo() {
+      try {
+        console.log('eCLESS Activate: Loading device information...');
+        
+        // Get device UUID only
+        const deviceInfo = await serialKeyValidator.getDeviceIdentifier();
+        deviceUUID = deviceInfo.uuid;
+        
+        console.log('eCLESS Activate: Device UUID loaded:', deviceUUID);
+        
+        // Update UI with UUID only
+        document.getElementById('deviceUuid').textContent = deviceUUID;
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Error loading device info', error);
+        throw error;
+      }
+    }
+    
+    // Copy UUID to clipboard
+    function copyUUID() {
+      const text = deviceUUID || document.getElementById('deviceUuid').textContent;
+      
+      // Try to copy to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Device UUID copied to clipboard');
+        }).catch(err => {
+          console.error('Failed to copy:', err);
+          fallbackCopy(text);
+        });
+      } else {
+        fallbackCopy(text);
+      }
+    }
+    
+    // Fallback copy method for older browsers
+    function fallbackCopy(text) {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      
+      try {
+        document.execCommand('copy');
+        alert('Device UUID copied to clipboard');
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+        alert('Failed to copy. Please manually copy: ' + text);
+      }
+      
+      document.body.removeChild(textArea);
+    }
+    
+    // Generate QR code for WhatsApp license request
+    function generateQRCode() {
+      const canvas = document.getElementById('qr-canvas');
+      
+      if (!canvas || !deviceUUID || deviceUUID === 'Loading...') {
+        // Retry after device info is loaded
+        setTimeout(generateQRCode, 500);
+        return;
+      }
+      
+      // Create WhatsApp message with UUID
+      const whatsappMessage = `Hello, please generate my eCLESS Mobile Player license key.%0A%0ADevice UUID: ${deviceUUID}%0A%0AThanks.`;
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=6588995538&text=${whatsappMessage}`;
+      
+      try {
+        // Use simple canvas-based QR code (lightweight for mobile)
+        generateSimpleQRCode(canvas, whatsappUrl);
+      } catch (error) {
+        console.error('QR Code generation error:', error);
+      }
+    }
+    
+    // Simple QR code visualization
+    function generateSimpleQRCode(canvas, url) {
+      const ctx = canvas.getContext('2d');
+      
+      // Clear canvas
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 150, 150);
+      
+      // Draw border
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(8, 8, 134, 134);
+      
+      // Draw QR pattern (simplified)
+      ctx.fillStyle = '#000000';
+      
+      // Corner squares
+      ctx.fillRect(15, 15, 25, 25);
+      ctx.fillRect(110, 15, 25, 25);
+      ctx.fillRect(15, 110, 25, 25);
+      
+      // Center text
+      ctx.font = '11px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('WhatsApp QR', 75, 65);
+      ctx.font = '9px Arial';
+      ctx.fillText('Scan to request', 75, 80);
+      ctx.fillText('license key', 75, 92);
+      
+      // Make canvas clickable
+      canvas.style.cursor = 'pointer';
+      canvas.onclick = () => {
+        window.open(url, '_blank');
+      };
+    }
+    
+    // Activate license with provided key
+    async function activateMobile() {
+      const activateBtn = document.getElementById('activateBtn');
+      const userKey = document.getElementById('userkey').value.trim();
+      
+      if (!userKey) {
+        alert('Please enter a license key');
+        return;
+      }
+      
+      try {
+        // Disable button and show progress
+        activateBtn.disabled = true;
+        activateBtn.textContent = 'Validating...';
+        
+        console.log('eCLESS Activate: Validating license key...');
+        
+        // Validate the key
+        const validationResult = await serialKeyValidator.validateSerialKey(userKey);
+        
+        if (validationResult.valid) {
+          console.log('eCLESS Activate: License key validation SUCCESS');
+          
+          activateBtn.textContent = 'Valid! Saving...';
+          
+          // Save the valid key to configuration
+          if (window.configLoader) {
+            const currentConfig = window.configLoader.config || {};
+            currentConfig.serialkey = userKey;
+            currentConfig.licenseKey = userKey;
+            
+            await window.configLoader.saveConfiguration(currentConfig);
+            
+            console.log('eCLESS Activate: License saved to configuration');
+            
+            alert('License activated successfully!\n\nThe app will now start.');
+            
+            // Redirect to main player after short delay
+            setTimeout(() => {
+              window.location.href = 'index.html';
+            }, 1500);
+            
+          } else {
+            throw new Error('Configuration system not available');
+          }
+          
+        } else {
+          console.warn('eCLESS Activate: License validation FAILED', validationResult.reason);
+          
+          activateBtn.disabled = false;
+          activateBtn.textContent = 'Activate License';
+          
+          alert('Invalid License Key\n\n' + 
+                'The license key does not match this device.\n\n' +
+                'Reason: ' + validationResult.reason + '\n\n' +
+                'Please ensure you are using the correct key for this device.');
+        }
+        
+      } catch (error) {
+        console.error('eCLESS Activate: Activation error', error);
+        
+        activateBtn.disabled = false;
+        activateBtn.textContent = 'Activate License';
+        
+        alert('Activation Error\n\n' + error.message);
+      }
+    }
+    
+    // Cancel and return to main page
+    function cancel() {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>pt src="assets/js/activate.js"></script>
+</body>
+</html>

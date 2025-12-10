@@ -1,0 +1,1334 @@
+<html lang="en">
+
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>eCLESS Player Dashboard</title>
+
+    <!-- Preload critical resources -->
+    <link rel="preload" href="assets/css/bootstrap.min.css" as="style">
+    <link rel="preload" href="assets/js/jquery.min.js" as="script">
+
+    <!-- CSS -->
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/cpanel.css" rel="stylesheet">
+
+    <!-- JavaScript - Load require.js first -->
+    <script type="text/javascript" src="assets/js/cpanel/require.min.js"></script>
+    <script type="text/javascript" src="assets/js/cpanel/module.min.js"></script>
+    
+    <!-- Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Mobile Socket.IO Connection Manager -->
+    <script src="assets/js/mobile/mobile-socketio-manager.js"></script>
+    <script type="text/javascript" src="assets/js/jquery.min.js"></script>
+    <script type="text/javascript" src="assets/js/bootstrap.min.js"></script>
+    <!-- Error handler for graceful degradation -->
+    <script src="assets/js/cpanel/error-handler.js"></script>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  
+  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+</head>
+
+<body>
+    <!-- Mobile Navigation -->
+    <div id="mobile-nav-back" style="position: fixed; top: 10px; left: 10px; z-index: 10000;">
+        <button onclick="window.location.href='index.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+            <i class="bi bi-arrow-left"></i> Back to Player
+        </button>
+    </div>
+
+    <div class="dashboard-container">
+        <!-- Dashboard Header -->
+        <header class="dashboard-header">
+            <h1 class="dashboard-title">
+                <i class="bi bi-display"></i>
+                eCLESS Player Dashboard
+            </h1>
+            <p class="dashboard-subtitle">Advanced Control Panel & System Monitor</p>
+        </header>
+
+        <!-- Main Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- On View Section -->
+            <div class="dashboard-card" style="grid-column: 1 / -2;">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-play-circle-fill"></i>
+                    </div>
+                    <h2 class="card-title">On View</h2>
+                </div>
+                <div class="remote-display" id="remoteDisplayContainer">
+                    <iframe id="remote-display" width="100%" height="100%"
+                        style="border: none; border-radius: var(--border-radius-sm);"></iframe>
+                </div>
+            </div>
+
+            <!-- Remote Control Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-controller"></i>
+                    </div>
+                    <h2 class="card-title">Remote Control</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-secondary" id="refresh">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Refresh
+                    </button>
+                    <button type="button" class="modern-btn" id="restartapp">
+                        <i class="bi bi-bootstrap-reboot"></i>
+                        Restart App
+                    </button>
+                    <button type="button" class="modern-btn btn-warning" id="reboot">
+                        <i class="bi bi-power"></i>
+                        Reboot
+                    </button>
+                    <!-- Refresh Layout button - calls /api/refresh-layout endpoint -->
+                    <button type="button" class="modern-btn btn-info" id="refreshLayout">
+                        <i class="bi bi-layout-three-columns"></i>
+                        Refresh Layout
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="shutdown">
+                        <i class="bi bi-power"></i>
+                        Shutdown
+                    </button>
+                </div>
+                <div class="card-header mt-4">
+                    <div class="card-icon">
+                        <i class="bi bi-display"></i>
+                    </div>
+                    <h2 class="card-title">Screen Control</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="screenOn">
+                        <i class="bi bi-display"></i>
+                        Screen On
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="screenOff">
+                        <i class="bi bi-display-fill"></i>
+                        Screen Off
+                    </button>
+                </div>
+                <div class="card-header mt-4">
+                    <div class="card-icon">
+                        <i class="bi bi-volume-up-fill"></i>
+                    </div>
+                    <h2 class="card-title">Volume Control</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-warning" id="volumeMute">
+                        <i class="bi bi-volume-mute-fill"></i>
+                        Mute
+                    </button>
+                    <button type="button" class="modern-btn btn-info" id="volumeUnmute">
+                        <i class="bi bi-volume-up-fill"></i>
+                        Unmute
+                    </button>
+                </div>
+                <div class="mt-3">
+                    <label class="form-label d-flex justify-content-between">
+                        <span><i class="bi bi-volume-down"></i> Volume Level</span>
+                        <span id="volumeDisplay">50%</span>
+                    </label>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-volume-off"></i>
+                        <input type="range" class="form-range flex-grow-1" id="volumeSlider" min="0" max="100"
+                            value="50" step="1">
+                        <i class="bi bi-volume-up"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Configuration Section -->
+            <div class="dashboard-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <h2 class="card-title">System Configuration</h2>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoStartup" style="margin-right: 0.5rem;">
+                                Auto Start on Boot
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="fullscreenMode" style="margin-right: 0.5rem;">
+                                Fullscreen Mode
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="screenTimeout">Screen Timeout (minutes):</label>
+                            <input type="number" id="screenTimeout" class="form-control" value="0" min="0" max="1440">
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="updateInterval">Update Interval (seconds):</label>
+                            <input type="number" id="updateInterval" class="form-control" value="30" min="10"
+                                max="3600">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="logLevel">Log Level:</label>
+                            <select id="logLevel" class="select-modern">
+                                <option value="error">Error</option>
+                                <option value="warn">Warning</option>
+                                <option value="info" selected>Info</option>
+                                <option value="debug">Debug</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enhanced Configuration Section -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label" for="clessHostname">CLESS Server Hostname:</label>
+                            <input type="url" id="clessHostname" class="form-control"
+                                placeholder="https://cless4.closed-loop.biz/demo"
+                                title="Enter the CLESS server URL (e.g., https://example.com)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label" for="serialKey">Serial Key:</label>
+                            <input type="text" id="serialKey" class="form-control"
+                                placeholder="Enter new serial key to update"
+                                title="Enter the license serial key for activation">
+                            <small class="form-text text-muted">Leave empty to keep current key unchanged</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Network Interfaces & License Status -->
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="card network-license-card">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-ethernet"></i> Network Interfaces & License Status
+                            </div>
+                            <div class="card-body">
+                                <div id="networkLicenseStatus" class="loading">Loading network interfaces...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="corsOptions">CORS Options:</label>
+                            <select id="corsOptions" class="select-modern"
+                                title="Enable CORS proxy if blocked by Antivirus or Firewall">
+                                <option value="N">No (Default)</option>
+                                <option value="Y">Yes (Enable CORS Proxy)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="dsId">DS ID (Digital Signage ID):</label>
+                            <input type="number" id="dsId" class="form-control" placeholder="10" min="1" max="9999"
+                                title="Enter a numeric Digital Signage ID (1-9999)">
+                        </div>
+                    </div>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="saveConfig">
+                        <i class="bi bi-check-circle"></i>
+                        Save Configuration
+                    </button>
+                    <button type="button" class="modern-btn btn-secondary" id="loadConfig">
+                        <i class="bi bi-upload"></i>
+                        Load Configuration
+                    </button>
+                </div>
+            </div>
+
+            <!-- Enhanced Layout Management Section -->
+            <div class="dashboard-card layout-management-card" style="grid-column: 2 / -2;">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-diagram-3"></i>
+                    </div>
+                    <h2 class="card-title">Layout Information</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="getDetailedLayoutInfo()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Comprehensive Layout Information Display -->
+                <div id="apiLayout" class="layout-information-panel loading">
+                    <div class="loading-indicator">
+                        <i class="bi bi-arrow-clockwise spinning"></i>
+                        Loading comprehensive layout information...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Text Management Section -->
+            <div class="dashboard-card">
+
+                <!-- Layout Switching Actions -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </div>
+                    <h2 class="card-title">Layout Switching</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleLayoutHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Layout Switching Help Panel -->
+                <div id="layoutSwitchingHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Layout Switching API</h4>
+                        <p>Use the Update Layout API to programmatically switch between different layouts:</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/update-layout?id={layoutId}</code>
+                        </div>
+                        
+                        <div class="help-examples">
+                            <strong>Examples:</strong>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/update-layout?id=1</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=1')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/update-layout?id=main-layout</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=main-layout')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Tip:</strong> Layout IDs are shown in the Layout Information section above.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mb-3 loading">
+                    Enter a layout ID from the available layouts to switch to that layout
+                </div>
+                <div class="form-group">
+                    <div class="input-group layout-control-group">
+                        <input type="text" id="updateLytInput" class="form-control" 
+                               placeholder="Enter Layout ID to switch" 
+                               value=""
+                               autocomplete="off"
+                               title="Enter the layout ID you want to switch to. Layout IDs are displayed in the Layout Information section above."
+                               data-bs-toggle="tooltip" 
+                               data-bs-placement="top">
+                        <button type="button" class="modern-btn btnUpdateLyt"
+                                title="Switch to the specified layout using the /api/update-layout endpoint"
+                                data-bs-toggle="tooltip" 
+                                data-bs-placement="top">
+                            <i class="bi bi-arrow-repeat"></i>
+                            Switch Layout
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Text Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-type"></i>
+                    </div>
+                    <h2 class="card-title">Text Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleTextHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Text Management Help Panel -->
+                <div id="textManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Text Replacement API</h4>
+                        <p>Update text content in any text slot across all layouts:</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                        </div>
+                        
+                        <div class="help-examples">
+                            <strong>Examples:</strong>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Tip:</strong> Text content must be URL encoded. Spaces become %20, special characters require encoding.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiText" class="mb-3 loading">Loading text slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceTextList"
+                            title="Select a text slot to update. The list shows [Layout Name - ID] Slot Name (Type) | Current Text"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select text slot - [Layout Name - ID] Slot Name (Type) | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="replaceTextInput" class="form-control" 
+                           placeholder="Enter Text" 
+                           value=""
+                           title="Enter the new text content. This will be sent to the /api/replace-text endpoint"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top">
+                    <button type="button" class="modern-btn btnReplaceText"
+                            title="Replace text in the selected slot using the /api/replace-text endpoint"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+
+                <!-- Media Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-play-circle"></i>
+                    </div>
+                    <h2 class="card-title">Media Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleMediaHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Media Management Help Panel -->
+                <div id="mediaManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Media Replacement API</h4>
+                        <p>Replace media files in any media slot with files from your resource folder:</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
+                        </div>
+                        
+                        <div class="help-examples">
+                            <strong>Examples:</strong>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Important:</strong> Media files must exist in <code>~/clessapp/res/</code> directory.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiMedia" class="mb-3 loading">Loading media slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceMediaList"
+                            title="Select a media slot to update. Shows available media slots from your layouts"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select media slot - Slot Name | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <select class="select-modern" id="mediaFilesList" 
+                            style="margin-bottom: 0;"
+                            title="Select a media file from your ~/clessapp/res/ directory to use as replacement"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select media filename</option>
+                    </select>
+                    <button type="button" class="modern-btn btnReplaceMedia"
+                            title="Replace media in the selected slot using the /api/replace-media endpoint"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+            </div>
+
+            <!-- API Documentation Section -->
+            <div class="dashboard-card api-documentation-card" style="grid-column: 1 / -1;">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-code-slash"></i>
+                    </div>
+                    <h2 class="card-title">eCLESS Player API Documentation</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleApiDocumentation()">
+                            <i class="bi bi-chevron-down" id="apiDocToggleIcon"></i>
+                            <span id="apiDocToggleText">Show</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="apiDocumentationContent" class="api-documentation-content" style="display: none;">
+                    <div class="api-intro">
+                        <p class="text-muted">The eCLESS Player provides REST API endpoints for programmatic control of the system. Use these URLs to integrate with external systems or automate content management.</p>
+                    </div>
+
+                    <!-- Layout Control APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-arrow-left-right"></i>
+                            Layout Control APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/update-layout?id={layoutId}</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Switch to a specific layout by providing the layout ID.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/update-layout?id=1</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=1')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content Management APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-type"></i>
+                            Content Management APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Replace text content in a specific text slot across all layouts.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Replace media content in a specific media slot with a file from the resource folder.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Control APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-power"></i>
+                            System Control APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/shutdown</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Shutdown the system immediately.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/shutdown</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/shutdown')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/reboot</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Reboot the system immediately.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/reboot</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/reboot')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/restartapp</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Restart the eCLESS Player application.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/restartapp</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/restartapp')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Volume Control APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-volume-up"></i>
+                            Volume Control APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/volume/mute</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Mute the system volume.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/volume/mute</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/volume/mute')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/volume/unmute</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Unmute the system volume.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/volume/unmute</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/volume/unmute')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/volume/get</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Get current volume level (0-100).</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/volume/get</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/volume/get')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Display Control APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-display"></i>
+                            Display Control APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/display/screen/off</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Turn off the display screen.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/display/screen/off</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/display/screen/off')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/display/screen/on</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Turn on the display screen.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/display/screen/on</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/display/screen/on')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Application Control APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            Application Control APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/refresh</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Refresh the application display.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/refresh</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/refresh')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/screenshot</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Capture a screenshot of the current display.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example:</span>
+                                    <code class="api-url">https://localhost:9000/api/screenshot</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/screenshot')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Important Notes -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-info-circle"></i>
+                            Important Notes
+                        </h3>
+                        <div class="api-notes">
+                            <ul>
+                                <li><strong>Base URL:</strong> All endpoints use <code>https://localhost:9000</code></li>
+                                <li><strong>URL Encoding:</strong> Text parameters should be URL encoded (spaces become %20)</li>
+                                <li><strong>File Requirements:</strong> Media files must exist in the <code>~/clessapp/res/</code> directory</li>
+                                <li><strong>HTTPS:</strong> The API uses HTTPS with self-signed certificates</li>
+                                <li><strong>Response:</strong> Most endpoints return simple text responses</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                                <li><strong>CORS:</strong> Cross-origin requests are enabled for web integration</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Monitoring Section -->
+        <div class="dashboard-card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <h2 class="card-title">System Monitoring</h2>
+            </div>
+            <button type="button" class="modern-btn btn-secondary" id="refreshMonitoring">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh Data
+            </button>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="cpuUsage">0%</div>
+                    <div class="metric-label">CPU Usage</div>
+                    <div class="progress-modern">
+                        <div id="cpuProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="memoryUsage">0%</div>
+                    <div class="metric-label">Memory Usage</div>
+                    <div class="progress-modern">
+                        <div id="memoryProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="diskUsage">Loading...</div>
+                    <div class="metric-label">Disk Usage</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="networkStats">Loading...</div>
+                    <div class="metric-label">Network</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="dataUsageTotal">Loading...</div>
+                    <div class="metric-label">Data Usage (Total)</div>
+                </div>
+            </div>
+
+            <!-- Data Usage Management Section -->
+            <div class="mt-4">
+                <h3 class="card-title mb-3">
+                    <i class="bi bi-arrow-down-up"></i>
+                    Data Usage Management
+                </h3>
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="data-usage-breakdown">
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-download"></i>
+                                    Today's Download:
+                                </span>
+                                <span id="dailyDownload" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-upload"></i>
+                                    Today's Upload:
+                                </span>
+                                <span id="dailyUpload" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-calendar-month"></i>
+                                    Monthly Total:
+                                </span>
+                                <span id="monthlyTotal" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-infinity"></i>
+                                    All-time Total:
+                                </span>
+                                <span id="totalUsage" class="usage-value">0 MB</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="data-usage-controls">
+                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetDailyUsage">
+                                <i class="bi bi-arrow-clockwise"></i>
+                                Reset Daily
+                            </button>
+                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetMonthlyUsage">
+                                <i class="bi bi-calendar-x"></i>
+                                Reset Monthly
+                            </button>
+                            <button type="button" class="modern-btn btn-danger btn-sm" id="resetTotalUsage">
+                                <i class="bi bi-trash"></i>
+                                Reset All Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Device Information Section -->
+        <div class="dashboard-card" style="grid-column: 1 / -1;">
+            <div class="card-header">
+                <div class="card-icon">
+                    <i class="bi bi-cpu"></i>
+                </div>
+                <h2 class="card-title">Device Information</h2>
+            </div>
+
+            <div class="row">
+                <!-- CPU Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-cpu"></i>
+                        CPU Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Manufacturer</th>
+                                <td>
+                                    <div id="sManu" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Brand</th>
+                                <td>
+                                    <div id="sBrand" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Speed</th>
+                                <td>
+                                    <div id="sSpeed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Cores</th>
+                                <td>
+                                    <div id="sCores" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Physical Cores</th>
+                                <td>
+                                    <div id="sPhysicalCores" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Family</th>
+                                <td>
+                                    <div id="sFamily" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Model</th>
+                                <td>
+                                    <div id="sModel" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Memory Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-memory"></i>
+                        Memory Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Total RAM</th>
+                                <td>
+                                    <div id="memTotal" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Free RAM</th>
+                                <td>
+                                    <div id="memFree" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Used RAM</th>
+                                <td>
+                                    <div id="memUsed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Available RAM</th>
+                                <td>
+                                    <div id="memAvailable" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Swap Total</th>
+                                <td>
+                                    <div id="swapTotal" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Swap Used</th>
+                                <td>
+                                    <div id="swapUsed" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="row">
+                <!-- System Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-pc-display"></i>
+                        System Information
+                    </h3>
+                    <table class="info-table">
+                        <tbody>
+                            <tr>
+                                <th>Manufacturer</th>
+                                <td>
+                                    <div id="systemManu" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Model</th>
+                                <td>
+                                    <div id="systemModel" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Operating System</th>
+                                <td>
+                                    <div id="osInfo" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Platform</th>
+                                <td>
+                                    <div id="osPlatform" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Architecture</th>
+                                <td>
+                                    <div id="osArch" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Hostname</th>
+                                <td>
+                                    <div id="osHostname" class="loading">Loading...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Network Information -->
+                <div class="col-lg-6 col-md-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-wifi"></i>
+                        Network Interfaces
+                    </h3>
+                    <div id="networkInterfaces" class="loading">Loading network information...</div>
+                </div>
+            </div>
+
+            <!-- Display Information -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-display"></i>
+                        Display Information
+                    </h3>
+                    <div id="displayInfoTable" class="loading">Loading display information...</div>
+                </div>
+            </div>
+
+            <!-- Storage Information -->
+            <div class="row">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-hdd"></i>
+                        Storage Information
+                    </h3>
+                    <div id="diskInfoTable" class="loading">Loading storage information...</div>
+                </div>
+            </div>
+
+            <!-- Media Cache Management (Mobile Only) -->
+            <div class="row" id="mediaCacheSection" style="display: none;">
+                <div class="col-12">
+                    <h3 class="card-title">
+                        <i class="bi bi-images"></i>
+                        Media Cache Manager
+                    </h3>
+                    <div class="card-content">
+                        <div class="alert alert-info mb-3">
+                            <i class="bi bi-info-circle"></i>
+                            Cached media files are stored locally for faster playback and offline access.
+                        </div>
+                        
+                        <!-- Cache Statistics -->
+                        <div class="stats-grid mb-3">
+                            <div class="stat-item">
+                                <div class="stat-label">Cached Files</div>
+                                <div class="stat-value" id="cacheFilesCount">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Cache Size</div>
+                                <div class="stat-value" id="cacheSize">0 MB</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Cache Hits</div>
+                                <div class="stat-value" id="cacheHits">0</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-label">Downloads</div>
+                                <div class="stat-value" id="downloadCount">0</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cache Actions -->
+                        <div class="btn-group mb-3" style="display: flex; gap: 10px;">
+                            <button class="modern-btn btn-secondary" onclick="refreshMediaCache()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                            <button class="modern-btn btn-warning" onclick="clearMediaCache()">
+                                <i class="bi bi-trash"></i> Clear Cache
+                            </button>
+                        </div>
+                        
+                        <!-- Cached Files List -->
+                        <div id="cachedFilesList" class="loading">Loading cached files...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+</body>
+
+<!-- Mobile Media Manager -->
+<script src="assets/js/mobile/mobile-media-manager.js"></script>
+
+<!-- Media Cache Dashboard Script -->
+<script>
+    // Show media cache section only on mobile
+    if (window.mediaManager) {
+        document.getElementById('mediaCacheSection').style.display = 'block';
+        
+        // Initialize media cache display
+        setTimeout(() => {
+            refreshMediaCache();
+        }, 1000);
+    }
+    
+    // Refresh media cache statistics and file list
+    async function refreshMediaCache() {
+        try {
+            if (!window.mediaManager) {
+                console.warn('Media manager not available');
+                return;
+            }
+            
+            // Ensure media manager is initialized
+            if (!window.mediaManager.initialized) {
+                await window.mediaManager.initialize();
+            }
+            
+            // Get cache statistics
+            const stats = window.mediaManager.getStats();
+            document.getElementById('cacheFilesCount').textContent = stats.cachedFilesCount || 0;
+            document.getElementById('cacheHits').textContent = stats.cacheHits || 0;
+            document.getElementById('downloadCount').textContent = stats.totalDownloads || 0;
+            
+            // Get cache size
+            const cacheSize = await window.mediaManager.getCacheSize();
+            const cacheSizeMB = (cacheSize / (1024 * 1024)).toFixed(2);
+            document.getElementById('cacheSize').textContent = cacheSizeMB + ' MB';
+            
+            // Get cached files list
+            const files = await window.mediaManager.getCachedFiles();
+            const filesList = document.getElementById('cachedFilesList');
+            
+            if (files.length === 0) {
+                filesList.innerHTML = '<p class="text-muted">No cached files yet.</p>';
+            } else {
+                let html = '<div class="table-responsive"><table class="table table-striped table-sm">';
+                html += '<thead><tr><th>Filename</th><th>Size</th><th>Actions</th></tr></thead><tbody>';
+                
+                files.forEach(file => {
+                    const fileName = file.name || file;
+                    const fileSize = file.size ? (file.size / 1024).toFixed(2) + ' KB' : 'Unknown';
+                    
+                    html += `<tr>
+                        <td><small>${fileName}</small></td>
+                        <td><small>${fileSize}</small></td>
+                        <td>
+                            <button class="btn btn-sm btn-danger" onclick="deleteMediaFile('${fileName}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+                filesList.innerHTML = html;
+            }
+            
+        } catch (error) {
+            console.error('Error refreshing media cache:', error);
+            document.getElementById('cachedFilesList').innerHTML = 
+                '<div class="alert alert-danger">Error loading cache information</div>';
+        }
+    }
+    
+    // Clear all cached media files
+    async function clearMediaCache() {
+        if (!confirm('Are you sure you want to clear all cached media files? This will delete all locally stored images and videos.')) {
+            return;
+        }
+        
+        try {
+            if (!window.mediaManager) {
+                alert('Media manager not available');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('cachedFilesList').innerHTML = '<p>Clearing cache...</p>';
+            
+            // Clear cache
+            const result = await window.mediaManager.clearCache();
+            
+            if (result) {
+                alert('Cache cleared successfully');
+                refreshMediaCache();
+            } else {
+                alert('Failed to clear cache');
+            }
+            
+        } catch (error) {
+            console.error('Error clearing cache:', error);
+            alert('Error clearing cache: ' + error.message);
+        }
+    }
+    
+    // Delete individual media file
+    async function deleteMediaFile(filename) {
+        if (!confirm(`Delete ${filename} from cache?`)) {
+            return;
+        }
+        
+        try {
+            if (!window.mediaManager) {
+                alert('Media manager not available');
+                return;
+            }
+            
+            const result = await window.mediaManager.deleteFile(filename);
+            
+            if (result) {
+                refreshMediaCache();
+            } else {
+                alert('Failed to delete file');
+            }
+            
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            alert('Error deleting file: ' + error.message);
+        }
+    }
+</script>
+
+<script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
+<script type="text/javascript" src="assets/js/cpanel.js"></script>
+
+</html>

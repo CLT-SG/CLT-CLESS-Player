@@ -1,0 +1,210 @@
+/**
+ * eCLESS Player Mobile - Error Notification System
+ * 
+ * Provides visual feedback for errors and important events
+ * 
+ * @module mobile-error-notification
+ */
+
+console.log('=== MOBILE ERROR NOTIFICATION: Initializing ===');
+
+class ErrorNotificationSystem {
+    constructor() {
+        this.container = null;
+        this.activeNotifications = [];
+        this.init();
+    }
+
+    init() {
+        // Create notification container
+        this.container = document.createElement('div');
+        this.container.id = 'error-notification-container';
+        this.container.style.cssText = `
+            position: fixed;
+            top: 60px;
+            right: 10px;
+            z-index: 99998;
+            max-width: 400px;
+            pointer-events: none;
+        `;
+        
+        // Add to DOM when ready
+        if (document.body) {
+            document.body.appendChild(this.container);
+        } else {
+            document.addEventListener('DOMContentLoaded', () => {
+                document.body.appendChild(this.container);
+            });
+        }
+        
+        console.log('ErrorNotification: Initialized');
+    }
+
+    /**
+     * Show error notification
+     * 
+     * @param {string} title - Error title
+     * @param {string} message - Error message
+     * @param {string} type - Type: 'error', 'warning', 'info', 'success'
+     * @param {number} duration - Auto-hide duration (0 = permanent)
+     */
+    show(title, message, type = 'error', duration = 5000) {
+        const notification = document.createElement('div');
+        const id = 'notif-' + Date.now() + '-' + Math.random();
+        notification.id = id;
+        
+        const colors = {
+            error: { bg: '#dc3545', icon: '❌' },
+            warning: { bg: '#ffc107', icon: '⚠️' },
+            info: { bg: '#17a2b8', icon: 'ℹ️' },
+            success: { bg: '#28a745', icon: '✅' }
+        };
+        
+        const style = colors[type] || colors.error;
+        
+        notification.style.cssText = `
+            background: ${style.bg};
+            color: white;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease;
+            pointer-events: auto;
+            cursor: pointer;
+            position: relative;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+        
+        notification.innerHTML = `
+            <div style="display: flex; align-items: start; gap: 10px;">
+                <div style="font-size: 24px; flex-shrink: 0;">${style.icon}</div>
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px;">${title}</div>
+                    <div style="font-size: 14px; opacity: 0.9; line-height: 1.4;">${message}</div>
+                </div>
+                <button onclick="window.errorNotification.hide('${id}')" style="
+                    background: transparent;
+                    border: none;
+                    color: white;
+                    font-size: 20px;
+                    cursor: pointer;
+                    padding: 0;
+                    width: 24px;
+                    height: 24px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    opacity: 0.7;
+                    transition: opacity 0.2s;
+                " onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">×</button>
+            </div>
+        `;
+        
+        // Auto-hide after duration
+        if (duration > 0) {
+            setTimeout(() => this.hide(id), duration);
+        }
+        
+        // Add click to dismiss
+        notification.addEventListener('click', (e) => {
+            if (e.target === notification || e.target.tagName === 'DIV') {
+                this.hide(id);
+            }
+        });
+        
+        this.container.appendChild(notification);
+        this.activeNotifications.push(id);
+        
+        console.log('ErrorNotification: Shown -', title);
+        
+        return id;
+    }
+
+    /**
+     * Hide notification
+     */
+    hide(id) {
+        const notification = document.getElementById(id);
+        if (notification) {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => {
+                notification.remove();
+                this.activeNotifications = this.activeNotifications.filter(n => n !== id);
+            }, 300);
+        }
+    }
+
+    /**
+     * Show error
+     */
+    error(title, message, duration = 0) {
+        return this.show(title, message, 'error', duration);
+    }
+
+    /**
+     * Show warning
+     */
+    warning(title, message, duration = 5000) {
+        return this.show(title, message, 'warning', duration);
+    }
+
+    /**
+     * Show info
+     */
+    info(title, message, duration = 3000) {
+        return this.show(title, message, 'info', duration);
+    }
+
+    /**
+     * Show success
+     */
+    success(title, message, duration = 3000) {
+        return this.show(title, message, 'success', duration);
+    }
+
+    /**
+     * Clear all notifications
+     */
+    clearAll() {
+        this.activeNotifications.forEach(id => this.hide(id));
+    }
+}
+
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(120%);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+// Create singleton
+const errorNotification = new ErrorNotificationSystem();
+window.errorNotification = errorNotification;
+
+console.log('=== MOBILE ERROR NOTIFICATION: Initialized successfully ===');
+
+// Export for module systems
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = errorNotification;
+}

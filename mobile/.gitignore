@@ -1,17 +1,11 @@
 # eCLESS Player Mobile - .gitignore
 
 # Capacitor generated files
-www/index.html
-www/configure.html
-www/activate.html
-www/assets/
 
 # Android
-android/
 .gradle/
 *.apk
 *.aab
-local.properties
 
 # iOS
 ios/

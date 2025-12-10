@@ -1,15 +1,16 @@
 {
-  "appId": "biz.closedloop.ecless.player",
+  "appId": "sg.closedloop.ecless.player",
   "appName": "eCLESS Player",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",
     "iosScheme": "https",
-    "hostname": "app.ecless.local",
+    "hostname": "app.eclessplayer.local",
     "allowNavigation": [
       "*"
-    ]
+    ],
+    "cleartext": true
   },
   "android": {
     "buildOptions": {

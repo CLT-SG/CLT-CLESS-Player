@@ -225,7 +225,21 @@ function playcurrentLayout(xmlData) {
   }
 }
 
-function layoutLoopUpdateXML() {
+// Promise to track config loading for mobile compatibility
+var configLoadPromise = new Promise(function(resolve) {
+  if (typeof config !== 'undefined' && config) {
+    resolve(config);
+  } else {
+    window.addEventListener('configLoaded', function() {
+      resolve(config);
+    });
+  }
+});
+
+async function layoutLoopUpdateXML() {
+  // Wait for config to be loaded (important for mobile app initialization)
+  await configLoadPromise;
+  
   // Return a new Promise
   return new Promise((resolve, reject) => {
 
@@ -270,6 +284,13 @@ function layoutLoopUpdateXML() {
         reject('Failed to load cached data: ' + error.message);
       }
       return; // Exit early in offline mode
+    }
+
+    // Validate config before accessing properties
+    if (!config || !config.hostserver) {
+      log.error('Layout Loop Update: Config or hostserver not available');
+      reject('Configuration not loaded or hostserver missing');
+      return;
     }
 
     var serverAdd = config.hostserver; // Get the server address from the configuration

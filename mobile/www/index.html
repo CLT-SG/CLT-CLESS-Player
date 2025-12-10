@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <!-- Viewport meta for mobile (MUST come first) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <title>eCLess Player</title>
+
+  <script>
+    if (typeof module === 'object') {
+      window.module = module
+      module = undefined
+    }
+  </script>
+
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <link rel="stylesheet" href="assets/css/style.css" />
+  <link rel="stylesheet" href="assets/css/font-custom.css" />
+  <link rel="stylesheet" href="assets/css/jquery.dataTables.min.css" />
+  <style>
+    table.dataTable thead .sorting {
+      background-image: url('assets/images/sort_both.png');
+    }
+
+    table.dataTable thead .sorting_asc {
+      background-image: url('assets/images/sort_asc.png') !important;
+    }
+
+    table.dataTable thead .sorting_desc {
+      background-image: url('assets/images/sort_desc.png') !important;
+    }
+
+    table.dataTable thead .sorting_asc_disabled {
+      background-image: url('assets/images/sort_asc_disabled.png');
+    }
+
+    table.dataTable thead .sorting_desc_disabled {
+      background-image: url('assets/images/sort_desc_disabled.png');
+    }
+  </style>
+  <link href="assets/css/video-js.min.css" rel="stylesheet" />
+  
+  <!-- Mobile Layout Optimization Styles -->
+  <style>
+    /* Ensure proper mobile viewport handling */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      position: fixed;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Mobile-specific optimizations */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    
+    /* Main container mobile optimizations */
+    #main {
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      overflow: hidden;
+    }
+    
+    /* Prevent scrolling on mobile */
+    body.mobile-player {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  
+  <!-- Enhanced configuration loader (supports both config.js and config.json) -->
+  
+  
+  <script type="text/javascript">
+    try {
+      // Declare variables in global scope
+      var asd = 'gasd';
+      var ipcRenderer, remote, log, convert, now, datetime, meridiem, ordinal;
+      var path, os, fs, dns, isReachable, homedir, config, logdir, datelog;
+      var hostserver, dsid, mode;
+      
+      // Initialize variables safely after shim loads
+      function initializeAPIs() {
+        if (!window.mobileAPI || !window.log) {
+          console.error('eCLESS: window.mobileAPI or window.log not available yet, retrying...');
+          setTimeout(initializeAPIs, 100);
+          return;
+        }
+        
+        ipcRenderer = window.mobileAPI.ipc;
+        remote = window.mobileAPI.remote;
+        log = window.log;
+        convert = window.xmljs;
+        now = new Date();
+        datetime = window.datetime;
+        meridiem = window.meridiem;
+        ordinal = window.ordinal;
+        datetime.plugin(meridiem);
+        datetime.plugin(ordinal);
+        path = window.path;
+        os = window.os;
+        fs = window.fs;
+        dns = window.dns;
+        isReachable = window.isReachable;
+
+        homedir = os.homedir();
+        
+        // Enhanced configuration loading
+        config = window.config;
+        logdir = window.logdir;
+        datelog = datetime.format(now, 'YYYY-MM-DD');
+        log.transports.file.file = logdir + datelog + '.log';
+        
+        console.log('eCLESS: APIs initialized successfully in index.html');
+        
+        // Configuration values (will be available after config loads)
+        // Wait for config to load before using values
+        window.addEventListener('configLoaded', function(event) {
+          hostserver = config.hostserver;
+          dsid = config.id;
+          mode = config.mode;
+          console.log('eCLESS: Configuration loaded for main player -', event.detail.source);
+          
+          // Initialize application with loaded config
+          if (typeof initializeWithConfig === 'function') {
+            initializeWithConfig();
+          }
+        });
+        
+        // Fallback for immediate access (may be undefined until config loads)
+        hostserver = config.hostserver;
+        dsid = config.id;
+        mode = config.mode;
+      }
+      
+      // Call initialization immediately
+      initializeAPIs()
+      
+    } catch (e) {
+      console.warn('error loading configuration: ' + e)
+    }
+  </script>
+  <!-- https://github.com/videojs -->
+  <script src="assets/js/jquery.min.js"></script>
+  
+  <!-- Mobile HTTP Module (CORS bypass for native apps) -->
+  <script src="assets/js/mobile/mobile-http.js"></script>
+  
+  <!-- http://pagination.js.org// -->
+  <script src="assets/js/pagination.min.js"></script>
+  <!-- https://github.com/aamirafridi/jQuery.Marquee -->
+  <script src="assets/js/jquery.marquee.min.js"></script>
+  <!-- https://github.com/videojs -->
+  <script src="assets/js/videojs.min.js"></script>
+  <!-- https://github.com/videojs/http-streaming -->
+  <script src="assets/js/videojs-http-streaming.min.js"></script>
+  <!-- https://github.com/bilibili/flv.js -->
+  <script src="assets/js/flv.min.js"></script>
+  <!-- https://github.com/bilibili/flv.js -->
+  <script src="assets/js/videojs-flvjs.min.js"></script>
+  <!-- https://github.com/ilkkao/capture-video-frame -->
+  <script src="assets/js/capture-video-frame.js"></script>
+  <!-- Socket IO from cpanel -->
+  <!-- Socket.IO will be loaded dynamically by mobile-socketio-manager.js -->
+  
+    <!-- Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" crossorigin="anonymous"></script>
+    
+    <!-- Mobile Socket.IO Connection Manager -->
+    <script src="assets/js/mobile/mobile-socketio-manager.js"></script>
+    
+    <!-- Mobile Socket.IO Adapter (bridges socketio-cpanel.js with mobile socket manager) -->
+    <script src="assets/js/mobile/mobile-socketio-adapter.js"></script>
+
+  <script src="assets/js/socketio-cpanel.js"></script>
+  <script src="assets/js/layoutxml.js"></script>
+  <script src="assets/js/looplayout.js"></script>
+  <script src="assets/js/slot-media.js"></script>
+  <script src="assets/js/slot-text.js"></script>
+  <script src="assets/js/slot-html.js"></script>
+  <script src="assets/js/slot-datetime.js"></script>
+  <script src="assets/js/slot-table.js"></script>
+  <script src="assets/js/slot-tickerscrollerfader.js"></script>
+
+  
+  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  
+  <!-- Mobile Electron Shim (provides window.log, etc.) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  
+  <!-- Mobile Layout Handler (dimension management for mobile) - NO DEFER -->
+  <script src="assets/js/mobile/mobile-layout-handler.js"></script>
+  
+  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+
+  <!-- Mobile Media Manager (handles local media caching and retrieval) -->
+  <script src="assets/js/mobile/mobile-media-manager.js"></script>
+
+  <!-- Mobile Serial Key Validator -->
+  <script src="assets/js/mobile/mobile-serial-validator.js"></script>
+
+  <!-- Mobile Debug Panel -->
+  <script src="assets/js/mobile/mobile-debug-panel.js"></script>
+  
+  <!-- Mobile Error Notification System -->
+  <script src="assets/js/mobile/mobile-error-notification.js"></script>
+</head>
+
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-overlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="text-align: center; color: white;">
+            <h1 style="font-size: 2.5em; margin-bottom: 20px; font-weight: 300;">eCLESS Player</h1>
+            <div style="width: 300px; height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; overflow: hidden; margin: 0 auto;">
+                <div id="loading-progress" style="width: 0%; height: 100%; background: white; border-radius: 4px; transition: width 0.3s ease;"></div>
+            </div>
+            <p id="loading-status" style="margin-top: 20px; font-size: 1.1em; opacity: 0.9;">Initializing...</p>
+            <p id="loading-substatus" style="margin-top: 10px; font-size: 0.9em; opacity: 0.7;"></p>
+        </div>
+    </div>
+
+    <!-- Mobile Navigation with Auto-Hide -->
+    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 8px; transition: opacity 0.3s ease, transform 0.3s ease;">
+        <button onclick="window.location.href='configure.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+            ⚙️ Settings
+        </button>
+        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+            📊 Dashboard
+        </button>
+        <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="System Diagnostics">
+            🔍 Diagnostics
+        </button>
+        <button onclick="window.debugPanel?.toggle()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Debug Console">
+            🐛 Debug
+        </button>
+    </div>
+
+    <script>
+        // Apply mobile-player class to body for mobile optimizations
+        if (window.mobileAPI || window.capacitorAPI) {
+            document.body.classList.add('mobile-player');
+        }
+        
+        // Auto-hide navigation system
+        (function() {
+            const nav = document.getElementById('mobile-nav');
+            let hideTimeout;
+            let isHiding = false;
+
+            function showNav() {
+                nav.style.opacity = '1';
+                nav.style.transform = 'translateY(0)';
+                isHiding = false;
+                resetHideTimer();
+            }
+
+            function hideNav() {
+                if (!isHiding) {
+                    isHiding = true;
+                    nav.style.opacity = '0';
+                    nav.style.transform = 'translateY(-20px)';
+                }
+            }
+
+            function resetHideTimer() {
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(hideNav, 5000); // Hide after 5 seconds
+            }
+
+            // Show on user activity
+            document.addEventListener('touchstart', showNav);
+            document.addEventListener('click', showNav);
+            document.addEventListener('mousemove', showNav);
+
+            // Show when hovering near top-right corner
+            document.addEventListener('mousemove', function(e) {
+                const windowWidth = window.innerWidth;
+                const windowHeight = window.innerHeight;
+                if (e.clientX > windowWidth * 0.75 && e.clientY < windowHeight * 0.25) {
+                    showNav();
+                }
+            });
+
+            // Start the hide timer
+            resetHideTimer();
+        })();
+
+        // Loading screen with initialization tracking
+        (function() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const loadingProgress = document.getElementById('loading-progress');
+            const loadingStatus = document.getElementById('loading-status');
+            const loadingSubstatus = document.getElementById('loading-substatus');
+            
+            let progress = 0;
+            let initialized = false;
+
+            function updateProgress(percent, status, substatus = '') {
+                progress = Math.min(percent, 100);
+                loadingProgress.style.width = progress + '%';
+                loadingStatus.textContent = status;
+                loadingSubstatus.textContent = substatus;
+                console.log(`[Loading] ${progress}% - ${status} ${substatus}`);
+            }
+
+            function hideLoadingScreen() {
+                if (initialized) return;
+                initialized = true;
+                console.log('[Loading] Complete - hiding loading screen');
+                updateProgress(100, 'Ready!', 'Starting player...');
+                setTimeout(() => {
+                    loadingOverlay.style.opacity = '0';
+                    loadingOverlay.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 500);
+                }, 500);
+            }
+
+            function showErrorMessage(message, details = '', showRetry = true) {
+                loadingOverlay.innerHTML = `
+                    <div style="text-align: center; color: white; max-width: 500px; padding: 20px;">
+                        <div style="font-size: 3em; margin-bottom: 20px;">⚠️</div>
+                        <h2 style="font-size: 1.5em; margin-bottom: 15px; font-weight: 400;">${message}</h2>
+                        ${details ? `<p style="font-size: 0.9em; opacity: 0.8; margin-bottom: 20px;">${details}</p>` : ''}
+                        <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                            ${showRetry ? `<button onclick="window.location.reload()" style="padding: 12px 24px; background: white; color: #667eea; border: none; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">Retry</button>` : ''}
+                            <button onclick="window.location.href='configure.html'" style="padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500;">Settings</button>
+                            <button onclick="window.location.href='diagnostics.html'" style="padding: 12px 24px; background: rgba(255,255,255,0.2); color: white; border: 1px solid white; border-radius: 5px; cursor: pointer; font-size: 1em; font-weight: 500;">Diagnostics</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            window.showErrorMessage = showErrorMessage;
+
+            // Track initialization stages
+            updateProgress(0, 'Starting...', 'Loading Capacitor');
+
+            // Stage 1: Capacitor ready (25%)
+            document.addEventListener('capacitorReady', function() {
+                updateProgress(25, 'Capacitor Ready', 'Loading configuration...');
+            });
+            
+            // Stage 2: Config loaded (50%)
+            window.addEventListener('configLoaded', function() {
+                updateProgress(50, 'Configuration Loaded', 'Validating license...');
+            });
+
+            // Stage 2: Config loaded (50%)
+            document.addEventListener('configLoaded', function(e) {
+                updateProgress(50, 'Configuration Loaded', 'Connecting to server...');
+            });
+
+            // Stage 3: Socket.IO connected or skipped (75%)
+            document.addEventListener('socketio-connected', function() {
+                updateProgress(75, 'Connected to Server', 'Initializing player...');
+            });
+
+            // Also listen for timeout (Socket.IO is optional)
+            window.addEventListener('socketio-timeout', function() {
+                updateProgress(75, 'Server Connection Skipped', 'Initializing player...');
+            });
+
+            // Stage 4: App ready (100%)
+            window.addEventListener('appReady', function() {
+                updateProgress(100, 'Ready!', 'Starting player...');
+                setTimeout(hideLoadingScreen, 500);
+            });
+
+            // Timeout fallback - hide loading screen after 20 seconds
+            setTimeout(function() {
+                if (!initialized) {
+                    console.warn('[Loading] Timeout reached - hiding loading screen anyway');
+                    // Check if we have config at least
+                    if (window.config && window.config.hostserver) {
+                        hideLoadingScreen();
+                    } else {
+                        showErrorMessage(
+                            'Initialization Timeout',
+                            'The app took too long to initialize. Please check your configuration.',
+                            true
+                        );
+                    }
+                }
+            }, 20000);
+
+            // Make functions globally available
+            window.hideLoadingScreen = hideLoadingScreen;
+            window.updateLoadingProgress = updateProgress;
+        })();
+    </script>
+</body>
+
+<script>
+  try {
+    
+    // Function to validate serial key before launching app
+    async function validateActivation() {
+      try {
+        console.log('eCLESS: Validating serial key activation...');
+        window.updateLoadingProgress(60, 'Validating License', 'Checking device authorization...');
+        
+        // Initialize serial key validator
+        const serialKeyValidator = new MobileSerialKeyValidator({
+          secret: 'Clt@2022',
+          debug: true,
+          logger: window.log
+        });
+        
+        // Get device identifier
+        const deviceInfo = await serialKeyValidator.getDeviceIdentifier();
+        console.log('eCLESS: Device identifier retrieved', deviceInfo);
+        
+        // Check if serial key exists in config
+        const serialKey = config.serialkey || config.licenseKey || '';
+        
+        if (!serialKey || serialKey.trim() === '') {
+          console.warn('eCLESS: No serial key found in configuration');
+          window.updateLoadingProgress(100, 'Activation Required', 'Redirecting to activation screen...');
+          
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 1000);
+          return false;
+        }
+        
+        // Validate serial key
+        console.log('eCLESS: Validating serial key against device...');
+        const validationResult = await serialKeyValidator.validateSerialKey(serialKey);
+        
+        if (validationResult.valid) {
+          console.log('eCLESS: Serial key validation SUCCESS');
+          console.log(`eCLESS: Device UUID: ${validationResult.deviceInfo.uuid}`);
+          window.updateLoadingProgress(75, 'License Valid', 'Initializing player...');
+          return true;
+        } else {
+          console.warn('eCLESS: Serial key validation FAILED');
+          console.warn(`eCLESS: Reason: ${validationResult.reason}`);
+          
+          // Generate validation report for troubleshooting (without logging sensitive data)
+          const validationReport = await serialKeyValidator.getValidationReport(serialKey);
+          console.debug('eCLESS: Validation failed - Device UUID:', validationReport.deviceIdentifier?.uuid);
+          
+          window.updateLoadingProgress(100, 'Invalid License', 'Redirecting to activation screen...');
+          
+          // Show error message before redirect
+          if (window.showErrorMessage) {
+            await window.showErrorMessage(
+              'License validation failed. Please activate your device.',
+              validationResult.reason,
+              false
+            );
+          }
+          
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 2000);
+          return false;
+        }
+        
+      } catch (error) {
+        console.error('eCLESS: Error during activation validation:', error);
+        
+        // In offline mode or on error, allow proceeding with warning
+        if (config.mode === 'offline') {
+          console.warn('eCLESS: Offline mode - proceeding without strict validation');
+          window.updateLoadingProgress(75, 'Offline Mode', 'Loading player...');
+          return true;
+        } else {
+          window.updateLoadingProgress(100, 'Validation Error', 'Redirecting to activation...');
+          setTimeout(() => {
+            window.location.href = 'activate.html';
+          }, 2000);
+          return false;
+        }
+      }
+    }
+    
+    // Function to initialize app with loaded configuration
+    function initializeWithConfig() {
+      console.log('eCLESS: Initializing application with configuration')
+      console.log('eCLESS: Server:', hostserver, 'ID:', dsid, 'Mode:', mode)
+      
+      // Validate activation before starting application
+      validateActivation().then(isValid => {
+        if (isValid) {
+          console.log('eCLESS: Activation validated, starting application');
+          startApplication();
+        } else {
+          console.warn('eCLESS: Activation validation failed, redirecting handled');
+        }
+      });
+    }
+    
+    // Main application startup function
+    function startApplication() {
+      console.log('eCLESS: Starting application...')
+      window.updateLoadingProgress(80, 'Starting Player', 'Initializing components...');
+      
+      // Ensure all dependencies are loaded
+      if (typeof $ === 'undefined') {
+        console.error('eCLESS: jQuery not loaded yet!')
+        setTimeout(startApplication, 100)
+        return
+      }
+      
+      // Initialize the document when it's ready
+      $(document).ready(function () {
+        console.log('eCLESS: Document ready, initializing player')
+        
+        var resultOffline = JSON.parse(localStorage.getItem(dsid)) // Parse and retrieve data from local storage
+        
+        // Dispatch appReady event to hide loading screen
+        window.dispatchEvent(new CustomEvent('appReady', {
+          detail: { mode: mode, hasOfflineData: !!resultOffline }
+        }))
+        
+        if (mode == 'offline') {
+          console.log('eCLESS: Mode - offline') // Log the offline mode
+          if (resultOffline) {
+            playofflineds(resultOffline) // Play offline data if available
+          } else {
+            console.error('eCLESS: No offline data available')
+            window.showErrorMessage('No Offline Data', 'Please connect to internet for initial setup', false)
+          }
+        } else {
+          console.log('eCLESS: Mode - online, checking network...')
+          playcheckNetwork(resultOffline) // Check the network for online mode
+        }
+      })
+    }
+
+    // Function to fetch XML data from the server
+    function getxml() {
+      var serverAdd = config.hostserver // Get the server address from the configuration
+      log.info('Mode: online') // Log the online mode
+
+      if (refreshTimeout) {
+        clearTimeout(refreshTimeout) // Clear the refresh timeout if it exists
+      }
+
+      // Set up proxy if enabled
+      var urlServer = serverAdd + '/' + dsid + '/ds.xml' // Create the URL for fetching XML data
+      if (config.corsproxy == 'Y') {
+        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid +
+          '/ds.xml') // Use CORS proxy if enabled
+      }
+
+      $.ajax({
+        url: urlServer, // Specify the URL for the AJAX request
+        type: 'GET', // Use the GET method
+        dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
+        timeout: 5000, // Set a timeout of 5 seconds for the request
+        success: function (data) {
+          log.info('GET XML: OK') // Log a successful XML retrieval
+          log.info('XML data: ', data) // Log the XMLDocument object
+          
+          // Validate XMLDocument (mobile-http now returns XMLDocument, not string)
+          if (!data || !data.documentElement) {
+            log.error('get xml : invalid XML structure received', urlServer)
+            location.href = 'offline.html' // Redirect to offline.html if invalid
+            if (remote && remote.getCurrentWindow) {
+              remote.getCurrentWindow().focus() // Focus on the current window
+            }
+            return
+          }
+          
+          // Legacy check: This should NOT happen with fixed mobile-http.js
+          if (typeof data === 'string') {
+            log.error('get xml : CRITICAL - received string instead of XMLDocument', urlServer)
+            log.error('This indicates mobile-http.js is not working correctly')
+            location.href = 'offline.html' // Redirect to offline.html if data is a string
+            if (remote && remote.getCurrentWindow) {
+              remote.getCurrentWindow().focus() // Focus on the current window
+            }
+            return
+          }
+          
+          // Read DS XML - data is now guaranteed to be XMLDocument
+          var xmlText = new XMLSerializer().serializeToString(data) // Serialize XMLDocument to text
+          var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText // Create a well-formed XML string
+          var result2 = convert.xml2json(xml, {
+            compact: false,
+            spaces: 4,
+            trim: false,
+            textKey: 'text',
+            ignoreDeclaration: false,
+            ignoreComment: true
+          }) // Convert XML to JSON
+          result2 = JSON.parse(result2) // Parse the JSON result
+          
+          // DEBUG: Log the parsed structure to understand data format
+          console.log('[getxml] XML conversion result:', JSON.stringify(result2).substring(0, 500));
+          if (result2 && result2.elements && result2.elements[0]) {
+            console.log('[getxml] Root element:', result2.elements[0].name);
+            if (result2.elements[0].elements && result2.elements[0].elements[0]) {
+              console.log('[getxml] Layout element:', result2.elements[0].elements[0].name);
+            }
+          }
+          
+          playonlineds(result2) // Play the online data
+          localStorage.setItem(dsid, JSON.stringify(result2)) // Store the data in local storage
+        },
+        error: function (xhr, textStatus, errorThrown) {
+          // Comprehensive error logging
+          log.error('GET XML: Failed!')
+          log.error('  Status: ' + xhr.status)
+          log.error('  Status Text: ' + textStatus)
+          log.error('  Error: ' + errorThrown)
+          log.error('  Response: ' + xhr.responseText)
+          log.error('  URL: ' + urlServer)
+          
+          // Show detailed error on screen for debugging
+          console.error('AJAX Error Details:', {
+            status: xhr.status,
+            statusText: textStatus,
+            error: errorThrown,
+            response: xhr.responseText,
+            url: urlServer,
+            readyState: xhr.readyState
+          })
+          
+          // Show visual error notification
+          if (window.errorNotification) {
+            let errorMsg = 'Failed to load content from server'
+            if (xhr.status === 0) {
+              errorMsg = 'Network connection failed. Check your internet or server address.'
+            } else if (xhr.status === 404) {
+              errorMsg = 'Content not found on server (404). Check Device ID: ' + dsid
+            } else if (xhr.status === 403) {
+              errorMsg = 'Access denied (403). Check authentication.'
+            } else if (textStatus === 'timeout') {
+              errorMsg = 'Server request timed out. Slow connection or server down.'
+            }
+            
+            window.errorNotification.error('Server Connection Failed', errorMsg, 10000)
+          }
+          
+          // Try to load from offline cache
+          var resultOffline = JSON.parse(localStorage.getItem(dsid))
+          if (resultOffline) {
+            log.warn('GET XML: Using cached offline data')
+            if (window.errorNotification) {
+              window.errorNotification.info('Using Offline Mode', 'Loading cached content', 3000)
+            }
+            playofflineds(resultOffline)
+          } else {
+            log.error('GET XML: No offline data available, will retry')
+            setTimeout(getxml, 5000) // Retry fetching XML data after 5 seconds
+          }
+        }
+      })
+    }
+
+    // Global variables for layout management
+    var currentlytID
+    var layoutURLList = []
+    var layoutIDList = []
+    var loopArr = []
+    var slotnameList = []
+    var refreshTimeout
+    var isLoopLyt = false // layout loop check global
+
+    // Function to play online data
+    function playonlineds(online) {
+      if (online['elements'][0]['elements'][0]['name'] == 'loop') {
+        // Check if it's a loop layout
+        isLoopLyt = true // Set the loop layout flag to true
+        online = online['elements'][0]['elements'][0]['elements'] // Access the elements of the loop layout
+
+        $.when
+          .apply(
+            $,
+            $.map(online, function (layoutxml, oindex) {
+              var layoutURL = layoutxml['attributes']['url'] // Get the layout URL
+              var layoutID = layoutURL.split('layout/') // Extract the layout ID from the URL
+              layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/')) // Extract the layout ID
+              layoutURLList.push(layoutURL) // Add the layout URL to the list
+              layoutIDList.push(layoutID) // Add the layout ID to the list
+              loopArr.push(layoutxml) // Add the layout data to the loop array
+
+              // Use proxy if enabled
+              if (config.corsproxy == 'Y') {
+                layoutURL = 'https://corsproxy.io/?url=' + encodeURIComponent(layoutURL) // Use CORS proxy if enabled
+              }
+
+              return $.ajax({
+                url: layoutURL, // Specify the URL for the AJAX request
+                type: 'GET', // Use the GET method
+                dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
+                success: function (data) {
+                  log.info('GET Loop XML: OK') // Log a successful loop XML retrieval
+                  
+                  // Validate XMLDocument (mobile-http now returns XMLDocument, not string)
+                  if (!data || !data.documentElement) {
+                    log.error('get xml : invalid loop XML structure received', layoutURL)
+                    location.href = 'offline.html' // Redirect to offline.html if invalid
+                    if (remote && remote.getCurrentWindow) {
+                      remote.getCurrentWindow().focus() // Focus on the current window
+                    }
+                    return
+                  }
+                  
+                  // Legacy check: This should NOT happen with fixed mobile-http.js
+                  if (typeof data === 'string') {
+                    log.error('get xml : CRITICAL - received string instead of XMLDocument', layoutURL)
+                    log.error('This indicates mobile-http.js is not working correctly for loop layouts')
+                    location.href = 'offline.html' // Redirect to offline.html if data is a string
+                    if (remote && remote.getCurrentWindow) {
+                      remote.getCurrentWindow().focus() // Focus on the current window
+                    }
+                    return
+                  }
+                  
+                  // Read DS XML - data is now guaranteed to be XMLDocument
+                  var xmlText = new XMLSerializer().serializeToString(data) // Serialize XMLDocument to text
+                  var xml = '<?xml version="1.0" encoding="utf-8"?>' +
+                    xmlText // Create a well-formed XML string
+                  var xmlJSON = convert.xml2json(xml, {
+                    compact: false,
+                    spaces: 4,
+                    trim: false,
+                    textKey: 'text',
+                    ignoreDeclaration: false,
+                    ignoreComment: true
+                  }) // Convert XML to JSON
+                  xmlJSON = JSON.parse(xmlJSON) // Parse the JSON result
+                  localStorage.setItem('layout-' + layoutID, JSON.stringify(
+                    xmlJSON)) // Store the layout data in local storage
+                  localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(
+                    xmlJSON)) // Store the offline layout data in local storage
+                  var lytname = xmlJSON['elements']['0']['attributes']['layout'] // Get the layout name
+                  var lytslotlist = xmlJSON['elements']['0']['elements']['0']['elements']['0'][
+                    'elements'] // Access the slot list
+                      
+                    if (lytslotlist && lytslotlist.length > 0) {
+                      lytslotlist.forEach(function (slot, index) {
+                        var slotid = slot['attributes']['id'] // Get the slot ID
+                        if (slot['attributes']['name']) {
+                          var slotname = slot['attributes']['name'] // Get the slot name
+                          var slottype = slot['name'] // Get the slot type
+                          var slotlistobj = new Object() // Create a slot list object
+                          slotlistobj.layoutid = layoutID // Set the layout ID
+                          slotlistobj.layoutname = lytname // Set the layout name
+                          slotlistobj.slottype = slottype // Set the slot type
+                          slotlistobj.slotid = 'slot-' + slotid // Set the slot ID
+                          slotlistobj.slotname = slotname // Set the slot name
+                          slotnameList.push(slotlistobj) // Add the slot list object to the list
+                        }
+                      })
+                    }
+                },
+                error: function (xhr, textStatus, errorThrown) {
+                  log.warn('GET Loop XML: Failed: ' + xhr.responseText) // Log a failed loop XML retrieval
+                  return
+                }
+              })
+            })
+          )
+          .then(function () {
+            // All layout XML has been stored, and then start to play the first layout
+            log.info('Online mode: All layout loop XML has been stored') // Log the storage of all loop XML
+            log.info('Online mode: Start to play the first layout loop') // Log the start of playing the first layout
+            playcurrentLayout(loopArr[0]) // Play the current layout
+          })
+      } else {
+        // If it's a single layout
+        updatelayout(online) // Update the layout
+      }
+    }
+
+    var offlinemode = false
+
+    // Function to play offline data
+    function playofflineds(result2) {
+      offlinemode = true // Set the offline mode flag to true
+      if (result2['elements'][0]['elements'][0]['name'] == 'loop') {
+        // Check if it's a loop layout
+        // Cpanel check if playing loop
+        isLoopLyt = true // Set the loop layout flag to true
+        result2 = result2['elements'][0]['elements'][0]['elements'] // Access the elements of the loop layout
+
+        $.when
+          .apply(
+            $,
+            $.map(result2, function (layoutxml, oindex) {
+              layoutURL = layoutxml['attributes']['url'] // Get the layout URL
+              layoutID = layoutURL.split('layout/') // Extract the layout ID from the URL
+              layoutID = layoutID[1].slice(0, layoutID[1].lastIndexOf('/')) // Extract the layout ID
+              layoutURLList.push(layoutURL) // Add the layout URL to the list
+              layoutIDList.push(layoutID) // Add the layout ID to the list
+              loopArr.push(layoutxml) // Add the layout data to the loop array
+              var lytname = layoutxml['attributes']['name'] // Get the layout name
+              layoutxml = JSON.parse(localStorage.getItem('layout-' +
+                layoutID)) // Parse and retrieve layout data from local storage
+              localStorage.setItem('layout-offline-' + layoutID, JSON.stringify(
+                layoutxml)) // Store the offline layout data in local storage
+              var lytslotlist = layoutxml['elements']['0']['elements']['0']['elements']['0'][
+                'elements'] // Access the slot list
+
+              return lytslotlist.forEach(function (slot, index) {
+                var slotid = slot['attributes']['id'] // Get the slot ID
+                if (slot['attributes']['name']) {
+                  var slotname = slot['attributes']['name'] // Get the slot name
+                  var slottype = slot['name'] // Get the slot type
+                  var slotlistobj = new Object() // Create a slot list object
+                  slotlistobj.layoutid = layoutID // Set the layout ID
+                  slotlistobj.layoutname = lytname // Set the layout name
+                  slotlistobj.slottype = slottype // Set the slot type
+                  slotlistobj.slotid = 'slot-' + slotid // Set the slot ID
+                  slotlistobj.slotname = slotname // Set the slot name
+                  slotnameList.push(slotlistobj) // Add the slot list object to the list
+                }
+              })
+            })
+          )
+          .then(function () {
+            // All layout XML has been stored, and then start to play the first layout
+            log.info('Offline mode: All layout loop XML has been stored') // Log the storage of all loop XML
+            log.info('Offline mode: Start to play the first layout loop') // Log the start of playing the first layout
+            playcurrentLayout(loopArr[0]) // Play the current layout
+          })
+      } else {
+        // If it's a single layout
+        getLayoutXML(result2) // Get the layout XML
+      }
+    }
+
+    // Check the network status and display a message if it's offline
+    const playcheckNetwork = async (resultoffline) => {
+      try {
+        // Get the server address from the config
+        const serverAddress = await config.hostserver
+        const hostname = serverAddress.split('/')[2]
+        
+        log.info('Checking network connectivity...')
+        log.info('Server: ' + serverAddress)
+        log.info('Hostname: ' + hostname)
+        
+        // First check if device has internet connection (Capacitor Network API)
+        let hasNetworkConnection = true
+        if (window.capacitorAPI && window.capacitorAPI.isNative) {
+          const networkStatus = await window.capacitorAPI.getNetworkStatus()
+          hasNetworkConnection = networkStatus.connected
+          log.info('Device network status: ' + (hasNetworkConnection ? 'Connected' : 'Disconnected'))
+          
+          if (!hasNetworkConnection) {
+            log.warn('No network connection detected')
+            if (window.errorNotification) {
+              window.errorNotification.warning('No Internet', 'Device is not connected to internet', 5000)
+            }
+            // Go to offline mode immediately
+            if (resultoffline) {
+              playofflineds(resultoffline)
+            } else {
+              if (window.errorNotification) {
+                window.errorNotification.error('No Content Available', 'No internet and no cached content. Please connect to internet.', 0)
+              }
+            }
+            return
+          }
+        }
+        
+        // Check if server is reachable
+        log.info('Checking server reachability...')
+        const serverStatus = await isReachable(serverAddress)
+        
+        if (serverStatus) {
+          // Connection is OK
+          log.info('Server connection: OK')
+          if (window.errorNotification) {
+            window.errorNotification.success('Connected', 'Connected to server successfully', 2000)
+          }
+          getxml()
+        } else {
+          // Server not reachable
+          log.warn('Server connection: FAILED')
+          
+          if (window.errorNotification) {
+            window.errorNotification.warning(
+              'Server Unreachable',
+              'Cannot connect to ' + hostname + '. Will use cached content.',
+              8000
+            )
+          }
+          
+          // Try offline mode
+          if (resultoffline) {
+            log.info('Switching to offline mode with cached content')
+            playofflineds(resultoffline)
+            
+            // Keep checking in background
+            keepcheckNetwork()
+          } else {
+            log.error('No offline data available')
+            
+            if (window.errorNotification) {
+              window.errorNotification.error(
+                'Cannot Start Player',
+                'Server unreachable and no cached content available. Please check connection.',
+                0
+              )
+            }
+            
+            // Show retry options
+            const retryDiv = $('<div class="no-network"></div>')
+            retryDiv.html(`
+              <div style="text-align: center; padding: 20px;">
+                <h2>Cannot Connect to Server</h2>
+                <p>Server: ${serverAddress}</p>
+                <p>No cached content available</p>
+                <button onclick="window.location.reload()" style="margin: 10px; padding: 10px 20px;">Retry</button>
+                <button onclick="window.location.href='configure.html'" style="margin: 10px; padding: 10px 20px;">Configure</button>
+              </div>
+            `)
+            $('body').append(retryDiv)
+            
+            // Keep trying in background
+            keepcheckNetwork()
+          }
+        }
+      } catch (error) {
+        log.error('playcheckNetwork error: ' + error)
+        console.error('Network check failed:', error)
+        
+        // Fallback to getxml
+        getxml()
+      }
+    }
+
+    // Continuously check the network status and retry if offline
+    const keepcheckNetwork = async () => {
+      // Get the server address from the config
+      const serverAddress = await config.hostserver
+      // Split the server address to extract the hostname
+      const hostname = serverAddress.split('/')[2]
+      // Log the hostname
+      log.info('server name:', hostname)
+      // Check the server status using isReachable()
+      const serverStatus = await isReachable(serverAddress)
+      if (serverStatus) {
+        // Connection is OK, log a message and get the XML data
+        log.warn('connection : ok')
+        getxml()
+      } else {
+        // Connection failed, log a message and retry after 10 seconds
+        log.warn('connection : failed and retry')
+        setTimeout(keepcheckNetwork, 10000)
+      }
+    } // Close startApplication function
+    
+    // If config is already loaded, start immediately
+    if (window.configLoader && window.configLoader.config) {
+      initializeWithConfig()
+    }
+    
+  } catch (e) {
+    console.warn('error in main application: ' + e)
+  }
+</script>
+
+</html>
