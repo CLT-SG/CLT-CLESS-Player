@@ -354,12 +354,17 @@ class MobileKioskManager {
     
     /**
      * Hide navigation buttons (for player page only)
+     * Note: In kiosk mode, navigation is hidden by default via CSS
+     * but can still be shown via the auto-hide system in index.html
      */
     hideNavigationButtons() {
         const nav = document.getElementById('mobile-nav');
         if (nav && this.isPlayerPage) {
-            nav.style.display = 'none';
-            console.log('[MobileKiosk] Navigation buttons hidden');
+            // Don't use display:none - use the same approach as auto-hide
+            nav.style.opacity = '0';
+            nav.style.transform = 'translateY(-20px)';
+            nav.classList.remove('nav-visible');
+            console.log('[MobileKiosk] Navigation buttons hidden (via opacity)');
         }
     }
     
@@ -369,7 +374,10 @@ class MobileKioskManager {
     showNavigationButtons() {
         const nav = document.getElementById('mobile-nav');
         if (nav) {
-            nav.style.display = 'flex';
+            // Use the same approach as auto-hide
+            nav.style.opacity = '1';
+            nav.style.transform = 'translateY(0)';
+            nav.classList.add('nav-visible');
             console.log('[MobileKiosk] Navigation buttons shown');
         }
     }
@@ -445,9 +453,22 @@ class MobileKioskManager {
                 left: 0 !important;
             }
             
-            /* Hide mobile navigation in kiosk mode */
+            /* Mobile navigation in kiosk mode - allow auto-hide behavior */
             html.kiosk-mode #mobile-nav {
-                display: none !important;
+                /* Don't use display:none - it breaks the auto-hide system */
+                /* The auto-hide system in index.html uses opacity and transform */
+                /* Start hidden but allow the auto-hide system to show it */
+                opacity: 0 !important;
+                transform: translateY(-20px) !important;
+                pointer-events: auto !important;
+                /* Ensure smooth transitions */
+                transition: opacity 0.3s ease, transform 0.3s ease !important;
+            }
+            
+            /* When navigation is shown by auto-hide system */
+            html.kiosk-mode #mobile-nav.nav-visible {
+                opacity: 1 !important;
+                transform: translateY(0) !important;
             }
             
             /* Remove all user interface chrome */

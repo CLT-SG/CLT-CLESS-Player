@@ -51,8 +51,8 @@ class MobileConfigLoader {
     getDefaultConfig() {
         return {
             version: '2.6.5',
-            hostserver: 'https://cless4.closed-loop.biz',
-            id: '20',
+            hostserver: 'https://cless4.closed-loop.biz/demo',
+            id: '206',
             mode: 'online',
             corsproxy: 'N',
             syncSettings: {

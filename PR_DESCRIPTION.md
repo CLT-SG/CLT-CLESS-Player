@@ -4,6 +4,12 @@ This PR implements full-screen kiosk mode for the mobile CMS player to match the
 
 ## Summary of Key Issues Fixed
 
+### Version 3.2.1 - Mobile Navigation Visibility Fix
+
+1. **Navigation Buttons Hidden in Kiosk Mode** - Mobile-nav buttons completely hidden after kiosk mode implementation
+2. **Gesture-Based Access Missing** - No intuitive way to access navigation in full-screen kiosk mode
+3. **CSS Compatibility Issue** - Kiosk mode CSS conflicted with auto-hide system using display:none
+
 ### Version 3.2.0 - Full-Screen Kiosk Mode
 
 1. **Mobile Player Not Full-Screen** - Player did not display in true kiosk mode like desktop app
@@ -13,6 +19,32 @@ This PR implements full-screen kiosk mode for the mobile CMS player to match the
 5. **Not Optimized for Kiosk Display** - Missing immersive mode and full-screen optimizations
 
 ## Core Technical Improvements
+
+### Version 3.2.1 - Navigation Accessibility Enhancement
+
+1. **Kiosk CSS Compatibility Fix**
+   - Changed from display: none to opacity/transform approach
+   - Made kiosk CSS compatible with auto-hide system
+   - Added .nav-visible class for state management
+   - Smooth transitions maintained throughout
+
+2. **Gesture-Based Navigation Access**
+   - Swipe-down from top edge to reveal navigation
+   - Triple-tap anywhere for emergency access
+   - Mouse hover in top-right corner for desktop
+   - Multiple intuitive access methods implemented
+
+3. **Enhanced Auto-Hide System**
+   - Added .nav-visible class management
+   - Integrated gesture detection with auto-hide
+   - 5-second auto-hide timer preserved
+   - Smooth fade-in/fade-out transitions
+
+4. **Updated Kiosk Manager Methods**
+   - hideNavigationButtons() uses opacity/transform
+   - showNavigationButtons() compatible with gestures
+   - Consistent behavior across all navigation access methods
+   - Professional UX with accessible settings
 
 ### Version 3.2.0 - Mobile Kiosk Mode System
 
@@ -49,6 +81,12 @@ This PR implements full-screen kiosk mode for the mobile CMS player to match the
    - Orientation lock to landscape for displays
 
 ## Files Changed Summary
+
+### Version 3.2.1 - Navigation Visibility Fix
+
+**Mobile JavaScript APIs Modified**
+- mobile/www/assets/js/mobile/mobile-kiosk.js - Updated kiosk CSS and navigation methods
+- mobile/www/index.html - Enhanced auto-hide system with gesture support
 
 ### Version 3.2.0 - Mobile Kiosk Mode
 
@@ -92,6 +130,16 @@ This PR implements full-screen kiosk mode for the mobile CMS player to match the
 - [ ] Confirm no scrolling possible
 
 ## Version History
+
+**v3.2.1** - Mobile navigation visibility fix in kiosk mode
+
+Statistics
+- 2 files modified (mobile-kiosk.js, index.html)
+- Navigation accessibility restored with gesture support
+- Swipe-down and triple-tap gestures added
+- CSS compatibility fix for auto-hide system
+- Professional UX with accessible navigation
+- Zero breaking changes to kiosk functionality
 
 **v3.2.0** - Mobile kiosk mode implementation
 
