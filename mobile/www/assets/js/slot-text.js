@@ -43,6 +43,15 @@
   }
 
   function textFunc(slotitem, slotid, index) {
+      console.log('[textFunc] Starting for slot', slotid, 'at index', index);
+      console.log('[textFunc] Slotitem structure:', JSON.stringify(slotitem, null, 2));
+      
+      // Check if the slot element exists in the DOM
+      if ($('#slot-' + slotid).length === 0) {
+          console.warn('[textFunc] Slot element #slot-' + slotid + ' does not exist in DOM (probably disabled)');
+          return;
+      }
+      
       textCurIndex[slotid] = 1
       textloop[slotid] = []
       
@@ -53,6 +62,8 @@
       }
       
       slotitem.forEach(function (text, mindex) {
+          console.log('[textFunc] Processing text item', mindex, ':', JSON.stringify(text));
+          
           // Defensive check for text element
           if (!text) {
               console.error('[textFunc] Invalid text element at index', mindex, 'for slot', slotid);
@@ -65,22 +76,31 @@
               console.warn('[textFunc] No elements property in text element at index', mindex, 'for slot', slotid);
               src = '';
           } else {
+              console.log('[textFunc] Elements type:', Array.isArray(text['elements']) ? 'array' : 'object');
+              console.log('[textFunc] Elements content:', JSON.stringify(text['elements']));
+              
               // Handle both array and object-based elements
               var firstElement = null;
               if (Array.isArray(text['elements'])) {
+                  console.log('[textFunc] Using array access [0]');
                   firstElement = text['elements'][0];
               } else if (typeof text['elements'] === 'object') {
+                  console.log('[textFunc] Using object access ["0"]');
                   firstElement = text['elements']['0'];
               }
               
               if (!firstElement) {
                   console.warn('[textFunc] Empty elements in text element at index', mindex, 'for slot', slotid);
                   src = '';
-              } else if (!firstElement['text']) {
-                  console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
-                  src = '';
               } else {
-                  src = firstElement['text'];
+                  console.log('[textFunc] First element:', JSON.stringify(firstElement));
+                  if (!firstElement['text']) {
+                      console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
+                      src = '';
+                  } else {
+                      src = firstElement['text'];
+                      console.log('[textFunc] Extracted text:', src);
+                  }
               }
           }
           
@@ -92,12 +112,15 @@
               var duration = text['attributes']['duration'];
           }
           
+          console.log('[textFunc] Creating content object with text:', src, 'duration:', duration);
+          
           var contentObj = new Object()
           contentObj.text = src
           contentObj.duration = parseInt(duration) * 1000
           textloop[slotid].push(contentObj)
           if (mindex === slotitem.length - 1) {
               if (textloop[slotid][0]) {
+                  console.log('[textFunc] Starting text display for slot', slotid);
                   appendTextElement(textloop[slotid][0])
               } else {
                   console.error('[textFunc] No valid text content to display for slot', slotid);

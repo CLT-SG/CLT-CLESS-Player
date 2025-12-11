@@ -245,9 +245,13 @@ function getLayoutXML(result2) {
             }
 
             var slotele = '<div id="slot-' + slotid + '" class="main-slot mslot-' + slot['name'] + '" ></div>'
+            
+            console.log('[LayoutXML] Slot:', slotid, 'Type:', slot['name'], 'Enabled:', slot['attributes']['enabled']);
+            
             if (slot['attributes']['enabled'] == 'Y') {
                 //render every slot to body
                 $('#main').append(slotele)
+                console.log('[LayoutXML] Slot', slotid, 'appended to DOM');
                 //customize slot
                 if (lytautoscale == 'Y') {
                     var demoWidth = (slotwidth / lywidth * 100)
@@ -322,6 +326,12 @@ function getLayoutXML(result2) {
                 } //text slot
                 else if (slot['name'] == 'text') {
                     try {
+                        console.log('[LayoutXML] TEXT slot detected - slotid:', slotid);
+                        console.log('[LayoutXML] TEXT slotitem structure:', JSON.stringify(slotitem, null, 2));
+                        console.log('[LayoutXML] TEXT slotitem length:', slotitem ? slotitem.length : 'undefined');
+                        if (slotitem && slotitem.length > 0) {
+                            console.log('[LayoutXML] First TEXT item:', JSON.stringify(slotitem[0]));
+                        }
                         textFunc(slotitem, slotid, index)
                     } catch (error) {
                         console.error('[LayoutXML] Error in textFunc for slot:', slotid, 'Error:', error.message, error.stack);
@@ -329,6 +339,9 @@ function getLayoutXML(result2) {
                 } //ticker slot
                 else if (slot['name'] == 'ticker') {
                     try {
+                        console.log('[LayoutXML] TICKER slot detected - slotid:', slotid);
+                        console.log('[LayoutXML] TICKER slot structure:', JSON.stringify(slot, null, 2));
+                        console.log('[LayoutXML] TICKER slot enabled:', slot['attributes']['enabled']);
                         tickerFunc(slot, slotid)
                     } catch (error) {
                         console.error('[LayoutXML] Error in tickerFunc for slot:', slotid, 'Error:', error.message, error.stack);
@@ -336,6 +349,9 @@ function getLayoutXML(result2) {
                 } //scroller slot
                 else if (slot['name'] == 'scroller') {
                     try {
+                        console.log('[LayoutXML] SCROLLER slot detected - slotid:', slotid);
+                        console.log('[LayoutXML] SCROLLER slot structure:', JSON.stringify(slot, null, 2));
+                        console.log('[LayoutXML] SCROLLER slot enabled:', slot['attributes']['enabled']);
                         scrollerFunc(slot, slotid)
                     } catch (error) {
                         console.error('[LayoutXML] Error in scrollerFunc for slot:', slotid, 'Error:', error.message, error.stack);
@@ -343,6 +359,9 @@ function getLayoutXML(result2) {
                 } //text fader slot
                 else if (slot['name'] == 'fader') {
                     try {
+                        console.log('[LayoutXML] FADER slot detected - slotid:', slotid);
+                        console.log('[LayoutXML] FADER slot structure:', JSON.stringify(slot, null, 2));
+                        console.log('[LayoutXML] FADER slot enabled:', slot['attributes']['enabled']);
                         faderFunc(slot, slotid)
                     } catch (error) {
                         console.error('[LayoutXML] Error in faderFunc for slot:', slotid, 'Error:', error.message, error.stack);
