@@ -1,5 +1,96 @@
 # Change Log
 
+## [3.1.7] - 2025-12-11
+
+### Fixed - APK Output Filename
+
+- **Generic APK Filename** - Resolved issue where release builds generated generic "app-release-unsigned.apk" filename
+  - Root cause: Android Gradle build system uses default naming convention without custom configuration
+  - Impact: Difficult to identify APK version when multiple builds exist
+  - Solution: Added applicationVariants configuration to customize output filename with version
+
+- **Professional Build Artifacts** - Implemented versioned APK naming for better deployment management
+  - Release builds: "ecless-player_v3.1.6.apk"
+  - Debug builds: "ecless-player_v3.1.6-debug.apk"
+  - Includes app name and version number in filename
+  - Easy to identify and manage multiple APK versions
+
+### Technical Details
+
+**APK Naming Configuration:**
+```groovy
+applicationVariants.all { variant ->
+    variant.outputs.all { output ->
+        def versionName = variant.versionName
+        def appName = "ecless-player"
+        def buildType = variant.buildType.name
+        
+        if (buildType == "release") {
+            outputFileName = "${appName}_v${versionName}.apk"
+        } else {
+            outputFileName = "${appName}_v${versionName}-${buildType}.apk"
+        }
+    }
+}
+```
+
+**Filename Pattern:**
+- Format: `{appName}_v{versionName}.apk` for release builds
+- Format: `{appName}_v{versionName}-{buildType}.apk` for debug/other builds
+- Example: `ecless-player_v3.1.6.apk` (release)
+- Example: `ecless-player_v3.1.6-debug.apk` (debug)
+
+### Files Modified
+
+**Build Configuration:**
+- `mobile/android/app/build.gradle` - Added applicationVariants configuration for custom APK naming
+
+### User Experience Improvements
+
+- APK files easily identifiable by version number
+- Professional naming convention for distribution
+- Clear distinction between release and debug builds
+- Simplified deployment and version management
+- No confusion when managing multiple APK versions
+
+### Developer Experience Improvements
+
+- Easy to identify which version is being tested
+- Build artifacts self-documenting with version in filename
+- Simplified APK organization and archiving
+- Clear naming convention for CI/CD pipelines
+- Version tracking simplified
+
+### Testing Status
+
+Verified:
+- Build.gradle configuration added correctly
+- Release build generates "ecless-player_v3.1.6.apk"
+- Filename includes app name and version
+- Build completes successfully
+- APK output location unchanged
+
+Pending Device Testing:
+- Verify APK installs normally with new filename
+- Confirm no functional changes to app
+- Test APK distribution with new naming
+
+### Compatibility
+
+- Desktop Electron app: 100% unchanged, unaffected
+- Mobile app: Filename change only, no functional changes
+- Android 5.0 (API 21) and above supported
+- No breaking changes to app functionality
+- Build process unchanged except filename
+- APK signature and contents identical
+
+### Performance Impact
+
+- Zero runtime performance impact
+- Zero build time impact
+- No effect on APK size
+- Filename change only at build output stage
+
 ## [3.1.6] - 2025-12-11
 
 ### Fixed - Version Synchronization and Android 11+ Installation

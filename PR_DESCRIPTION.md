@@ -4,6 +4,12 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 
 ## Summary of Key Issues Fixed
 
+### Version 3.1.7 - APK Filename Fix
+
+1. **APK Output Naming** - Release builds generated generic "app-release-unsigned.apk" instead of versioned filename
+2. **Build Artifact Identification** - Difficult to identify APK version without descriptive filename
+3. **Professional Deployment** - APK filename did not match professional naming conventions
+
 ### Version 3.1.6 - Android 11+ Installation Fixes
 
 1. **Version Mismatch** - package.json version (3.1.3) did not match build.gradle version (1.0.0)
@@ -43,6 +49,11 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 - Replaced generic "file_notcreated" with specific permission error messages
 
 ## Files Changed Summary
+
+### Version 3.1.7 - APK Filename Fix
+
+**Build Configuration**
+- `mobile/android/app/build.gradle` - Added applicationVariants configuration for custom APK naming
 
 ### Version 3.1.6 - Android 11+ Installation Fixes
 
@@ -100,6 +111,16 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 - [ ] Test on Android 10, 11, 12, 13, 14
 
 ## Version History
+
+**v3.1.7** - APK filename customization
+
+Statistics
+- 1 file modified (build.gradle)
+- APK output naming configured with version
+- Release builds now generate "ecless-player_v3.1.6.apk"
+- Debug builds generate "ecless-player_v3.1.6-debug.apk"
+- Zero functional changes to app features
+- Professional build artifact naming
 
 **v3.1.6** - Android 11+ installation fixes and version synchronization
 

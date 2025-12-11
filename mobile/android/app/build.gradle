@@ -8,7 +8,7 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 10
-        versionName "3.1.3"
+        versionName "3.1.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +20,21 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    
+    // Custom APK naming with version
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def versionName = variant.versionName
+            def appName = "ecless-player"
+            def buildType = variant.buildType.name
+            
+            if (buildType == "release") {
+                outputFileName = "${appName}_v${versionName}.apk"
+            } else {
+                outputFileName = "${appName}_v${versionName}-${buildType}.apk"
+            }
         }
     }
 }
