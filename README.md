@@ -12,7 +12,7 @@ eCLESS Player is a powerful digital signage application built with ElectronJS, d
 - ElectronJS-based desktop application
 - **Native mobile apps** for Android and iOS devices
 
-### 🎯 Multi-Screen Synchronization System
+### Multi-Screen Synchronization System
 - **Master-Slave Architecture**: Coordinate multiple screens with one controlling timing
 - **Real-time Layout Sync**: All screens show identical layouts at the same timestamp
 - **Video Synchronization**: Synchronized video playback across screens with drift correction
