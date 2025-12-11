@@ -70,11 +70,22 @@ From Xcode: Click **Run** button or press `Cmd + R`
 ## Build Release APK
 
 ```bash
-cd mobile/android
+# 1. Rebuild web assets
+cd mobile
+npm run build
+
+# 2. Sync to Android
+npm run sync:android
+
+# 3. Build APK
+cd android
+./gradlew clean
 ./gradlew assembleRelease
 ```
 
-Output: `android/app/build/outputs/apk/release/app-release.apk`
+Output: `android/app/build/outputs/apk/release/app-release-unsigned.apk` (~24MB)
+
+**Note:** Build errors? See [BUILD-TROUBLESHOOTING.md](./BUILD-TROUBLESHOOTING.md)
 
 ## Common Commands
 

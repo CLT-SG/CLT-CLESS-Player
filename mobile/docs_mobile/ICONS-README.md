@@ -64,7 +64,7 @@ The icon generation is configured in `assets.config.json` (if present) or uses d
 
 ### Key Configuration Points
 
-- **App ID**: `sg.closedloop.ecless.player` (in `capacitor.config.json`)
+- **App ID**: `biz.closedloop.ecless.player` (in `capacitor.config.json`)
 - **App Name**: eCLESS Player
 - **Background Color**: `#1e293b` (dark slate)
 

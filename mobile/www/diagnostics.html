@@ -223,15 +223,18 @@
         }
     </style>
 
-  
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
-  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-  
-  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
-  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
-  
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
-  <script src="assets/js/mobile/mobile-config.js"></script>
+    <!-- ========================================
+         CRITICAL: Mobile Initialization Order
+         ======================================== -->
+    
+    <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
+    <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+    
+    <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
+    <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+    
+    <!-- 3. Mobile Config Loader (needs window.log from shim) -->
+    <script src="assets/js/mobile/mobile-config.js"></script>
 </head>
 <body>
     <div class="container">

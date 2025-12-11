@@ -11,21 +11,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>eCLESS Player - License Activation</title>
   <link rel="stylesheet" type="text/css" href="assets/css/activate.css" />
-  <!-- Custom Dialog System for alwaysOnTop compatibility -->
-  <script src="assets/js/custom-dialog.js"></script>
-
   
-  <!-- Capacitor Mobile Initialization (MUST load first) -->
+  <!-- ========================================
+       CRITICAL: Mobile Initialization Order
+       ======================================== -->
+  
+  <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
   <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
   
-  <!-- Mobile Electron Shim (provides window.mobileAPI, etc.) - NO DEFER -->
+  <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
   <script src="assets/js/mobile/mobile-electron-shim.js"></script>
   
-  <!-- Mobile Config Loader - NO DEFER (needs window.log from shim) -->
+  <!-- 3. Mobile Config Loader (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
   
-  <!-- Mobile Serial Key Validator -->
+  <!-- 4. Mobile Serial Key Validator -->
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
+  
+  <!-- 5. Other Scripts (load AFTER mobile initialization) -->
+  <!-- Custom Dialog System for alwaysOnTop compatibility -->
+  <script src="assets/js/custom-dialog.js"></script>
 </head>
 
 <body>
@@ -277,7 +282,19 @@
         
         console.log('eCLESS Activate: Validating license key...');
         
+        // Ensure storage permissions before proceeding
+        if (window.configLoader) {
+          activateBtn.textContent = 'Checking permissions...';
+          const hasPermissions = await window.configLoader.ensureStoragePermissions();
+          
+          if (!hasPermissions) {
+            console.warn('eCLESS Activate: Storage permissions not granted, will use app-private storage');
+            // Continue anyway - will use DATA directory or Preferences as fallback
+          }
+        }
+        
         // Validate the key
+        activateBtn.textContent = 'Validating...';
         const validationResult = await serialKeyValidator.validateSerialKey(userKey);
         
         if (validationResult.valid) {
@@ -287,23 +304,46 @@
           
           // Save the valid key to configuration
           if (window.configLoader) {
-            const currentConfig = window.configLoader.config || {};
+            const currentConfig = window.configLoader.config || window.configLoader.defaultConfig;
             currentConfig.serialkey = userKey;
             currentConfig.licenseKey = userKey;
             
-            await window.configLoader.saveConfiguration(currentConfig);
-            
-            console.log('eCLESS Activate: License saved to configuration');
-            
-            alert('License activated successfully!\n\nThe app will now start.');
-            
-            // Redirect to main player after short delay
-            setTimeout(() => {
-              window.location.href = 'index.html';
-            }, 1500);
+            try {
+              await window.configLoader.saveConfiguration(currentConfig);
+              console.log('eCLESS Activate: License saved to configuration');
+              
+              alert('✅ License Activated Successfully!\n\nThe app will now start.');
+              
+              // Redirect to main player after short delay
+              setTimeout(() => {
+                window.location.href = 'index.html';
+              }, 1500);
+              
+            } catch (saveError) {
+              console.error('eCLESS Activate: Error saving configuration', saveError);
+              
+              // Show user-friendly error message
+              let errorMsg = 'Failed to save license configuration.\n\n';
+              
+              if (saveError.message.includes('Permission denied') || saveError.message.includes('EACCES')) {
+                errorMsg += 'Storage access issue detected.\n\n';
+                errorMsg += 'The license is valid, but configuration could not be saved.\n\n';
+                errorMsg += 'Solutions:\n';
+                errorMsg += '1. Grant storage permissions in device settings\n';
+                errorMsg += '2. Restart the app and try again\n';
+                errorMsg += '3. Contact support if the issue persists';
+              } else {
+                errorMsg += saveError.message;
+              }
+              
+              alert('⚠️ ' + errorMsg);
+              
+              activateBtn.disabled = false;
+              activateBtn.textContent = 'Retry Activation';
+            }
             
           } else {
-            throw new Error('Configuration system not available');
+            throw new Error('Configuration system not available. Please restart the app.');
           }
           
         } else {
@@ -312,10 +352,10 @@
           activateBtn.disabled = false;
           activateBtn.textContent = 'Activate License';
           
-          alert('Invalid License Key\n\n' + 
+          alert('❌ Invalid License Key\n\n' + 
                 'The license key does not match this device.\n\n' +
                 'Reason: ' + validationResult.reason + '\n\n' +
-                'Please ensure you are using the correct key for this device.');
+                'Please ensure you are using the correct key for this device UUID:\n' + deviceUUID);
         }
         
       } catch (error) {
@@ -324,7 +364,19 @@
         activateBtn.disabled = false;
         activateBtn.textContent = 'Activate License';
         
-        alert('Activation Error\n\n' + error.message);
+        let errorMsg = 'Activation Error\n\n';
+        
+        if (error.message.includes('Permission denied') || error.message.includes('EACCES')) {
+          errorMsg += 'Storage Permission Required\n\n';
+          errorMsg += 'Please enable storage permissions for eCLESS Player in your device settings.\n\n';
+          errorMsg += 'Then restart the app and try again.';
+        } else if (error.message.includes('Configuration system not available')) {
+          errorMsg += error.message;
+        } else {
+          errorMsg += error.message || 'Unknown error occurred';
+        }
+        
+        alert('⚠️ ' + errorMsg);
       }
     }
     

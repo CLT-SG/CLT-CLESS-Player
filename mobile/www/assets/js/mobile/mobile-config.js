@@ -22,6 +22,7 @@ class MobileConfigLoader {
         this.configPath = 'ecless/config.json';
         this.defaultConfig = this.getDefaultConfig();
         this.loadPromise = null;
+        this.useDataDirectory = true; // Use app-private DATA directory instead of DOCUMENTS
     }
 
     /**
@@ -119,6 +120,40 @@ class MobileConfigLoader {
     }
 
     /**
+     * Check and request storage permissions if needed
+     */
+    async ensureStoragePermissions() {
+        if (!window.capacitorAPI || !window.capacitorAPI.isNative) {
+            return true; // Web mode doesn't need permissions
+        }
+
+        try {
+            // For DATA directory, we don't need external storage permissions
+            if (this.useDataDirectory) {
+                console.log('MobileConfig: Using app-private DATA directory (no permissions needed)');
+                return true;
+            }
+
+            // Only needed if using DOCUMENTS directory
+            console.log('MobileConfig: Checking storage permissions...');
+            const permissions = await window.capacitorAPI.checkPermissions?.() || { publicStorage: 'granted' };
+            
+            if (permissions.publicStorage !== 'granted') {
+                console.log('MobileConfig: Requesting storage permissions...');
+                const result = await window.capacitorAPI.requestPermissions?.() || { publicStorage: 'granted' };
+                return result.publicStorage === 'granted';
+            }
+            
+            return true;
+        } catch (error) {
+            console.warn('MobileConfig: Permission check/request failed:', error);
+            // Continue with app-private storage as fallback
+            this.useDataDirectory = true;
+            return true;
+        }
+    }
+
+    /**
      * Load configuration from device storage or use defaults
      */
     async loadConfiguration() {
@@ -128,21 +163,32 @@ class MobileConfigLoader {
             // Wait for Capacitor to be ready
             await this.waitForCapacitor();
 
+            // Ensure we have necessary permissions
+            await this.ensureStoragePermissions();
+
             // Try to load from filesystem
             if (window.capacitorAPI && window.capacitorAPI.isNative) {
-                const exists = await window.capacitorAPI.fileExists(this.configPath);
-                
-                if (exists) {
-                    console.log('MobileConfig: Found existing config.json');
-                    const configData = await window.capacitorAPI.readFile(this.configPath);
-                    this.config = JSON.parse(configData);
-                    console.log('MobileConfig: Loaded configuration from device storage');
-                } else {
-                    console.log('MobileConfig: No config.json found, using defaults');
-                    this.config = { ...this.defaultConfig };
+                // Attempt to read from DATA directory first (app-private, no permissions needed)
+                try {
+                    const exists = await this._fileExistsInDirectory(this.configPath, 'DATA');
                     
-                    // Save default config for future use
-                    await this.saveConfiguration(this.config);
+                    if (exists) {
+                        console.log('MobileConfig: Found existing config.json in DATA directory');
+                        const configData = await this._readFileFromDirectory(this.configPath, 'DATA');
+                        this.config = JSON.parse(configData);
+                        this.useDataDirectory = true;
+                        console.log('MobileConfig: Loaded configuration from DATA directory');
+                    } else {
+                        console.log('MobileConfig: No config.json found, using defaults');
+                        this.config = { ...this.defaultConfig };
+                        
+                        // Save default config for future use (will use DATA directory)
+                        await this.saveConfiguration(this.config);
+                    }
+                } catch (error) {
+                    console.warn('MobileConfig: Error loading from DATA directory:', error);
+                    // Fall back to Preferences API
+                    await this._loadFromPreferences();
                 }
             } else {
                 // Web fallback - use localStorage
@@ -215,6 +261,78 @@ class MobileConfigLoader {
     }
 
     /**
+     * Helper: Check if file exists in specific directory
+     */
+    async _fileExistsInDirectory(path, directory) {
+        try {
+            if (directory === 'DATA') {
+                return await window.capacitorAPI.fileExists(path, window.capacitorAPI.Directory?.Data);
+            } else {
+                return await window.capacitorAPI.fileExists(path);
+            }
+        } catch (error) {
+            return false;
+        }
+    }
+
+    /**
+     * Helper: Read file from specific directory
+     */
+    async _readFileFromDirectory(path, directory) {
+        if (directory === 'DATA') {
+            return await window.capacitorAPI.readFile(path, window.capacitorAPI.Directory?.Data);
+        } else {
+            return await window.capacitorAPI.readFile(path);
+        }
+    }
+
+    /**
+     * Helper: Write file to specific directory
+     */
+    async _writeFileToDirectory(path, data, directory) {
+        if (directory === 'DATA') {
+            return await window.capacitorAPI.writeFile(path, data, window.capacitorAPI.Directory?.Data);
+        } else {
+            return await window.capacitorAPI.writeFile(path, data);
+        }
+    }
+
+    /**
+     * Load configuration from Preferences API (fallback)
+     */
+    async _loadFromPreferences() {
+        console.log('MobileConfig: Loading from Preferences API (fallback)');
+        try {
+            const configJson = await window.capacitorAPI.getPreference?.('ecless-config');
+            if (configJson) {
+                this.config = JSON.parse(configJson);
+                console.log('MobileConfig: Loaded configuration from Preferences');
+            } else {
+                this.config = { ...this.defaultConfig };
+                await this._saveToPreferences(this.config);
+            }
+        } catch (error) {
+            console.error('MobileConfig: Error loading from Preferences:', error);
+            this.config = { ...this.defaultConfig };
+        }
+    }
+
+    /**
+     * Save configuration to Preferences API (fallback)
+     */
+    async _saveToPreferences(config) {
+        console.log('MobileConfig: Saving to Preferences API (fallback)');
+        try {
+            await window.capacitorAPI.setPreference?.('ecless-config', JSON.stringify(config, null, 2));
+            console.log('MobileConfig: Configuration saved to Preferences');
+            return true;
+        } catch (error) {
+            console.error('MobileConfig: Error saving to Preferences:', error);
+            return false;
+        }
+    }
+
+    /**
      * Save configuration to device storage
      */
     async saveConfiguration(config) {
@@ -224,12 +342,34 @@ class MobileConfigLoader {
             this.config = config;
 
             if (window.capacitorAPI && window.capacitorAPI.isNative) {
-                // Save to filesystem
-                await window.capacitorAPI.writeFile(
-                    this.configPath,
-                    JSON.stringify(config, null, 2)
-                );
-                console.log('MobileConfig: Configuration saved to device storage');
+                // Ensure permissions before saving
+                await this.ensureStoragePermissions();
+
+                // Try to save to DATA directory first (app-private, most reliable)
+                try {
+                    await this._writeFileToDirectory(
+                        this.configPath,
+                        JSON.stringify(config, null, 2),
+                        'DATA'
+                    );
+                    this.useDataDirectory = true;
+                    console.log('MobileConfig: Configuration saved to DATA directory');
+                } catch (fileError) {
+                    console.warn('MobileConfig: Failed to save to DATA directory:', fileError);
+                    
+                    // Check if it's a permission error
+                    if (fileError.message && fileError.message.includes('Permission denied')) {
+                        // Show user-friendly error
+                        throw new Error('Permission denied: Cannot save configuration. Please grant storage permissions in app settings.');
+                    }
+                    
+                    // Fallback to Preferences API
+                    console.log('MobileConfig: Falling back to Preferences API');
+                    const saved = await this._saveToPreferences(config);
+                    if (!saved) {
+                        throw new Error('Failed to save configuration to any storage method');
+                    }
+                }
             } else {
                 // Web fallback - use localStorage
                 localStorage.setItem('ecless-config', JSON.stringify(config));
@@ -248,6 +388,12 @@ class MobileConfigLoader {
 
         } catch (error) {
             console.error('MobileConfig: Error saving configuration:', error);
+            
+            // Provide user-friendly error message
+            if (error.message.includes('Permission denied') || error.message.includes('EACCES')) {
+                throw new Error('Storage permission denied. Please enable storage permissions for eCLESS Player in your device settings.');
+            }
+            
             throw error;
         }
     }

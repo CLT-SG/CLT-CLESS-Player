@@ -1,6 +1,6 @@
 {
   "name": "ecless-player-mobile",
-  "version": "3.1.2",
+  "version": "3.1.8",
   "type": "module",
   "description": "eCLESS Player Mobile App - Android & iOS",
   "author": {
@@ -10,9 +10,8 @@
   "license": "ISC",
   "homepage": "www.closed-loop.biz",
   "scripts": {
-    "build": "node build-mobile.cjs",
-    "build:android": "npm run build && npx cap sync android && npx cap open android",
-    "build:ios": "npm run build && npx cap sync ios && npx cap open ios",
+    "build:android": "npx cap sync android && npx cap open android",
+    "build:ios": "npx cap sync ios && npx cap open ios",
     "sync": "npx cap sync",
     "sync:android": "npx cap sync android",
     "sync:ios": "npx cap sync ios",

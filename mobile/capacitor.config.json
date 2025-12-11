@@ -1,8 +1,7 @@
 {
-  "appId": "sg.closedloop.ecless.player",
+  "appId": "biz.closedloop.ecless.player",
   "appName": "eCLESS Player",
   "webDir": "www",
-  "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https",
     "iosScheme": "https",
