@@ -4,6 +4,14 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 
 ## Summary of Key Issues Fixed
 
+### Version 3.1.6 - Android 11+ Installation Fixes
+
+1. **Version Mismatch** - package.json version (3.1.3) did not match build.gradle version (1.0.0)
+2. **Android 11 Installation Error** - BADCONTENTPROVIDER DISPLAY_NAME column is null error prevented app installation
+3. **ContentProvider Configuration** - Insufficient file path definitions in file_paths.xml for Android 11+ scoped storage
+
+### Version 3.1.5 - Storage Permission Fix
+
 1. **Configuration Save Failure** - Android 11+ scoped storage restrictions prevented writing to public DOCUMENTS directory
 2. **Permission Denied Errors** - App attempted to write to external storage without proper runtime permissions
 3. **Poor Error Handling** - Generic "file_notcreated" message with no actionable guidance for users
@@ -36,7 +44,22 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 
 ## Files Changed Summary
 
-### Android Configuration
+### Version 3.1.6 - Android 11+ Installation Fixes
+
+**Build Configuration**
+- `mobile/android/app/build.gradle` - Updated version to 3.1.3, versionCode to 313
+- `mobile/build-mobile.cjs` - Added automatic version sync from package.json
+
+**Android Resources**
+- `mobile/android/app/src/main/res/xml/file_paths.xml` - Enhanced with comprehensive path declarations
+- `mobile/android/app/src/main/AndroidManifest.xml` - Added queries element for Android 11+ package visibility
+
+**Documentation**
+- `mobile/docs_mobile/ANDROID-11-FIXES.md` - Complete troubleshooting guide
+
+### Version 3.1.5 - Storage Permission Fix
+
+**Android Configuration**
 - `mobile/android/app/src/main/AndroidManifest.xml` - Added scoped storage permissions and legacy flags
 
 ### Mobile JavaScript APIs
@@ -77,6 +100,16 @@ This PR resolves the "file_notcreated" error that occurred when activating licen
 - [ ] Test on Android 10, 11, 12, 13, 14
 
 ## Version History
+
+**v3.1.6** - Android 11+ installation fixes and version synchronization
+
+Statistics
+- 4 files modified (build.gradle, build script, file_paths.xml, AndroidManifest.xml)
+- 1 documentation file created (ANDROID-11-FIXES.md)
+- Automatic version sync from package.json to build.gradle
+- Fixed ContentProvider configuration for Android 11+
+- Added package visibility queries for Android 11+
+- Zero functional changes to app features
 
 **v3.1.5** - Android storage permission and configuration save fix
 

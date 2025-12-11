@@ -11,6 +11,11 @@
 const fs = require('fs');
 const path = require('path');
 
+// Read package.json to get version info
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
+const APP_VERSION = packageJson.version;
+const VERSION_CODE = parseInt(APP_VERSION.replace(/\./g, ''), 10); // Convert 3.1.3 to 313
+
 // Directories
 const srcDir = path.join(__dirname, '..', 'src');
 const mobileDir = path.join(__dirname);
@@ -371,6 +376,38 @@ try {
 } catch (error) {
     console.error('❌ Failed to bundle Capacitor modules:', error.message);
     process.exit(1);
+}
+
+// ============================================
+// Sync version numbers to build.gradle
+// ============================================
+console.log('\n🔄 Syncing version numbers...');
+
+try {
+    const buildGradlePath = path.join(__dirname, 'android', 'app', 'build.gradle');
+    
+    if (fs.existsSync(buildGradlePath)) {
+        let buildGradleContent = fs.readFileSync(buildGradlePath, 'utf8');
+        
+        // Update versionCode (convert 3.1.3 to 313)
+        buildGradleContent = buildGradleContent.replace(
+            /versionCode\s+\d+/,
+            `versionCode ${VERSION_CODE}`
+        );
+        
+        // Update versionName
+        buildGradleContent = buildGradleContent.replace(
+            /versionName\s+"[^"]+"/,
+            `versionName "${APP_VERSION}"`
+        );
+        
+        fs.writeFileSync(buildGradlePath, buildGradleContent, 'utf8');
+        console.log(`✓ Updated build.gradle: versionCode=${VERSION_CODE}, versionName="${APP_VERSION}"`);
+    } else {
+        console.log('⚠ Warning: build.gradle not found, skipping version sync');
+    }
+} catch (error) {
+    console.error('❌ Failed to sync versions:', error.message);
 }
 
 console.log('\n✅ Mobile build completed successfully!');
