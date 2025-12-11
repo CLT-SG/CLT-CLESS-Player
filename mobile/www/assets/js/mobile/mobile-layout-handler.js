@@ -38,7 +38,7 @@ class MobileLayoutHandler {
         const viewportHeight = window.innerHeight;
         
         if (autoscale || !bounds.width || !bounds.height) {
-            // Autoscale mode - use full viewport
+            // Autoscale mode - use full viewport with default scale
             this.layoutDimensions = {
                 width: viewportWidth,
                 height: viewportHeight,
@@ -49,23 +49,30 @@ class MobileLayoutHandler {
             this.scaleFactor = 1;
             this.isFullscreen = true;
             
+            // Reset viewport to default for autoscale
+            this.resetViewportScale();
+            
             console.log('[MobileLayoutHandler] Using autoscale/fullscreen mode');
         } else {
-            // Calculate scale factor to fit layout in viewport
-            const scaleX = bounds.width;
-            const scaleY = bounds.height;
-            this.scaleFactor = Math.min(scaleX, scaleY, 1); // Don't scale up, only down
+            // Non-autoscale mode - calculate and apply viewport scale
+            const optimalScale = this.calculateViewportScale(bounds.width, bounds.height);
             
+            // Update viewport meta tag with calculated scale
+            this.updateViewportScale(optimalScale);
+            
+            // Store layout dimensions
             this.layoutDimensions = {
-                width: scaleX,
-                height: scaleY,
+                width: bounds.width,
+                height: bounds.height,
                 x: 0,
                 y: 0,
                 original: bounds
             };
+            this.scaleFactor = optimalScale;
             this.isFullscreen = false;
             
-            console.log('[MobileLayoutHandler] Layout scaled:', JSON.stringify(this.layoutDimensions, null, 2));
+            console.log('[MobileLayoutHandler] Fixed layout mode with viewport scale:', optimalScale);
+            console.log('[MobileLayoutHandler] Layout dimensions:', JSON.stringify(this.layoutDimensions, null, 2));
         }
         
         // Apply dimensions to the main container
@@ -93,24 +100,32 @@ class MobileLayoutHandler {
         }
         
         if (this.isFullscreen) {
-            // Fullscreen mode
+            // Fullscreen/autoscale mode - fill viewport
+            main.classList.remove('fixed-layout');
             main.style.width = '100%';
             main.style.height = '100%';
             main.style.position = 'fixed';
             main.style.top = '0';
             main.style.left = '0';
             main.style.transform = 'none';
+            main.style.transformOrigin = 'top left';
+            
+            console.log('[MobileLayoutHandler] Applied fullscreen mode to #main');
         } else {
-            // Scaled mode with centering
+            // Fixed layout mode - use layout dimensions with viewport scaling
+            // The viewport meta tag handles the scaling, we just set the design dimensions
+            main.classList.add('fixed-layout');
             main.style.width = this.layoutDimensions.width + 'px';
             main.style.height = this.layoutDimensions.height + 'px';
             main.style.position = 'fixed';
-            main.style.top = this.layoutDimensions.y + 'px';
-            main.style.left = this.layoutDimensions.x + 'px';
+            main.style.top = '0';
+            main.style.left = '0';
             main.style.transform = 'none';
+            main.style.transformOrigin = 'top left';
+            
+            console.log('[MobileLayoutHandler] Applied fixed layout mode to #main:', 
+                       this.layoutDimensions.width + 'x' + this.layoutDimensions.height);
         }
-        
-        console.log('[MobileLayoutHandler] Dimensions applied to #main');
     }
     
     /**
@@ -164,6 +179,72 @@ class MobileLayoutHandler {
                 this.setLayoutBounds(this.layoutDimensions.original, autoscale);
             }
         }, 250);
+    }
+    
+    /**
+     * Calculate optimal viewport scale for non-autoscale layouts
+     * This ensures layout content fits properly on mobile devices
+     * @param {number} layoutWidth - Layout design width
+     * @param {number} layoutHeight - Layout design height
+     * @returns {number} Optimal maximum-scale value
+     */
+    calculateViewportScale(layoutWidth, layoutHeight) {
+        const deviceWidth = window.screen.width;
+        const deviceHeight = window.screen.height;
+        
+        console.log('[MobileLayoutHandler] Calculating viewport scale:');
+        console.log('  Layout dimensions:', layoutWidth, 'x', layoutHeight);
+        console.log('  Device dimensions:', deviceWidth, 'x', deviceHeight);
+        
+        // Calculate scale factors for both dimensions
+        const scaleX = deviceWidth / layoutWidth;
+        const scaleY = deviceHeight / layoutHeight;
+        
+        // Use the smaller scale to ensure content fits
+        const optimalScale = Math.min(scaleX, scaleY);
+        
+        // Round to 3 decimal places for precision
+        const roundedScale = Math.round(optimalScale * 1000) / 1000;
+        
+        console.log('  Scale X:', scaleX.toFixed(3));
+        console.log('  Scale Y:', scaleY.toFixed(3));
+        console.log('  Optimal scale:', roundedScale);
+        
+        return roundedScale;
+    }
+    
+    /**
+     * Update viewport meta tag with calculated scale
+     * @param {number} scale - The maximum-scale value to apply
+     */
+    updateViewportScale(scale) {
+        let viewportMeta = document.querySelector('meta[name="viewport"]');
+        
+        if (!viewportMeta) {
+            console.warn('[MobileLayoutHandler] Viewport meta tag not found, creating one');
+            viewportMeta = document.createElement('meta');
+            viewportMeta.name = 'viewport';
+            document.head.appendChild(viewportMeta);
+        }
+        
+        // Build new viewport content with calculated scale
+        const viewportContent = `width=device-width, initial-scale=1.0, maximum-scale=${scale}, user-scalable=no`;
+        viewportMeta.setAttribute('content', viewportContent);
+        
+        console.log('[MobileLayoutHandler] Viewport updated:', viewportContent);
+    }
+    
+    /**
+     * Reset viewport to default (for autoscale mode)
+     */
+    resetViewportScale() {
+        let viewportMeta = document.querySelector('meta[name="viewport"]');
+        
+        if (viewportMeta) {
+            const viewportContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            viewportMeta.setAttribute('content', viewportContent);
+            console.log('[MobileLayoutHandler] Viewport reset to default');
+        }
     }
     
     /**
