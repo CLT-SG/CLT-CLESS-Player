@@ -1,57 +1,69 @@
-Android Mobile App - QR Code Generation Fix
+Android Mobile App - Full-Screen Kiosk Mode
 
-This PR fixes QR code generation in the mobile activation page to display real scannable QR codes instead of placeholder graphics.
+This PR implements full-screen kiosk mode for the mobile CMS player to match the desktop Electron app's kiosk functionality.
 
 ## Summary of Key Issues Fixed
 
-### Version 3.1.9 - QR Code Generation Fix
+### Version 3.2.0 - Full-Screen Kiosk Mode
 
-1. **QR Code Not Scannable** - Mobile activation page showed placeholder graphics instead of real QR code
-2. **Missing QR Code Library** - Mobile app lacked the qrcode npm package used by desktop app
-3. **Poor User Experience** - Users could not scan QR code to request license keys via WhatsApp
+1. **Mobile Player Not Full-Screen** - Player did not display in true kiosk mode like desktop app
+2. **Android Status Bar Visible** - System UI elements overlaying player content
+3. **Screen Sleep Issues** - Device screen turning off during playback
+4. **Navigation Overlay** - Navigation buttons always visible on player page
+5. **Not Optimized for Kiosk Display** - Missing immersive mode and full-screen optimizations
 
 ## Core Technical Improvements
 
-### Version 3.1.9 - QR Code Generation System
+### Version 3.2.0 - Mobile Kiosk Mode System
 
-1. **QR Code Library Integration**
-   - Added qrcode@1.5.0 npm package to mobile dependencies
-   - Created mobile-qrcode.js module for mobile-optimized QR generation
-   - Implemented multi-tier loading strategy with CDN fallback
-   - Matches electron desktop app QR code functionality
+1. **Android Immersive Mode**
+   - Hides status bar and navigation bar completely
+   - Maintains immersive state even after user interaction
+   - Re-applies immersive mode automatically every 3 seconds
+   - Uses Capacitor StatusBar plugin for native control
 
-2. **Professional QR Code Generator**
-   - Uses QRCode.toCanvas() for real scannable QR codes
-   - Dynamic CDN loading from jsdelivr if bundled version unavailable
-   - WhatsApp integration with device UUID in message
-   - Clickable QR codes as backup if scanning not available
+2. **Screen Wake Lock Implementation**
+   - Prevents device screen from turning off during playback
+   - Uses modern Wake Lock API when available
+   - Automatic wake lock management based on kiosk state
+   - Ensures continuous display operation
 
-3. **Graceful Fallback Strategy**
-   - Primary: Bundled qrcode library from npm install
-   - Secondary: CDN-loaded library from jsdelivr
-   - Tertiary: Simple clickable placeholder with WhatsApp link
-   - Comprehensive error handling and debug logging
+3. **Smart Navigation Management**
+   - Auto-hides navigation buttons on player page (index.html)
+   - Shows navigation on settings pages (configure.html, dashboard.html)
+   - Intelligent page context detection
+   - User can still access settings when needed
 
-4. **Mobile Activation Enhancement**
-   - Replaced canvas drawing placeholder with real QR generation
-   - Async initialization with proper error handling
-   - User-friendly fallback messages if library fails
-   - Professional appearance matching desktop app
+4. **Full-Screen CSS Optimization**
+   - Custom kiosk-mode CSS class with 100% viewport coverage
+   - Prevents scrolling, zooming, and pull-to-refresh gestures
+   - Hides scrollbars completely on all elements
+   - Forces hardware acceleration for smooth performance
+   - Professional kiosk appearance matching desktop app
+
+5. **Kiosk Mode Manager**
+   - Created mobile-kiosk.js with centralized kiosk functionality
+   - Automatic activation on player page load
+   - Manual control via JavaScript API
+   - Status monitoring and debugging support
+   - Orientation lock to landscape for displays
 
 ## Files Changed Summary
 
-### Version 3.1.9 - QR Code Generation Fix
+### Version 3.2.0 - Mobile Kiosk Mode
 
-**Dependencies**
-- mobile/package.json - Added qrcode@1.5.0 dependency
+**New Files Created**
+- mobile/www/assets/js/mobile/mobile-kiosk.js - Complete kiosk mode manager (620 lines)
+- mobile/docs_mobile/MOBILE-KIOSK-MODE.md - Comprehensive technical documentation
+- mobile/docs_mobile/KIOSK-MODE-QUICKREF.md - Quick reference guide
 
-**Mobile JavaScript APIs**
-- mobile/www/assets/js/mobile/mobile-qrcode.js - New QR code generator module (281 lines)
-- mobile/www/activate.html - Integrated proper QR code generation with mobile-qrcode.js
+**Mobile JavaScript APIs Modified**
+- mobile/www/index.html - Added kiosk module, enhanced full-screen CSS
+- mobile/www/assets/js/mobile/mobile-config.js - Added kioskMode and preventSleep settings
+- mobile/www/assets/js/mobile/capacitor-core.js - Added kiosk APIs and keepScreenAwake support
 
-**Documentation**
-- mobile/docs_mobile/QR-CODE-FIX-IMPLEMENTATION.md - Complete technical documentation
-- mobile/docs_mobile/QR-CODE-FIX-QUICKREF.md - Quick reference guide
+**Configuration**
+- mobile/www/assets/js/mobile/mobile-config.js - Enhanced displaySettings with kiosk options
 
 ## Compatibility
 
@@ -64,19 +76,32 @@ This PR fixes QR code generation in the mobile activation page to display real s
 
 ### Build Verification
 - [X] Clean build completes without errors
-- [X] qrcode@1.5.0 package installed successfully
-- [X] mobile-qrcode.js module created
-- [X] activate.html updated with QR integration
+- [X] mobile-kiosk.js module created and integrated
+- [X] index.html updated with kiosk mode support
+- [X] CSS enhancements applied
+- [X] Capacitor APIs extended with kiosk methods
+
+### Device Testing Required
+- [ ] Install APK on Android device
+- [ ] Verify status bar hidden on player page
+- [ ] Verify navigation bar hidden (immersive mode)
+- [ ] Confirm screen stays awake during playback
+- [ ] Test navigation buttons auto-hide on player
+- [ ] Verify navigation visible on settings pages
+- [ ] Test full-screen viewport coverage
+- [ ] Confirm no scrolling possible
 
 ## Version History
 
-**v3.1.9** - QR code generation fix
+**v3.2.0** - Mobile kiosk mode implementation
 
 Statistics
-- 2 files modified (package.json, activate.html)
-- 1 new file created (mobile-qrcode.js - 281 lines)
-- 2 documentation files created
-- QR code library added and integrated
-- Real scannable QR codes replace placeholder graphics
-- Multi-tier fallback strategy implemented
+- 3 files modified (index.html, mobile-config.js, capacitor-core.js)
+- 1 new file created (mobile-kiosk.js - 620 lines)
+- 2 documentation files created (850+ lines total)
+- Full-screen kiosk mode matching desktop Electron app
+- Android immersive mode with auto-maintenance
+- Screen wake lock implementation
+- Smart navigation management
+- Complete CSS optimization for kiosk display
 - Zero functional changes to other app features

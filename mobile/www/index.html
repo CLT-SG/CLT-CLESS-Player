@@ -83,6 +83,35 @@
       width: 100%;
       height: 100%;
     }
+    
+    /* Additional kiosk mode optimizations */
+    body.mobile-player {
+      overscroll-behavior: none;
+      touch-action: pan-x pan-y;
+    }
+    
+    /* Hide scrollbars */
+    ::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+    
+    * {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    
+    /* Prevent pull-to-refresh on mobile browsers */
+    body {
+      overscroll-behavior-y: contain;
+    }
+    
+    /* Force full viewport coverage */
+    html {
+      height: 100vh;
+      width: 100vw;
+    }
   </style>
   
   <!-- ========================================
@@ -218,6 +247,9 @@
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
   <script src="assets/js/mobile/mobile-error-notification.js"></script>
+  
+  <!-- Mobile Kiosk Mode Manager (CRITICAL for full-screen kiosk display) -->
+  <script src="assets/js/mobile/mobile-kiosk.js"></script>
 </head>
 
 <body>

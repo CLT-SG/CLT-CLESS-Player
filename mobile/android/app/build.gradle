@@ -7,7 +7,7 @@ android {
         applicationId "biz.closedloop.ecless.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 318
+        versionCode 319
         versionName "3.1.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

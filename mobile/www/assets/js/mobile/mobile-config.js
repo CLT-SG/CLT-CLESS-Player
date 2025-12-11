@@ -68,7 +68,9 @@ class MobileConfigLoader {
             displaySettings: {
                 orientation: 'landscape',
                 fullscreen: true,
-                hideStatusBar: true
+                hideStatusBar: true,
+                kioskMode: true, // Enable kiosk mode by default for mobile
+                preventSleep: true // Keep screen awake in kiosk mode
             },
             networkSettings: {
                 timeout: 5000,
