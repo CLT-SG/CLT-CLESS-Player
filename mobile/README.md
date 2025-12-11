@@ -393,6 +393,12 @@ For detailed icon management documentation, see [ICONS-README.md](./ICONS-README
    
    Output: `android/app/build/outputs/apk/release/app-release.apk`
 
+   Test and debug the apk file first
+   ```bash
+   adb devices
+   adb -s device-id install app/build/outputs/apk/release/app-release.apk
+   ```
+
 4. **Build Release AAB (Google Play):**
    ```bash
    cd android
