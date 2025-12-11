@@ -28,7 +28,10 @@
   <!-- 4. Mobile Serial Key Validator -->
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
   
-  <!-- 5. Other Scripts (load AFTER mobile initialization) -->
+  <!-- 5. Mobile QR Code Generator -->
+  <script src="assets/js/mobile/mobile-qrcode.js"></script>
+  
+  <!-- 6. Other Scripts (load AFTER mobile initialization) -->
   <!-- Custom Dialog System for alwaysOnTop compatibility -->
   <script src="assets/js/custom-dialog.js"></script>
 </head>
@@ -109,6 +112,7 @@
   <script>
     // Mobile Activation Script
     let serialKeyValidator = null;
+    let qrCodeGenerator = null;
     let deviceUUID = null;
     
     // Initialize on page load
@@ -126,11 +130,19 @@
           logger: window.log
         });
         
+        // Initialize QR code generator
+        qrCodeGenerator = new MobileQRCodeGenerator({
+          debug: true,
+          logger: window.log,
+          whatsappPhone: '6588995538',
+          width: 120
+        });
+        
         // Load device information
         await loadDeviceInfo();
         
         // Generate QR code after device info is loaded
-        generateQRCode();
+        await generateQRCode();
         
       } catch (error) {
         console.error('eCLESS Activate: Initialization error', error);
@@ -208,29 +220,47 @@
     }
     
     // Generate QR code for WhatsApp license request
-    function generateQRCode() {
+    async function generateQRCode() {
       const canvas = document.getElementById('qr-canvas');
       
-      if (!canvas || !deviceUUID || deviceUUID === 'Loading...') {
+      if (!canvas) {
+        console.error('eCLESS Activate: QR canvas element not found');
+        return;
+      }
+
+      if (!deviceUUID || deviceUUID === 'Loading...') {
         // Retry after device info is loaded
+        if (window.log && window.log.log) {
+          window.log.log('eCLESS Activate: Waiting for device UUID before generating QR code');
+        }
         setTimeout(generateQRCode, 500);
         return;
       }
-      
-      // Create WhatsApp message with UUID
-      const whatsappMessage = `Hello, please generate my eCLESS Mobile Player license key.%0A%0ADevice UUID: ${deviceUUID}%0A%0AThanks.`;
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=6588995538&text=${whatsappMessage}`;
-      
+
       try {
-        // Use simple canvas-based QR code (lightweight for mobile)
-        generateSimpleQRCode(canvas, whatsappUrl);
+        // Use the mobile QR code generator
+        if (qrCodeGenerator) {
+          const success = await qrCodeGenerator.generateWhatsAppQRCode(canvas, deviceUUID);
+          
+          if (success) {
+            console.log('eCLESS Activate: QR code generated successfully');
+          } else {
+            console.warn('eCLESS Activate: QR code generation failed, using fallback');
+          }
+        } else {
+          console.error('eCLESS Activate: QR code generator not initialized');
+          // Fallback to simple QR code
+          generateSimpleFallbackQR(canvas, deviceUUID);
+        }
       } catch (error) {
-        console.error('QR Code generation error:', error);
+        console.error('eCLESS Activate: Error generating QR code', error);
+        // Fallback to simple QR code
+        generateSimpleFallbackQR(canvas, deviceUUID);
       }
     }
     
-    // Simple QR code visualization
-    function generateSimpleQRCode(canvas, url) {
+    // Fallback simple QR code (for error cases only)
+    function generateSimpleFallbackQR(canvas, uuid) {
       const ctx = canvas.getContext('2d');
       
       // Clear canvas
@@ -258,10 +288,18 @@
       ctx.fillText('Scan to request', 75, 80);
       ctx.fillText('license key', 75, 92);
       
+      // Warning text
+      ctx.font = '7px Arial';
+      ctx.fillStyle = '#666666';
+      ctx.fillText('(Click to open)', 75, 107);
+      
       // Make canvas clickable
+      const whatsappMessage = `Hello, please generate my eCLESS Mobile Player license key.%0A%0ADevice UUID: ${uuid}%0A%0AThanks.`;
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=6588995538&text=${whatsappMessage}`;
+      
       canvas.style.cursor = 'pointer';
       canvas.onclick = () => {
-        window.open(url, '_blank');
+        window.open(whatsappUrl, '_blank');
       };
     }
     
