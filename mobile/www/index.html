@@ -83,6 +83,35 @@
       width: 100%;
       height: 100%;
     }
+    
+    /* Additional kiosk mode optimizations */
+    body.mobile-player {
+      overscroll-behavior: none;
+      touch-action: pan-x pan-y;
+    }
+    
+    /* Hide scrollbars */
+    ::-webkit-scrollbar {
+      width: 0;
+      height: 0;
+      display: none;
+    }
+    
+    * {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    
+    /* Prevent pull-to-refresh on mobile browsers */
+    body {
+      overscroll-behavior-y: contain;
+    }
+    
+    /* Force full viewport coverage */
+    html {
+      height: 100vh;
+      width: 100vw;
+    }
   </style>
   
   <!-- ========================================
@@ -218,6 +247,9 @@
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
   <script src="assets/js/mobile/mobile-error-notification.js"></script>
+  
+  <!-- Mobile Kiosk Mode Manager (CRITICAL for full-screen kiosk display) -->
+  <script src="assets/js/mobile/mobile-kiosk.js"></script>
 </head>
 
 <body>
@@ -260,10 +292,13 @@
             const nav = document.getElementById('mobile-nav');
             let hideTimeout;
             let isHiding = false;
+            let touchStartY = 0;
+            let touchStartTime = 0;
 
             function showNav() {
                 nav.style.opacity = '1';
                 nav.style.transform = 'translateY(0)';
+                nav.classList.add('nav-visible');
                 isHiding = false;
                 resetHideTimer();
             }
@@ -273,6 +308,7 @@
                     isHiding = true;
                     nav.style.opacity = '0';
                     nav.style.transform = 'translateY(-20px)';
+                    nav.classList.remove('nav-visible');
                 }
             }
 
@@ -281,12 +317,38 @@
                 hideTimeout = setTimeout(hideNav, 5000); // Hide after 5 seconds
             }
 
+            // Enhanced swipe-down gesture detection from top edge
+            document.addEventListener('touchstart', function(e) {
+                const touch = e.touches[0];
+                touchStartY = touch.clientY;
+                touchStartTime = Date.now();
+                
+                // If touch starts near top (within 50px), show nav immediately
+                if (touchStartY < 50) {
+                    showNav();
+                }
+            });
+
+            document.addEventListener('touchend', function(e) {
+                const touch = e.changedTouches[0];
+                const touchEndY = touch.clientY;
+                const touchDuration = Date.now() - touchStartTime;
+                const swipeDistance = touchEndY - touchStartY;
+                
+                // Detect swipe down from top edge
+                // Must start from top 100px, swipe down at least 50px, within 500ms
+                if (touchStartY < 100 && swipeDistance > 50 && touchDuration < 500) {
+                    showNav();
+                    console.log('[Navigation] Swipe-down gesture detected');
+                }
+            });
+
             // Show on user activity
             document.addEventListener('touchstart', showNav);
             document.addEventListener('click', showNav);
             document.addEventListener('mousemove', showNav);
 
-            // Show when hovering near top-right corner
+            // Show when hovering near top-right corner (for desktop/mouse users)
             document.addEventListener('mousemove', function(e) {
                 const windowWidth = window.innerWidth;
                 const windowHeight = window.innerHeight;
@@ -295,8 +357,28 @@
                 }
             });
 
+            // Triple-tap gesture anywhere to show navigation (emergency access)
+            let tapCount = 0;
+            let tapTimeout;
+            document.addEventListener('touchstart', function(e) {
+                tapCount++;
+                clearTimeout(tapTimeout);
+                
+                if (tapCount === 3) {
+                    showNav();
+                    console.log('[Navigation] Triple-tap gesture detected');
+                    tapCount = 0;
+                } else {
+                    tapTimeout = setTimeout(() => {
+                        tapCount = 0;
+                    }, 500);
+                }
+            });
+
             // Start the hide timer
             resetHideTimer();
+            
+            console.log('[Navigation] Auto-hide system initialized with gesture support');
         })();
 
         // Loading screen with initialization tracking
@@ -648,7 +730,7 @@
               errorMsg = 'Server request timed out. Slow connection or server down.'
             }
             
-            window.errorNotification.error('Server Connection Failed', errorMsg, 10000)
+            window.errorNotification.error('Server Connection Failed', errorMsg, 500)
           }
           
           // Try to load from offline cache

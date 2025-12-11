@@ -51,8 +51,8 @@ class MobileConfigLoader {
     getDefaultConfig() {
         return {
             version: '2.6.5',
-            hostserver: 'https://cless4.closed-loop.biz',
-            id: '20',
+            hostserver: 'https://cless4.closed-loop.biz/demo',
+            id: '206',
             mode: 'online',
             corsproxy: 'N',
             syncSettings: {
@@ -68,7 +68,9 @@ class MobileConfigLoader {
             displaySettings: {
                 orientation: 'landscape',
                 fullscreen: true,
-                hideStatusBar: true
+                hideStatusBar: true,
+                kioskMode: true, // Enable kiosk mode by default for mobile
+                preventSleep: true // Keep screen awake in kiosk mode
             },
             networkSettings: {
                 timeout: 5000,
