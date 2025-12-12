@@ -74,7 +74,13 @@
           var src = '';
           if (!text['elements']) {
               console.warn('[textFunc] No elements property in text element at index', mindex, 'for slot', slotid);
-              src = '';
+              // FALLBACK: Check if text exists directly on the item
+              if (text['text']) {
+                  console.log('[textFunc] Using direct text property as fallback');
+                  src = text['text'];
+              } else {
+                  src = '';
+              }
           } else {
               console.log('[textFunc] Elements type:', Array.isArray(text['elements']) ? 'array' : 'object');
               console.log('[textFunc] Elements content:', JSON.stringify(text['elements']));
@@ -91,15 +97,27 @@
               
               if (!firstElement) {
                   console.warn('[textFunc] Empty elements in text element at index', mindex, 'for slot', slotid);
-                  src = '';
+                  // FALLBACK: Check if text exists directly on the item
+                  if (text['text']) {
+                      console.log('[textFunc] Using direct text property as fallback');
+                      src = text['text'];
+                  } else {
+                      src = '';
+                  }
               } else {
                   console.log('[textFunc] First element:', JSON.stringify(firstElement));
                   if (!firstElement['text']) {
                       console.warn('[textFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
-                      src = '';
+                      // FALLBACK: Check if text exists directly on the item
+                      if (text['text']) {
+                          console.log('[textFunc] Using direct text property as fallback');
+                          src = text['text'];
+                      } else {
+                          src = '';
+                      }
                   } else {
                       src = firstElement['text'];
-                      console.log('[textFunc] Extracted text:', src);
+                      console.log('[textFunc] Extracted text from nested elements:', src);
                   }
               }
           }
