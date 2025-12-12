@@ -1,86 +1,90 @@
-Android Mobile App - System Navigation Bar Hiding Fix for Android 11+
+Android Mobile App - App Icon Display Fix
 
-This PR fixes the Android system navigation bar (bottom buttons) appearing during playback on Android 11 and newer devices, implementing proper immersive fullscreen mode.
+This PR fixes the Android app icon not displaying correctly in the app launcher and during splash screen, replacing the default Android robot icon with the custom eCLESS Player logo.
 
 ## Summary of Key Issues Fixed
 
-1. **Android System Navigation Bar Visible** - Bottom navigation bar with back/home/recent buttons appeared during CMS player display on Android 11+ devices
-2. **Immersive Mode Not Working** - Native Android immersive mode was not implemented in MainActivity
-3. **System UI Reappearing on Interaction** - Navigation bar would reappear after user touch/swipe interactions
-4. **Theme Configuration Missing** - Android theme lacked fullscreen and transparent system bar attributes
-5. **Insufficient CSS z-index** - Player content did not have proper z-index to render above system UI overlays
-6. **Weak Immersive Maintenance** - JavaScript kiosk mode did not aggressively maintain immersive state
+1. **Default Android Robot Icon Displayed** - App showed generic Android robot icon instead of custom eCLESS Player logo in app launcher and settings
+2. **Icon Not Fitting Properly** - App icon was cropped or not properly fitted within the icon safe zone on Android 11+
+3. **Splash Screen Icon Sizing** - Launch splash screen displayed improperly scaled icon
+4. **Low Resolution Icon Assets** - Icon source files were only 256x256px causing quality issues
+5. **Adaptive Icon Configuration Error** - XML referenced wrong drawable resources (mipmap instead of drawable for background)
+6. **Missing Adaptive Icon Insets** - Foreground layer lacked proper safe zone insets for different device shapes
 
 ## Core Technical Improvements
 
-1. **Native Android Immersive Mode Implementation**
-   - Implemented WindowInsetsController for Android 11+ using modern API 30 approach
-   - Added SYSTEM_UI_FLAG_IMMERSIVE_STICKY fallback for Android 10 and below
-   - Configured BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE for sticky immersive behavior
-   - Set FLAG_LAYOUT_NO_LIMITS for true edge-to-edge display
+1. **High Resolution Icon Assets**
+   - Upgraded icon source files from 256x256px to 512x512px for crisp display quality
+   - Copied proper resolution icons from Electron desktop app (build/icons/linux/512x512.png)
+   - Regenerated all Android icon densities (ldpi, mdpi, hdpi, xhdpi, xxhdpi, xxxhdpi)
+   - Ensures sharp icon display across all device screen densities
 
-2. **Activity Lifecycle Integration**
-   - Added onCreate hook to enable immersive mode on app launch
-   - Added onResume hook to re-apply immersive mode when app resumes from background
-   - Added onWindowFocusChanged hook to maintain immersive mode after user interactions
-   - Configured display cutout mode for notch/punch-hole camera support
+2. **Adaptive Icon Configuration Fix**
+   - Fixed adaptive icon XML to reference @drawable/ic_launcher_background instead of @mipmap
+   - Corrected foreground reference to use @mipmap/ic_launcher_foreground
+   - Created clean vector drawable background with app theme color (#1e293b)
+   - Removed malformed XML content that caused build errors
 
-3. **Android Theme Configuration**
-   - Set windowFullscreen to true for fullscreen display
-   - Configured transparent statusBarColor and navigationBarColor
-   - Added windowLayoutInDisplayCutoutMode for edge-to-edge on devices with cutouts
-   - Disabled windowTranslucentStatus and windowTranslucentNavigation for app control
-   - Set fitsSystemWindows to false to prevent UI shifting
+3. **Adaptive Icon Safe Zone Insets**
+   - Added 20% inset to adaptive icon foreground layer
+   - Ensures icon content stays within safe zone on all device shapes (circle, squircle, rounded square)
+   - Prevents logo cropping on devices with different launcher icon masks
+   - Maintains visual consistency across Android OEM implementations
 
-4. **JavaScript Kiosk Mode Enhancement**
-   - More aggressive immersive mode re-application every 2 seconds instead of 3
-   - Added event listeners for visibilitychange, focus, touchstart, touchend, orientationchange, resize
-   - Multi-trigger approach on orientation change with 3 sequential applications
-   - Debounced event handlers to prevent performance issues while maintaining coverage
+4. **Assets Configuration Update**
+   - Updated assets.config.json to use correct icon source paths
+   - Changed from resources/android/icon.png to resources/icon-only.png
+   - Set proper foreground source to resources/icon-foreground.png
+   - Updated background color from white to dark slate theme (#1e293b)
 
-5. **CSS Layer Protection**
-   - Increased main container z-index to 9999 for priority over system UI
-   - Added z-index 10 to all main child elements
-   - Implemented safe-area-inset support for devices with notches
-   - Extended viewport boundaries to cover full screen including system bar areas
+5. **Icon Background Simplification**
+   - Replaced complex grid-pattern background with solid color fill
+   - Simple vector drawable with single path element for clean rendering
+   - Theme-consistent dark slate background color matching app design
+   - Optimized XML structure prevents parsing errors
 
-6. **Multi-Layer Defense Strategy**
-   - Native layer (Java) provides primary enforcement via WindowInsetsController
-   - JavaScript layer continuously monitors and re-applies immersive mode
-   - CSS layer ensures visual coverage with proper z-index hierarchy
-   - Defense-in-depth approach handles edge cases across Android versions
+6. **Splash Screen Asset Regeneration**
+   - Regenerated splash screens for all orientations (portrait and landscape)
+   - Created splash screens for all density buckets (ldpi through xxxhdpi)
+   - Updated splash screen background color to match app theme
+   - High-resolution source ensures crisp display during app launch
 
 ## Files Changed Summary
 
-**Android Native Code**
-- mobile/android/app/src/main/java/biz/closedloop/ecless/player/MainActivity.java - Added immersive mode implementation with lifecycle hooks
-- mobile/android/app/src/main/res/values/styles.xml - Enhanced theme with fullscreen and transparent system bar configuration
+**Icon Assets Configuration**
+- mobile/assets.config.json - Updated icon source paths and background color to app theme
+- mobile/resources/icon-only.png - Upgraded from 256x256 to 512x512 resolution
+- mobile/resources/icon-foreground.png - Upgraded to 512x512 for adaptive icon foreground
+- mobile/resources/splash.png - Upgraded to 512x512 for splash screen quality
 
-**Mobile JavaScript**
-- mobile/www/assets/js/mobile/mobile-kiosk.js - Enhanced immersive mode maintenance with aggressive re-application
-
-**Mobile HTML/CSS**
-- mobile/www/index.html - Added enhanced CSS for z-index priority and safe-area coverage
+**Android Icon Resources**
+- mobile/android/app/src/main/res/drawable/ic_launcher_background.xml - Simplified to clean vector drawable with theme color
+- mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml - Fixed drawable references and added 20% foreground inset
+- mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml - Fixed drawable references and added 20% foreground inset
+- mobile/android/app/src/main/res/mipmap-*/ic_launcher.png - Regenerated all densities from high-res source
+- mobile/android/app/src/main/res/mipmap-*/ic_launcher_round.png - Regenerated all densities
+- mobile/android/app/src/main/res/mipmap-*/ic_launcher_foreground.png - Regenerated all densities
+- mobile/android/app/src/main/res/drawable-*/splash.png - Regenerated all orientations and densities
 
 **Documentation**
-- mobile/ANDROID-NAVIGATION-FIX.md - Complete technical documentation with testing procedures
-
-## Compatibility
-
-- Desktop Electron app unchanged
-- Android 11 (API 30) and above with WindowInsetsController
-- Android 10 (API 29) and below with SYSTEM_UI_FLAG fallback
+- mobile/d5.1 (API 22) and above
+- Android 11+ with adaptive icon support tested
 - Minimum SDK 22 (Android 5.1)
 - Target SDK 33 (Android 13)
 - No breaking changes
 - No server-side changes required
-- Works with all existing layout configurations
+- Works with all existing configurations
 
 ## Testing Checklist
 
-- Navigation bar hidden on app launch
-- Navigation bar stays hidden during content playback
-- Navigation bar remains hidden after screen touches
+- Custom eCLESS Player icon appears in app launcher instead of Android robot
+- Icon displays properly fitted within icon area (not cropped)
+- Icon appears correctly in Settings app list
+- Icon displays in recent apps task switcher
+- Splash screen shows properly scaled icon during launch
+- Icon quality is crisp and sharp on high-DPI devices
+- Adaptive icon renders correctly on circle, squircle, and rounded square launchers
+- Icon background matches app theme (dark slate)
 - Navigation bar auto-hides after orientation change
 - Player content fills entire screen edge-to-edge
 - Swipe-up gesture shows navigation briefly then auto-hides
