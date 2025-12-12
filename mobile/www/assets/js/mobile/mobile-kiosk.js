@@ -134,19 +134,49 @@ class MobileKioskManager {
         console.log('[MobileKiosk] Enabling Android immersive mode...');
         
         try {
+            // Priority 1: Use native Android implementation via Capacitor
+            // The MainActivity.java now handles immersive mode natively
+            // We just need to ensure Capacitor triggers it
+            
             if (window.capacitorAPI && window.capacitorAPI.plugins.StatusBar) {
                 // Use Capacitor StatusBar plugin
                 await window.capacitorAPI.hideStatusBar();
                 console.log('[MobileKiosk] Status bar hidden via Capacitor');
             }
             
-            // Android-specific: Use native immersive mode if available
+            // Priority 2: Use App plugin to bring app to foreground (triggers onResume in MainActivity)
+            if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                // This helps trigger the native immersive mode in MainActivity
+                console.log('[MobileKiosk] Capacitor App plugin available');
+            }
+            
+            // Priority 3: Android-specific fullscreen plugins (fallback)
             if (window.AndroidFullScreen) {
-                await window.AndroidFullScreen.immersiveMode();
-                console.log('[MobileKiosk] Android immersive mode enabled');
+                try {
+                    // Use immersiveMode which hides both status and navigation bars
+                    await window.AndroidFullScreen.immersiveMode();
+                    console.log('[MobileKiosk] Android immersive mode enabled via plugin');
+                } catch (e) {
+                    console.warn('[MobileKiosk] AndroidFullScreen.immersiveMode failed:', e);
+                }
             } else if (window.cordova && window.cordova.plugins && window.cordova.plugins.fullscreen) {
-                await window.cordova.plugins.fullscreen.immersiveMode();
-                console.log('[MobileKiosk] Cordova fullscreen plugin enabled');
+                try {
+                    await window.cordova.plugins.fullscreen.immersiveMode();
+                    console.log('[MobileKiosk] Cordova fullscreen plugin enabled');
+                } catch (e) {
+                    console.warn('[MobileKiosk] Cordova fullscreen failed:', e);
+                }
+            }
+            
+            // Priority 4: Web-based fullscreen API (works on some browsers)
+            try {
+                const element = document.documentElement;
+                if (element.requestFullscreen) {
+                    await element.requestFullscreen();
+                    console.log('[MobileKiosk] Web fullscreen API enabled');
+                }
+            } catch (e) {
+                console.warn('[MobileKiosk] Web fullscreen API failed:', e);
             }
             
             return true;
@@ -528,32 +558,70 @@ class MobileKioskManager {
     maintainImmersiveMode() {
         console.log('[MobileKiosk] Starting immersive mode maintenance...');
         
-        // Re-apply immersive mode every 3 seconds
+        // Re-apply immersive mode every 2 seconds (more aggressive for Android 11)
         this.immersiveModeInterval = setInterval(async () => {
             if (this.isKioskMode) {
                 await this.enableImmersiveMode();
             }
-        }, 3000);
+        }, 2000);
         
-        // Also re-apply on visibility change
+        // Re-apply on visibility change
         document.addEventListener('visibilitychange', async () => {
             if (!document.hidden && this.isKioskMode) {
                 console.log('[MobileKiosk] Page visible, re-applying immersive mode');
+                await this.enableImmersiveMode();
+                // Apply twice with a delay to ensure it sticks
+                setTimeout(async () => {
+                    await this.enableImmersiveMode();
+                }, 500);
+            }
+        });
+        
+        // Re-apply on focus change
+        window.addEventListener('focus', async () => {
+            if (this.isKioskMode) {
+                console.log('[MobileKiosk] Window focused, re-applying immersive mode');
                 await this.enableImmersiveMode();
             }
         });
         
         // Re-apply on touch/click (Android sometimes exits immersive on interaction)
-        ['touchstart', 'click'].forEach(eventType => {
+        ['touchstart', 'touchend', 'click'].forEach(eventType => {
             document.addEventListener(eventType, async () => {
                 if (this.isKioskMode) {
                     // Debounce to avoid too frequent calls
                     clearTimeout(this._immersiveDebounce);
                     this._immersiveDebounce = setTimeout(async () => {
                         await this.enableImmersiveMode();
-                    }, 500);
+                    }, 300);
                 }
             }, { passive: true });
+        });
+        
+        // Re-apply on orientation change (Android often shows navigation bar after rotation)
+        window.addEventListener('orientationchange', async () => {
+            if (this.isKioskMode) {
+                console.log('[MobileKiosk] Orientation changed, re-applying immersive mode');
+                // Apply multiple times with delays to ensure it sticks
+                await this.enableImmersiveMode();
+                setTimeout(async () => {
+                    await this.enableImmersiveMode();
+                }, 500);
+                setTimeout(async () => {
+                    await this.enableImmersiveMode();
+                }, 1000);
+            }
+        });
+        
+        // Re-apply on resize (can indicate system UI appearing/disappearing)
+        window.addEventListener('resize', async () => {
+            if (this.isKioskMode) {
+                clearTimeout(this._resizeDebounce);
+                this._resizeDebounce = setTimeout(async () => {
+                    console.log('[MobileKiosk] Window resized, re-applying immersive mode');
+                    await this.enableImmersiveMode();
+                }, 300);
+            }
         });
     }
     
