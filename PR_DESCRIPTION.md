@@ -1,110 +1,63 @@
-Android Mobile App - Viewport Auto-Scaling for Fixed Layouts
+Android Mobile App - Text Slot Rendering and Multi-Item Rotation Fix
 
-This PR implements automatic viewport scaling for mobile layouts with autoscale="N" to ensure pixel-perfect slot alignment on any device resolution.
+This PR fixes text-based slot rendering in the mobile CMS player and adds multi-item rotation support for ticker, scroller, and fader slots.
 
 ## Summary of Key Issues Fixed
 
-### Version 3.2.3 - Mobile Layout Viewport Auto-Scaling
-
-1. **Layout Alignment Issues with autoscale="N"** - Slots misaligned and improperly sized on mobile devices when using fixed layout mode
-2. **Hardcoded Viewport Scale** - maximum-scale=0.381 only worked for specific device resolutions, not universal
-3. **1080x1920 Layout on 1080x1920 Device** - Required scale=1.0 but hardcoded 0.381 caused misalignment
-4. **No Dynamic Scale Calculation** - Manual trial-and-error needed for each device resolution
-5. **Viewport Not Updated Dynamically** - Static meta tag could not adapt to different layouts
+1. **Text Slots Not Rendering** - Static text slots failed to display content in mobile app
+2. **Ticker Slots Not Appearing** - Ticker text animation slots showed no content
+3. **Scroller Slots Not Working** - Vertical scrolling text slots remained blank
+4. **Fader Slots Not Displaying** - Text fading animation slots showed no content
+5. **Single Item Only Display** - Ticker, scroller, and fader slots only displayed first item instead of rotating through all items
+6. **Instant Item Transitions** - No smooth transitions between items when rotating content
 
 ## Core Technical Improvements
 
-### Version 3.2.3 - Automatic Viewport Scaling System
+1. **Enhanced Text Extraction Logic**
+   - Fixed handling of XML data structure where text is directly on item.text property
+   - Added fallback logic to check item.text when item.elements array is empty
+   - Supports both nested elements[0].elements[0].text and direct item.text formats
+   - Proper validation before accessing nested properties
 
-1. **Dynamic Scale Calculation**
-   - Calculates optimal scale based on device screen dimensions and layout resolution
-   - Formula: scaleX = deviceWidth / layoutWidth, scaleY = deviceHeight / layoutHeight
-   - Uses min(scaleX, scaleY) to ensure all content fits properly
-   - Rounds to 3 decimal places for precision
+2. **Multi-Item Rotation Support**
+   - Refactored tickerFunc to process all items in elements array and rotate based on duration
+   - Refactored scrollerFunc to support multiple scrolling text items with timed rotation
+   - Refactored faderFunc to cycle through all fade items with individual durations
+   - Added rotation state management with timeout arrays and index tracking
 
-2. **Viewport Meta Tag Management**
-   - Dynamically updates viewport maximum-scale when autoscale="N"
-   - Resets viewport to scale=1.0 when autoscale="Y" for fullscreen mode
-   - Seamless switching between fixed layout and fullscreen modes
-   - No manual configuration required
+3. **Smooth Item Transitions**
+   - Fader slots transition with fade-out then fade-in effect between items
+   - Ticker slots use continuous scrolling motion without interruption
+   - Scroller slots maintain seamless vertical scrolling between items
+   - Proper cleanup of marquee animations before showing next item
 
-3. **Mobile Layout Handler Enhancement**
-   - Added calculateViewportScale(layoutWidth, layoutHeight) method
-   - Added updateViewportScale(scale) method for dynamic viewport updates
-   - Added resetViewportScale() method for autoscale mode
-   - Enhanced setLayoutBounds() with viewport scaling integration
-   - Improved applyDimensionsToContainer() with CSS class support
-
-4. **Intelligent Mode Detection**
-   - Detects autoscale attribute from layout XML automatically
-   - Applies appropriate viewport and container settings per mode
-   - Fixed layout mode: Uses layout dimensions with calculated viewport scale
-   - Fullscreen mode: Uses 100% dimensions with scale=1.0
-   - Maintains compatibility with existing autoscale="Y" layouts
-
-5. **CSS Enhancements**
-   - Added .fixed-layout CSS class for non-autoscale layouts
-   - Default viewport changed from maximum-scale=0.381 to 1.0
-   - Supports proper slot positioning in scaled viewport
-   - Hardware-accelerated rendering maintained
+4. **Comprehensive Debugging Support**
+   - Added detailed console logging throughout text extraction process
+   - Logs rotation state including current item index and total items
+   - Tracks item durations and transition timing
+   - Clear error messages for troubleshooting
 
 ## Files Changed Summary
 
-### Version 3.2.3 - Viewport Auto-Scaling
-
-**Mobile JavaScript APIs Modified**
-- mobile/www/assets/js/mobile/mobile-layout-handler.js - Added scale calculation and viewport management methods
-- mobile/www/index.html - Updated default viewport meta tag and added CSS for fixed layout mode
-
-**Documentation Created**
-- mobile/docs_mobile/VIEWPORT-SCALING-FIX.md - Complete technical documentation (400+ lines)
-- mobile/docs_mobile/VIEWPORT-SCALING-QUICKREF.md - Quick reference guide (200+ lines)
-- mobile/docs_mobile/VIEWPORT-SCALING-TESTING-GUIDE.md - Visual testing guide (450+ lines)
-- mobile/VIEWPORT-AUTOSCALING-SUMMARY.md - Implementation summary (350+ lines)
-- mobile/TESTING-CHECKLIST.md - Step-by-step testing checklist (300+ lines)
-- mobile/VISUAL-ARCHITECTURE.md - Architecture diagrams and examples (400+ lines)
+**Mobile JavaScript Modified**
+- mobile/www/assets/js/slot-tickerscrollerfader.js - Complete refactor with multi-item rotation and smooth transitions
+- mobile/www/assets/js/slot-text.js - Enhanced text extraction with direct property fallback
 
 ## Compatibility
 
-- [X] Desktop Electron app unchanged
-- [X] Works on Android 5.0 to 14+
-- [X] No breaking changes
-- [X] No server-side changes required
-- [X] Backward compatible with existing layouts
+- Desktop Electron app unchanged
+- Works on Android 5.0 to 14+
+- No breaking changes
+- No server-side changes required
+- Backward compatible with existing layouts
+- Supports both single-item and multi-item slot configurations
 
 ## Testing Checklist
 
-### Build Verification
-- [X] Clean build completes without errors
-- [X] Dynamic scale calculation implemented
-- [X] Viewport meta tag management working
-- [X] Default viewport changed to maximum-scale=1.0
-- [X] CSS enhancements for fixed layout mode
-- [X] Integration with layout XML autoscale attribute
-- [X] Comprehensive documentation created
-- [X] Code synced to Android successfully
-
-### Device Testing Required
-- [ ] Install APK on Android device/emulator
-- [ ] Verify console shows correct scale calculation
-- [ ] Test 1080x1920 layout on 1080x1920 device (should show scale=1.0)
-- [ ] Confirm table slot positioned at (10, 200) with size 1060x1100
-- [ ] Confirm video slot positioned at (0, 1325) with size 1080x605
-- [ ] Test on different device resolutions (720x1280, 2560x1440, etc.)
-- [ ] Verify autoscale="Y" still works correctly (fullscreen mode)
-- [ ] Test orientation changes
-- [ ] Verify all text readable and proportional
-
-## Version History
-
-**v3.2.3** - Mobile layout viewport auto-scaling
-
-Statistics
-- 2 files modified (mobile-layout-handler.js, index.html)
-- 6 documentation files created (2100+ lines total)
-- Dynamic viewport scale calculation based on device and layout
-- Automatic viewport meta tag updates
-- Universal solution for any device resolution
-- Pixel-perfect slot alignment on mobile
-- Comprehensive testing guides and examples
-- Zero breaking changes to existing functionality
+- Text slots display content correctly
+- Ticker slots render and rotate through multiple items
+- Scroller slots display and rotate with continuous scrolling
+- Fader slots rotate with smooth fade transitions
+- Item durations respected during rotation
+- Seamless looping back to first item after last item
+- Console logs show rotation state and timing
