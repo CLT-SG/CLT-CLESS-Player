@@ -18,6 +18,8 @@ function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
     //create table
     var tableid = slotattr['id']
+    console.log('[tableFunc] Initializing table slot:', tableid, 'at index:', index);
+    
     pageLengthTime[tableid] = parseInt(slotattr['pageflip']) * 1000
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
@@ -34,6 +36,8 @@ function tableFunc(slotitem, index, slotattr) {
     var headStylefontColor = slotitem[0]['attributes']['fontcolor']
     var headStylefontSize = slotitem[0]['attributes']['fontsize']
     bodyRowHeight = slotattr['bodyrowHeight']
+    
+    console.log('[tableFunc] Table config - pageflip:', pageLengthTime[tableid], 'ms, bodyRowHeight:', bodyRowHeight, 'px');
 
     //create pagination page at the top
     $('#slot-' + index).append('<div class="clearfix"><div class="pagination-pages"></div></div>')
@@ -153,7 +157,7 @@ function tableFunc(slotitem, index, slotattr) {
         }
         $('.col' + zeroPad(columnIndex, 2)).css({
             'text-align': columnAlign,
-            "border-radius": cellTopRightRadius + "px " + cellTopLeftRadius + "px " + cellBottomLeftRadius + "px " + cellBottomRightRadius + "px",
+            "border-radius": cellTopLeftRadius + "px " + cellTopRightRadius + "px " + cellBottomRightRadius + "px " + cellBottomLeftRadius + "px",
             'width': columnWidth + "px",
             'height': bodyRowHeight + "px",
         })
@@ -227,7 +231,18 @@ function tableRecord(slotitem, index, table) {
     pageincrease[tableid] = 1
     checkpage[tableid] = true
 
-    var mediaLocalPath = homedir + '/clessapp/res/'
+    // Determine if running on mobile or desktop
+    var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
+    
+    // Use appropriate media path based on platform
+    var mediaLocalPath;
+    if (isMobile) {
+        // Mobile: Will use media manager for file access
+        mediaLocalPath = null; // Will be resolved per-file via media manager
+    } else {
+        // Desktop: Use traditional homedir path
+        mediaLocalPath = homedir + '/clessapp/res/';
+    }
 
     $('.slot-table-' + tableid).append('<tbody class="slot-tbody-' + tableid + '"></tbody>')
     $('.slot-table-' + tableid).append('<colgroup class="slot-colgroup-' + tableid + '"></colgroup>')
@@ -265,9 +280,11 @@ function tableRecord(slotitem, index, table) {
                 }
                 var colFormat = col[1].substring(0, 6)
                 if (colFormat == 'image:') {
+                    console.log('[tableRecord] Processing image column:', colNumber, 'for table:', tableid);
                     var n = col[1].lastIndexOf(':')
                     var colImageList = col[1].substring(n + 1)
                     colImageList = colImageList.split(',') // split and create array
+                    console.log('[tableRecord] Image list for column', colNumber, ':', colImageList);
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
                         var coltext = ele.replace(/ /g, '') // delete any space
@@ -277,6 +294,7 @@ function tableRecord(slotitem, index, table) {
                             colImageloop[colNumber].push(contentObj)
                         }
                         if (resId === colImageList.length - 1) {
+                            console.log('[tableRecord] Starting first image display for column:', colNumber);
                             appendColumnImage(colImageloop[colNumber][0], colNumber)
                         }
                     })
@@ -313,17 +331,99 @@ function tableRecord(slotitem, index, table) {
                 colImageCurIndex[colNumber]++
             }
 
-            //render every column fader slot
-            function appendColumnImage(item, colNumber) {
+            //render every column image slot
+            async function appendColumnImage(item, colNumber) {
                 if (colImageTimeout[colNumber]) { //clear colImageTimeout to reset
                     clearTimeout(colImageTimeout[colNumber])
                 }
-                if (fs.existsSync(mediaLocalPath + item.text)) {
-                    var renderEl = '<img src="' + mediaLocalPath + item.text + '">'
-                    //file exists
+                
+                var renderEl = '';
+                var mediaFileName = item.text;
+                
+                console.log('[appendColumnImage] Processing media file:', mediaFileName, 'for column:', colNumber);
+                
+                // Determine if running on mobile or desktop
+                var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
+                
+                if (isMobile) {
+                    // === MOBILE MODE: Use media manager ===
+                    try {
+                        // Ensure media manager is initialized
+                        if (window.mediaManager && !window.mediaManager.initialized) {
+                            console.log('[appendColumnImage] Waiting for media manager initialization...');
+                            await window.mediaManager.initialize().catch(err => {
+                                console.error('[appendColumnImage] Media manager init failed:', err);
+                            });
+                        }
+                        
+                        if (window.mediaManager) {
+                            // Check if media exists in cache
+                            const mediaExists = await window.mediaManager.checkMediaExists(mediaFileName);
+                            
+                            if (!mediaExists) {
+                                // Download media if not cached
+                                // Get server URL from config
+                                if (!window.config || !window.config.hostserver) {
+                                    console.error('[appendColumnImage] Config not loaded, cannot download media');
+                                    throw new Error('Config not available');
+                                }
+                                
+                                const serverAdd = window.config.hostserver.split('/');
+                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                const downloadUrl = baseUrl + '/res/' + mediaFileName;
+                                
+                                console.log('[appendColumnImage] Downloading media:', downloadUrl);
+                                await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
+                            }
+                            
+                            // Get web-accessible URI for the file
+                            const mediaUri = await window.mediaManager.getMediaUri(mediaFileName);
+                            
+                            if (mediaUri) {
+                                console.log('[appendColumnImage] Media loaded successfully:', mediaFileName);
+                                renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                            } else {
+                                console.warn('[appendColumnImage] Failed to get media URI for:', mediaFileName);
+                                // Fallback: try direct URL from server
+                                if (window.config && window.config.hostserver) {
+                                    const serverAdd = window.config.hostserver.split('/');
+                                    const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                    renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                                    console.log('[appendColumnImage] Using direct URL fallback');
+                                }
+                            }
+                        } else {
+                            console.warn('[appendColumnImage] Media manager not available, using direct URL');
+                            if (window.config && window.config.hostserver) {
+                                const serverAdd = window.config.hostserver.split('/');
+                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                            }
+                        }
+                        
+                    } catch (error) {
+                        console.error('[appendColumnImage] Mobile media error:', error);
+                        // Fallback to direct URL
+                        if (window.config && window.config.hostserver) {
+                            const serverAdd = window.config.hostserver.split('/');
+                            const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                            renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                            console.log('[appendColumnImage] Using direct URL after error');
+                        }
+                    }
+                    
                 } else {
-                    var renderEl = ''
+                    // === DESKTOP MODE: Use traditional fs.existsSync ===
+                    const filePath = mediaLocalPath + mediaFileName;
+                    if (fs.existsSync(filePath)) {
+                        renderEl = '<img src="' + filePath + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                        console.log('[appendColumnImage] Desktop - file exists:', filePath);
+                    } else {
+                        console.warn('[appendColumnImage] Desktop - file not found:', filePath);
+                        renderEl = '';
+                    }
                 }
+                
                 $('.' + colNumber + ' .imagecol-' + colRowIndex).html(renderEl)
 
                 //row table height
@@ -423,7 +523,7 @@ function tableRecord(slotitem, index, table) {
                 // Apply the styles to the corresponding <td> or <th>
                 $(' .' + checkres1['colid']).css({
                     'text-align': checkres1['textalign'],
-                    "border-radius": checkres1['trradius'] + "px " + checkres1['tlradius'] + "px " + checkres1['blradius'] + "px " + checkres1['brradius'] + "px",
+                    "border-radius": checkres1['tlradius'] + "px " + checkres1['trradius'] + "px " + checkres1['brradius'] + "px " + checkres1['blradius'] + "px",
                     'height': bodyRowHeight + "px",
                 });
             });
@@ -465,20 +565,24 @@ function tableRecord(slotitem, index, table) {
     })
 
     if (pagerow[tableid].length != 0) {
+        console.log('[tableRecord] Setting up pagination for table:', tableid, '- Total rows:', pagerow[tableid].length);
         var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight);
         maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
         maxrows = maxrows - 1;
+        console.log('[tableRecord] Calculated max rows per page:', maxrows, '- Slot height:', $('#slot-' + tableid).height(), 'px');
         var pagination = $('#pagination-' + tableid);
         var totalRows = pagerow[tableid].length;  // Total number of rows
         var pageSize = parseInt(maxrows);
 
         // Check if there's only one page of data
         if (totalRows <= pageSize) {
+            console.log('[tableRecord] Single page only - hiding pagination');
             pagination.hide();  // Hide pagination if only 1 page
             $('#slot-' + tableid).find('.pagination-pages').hide()
             $('#pagination-' + tableid).hide()
             $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
         } else {
+            console.log('[tableRecord] Multiple pages detected - initializing pagination with pageSize:', pageSize);
             pagination.pagination({
                 dataSource: pagerow[tableid],
                 pageSize: pageSize,
@@ -496,6 +600,7 @@ function tableRecord(slotitem, index, table) {
                 checkpage[tableid] = false;
                 pagination.pagination('go', 1);
                 $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+                console.log('[tableRecord] Pagination initialized - Page 1/' + pagination.pagination('getTotalPage'));
             } else {
                 $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
                 pagination.pagination('go', pageincrease[tableid]);
@@ -514,7 +619,9 @@ function tableRecord(slotitem, index, table) {
 
                 // Refresh page
                 $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+                console.log('[tableRecord] Auto page flip - Now showing page:', pageincrease[tableid] + '/' + totalpage);
             }, pageLengthTime[tableid]);
+            console.log('[tableRecord] Auto page flip interval set to:', pageLengthTime[tableid], 'ms');
         }
     }
 }
