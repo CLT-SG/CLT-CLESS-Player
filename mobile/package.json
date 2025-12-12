@@ -1,6 +1,6 @@
 {
   "name": "ecless-player-mobile",
-  "version": "3.2.6",
+  "version": "3.2.8",
   "type": "module",
   "description": "eCLESS Player Mobile App - Android & iOS",
   "author": {
@@ -10,11 +10,12 @@
   "license": "ISC",
   "homepage": "www.closed-loop.biz",
   "scripts": {
-    "build:android": "npx cap sync android && npx cap open android",
-    "build:ios": "npx cap sync ios && npx cap open ios",
-    "sync": "npx cap sync",
-    "sync:android": "npx cap sync android",
-    "sync:ios": "npx cap sync ios",
+    "build:datetime": "npx rollup -c rollup.datetime.config.js",
+    "build:android": "npm run build:datetime && npx cap sync android && npx cap open android",
+    "build:ios": "npm run build:datetime && npx cap sync ios && npx cap open ios",
+    "sync": "npm run build:datetime && npx cap sync",
+    "sync:android": "npm run build:datetime && npx cap sync android",
+    "sync:ios": "npm run build:datetime && npx cap sync ios",
     "open:android": "npx cap open android",
     "open:ios": "npx cap open ios",
     "add:android": "npx cap add android",
@@ -35,12 +36,16 @@
     "@capacitor/splash-screen": "^6.0.2",
     "@capacitor/status-bar": "^6.0.1",
     "axios": "^1.7.7",
+    "date-and-time": "^4.1.1",
     "qrcode": "^1.5.0",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.1.2",
+    "@rollup/plugin-babel": "^6.1.0",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",
     "rollup": "^4.53.3"
