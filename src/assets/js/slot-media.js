@@ -14,6 +14,92 @@ function generateRandomNumber() {
     return randomNumber;
 }
 
+/**
+ * Parse streaming URL format from server
+ * Supports new format: {protocol:url}
+ * Examples:
+ *   {m3u8:http://server/playlist.m3u8}
+ *   {rtsp://server/stream}
+ *   {rtmp://server/stream}
+ *   {http://server/video.mp4}
+ *   {https://server/video.mp4}
+ * 
+ * @param {string} rawSrc - Raw source from server (may contain {protocol:url} format)
+ * @returns {Object} Parsed streaming info: { protocol, url, isStreaming, originalSrc }
+ */
+function parseStreamingUrl(rawSrc) {
+    if (!rawSrc || typeof rawSrc !== 'string') {
+        return {
+            protocol: null,
+            url: rawSrc,
+            isStreaming: false,
+            originalSrc: rawSrc
+        };
+    }
+    
+    const trimmed = rawSrc.trim();
+    
+    // Check if it's in {protocol:url} format
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        // Remove curly braces
+        const content = trimmed.slice(1, -1);
+        
+        // Check for protocol prefix (e.g., "m3u8:", "rtsp:", etc.)
+        const colonIndex = content.indexOf(':');
+        
+        if (colonIndex > 0) {
+            const potentialProtocol = content.substring(0, colonIndex).toLowerCase();
+            const remainingUrl = content.substring(colonIndex + 1);
+            
+            // List of supported streaming protocols
+            const streamingProtocols = ['m3u8', 'rtsp', 'rtmp', 'http', 'https'];
+            
+            // Check if it's a known streaming protocol
+            if (streamingProtocols.includes(potentialProtocol)) {
+                // For http/https, the URL will be "http://..." or "https://...", so reconstruct
+                let finalUrl;
+                if (potentialProtocol === 'http' || potentialProtocol === 'https') {
+                    finalUrl = potentialProtocol + ':' + remainingUrl;
+                } else if (potentialProtocol === 'm3u8') {
+                    // M3U8 format: {m3u8:http://...} - the remaining URL should be complete
+                    finalUrl = remainingUrl;
+                } else {
+                    // RTSP/RTMP format: {rtsp://...} or {rtmp://...}
+                    // The protocol is part of the URL already
+                    finalUrl = potentialProtocol + ':' + remainingUrl;
+                }
+                
+                console.log('[parseStreamingUrl] ✓ Detected streaming format:', potentialProtocol, '→', finalUrl);
+                
+                return {
+                    protocol: potentialProtocol,
+                    url: finalUrl,
+                    isStreaming: true,
+                    originalSrc: rawSrc
+                };
+            }
+        }
+        
+        // If no protocol prefix found, just strip the braces (backward compatibility)
+        console.log('[parseStreamingUrl] No protocol prefix, stripping braces:', content);
+        return {
+            protocol: null,
+            url: content,
+            isStreaming: false,
+            originalSrc: rawSrc
+        };
+    }
+    
+    // Not in curly brace format - return as-is
+    return {
+        protocol: null,
+        url: trimmed,
+        isStreaming: false,
+        originalSrc: rawSrc
+    };
+}
+
+
 function mediaFunc(slotitem, slotid, mediapath) {
     mediaCurIndex[slotid] = 1
     medialoop[slotid] = []
@@ -24,7 +110,10 @@ function mediaFunc(slotitem, slotid, mediapath) {
         medialoop[slotid] = []
     }
     slotitem.forEach(function (media, mindex) {
-        var src = media['elements']['0']['text'].replace('{', '').replace('}', '').trim()
+        // Parse source with new streaming parser
+        const rawSrc = media['elements']['0']['text'];
+        const parsed = parseStreamingUrl(rawSrc);
+        var src = parsed.url;
         
         // Skip "none" media items
         if (!src || src === 'none' || src === 'None' || src === 'NONE' || src.toLowerCase() === 'none') {
@@ -41,6 +130,97 @@ function mediaFunc(slotitem, slotid, mediapath) {
 
         //check media file if exist
         var mediaDownloadURL = serverAdd + mediapath + '/' + src
+        
+        // === Handle Streaming Formats (from new {protocol:url} format) ===
+        if (parsed.isStreaming && parsed.protocol) {
+            console.log('[mediaFunc] Streaming format detected:', parsed.protocol, '→', src);
+            
+            // M3U8/HLS streaming
+            if (parsed.protocol === 'm3u8') {
+                var contentObj = new Object()
+                contentObj.contentUrl = src
+                contentObj.contentDuration = duration
+                contentObj.contentType = "application/x-mpegURL"
+                contentObj.mediaType = "STREAM"
+                contentObj.streamProtocol = "m3u8"
+                medialoop[slotid].push(contentObj)
+                
+                if (mindex === slotitem.length - 1 && medialoop[slotid][0]) {
+                    appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
+                }
+                return
+            }
+            
+            // RTSP streaming
+            if (parsed.protocol === 'rtsp') {
+                console.warn('[mediaFunc] RTSP requires transcoding - check if URL is pre-transcoded');
+                var contentObj = new Object()
+                contentObj.contentUrl = src
+                contentObj.contentDuration = duration
+                contentObj.contentType = "application/x-rtsp"
+                contentObj.mediaType = "RTSP_STREAM"
+                contentObj.streamProtocol = "rtsp"
+                medialoop[slotid].push(contentObj)
+                
+                if (mindex === slotitem.length - 1 && medialoop[slotid][0]) {
+                    appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
+                }
+                return
+            }
+            
+            // RTMP streaming
+            if (parsed.protocol === 'rtmp') {
+                var contentObj = new Object()
+                contentObj.contentUrl = src
+                contentObj.contentDuration = duration
+                contentObj.contentType = "video/x-flv"
+                contentObj.mediaType = "RTMP_STREAM"
+                contentObj.streamProtocol = "rtmp"
+                medialoop[slotid].push(contentObj)
+                
+                if (mindex === slotitem.length - 1 && medialoop[slotid][0]) {
+                    appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
+                }
+                return
+            }
+            
+            // HTTP/HTTPS external URLs
+            if (parsed.protocol === 'http' || parsed.protocol === 'https') {
+                // Detect if it's a streaming URL or regular video
+                if (src.toLowerCase().includes('.m3u8') || src.toLowerCase().includes('.m3u')) {
+                    var contentObj = new Object()
+                    contentObj.contentUrl = src
+                    contentObj.contentDuration = duration
+                    contentObj.contentType = "application/x-mpegURL"
+                    contentObj.mediaType = "STREAM"
+                    contentObj.streamProtocol = "m3u8"
+                    medialoop[slotid].push(contentObj)
+                } else if (src.toLowerCase().includes('.flv')) {
+                    var contentObj = new Object()
+                    contentObj.contentUrl = src
+                    contentObj.contentDuration = duration
+                    contentObj.contentType = "video/x-flv"
+                    contentObj.mediaType = "CCTV"
+                    contentObj.streamProtocol = "flv"
+                    medialoop[slotid].push(contentObj)
+                } else {
+                    // Regular external video
+                    var contentObj = new Object()
+                    contentObj.contentUrl = src
+                    contentObj.contentDuration = duration
+                    contentObj.contentType = "video/mp4"
+                    contentObj.mediaType = "VIDEO"
+                    medialoop[slotid].push(contentObj)
+                }
+                
+                if (mindex === slotitem.length - 1 && medialoop[slotid][0]) {
+                    appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
+                }
+                return
+            }
+        }
+        
+        // === Handle Legacy Formats (backward compatibility) ===
         if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'mp4', 'webm'].includes(mediamode)) { //image and video format
             if (src != 'none') {
                 var mediaName = src.split('/')
@@ -264,6 +444,93 @@ async function appendMediaElement(asset, previewele, slotid) {
             var error = videoJSPlayer[videojsid].error()
             log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
             console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
+        })
+    } else if (asset.mediaType == "RTSP_STREAM") { //RTSP streaming player
+        console.log('[appendMediaElement] RTSP stream detected:', asset.contentUrl);
+        
+        // RTSP cannot be played directly in Electron/browsers
+        // Check if URL is transcoded (contains .m3u8)
+        if (asset.contentUrl.includes('.m3u8')) {
+            console.log('[appendMediaElement] RTSP appears transcoded - treating as HLS');
+            
+            mediaEl[slotid] = '<video id="video-' + videojsid + '" poster="http://dummyimage.com/320x240/ffffff/fff" class="video-js vjs-default-skin vjs-fill" class="media-slot" autoplay controls preload="metadata" data-setup="{}">'
+            mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='application/x-mpegURL'>"
+            mediaEl[slotid] += "</video>"
+            $(previewele).html(mediaEl[slotid])
+            videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {})
+            videoJSPlayer[videojsid].controls(false)
+            
+            if (duration == 0) {
+                videoJSPlayer[videojsid].on('ended', function () {
+                    videoJSPlayer[videojsid].dispose()
+                    changeMedia(slotid)
+                })
+            } else {
+                setTimeout(function () {
+                    videoJSPlayer[videojsid].dispose()
+                    changeMedia(slotid)
+                }, duration)
+            }
+            
+            videoJSPlayer[videojsid].on('error', function () {
+                videoJSPlayer[videojsid].dispose()
+                changeMedia(slotid)
+                var error = videoJSPlayer[videojsid].error()
+                log.warn('VIDEOJS RTSP ERROR : ', error.code, error.type, error.message)
+            })
+        } else {
+            // Pure RTSP - show error
+            console.error('[appendMediaElement] RTSP requires transcoding');
+            log.warn('RTSP streams require server-side transcoding to HLS');
+            
+            mediaEl[slotid] = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; background: #1a1a1a; color: #ff6b6b; font-size: 14px; padding: 20px; text-align: center;">';
+            mediaEl[slotid] += '<div><strong>RTSP Stream Error</strong><br/>Requires server-side transcoding to HLS<br/><small>' + asset.contentUrl + '</small></div>';
+            mediaEl[slotid] += '</div>';
+            $(previewele).html(mediaEl[slotid])
+            
+            setTimeout(function () {
+                changeMedia(slotid)
+            }, 5000)
+        }
+    } else if (asset.mediaType == "RTMP_STREAM") { //RTMP streaming player
+        console.log('[appendMediaElement] RTMP stream detected:', asset.contentUrl);
+        
+        mediaEl[slotid] = '<video id="video-' + videojsid + '" poster="http://dummyimage.com/320x240/ffffff/fff" class="video-js vjs-default-skin vjs-fill" class="media-slot" autoplay controls preload="metadata" data-setup="{}">'
+        mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='video/x-flv'>"
+        mediaEl[slotid] += "</video>"
+        $(previewele).html(mediaEl[slotid])
+        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
+            techOrder: ['html5', 'flvjs'],
+            flvjs: {
+                mediaDataSource: {
+                    type: 'flv',
+                    isLive: true,
+                    cors: true,
+                    withCredentials: false,
+                    url: asset.contentUrl
+                }
+            },
+        }, function () {})
+        videoJSPlayer[videojsid].controls(false)
+        
+        if (duration == 0) {
+            videoJSPlayer[videojsid].on('ended', function () {
+                videoJSPlayer[videojsid].dispose()
+                changeMedia(slotid)
+            })
+        } else {
+            setTimeout(function () {
+                videoJSPlayer[videojsid].dispose()
+                changeMedia(slotid)
+            }, duration)
+        }
+        
+        videoJSPlayer[videojsid].on('error', function () {
+            videoJSPlayer[videojsid].dispose()
+            changeMedia(slotid)
+            var error = videoJSPlayer[videojsid].error()
+            log.warn('VIDEOJS RTMP ERROR : ', error.code, error.type, error.message)
+            console.log('VIDEOJS RTMP ERROR : ', error.code, error.type, error.message)
         })
     }
 }

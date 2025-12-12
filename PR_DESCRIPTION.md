@@ -1,69 +1,61 @@
-## Android Mobile App - Media Loading Optimization and Codec Error Handling
+## Server-Side Streaming Protocol Format Support
 
-Resolves critical performance and stability issues in mobile CMS player media loading with comprehensive optimization and error handling.
+Implements comprehensive streaming protocol format support for both mobile and desktop CMS players with server-side media format enhancements.
 
 ## Issues Fixed
 
-1. Slow media loading - 15-30 seconds to load 5 media files causing poor user experience
-2. Unstable first-loop playback - videos failed to play on first loop approximately 50% of the time
-3. No external URL support - all URLs forced through download and caching causing unnecessary delays
-4. Repeated base64 conversions - same media files converted multiple times wasting CPU and memory
-5. Sequential processing - media loaded one-by-one instead of parallel causing bottlenecks
-6. Codec errors freezing player - AV1 videos caused MEDIA_ERR_DECODE errors with no recovery
-7. No timeout on video errors - player hung indefinitely when video failed to load
-8. Media value "none" not filtered - empty slots attempted to load causing errors and delays
+1. No support for new server-side streaming format - Server updated to use protocol prefix format but client apps could not parse
+2. M3U8/HLS streams only detected by file extension - New format allows explicit protocol specification
+3. RTSP camera streams not handled - No error handling or transcoding guidance for RTSP sources
+4. RTMP live streams unsupported - No flv.js integration for RTMP playback attempts
+5. External HTTP/HTTPS videos treated as local files - Forced through download instead of direct playback
+6. Inconsistent format handling - Mobile and desktop apps had different media parsing logic
 
 ## Technical Changes
 
-1. Implemented batch preloading system with 5 concurrent downloads using Promise.all
-2. Added in-memory URI cache using Map to prevent repeated base64 conversions
-3. Added external URL detection for direct usage without caching overhead
-4. Implemented 4-phase processing pipeline for parse, categorize, preload, and play stages
-5. Enhanced VideoJS configuration with mobile-optimized settings and HLS plugin
-6. Added 3-second timeout on codec errors with automatic skip to next media
-7. Implemented proper ready state checking before video playback
-8. Added case-insensitive "none" media filtering with multi-stage validation
-9. Enhanced error notifications for codec issues and all-none slots
-10. Updated desktop version for consistency with mobile implementation
+1. Implemented parseStreamingUrl function to parse protocol:url format from server
+2. Added support for m3u8, rtsp, rtmp, http, https protocol prefixes
+3. Integrated RTSP stream handler with transcoding detection and error notifications
+4. Integrated RTMP stream handler using flv.js tech for playback attempts
+5. Enhanced M3U8/HLS support with both extension-based and protocol-prefix detection
+6. Added smart HTTP/HTTPS handling to detect streams vs regular videos
+7. Implemented comprehensive error handling with user-friendly notifications
+8. Added stream timeout logic with automatic skip on connection failures
+9. Maintained full backward compatibility with existing media formats
+10. Updated both mobile and desktop apps with identical parsing logic
 
 ## Files Changed Summary
 
-**Mobile Media Management:**
-- mobile/www/assets/js/mobile/mobile-media-manager.js - Added uriCache Map, preloadMediaBatch function, isExternalUrl detection
-- mobile/www/assets/js/slot-media.js - Complete rewrite with 4-phase processing, external URL support, codec error handling, "none" filtering
-- mobile/www/assets/js/slot-table.js - Added external URL support for table cell images with CORS configuration
+**Mobile App:**
+- mobile/www/assets/js/slot-media.js - Added parseStreamingUrl function, protocol-based media processing, RTSP/RTMP handlers
 
-**Desktop Consistency:**
-- src/assets/js/slot-media.js - Updated with "none" filtering for desktop Electron app
+**Desktop App:**
+- src/assets/js/slot-media.js - Added parseStreamingUrl function, protocol-based media processing, RTSP/RTMP handlers
 
 **Documentation:**
-- mobile/docs_mobile/MEDIA-LOADING-OPTIMIZATION.md - Comprehensive technical documentation with performance analysis
-- mobile/docs_mobile/QUICK-START-TESTING.md - Step-by-step testing guide for verification
-- mobile/docs_mobile/VIDEO-CODEC-COMPATIBILITY.md - Codec compatibility guide with FFmpeg conversion commands
-- mobile/docs_mobile/CODEC-ERROR-FIX.md - Codec error handling implementation summary
+- docs/STREAMING-FORMAT-IMPLEMENTATION.md - Comprehensive implementation guide with technical details
+- docs/STREAMING-FORMAT-QUICK-REF.md - Quick reference for developers with format examples
+- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Implementation summary with testing guidelines
+- docs/STREAMING-MIGRATION-CHECKLIST.md - Deployment checklist with testing scenarios
 
 ## Testing
 
-Media Loading Performance:
-- Load time reduced from 15-30 seconds to 2-5 seconds for 5 media files
-- First-loop playback success rate improved from 50% to 95%+ 
-- External URLs load immediately without caching delay
-- URI cache prevents repeated conversions on subsequent plays
+Format Support:
+- M3U8/HLS streams with new format work correctly
+- RTSP streams show appropriate transcoding requirements
+- RTMP streams attempt playback with flv.js integration
+- External HTTP/HTTPS videos play directly without caching
+- Backward compatibility maintained for all existing formats
 
 Error Handling:
-- Codec errors trigger 3-second timeout then auto-skip to next media
-- User notification shows codec issue with retry instructions
-- Player continues operation instead of freezing
-- All-none slots show warning message instead of attempting playback
-
-Media Filtering:
-- "none" values filtered case-insensitively including none, None, NONE
-- Empty strings and whitespace-only values handled properly
-- Multi-stage validation at parse, processing, and final stages
-- User notification when all media in slot are "none"
+- Stream connection failures trigger 5-second timeout then auto-skip
+- RTSP detection shows user notification about transcoding needs
+- RTMP compatibility warnings displayed when needed
+- Clear console logging for debugging streaming issues
 
 Platform:
+- Both mobile and desktop apps support all formats
 - Android 5.1+ compatible
-- Desktop Electron app updated for consistency
-- No breaking changes or server-side changes required
-- Backward compatible with existing layout XML configurations
+- Desktop Electron app updated with same logic
+- No breaking changes or server-side changes required beyond format specification
+- Backward compatible with all existing layout XML configurations
