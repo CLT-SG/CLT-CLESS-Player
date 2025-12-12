@@ -153,49 +153,54 @@ window.xmljs = {
 window.convert = window.xmljs; // Alias
 
 /**
- * Date and time formatting (date-and-time compatible)
+ * Date and time formatting (date-and-time v4.x library)
+ * 
+ * The actual date-and-time library is loaded from datetime.bundle.js.
+ * This shim expects window.DateTimeBundle to be available from that bundle.
+ * 
+ * Note: date-and-time v4.x has built-in support for most formats including:
+ * - YYYY, MM, DD, HH, mm, ss (basic date/time)
+ * - MMM, MMMM (month names)
+ * - ddd, dddd (day names)  
+ * - hh, A (12-hour format with AM/PM)
+ * - And many more!
  */
-window.datetime = {
-    format: (date, format) => {
-        const d = new Date(date);
-        const pad = (num) => String(num).padStart(2, '0');
+if (typeof window.DateTimeBundle !== 'undefined') {
+    // Use the real date-and-time library from the bundle
+    window.datetime = window.DateTimeBundle;
+    console.log('[Mobile Shim] ✓ Using date-and-time v4.x library from bundle');
+    console.log('[Mobile Shim] Available datetime functions:', Object.keys(window.datetime));
+} else {
+    // Fallback: Basic implementation if bundle not loaded
+    console.warn('[Mobile Shim] ⚠ datetime.bundle.js not loaded! Using basic fallback.');
+    window.datetime = {
+        format: (date, format) => {
+            const d = new Date(date);
+            const pad = (num) => String(num).padStart(2, '0');
+            
+            // Basic format tokens only (insufficient for production)
+            return format
+                .replace('YYYY', d.getFullYear())
+                .replace('MM', pad(d.getMonth() + 1))
+                .replace('DD', pad(d.getDate()))
+                .replace('HH', pad(d.getHours()))
+                .replace('mm', pad(d.getMinutes()))
+                .replace('ss', pad(d.getSeconds()));
+        },
         
-        return format
-            .replace('YYYY', d.getFullYear())
-            .replace('MM', pad(d.getMonth() + 1))
-            .replace('DD', pad(d.getDate()))
-            .replace('HH', pad(d.getHours()))
-            .replace('mm', pad(d.getMinutes()))
-            .replace('ss', pad(d.getSeconds()));
-    },
-    
-    parse: (dateString, format) => {
-        return new Date(dateString);
-    },
-    
-    plugin: (pluginFn) => {
-        // Plugin system stub for meridiem, ordinal, etc.
-        if (typeof pluginFn === 'function') {
-            pluginFn(window.datetime);
+        parse: (dateString, format) => {
+            return new Date(dateString);
         }
-    }
-};
-
-// Plugin stubs
-window.meridiem = (datetime) => {
-    datetime.meridiem = (date) => {
-        const hours = new Date(date).getHours();
-        return hours >= 12 ? 'PM' : 'AM';
     };
+}
+
+// Plugin stubs for backward compatibility (v4.x doesn't use plugin system)
+window.meridiem = (datetime) => {
+    // No-op: v4.x has built-in AM/PM support via 'A' token
 };
 
 window.ordinal = (datetime) => {
-    datetime.ordinal = (date) => {
-        const day = new Date(date).getDate();
-        const suffix = ['th', 'st', 'nd', 'rd'];
-        const v = day % 100;
-        return day + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]);
-    };
+    // No-op: v4.x has built-in ordinal support
 };
 
 /**

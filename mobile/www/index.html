@@ -169,7 +169,10 @@
   <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
   <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
   
-  <!-- 2. Mobile Electron Shim (provides window.log, window.mobileAPI, etc.) -->
+  <!-- 2. Date and Time Library (date-and-time v4.x) -->
+  <script src="assets/js/mobile/datetime.bundle.js"></script>
+  
+  <!-- 3. Mobile Electron Shim (provides window.log, window.mobileAPI, etc.) -->
   <script src="assets/js/mobile/mobile-electron-shim.js"></script>
   
   <!-- 3. Mobile Config Loader (needs window.log from shim) -->
@@ -203,8 +206,7 @@
         datetime = window.datetime;
         meridiem = window.meridiem;
         ordinal = window.ordinal;
-        datetime.plugin(meridiem);
-        datetime.plugin(ordinal);
+        // Note: date-and-time v4.x doesn't use plugin system - features are built-in
         path = window.path;
         os = window.os;
         fs = window.fs;
