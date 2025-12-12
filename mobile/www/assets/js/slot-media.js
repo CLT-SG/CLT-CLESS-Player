@@ -1,3 +1,15 @@
+/**
+ * eCLESS Player - Optimized Media Slot Handler
+ * 
+ * Optimizations:
+ * - Batch preloading of media files
+ * - In-memory URI caching
+ * - External URL support (http/https)
+ * - Parallel processing
+ * - Better error handling
+ * - M3U8/HLS stream support
+ */
+
 var previewContainer
 var videoJSPlayer = new Array() //videojs call function
 var mediaTimeout = new Array()
@@ -37,6 +49,20 @@ function generateRandomNumber() {
     return randomNumber;
 }
 
+// Helper function to extract YouTube video ID
+function extractYouTubeId(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+
+/**
+ * Check if a URL is external (http/https)
+ */
+function isExternalMediaUrl(url) {
+    return url && (url.startsWith('http://') || url.startsWith('https://'));
+}
+
 function mediaFunc(slotitem, slotid, mediapath) {
     mediaCurIndex[slotid] = 1
     medialoop[slotid] = []
@@ -48,13 +74,15 @@ function mediaFunc(slotitem, slotid, mediapath) {
     }
     
     // Process all media items (potentially async)
-    processMediaItems(slotitem, slotid, mediapath, serverAdd);
+    processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd);
 }
 
 /**
- * Process media items asynchronously (supports mobile and desktop)
+ * OPTIMIZED: Process media items with batch preloading and external URL support
  */
-async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
+async function processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd) {
+    console.log('[mediaFunc] Starting optimized processing for slot:', slotid, 'with', slotitem.length, 'items');
+    
     // Ensure media manager is initialized (mobile only)
     if (window.mediaManager && !window.mediaManager.initialized) {
         console.log('[mediaFunc] Waiting for media manager initialization...');
@@ -63,212 +91,263 @@ async function processMediaItems(slotitem, slotid, mediapath, serverAdd) {
         });
     }
     
+    // Phase 1: Parse and categorize all media
+    const mediaItems = [];
+    const localMediaToPreload = [];
+    
     for (let mindex = 0; mindex < slotitem.length; mindex++) {
         const media = slotitem[mindex];
         
-        // Enhanced defensive check for undefined elements
+        // Defensive checks
         if (!media) {
-            console.error('[mediaFunc] Media element is null/undefined at index', mindex, 'for slot', slotid);
-            continue; // Skip this iteration
-        }
-        
-        // DEBUG: Always log the full media structure to understand the data format
-        console.log('[mediaFunc] Media element at index', mindex, 'for slot', slotid, '- Full structure:', JSON.stringify(media));
-        
-        if (!media['elements']) {
-            console.error('[mediaFunc] No elements property in media element at index', mindex, 'for slot', slotid);
-            console.error('[mediaFunc] Media structure:', JSON.stringify(media));
+            console.error('[mediaFunc] Media element is null/undefined at index', mindex);
             continue;
         }
         
-        // Check if elements is empty or has no items (handle both array and object)
+        if (!media['elements']) {
+            console.error('[mediaFunc] No elements property at index', mindex);
+            continue;
+        }
+        
+        // Extract source
+        let src = null;
         var hasElements = false;
+        
         if (Array.isArray(media['elements'])) {
             hasElements = media['elements'].length > 0 && media['elements'][0];
         } else if (typeof media['elements'] === 'object') {
             hasElements = media['elements']['0'] !== undefined;
         }
         
-        if (!hasElements) {
-            console.error('[mediaFunc] No elements[0] in media element at index', mindex, 'for slot', slotid);
-            console.error('[mediaFunc] Elements type:', Array.isArray(media['elements']) ? 'array' : typeof media['elements']);
-            console.error('[mediaFunc] Elements content:', JSON.stringify(media['elements']));
-            
-            // FALLBACK: Check if text is directly in media object or attributes
-            var src = null;
+        if (hasElements) {
+            // Normal path
+            var firstElement = Array.isArray(media['elements']) ? media['elements'][0] : media['elements']['0'];
+            if (firstElement && firstElement['text']) {
+                src = firstElement['text'].replace('{', '').replace('}', '').trim();
+            }
+        } else {
+            // Fallback paths
             if (media['text']) {
-                console.log('[mediaFunc] ✓ FALLBACK SUCCESS: Found text directly in media object:', media['text']);
                 src = media['text'];
             } else if (media['attributes'] && media['attributes']['src']) {
-                console.log('[mediaFunc] ✓ FALLBACK SUCCESS: Found src in attributes:', media['attributes']['src']);
                 src = media['attributes']['src'];
             } else if (media['attributes'] && media['attributes']['file']) {
-                console.log('[mediaFunc] ✓ FALLBACK SUCCESS: Found file in attributes:', media['attributes']['file']);
                 src = media['attributes']['file'];
-            } else if (media['attributes'] && media['attributes']['name']) {
-                console.log('[mediaFunc] ✓ FALLBACK SUCCESS: Found name in attributes:', media['attributes']['name']);
-                src = media['attributes']['name'];
-            } else if (media['name']) {
-                console.log('[mediaFunc] ✓ FALLBACK SUCCESS: Found name directly in media:', media['name']);
-                src = media['name'];
-            } else {
-                console.error('[mediaFunc] ✗ FALLBACK FAILED: Cannot find media source anywhere');
-                console.error('[mediaFunc] Available attributes:', media['attributes'] ? Object.keys(media['attributes']).join(', ') : 'none');
-                console.error('[mediaFunc] Available properties:', Object.keys(media).join(', '));
-                continue;
             }
             
-            console.log('[mediaFunc] Using source from fallback:', src);
-            src = src.replace('{', '').replace('}', '');
-        } else {
-            // Get first element (support both array and object notation)
-            var firstElement = Array.isArray(media['elements']) ? media['elements'][0] : media['elements']['0'];
-            
-            if (!firstElement || !firstElement['text']) {
-                console.error('[mediaFunc] No text property in elements[0] at index', mindex, 'for slot', slotid);
-                console.error('[mediaFunc] First element:', JSON.stringify(firstElement));
-                continue;
+            if (src) {
+                src = src.replace('{', '').replace('}', '').trim();
             }
-            
-            var src = firstElement['text'].replace('{', '').replace('}', '');
         }
         
-        // Validate duration attribute
-        if (!media['attributes'] || !media['attributes']['duration']) {
-            console.warn('[mediaFunc] Missing duration attribute at index', mindex, 'for slot', slotid, '- using default 5s');
-            var duration = 5;
-        } else {
-            var duration = media['attributes']['duration'];
-        }
-        // Skip "none" media items
-        if (src === 'none' || src.trim() === '' || !src) {
-            console.log('[mediaFunc] Skipping empty/none media at index', mindex, 'for slot', slotid);
+        // Skip invalid, empty, or "none" media sources
+        if (!src || src === 'none' || src === 'None' || src === 'NONE' || src.trim() === '' || src.toLowerCase() === 'none') {
+            console.log('[mediaFunc] ✓ Skipping "none" media at index', mindex);
             continue;
         }
         
-        var n = src.lastIndexOf('.')
-        var mediamode = src.substring(n + 1)
-        var ytbe = src.split("/")
-        //media file location
-        var mediaLocalPath
-
-        console.log('[mediaFunc] Processing media:', src, '- Mode:', mediamode, '- Slot:', slotid);
+        // Get duration
+        const duration = (media['attributes'] && media['attributes']['duration']) ? media['attributes']['duration'] : 5;
         
-        //check media file if exist
-        var mediaDownloadURL = serverAdd + mediapath + '/' + src
-        if (['png', 'jpg', 'jpeg', 'bmp', 'gif', 'mp4', 'webm'].includes(mediamode)) { //image and video format
-            if (src != 'none') {
-                var mediaName = src.split('/')
-                mediaName = mediaName[1]
-                //add source to media list and insert to cpanel
-                mediafilenameList.push(mediaName)
+        // Determine media type
+        const n = src.lastIndexOf('.');
+        const mediamode = src.substring(n + 1);
+        const ytbe = src.split("/");
+        
+        // Categorize media
+        const isExternal = isExternalMediaUrl(src);
+        
+        mediaItems.push({
+            src,
+            duration,
+            mediamode,
+            ytbe,
+            isExternal,
+            mindex
+        });
+    }
+    
+    console.log('[mediaFunc] Parsed', mediaItems.length, 'valid media items');
+    
+    // Phase 2: Process based on type
+    for (const item of mediaItems) {
+        const { src, duration, mediamode, ytbe, isExternal } = item;
+        
+        // Double-check for "none" values (safety check)
+        if (!src || src.toLowerCase() === 'none' || src.trim() === '') {
+            console.log('[mediaFunc] ✓ Skipping "none" value in processing phase');
+            continue;
+        }
+        
+        console.log('[mediaFunc] Processing:', src, '- Mode:', mediamode, '- External:', isExternal);
+        
+        // Handle YouTube
+        if (ytbe[2] === 'youtu.be' || src.includes('youtube.com')) {
+            const videoId = ytbe[3] || extractYouTubeId(src);
+            medialoop[slotid].push({
+                contentUrl: videoId,
+                contentDuration: duration,
+                contentType: "youtube",
+                mediaType: "YTB"
+            });
+            continue;
+        }
+        
+        // Handle M3U8 streams
+        if (mediamode === 'm3u8' || mediamode === 'm3u') {
+            medialoop[slotid].push({
+                contentUrl: src, // Use URL directly (external or relative)
+                contentDuration: duration,
+                contentType: "application/x-mpegURL",
+                mediaType: "STREAM"
+            });
+            continue;
+        }
+        
+        // Handle FLV streams
+        if (mediamode === 'flv') {
+            medialoop[slotid].push({
+                contentUrl: src,
+                contentDuration: duration,
+                contentType: "video/x-flv",
+                mediaType: "CCTV"
+            });
+            continue;
+        }
+        
+        // Handle images
+        if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(mediamode)) {
+            if (isExternal) {
+                // External image - use directly
+                medialoop[slotid].push({
+                    contentUrl: src,
+                    contentDuration: duration,
+                    contentType: "image/" + mediamode,
+                    mediaType: "IMAGE"
+                });
+            } else {
+                // Local image - queue for preload
+                const mediaName = src.split('/').pop();
+                const downloadURL = serverAdd + mediapath + '/' + src;
+                localMediaToPreload.push({
+                    url: downloadURL,
+                    filename: mediaName,
+                    duration: duration,
+                    type: "IMAGE",
+                    contentType: "image/" + mediamode
+                });
+            }
+            continue;
+        }
+        
+        // Handle videos
+        if (['mp4', 'webm', 'mkv'].includes(mediamode)) {
+            if (isExternal) {
+                // External video - use directly
+                medialoop[slotid].push({
+                    contentUrl: src,
+                    contentDuration: duration,
+                    contentType: "video/mp4",
+                    mediaType: "VIDEO"
+                });
+            } else {
+                // Local video - queue for preload
+                const mediaName = src.split('/').pop();
+                const downloadURL = serverAdd + mediapath + '/' + src;
+                localMediaToPreload.push({
+                    url: downloadURL,
+                    filename: mediaName,
+                    duration: duration,
+                    type: "VIDEO",
+                    contentType: "video/mp4"
+                });
+            }
+            continue;
+        }
+    }
+    
+    // Phase 3: Batch preload local media
+    if (localMediaToPreload.length > 0 && window.mediaManager) {
+        console.log('[mediaFunc] Batch preloading', localMediaToPreload.length, 'local files...');
+        
+        try {
+            const preloadResult = await window.mediaManager.preloadMediaBatch(localMediaToPreload);
+            console.log('[mediaFunc] Preload complete:', preloadResult.loaded, 'loaded,', preloadResult.failed, 'failed');
+            
+            // Add preloaded media to playback loop
+            for (const item of localMediaToPreload) {
+                const mediaUri = await window.mediaManager.getMediaUri(item.filename);
                 
-                // MOBILE vs DESKTOP PATH HANDLING
-                if (window.mediaManager) {
-                    // === MOBILE MODE: Use Capacitor Filesystem ===
-                    console.log('[mediaFunc] Mobile mode: Using media manager for', mediaName);
-                    
-                    try {
-                        // Check if file exists in cache
-                        const exists = await window.mediaManager.checkMediaExists(mediaName);
-                        
-                        if (!exists) {
-                            // Download to cache
-                            console.log('[mediaFunc] Downloading media:', mediaDownloadURL);
-                            await window.mediaManager.downloadMedia(mediaDownloadURL, mediaName);
-                        } else {
-                            console.log('[mediaFunc] Media cached:', mediaName);
-                        }
-                        
-                        // Get web-accessible URI for the file
-                        mediaLocalPath = await window.mediaManager.getMediaUri(mediaName);
-                        
-                        if (!mediaLocalPath) {
-                            console.error('[mediaFunc] Failed to get media URI for:', mediaName);
-                            // Fallback to direct URL
-                            mediaLocalPath = mediaDownloadURL;
-                        }
-                        
-                    } catch (error) {
-                        console.error('[mediaFunc] Mobile media error:', error);
-                        // Fallback to direct URL (streaming from server)
-                        mediaLocalPath = mediaDownloadURL;
+                if (mediaUri) {
+                    medialoop[slotid].push({
+                        contentUrl: mediaUri,
+                        contentDuration: item.duration,
+                        contentType: item.contentType,
+                        mediaType: item.type
+                    });
+                } else {
+                    console.warn('[mediaFunc] Failed to get URI for:', item.filename);
+                }
+            }
+        } catch (error) {
+            console.error('[mediaFunc] Batch preload error:', error);
+            
+            // Fallback: sequential loading
+            for (const item of localMediaToPreload) {
+                try {
+                    const exists = await window.mediaManager.checkMediaExists(item.filename);
+                    if (!exists) {
+                        await window.mediaManager.downloadMedia(item.url, item.filename);
                     }
-                    
-                } else if (typeof ipcRenderer !== 'undefined') {
-                    // === DESKTOP MODE: Use Electron IPC ===
-                    mediaLocalPath = homedir + '/clessapp/res/' + mediaName;
-                    if (!fs.existsSync(mediaLocalPath)) {
-                        //using ipc to download media cause electron not allow to use axios
-                        //https://stackoverflow.com/questions/65602941/axios-error-data-pipe-is-not-a-function
-                        ipcRenderer.invoke('app-downloadmedia', {
-                            mediaURL: mediaDownloadURL,
-                            mediaPathSrc: mediaLocalPath
-                        }).then((result) => {
-                            log.info('Saved to ' + mediaLocalPath)
-                        }).catch((error) => {
-                            log.error('Download failed:', error);
+                    const mediaUri = await window.mediaManager.getMediaUri(item.filename);
+                    if (mediaUri) {
+                        medialoop[slotid].push({
+                            contentUrl: mediaUri,
+                            contentDuration: item.duration,
+                            contentType: item.contentType,
+                            mediaType: item.type
                         });
                     }
-                } else {
-                    // === FALLBACK: Direct URL (no local caching) ===
-                    console.warn('[mediaFunc] No media manager or IPC - using direct URL');
-                    mediaLocalPath = mediaDownloadURL;
+                } catch (err) {
+                    console.error('[mediaFunc] Failed to load:', item.filename, err);
                 }
             }
         }
-
-        //add source to media list and insert to column image inside table slot
-        console.log('[mediaFunc] Media local path for', src, ':', sanitizeMediaUrlForLog(mediaLocalPath));
-        mediasrcList.push(mediaLocalPath)
-
-        if (['png', 'jpg', 'jpeg', 'bmp', 'gif'].includes(mediamode)) { //image format
-            console.log('[mediaFunc] Creating IMAGE content object');
-            var contentObj = new Object()
-            contentObj.contentUrl = mediaLocalPath
-            contentObj.contentDuration = duration
-            contentObj.contentType = "image/" + mediamode
-            contentObj.mediaType = "IMAGE"
-            medialoop[slotid].push(contentObj)
-        } else if (ytbe[2] == 'youtu.be') {
-            var contentObj = new Object()
-            contentObj.contentUrl = ytbe[3]
-            contentObj.contentDuration = duration
-            contentObj.contentType = "youtube"
-            contentObj.mediaType = "YTB"
-            medialoop[slotid].push(contentObj)
-        } else if (mediamode == 'm3u8' || mediamode == 'm3u') { //video m3u8 format
-            var contentObj = new Object()
-            contentObj.contentUrl = src
-            contentObj.contentDuration = duration
-            contentObj.contentType = "application/x-mpegURL"
-            contentObj.mediaType = "STREAM"
-            medialoop[slotid].push(contentObj)
-        } else if (['mp4', 'webm', 'mkv'].includes(mediamode)) { //video mp4/webm format
-            console.log('[mediaFunc] Creating VIDEO content object - URL:', sanitizeMediaUrlForLog(mediaLocalPath), '- Duration:', duration);
-            var contentObj = new Object()
-            contentObj.contentUrl = mediaLocalPath
-            contentObj.contentDuration = duration
-            contentObj.contentType = "video/mp4"
-            contentObj.mediaType = "VIDEO"
-            medialoop[slotid].push(contentObj)
-            console.log('[mediaFunc] Added VIDEO to medialoop[' + slotid + '] - Total items:', medialoop[slotid].length);
-        } else if (['flv'].includes(mediamode)) { //video flv format
-            var contentObj = new Object()
-            contentObj.contentUrl = src
-            contentObj.contentDuration = duration
-            contentObj.contentType = "video/x-flv"
-            contentObj.mediaType = "CCTV"
-            medialoop[slotid].push(contentObj)
-        } else { //none 
-        }
-        
-        // Check if this is the last media item
-        if (mindex === slotitem.length - 1) {
-            if (!medialoop[slotid][0]) {
-                medialoop[slotid][0] = 10
+    } else if (localMediaToPreload.length > 0 && typeof ipcRenderer !== 'undefined') {
+        // Desktop Electron mode - use IPC
+        for (const item of localMediaToPreload) {
+            const mediaLocalPath = homedir + '/clessapp/res/' + item.filename;
+            
+            if (!fs.existsSync(mediaLocalPath)) {
+                ipcRenderer.invoke('app-downloadmedia', {
+                    mediaURL: item.url,
+                    mediaPathSrc: mediaLocalPath
+                }).catch(err => console.error('Download failed:', err));
             }
-            appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid)
+            
+            medialoop[slotid].push({
+                contentUrl: mediaLocalPath,
+                contentDuration: item.duration,
+                contentType: item.contentType,
+                mediaType: item.type
+            });
+        }
+    }
+    
+    // Phase 4: Start playback
+    if (medialoop[slotid].length > 0) {
+        console.log('[mediaFunc] Starting playback with', medialoop[slotid].length, 'media items');
+        appendMediaElement(medialoop[slotid][0], '#slot-' + slotid, slotid);
+    } else {
+        console.warn('[mediaFunc] ⚠ No valid media loaded for slot', slotid, '- all items were "none" or invalid');
+        
+        // Show user notification if no media to play
+        if (window.errorNotification) {
+            window.errorNotification.warning(
+                'No Media to Play',
+                'All media items in this slot are empty or set to "none"',
+                5000
+            );
         }
     }
 }
@@ -286,7 +365,7 @@ function changeMedia(slotid) {
     }
 }
 
-//render every media slot
+//render every media slot with IMPROVED VIDEO INITIALIZATION
 async function appendMediaElement(asset, previewele, slotid) {
     videoIdIncrease[slotid] = generateRandomNumber()
     var videojsid = parseInt(slotid) + videoIdIncrease[slotid]
@@ -294,9 +373,10 @@ async function appendMediaElement(asset, previewele, slotid) {
         clearTimeout(mediaTimeout[slotid])
     }
     var duration = parseInt(asset.contentDuration * 1000)
+    
     if (asset.mediaType == "IMAGE") { //image player
         //object-fit to fit image inside the image elements //fill : image stretched on slot
-        mediaEl[slotid] = '<img id="lp-preview-image" class="media-slot" style="object-fit: fill;" src="' + asset.contentUrl + '">'
+        mediaEl[slotid] = '<img id="lp-preview-image" class="media-slot" style="object-fit: fill;" src="' + asset.contentUrl + '" onload="console.log(\'Image loaded successfully\')" onerror="console.error(\'Image load error\')">'
         $(previewele).html(mediaEl[slotid])
         // image: go to the next media after specific seconds
         if (medialoop[slotid].length > 1) {
@@ -312,14 +392,29 @@ async function appendMediaElement(asset, previewele, slotid) {
         mediaTimeout[slotid] = setTimeout(function () {
             changeMedia(slotid)
         }, duration)
-    } else if (asset.mediaType == "STREAM") { //streaming player
+    } else if (asset.mediaType == "STREAM") { //streaming player (M3U8/HLS)
         mediaEl[slotid] = ""
         mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" poster="http://dummyimage.com/320x240/ffffff/fff" class="video-js vjs-default-skin vjs-fill" class="media-slot" autoplay controls preload="metadata" data-setup="{}">'
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
-        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {})
+        
+        // Initialize VideoJS with HLS support
+        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
+            html5: {
+                vhs: {
+                    withCredentials: false,
+                    overrideNative: true
+                },
+                nativeAudioTracks: false,
+                nativeVideoTracks: false
+            },
+            liveui: true
+        }, function() {
+            console.log('[VideoJS] Player ready for stream');
+        })
+        
         videoJSPlayer[videojsid].controls(false)
 
         // Add synchronization support to VideoJS player
@@ -327,9 +422,43 @@ async function appendMediaElement(asset, previewele, slotid) {
             setupVideoSync(videoJSPlayer[videojsid], videojsid);
         }
 
+        // IMPROVED: Add playback verification for streams
+        var streamStarted = false;
+        var streamTimeout = null;
+        
+        videoJSPlayer[videojsid].on('playing', function() {
+            streamStarted = true;
+            console.log('[VideoJS] Stream playing successfully');
+            if (streamTimeout) {
+                clearTimeout(streamTimeout);
+                streamTimeout = null;
+            }
+        });
+        
+        // IMPROVED: Skip if stream doesn't start within 5 seconds
+        streamTimeout = setTimeout(function() {
+            if (!streamStarted && videoJSPlayer[videojsid]) {
+                console.warn('[VideoJS] Stream failed to start within 5s - skipping');
+                if (window.errorNotification) {
+                    window.errorNotification.warning(
+                        'Stream Error',
+                        'Unable to connect to stream - skipping',
+                        3000
+                    );
+                }
+                try {
+                    videoJSPlayer[videojsid].dispose();
+                } catch (e) {
+                    console.warn('[VideoJS] Error disposing stuck stream:', e);
+                }
+                changeMedia(slotid);
+            }
+        }, 5000);
+
         //check if duration 0 then play full duration
         if (duration == 0) {
             videoJSPlayer[videojsid].on('ended', function () {
+                if (streamTimeout) clearTimeout(streamTimeout);
                 videoJSPlayer[videojsid].dispose()
                 changeMedia(slotid)
             })
@@ -337,118 +466,161 @@ async function appendMediaElement(asset, previewele, slotid) {
             // if not play with duration 
         } else {
             setTimeout(function () {
-                const frame = captureVideoFrame('video-' + slotid, 'png')
-                videoJSPlayer[videojsid].poster(frame.dataUri)
+                if (streamTimeout) clearTimeout(streamTimeout);
+                try {
+                    const frame = captureVideoFrame('video-' + videojsid, 'png')
+                    if (frame) {
+                        videoJSPlayer[videojsid].poster(frame.dataUri)
+                    }
+                } catch (e) {
+                    console.warn('[VideoJS] Frame capture failed:', e);
+                }
                 videoJSPlayer[videojsid].dispose()
                 changeMedia(slotid)
             }, duration)
         }
+        
+        // IMPROVED: Better stream error handling
         videoJSPlayer[videojsid].on('error', function () {
-            videoJSPlayer[videojsid].dispose()
-            changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
-        })
-    } else if (asset.mediaType == "VIDEO") { //basic video player
-        console.log('[appendMediaElement] Creating VIDEO player - SlotID:', slotid, 'VideoJSID:', videojsid);
-        console.log('[appendMediaElement] Video URL:', sanitizeMediaUrlForLog(asset.contentUrl));
-        console.log('[appendMediaElement] Video Duration:', asset.contentDuration, 'Type:', asset.contentType);
-        
-        mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" poster="http://dummyimage.com/320x240/ffffff/fff" class="video-js vjs-default-skin vjs-fill" class="media-slot" autoplay controls preload="metadata" data-setup="{}">'
-        mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
-        mediaEl[slotid] += "</video>"
-        
-        console.log('[appendMediaElement] Video HTML created, inserting into DOM');
-        $(previewele).html(mediaEl[slotid])
-        
-        console.log('[appendMediaElement] Initializing VideoJS player');
-        try {
-            videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {
-                console.log('[appendMediaElement] VideoJS player initialized successfully for', videojsid);
-            })
+            if (streamTimeout) clearTimeout(streamTimeout);
             
-            if (!videoJSPlayer[videojsid]) {
-                console.error('[appendMediaElement] VideoJS player is null/undefined after initialization!');
-                return;
+            var error = videoJSPlayer[videojsid].error()
+            var errorCode = error ? error.code : 0;
+            var errorMsg = error ? error.message : 'Unknown';
+            
+            console.error('[VideoJS] Stream error:', errorCode + ' - ' + errorMsg);
+            
+            // Show user-friendly error
+            if (window.errorNotification) {
+                window.errorNotification.error(
+                    'Stream Playback Error',
+                    'Unable to play stream: ' + errorMsg,
+                    4000
+                );
             }
             
-            videoJSPlayer[videojsid].controls(false)
-            console.log('[appendMediaElement] VideoJS controls disabled');
-        } catch (error) {
-            console.error('[appendMediaElement] Error initializing VideoJS:', error.message, error.stack);
-            return;
-        }
+            try {
+                videoJSPlayer[videojsid].dispose()
+            } catch (e) {
+                console.warn('[VideoJS] Error disposing failed stream:', e);
+            }
+            
+            changeMedia(slotid)
+        })
+    } else if (asset.mediaType == "VIDEO") { //basic video player
+        mediaEl[slotid] =
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+        mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
+        mediaEl[slotid] += "</video>"
+        $(previewele).html(mediaEl[slotid])
+        
+        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
+            preload: 'auto',
+            autoplay: true,
+            muted: true,
+            techOrder: ['html5'],
+            html5: {
+                nativeAudioTracks: false,
+                nativeVideoTracks: false,
+                nativeTextTracks: false
+            }
+        }, function() {
+            console.log('[VideoJS] Video player ready');
+        })
+        
+        videoJSPlayer[videojsid].controls(false)
         
         // Add synchronization support to VideoJS player
         if (videoJSPlayer[videojsid]) {
             setupVideoSync(videoJSPlayer[videojsid], videojsid);
         }
         
-        //check if duration 0 then play full duration
-
-        if (duration == 0) {
-            console.log('[appendMediaElement] Setting up duration=0 (play full video) for', videojsid);
-            videoJSPlayer[videojsid].on("timeupdate", function (event) { //chrome fix
+        // IMPROVED: Add canplaythrough check to verify video can actually play
+        var playbackStarted = false;
+        var errorTimeout = null;
+        
+        videoJSPlayer[videojsid].on('canplaythrough', function() {
+            playbackStarted = true;
+            console.log('[VideoJS] Video can play through');
+            if (errorTimeout) {
+                clearTimeout(errorTimeout);
+                errorTimeout = null;
+            }
+        });
+        
+        // IMPROVED: Skip to next if video doesn't start within 3 seconds
+        errorTimeout = setTimeout(function() {
+            if (!playbackStarted && videoJSPlayer[videojsid]) {
+                console.warn('[VideoJS] Video failed to start playing within 3s - skipping');
                 try {
-                    if (!videoJSPlayer[videojsid]) {
-                        console.error('[appendMediaElement] VideoJS player undefined in timeupdate');
-                        return;
-                    }
-                    if (videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
-                        videoJSPlayer[videojsid].dispose()
-                        changeMedia(slotid)
-                    }
-                } catch (error) {
-                    console.error('[appendMediaElement] Error in timeupdate (duration=0):', error.message);
+                    videoJSPlayer[videojsid].dispose();
+                } catch (e) {
+                    console.warn('[VideoJS] Error disposing stuck player:', e);
+                }
+                changeMedia(slotid);
+            }
+        }, 3000);
+        
+        //check if duration 0 then play full duration
+        if (duration == 0) {
+            videoJSPlayer[videojsid].on("timeupdate", function (event) { //chrome fix
+                if (videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
+                    if (errorTimeout) clearTimeout(errorTimeout);
+                    videoJSPlayer[videojsid].dispose()
+                    changeMedia(slotid)
                 }
             })
             // if not play with duration 
         } else {
-            console.log('[appendMediaElement] Setting up timed duration:', duration, 'ms for', videojsid);
             videoJSPlayer[videojsid].on('timeupdate', function () {
-                try {
-                    if (!videoJSPlayer[videojsid]) {
-                        console.error('[appendMediaElement] VideoJS player undefined in timeupdate');
-                        return;
-                    }
-                    var currTime = videoJSPlayer[videojsid].currentTime()
-                    currTime = parseInt(currTime) * 1000
-                    if (currTime == duration) {
-                        videoJSPlayer[videojsid].dispose()
-                        changeMedia(slotid)
-                    }
-                } catch (error) {
-                    console.error('[appendMediaElement] Error in timeupdate:', error.message);
+                var currTime = videoJSPlayer[videojsid].currentTime()
+                currTime = parseInt(currTime) * 1000
+                if (currTime >= duration) {
+                    if (errorTimeout) clearTimeout(errorTimeout);
+                    videoJSPlayer[videojsid].dispose()
+                    changeMedia(slotid)
                 }
             })
         }
+        
+        // IMPROVED: Better error handling with codec error detection
         videoJSPlayer[videojsid].on('error', function () {
-            try {
-                console.error('[appendMediaElement] VideoJS error event triggered for', videojsid);
-                if (videoJSPlayer[videojsid]) {
-                    var error = videoJSPlayer[videojsid].error()
-                    if (error) {
-                        log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-                        console.error('VIDEOJS ERROR : Code:', error.code, 'Type:', error.type, 'Message:', error.message)
-                    } else {
-                        console.error('VIDEOJS ERROR : No error object available');
-                    }
-                    videoJSPlayer[videojsid].dispose()
+            if (errorTimeout) clearTimeout(errorTimeout);
+            
+            var error = videoJSPlayer[videojsid].error()
+            var errorCode = error ? error.code : 0;
+            var errorMsg = error ? error.message : 'Unknown';
+            
+            console.error('[VideoJS] Video error:', errorCode + ' - ' + errorMsg);
+            
+            // MEDIA_ERR_DECODE (3) = codec not supported or corrupted
+            if (errorCode === 3) {
+                console.error('[VideoJS] Codec error - video format not supported by device');
+                if (window.errorNotification) {
+                    window.errorNotification.warning(
+                        'Video Codec Error',
+                        'Video format not supported - skipping to next',
+                        3000
+                    );
                 }
-                changeMedia(slotid)
-            } catch (err) {
-                console.error('[appendMediaElement] Error handling VideoJS error:', err.message);
-                changeMedia(slotid)
             }
+            
+            try {
+                videoJSPlayer[videojsid].dispose()
+            } catch (e) {
+                console.warn('[VideoJS] Error disposing failed player:', e);
+            }
+            
+            // IMPROVED: Skip to next media immediately on error
+            changeMedia(slotid)
         })
-    } else if (asset.mediaType == "CCTV") { //cctv video player
+    } else if (asset.mediaType == "CCTV") { //cctv video player (FLV)
         mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" poster="http://dummyimage.com/320x240/ffffff/fff" class="video-js vjs-default-skin vjs-fill" class="media-slot" autoplay controls preload="metadata" data-setup="{}">'
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
+        
         videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
             techOrder: ['html5', 'flvjs'],
             flvjs: {
@@ -458,8 +630,12 @@ async function appendMediaElement(asset, previewele, slotid) {
                     withCredentials: false,
                 }
             },
-        }, function () {})
+        }, function() {
+            console.log('[VideoJS] CCTV player ready');
+        })
+        
         videoJSPlayer[videojsid].controls(false)
+        
         //check if duration 0 then play full duration
         if (duration == 0) {
             videoJSPlayer[videojsid].on('ended', function () {
@@ -473,12 +649,12 @@ async function appendMediaElement(asset, previewele, slotid) {
                 changeMedia(slotid)
             }, duration)
         }
+        
         videoJSPlayer[videojsid].on('error', function () {
+            var error = videoJSPlayer[videojsid].error()
+            console.error('[VideoJS] CCTV error:', error ? error.code + ' - ' + error.message : 'Unknown');
             videoJSPlayer[videojsid].dispose()
             changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
         })
     }
 }
@@ -521,7 +697,7 @@ function setupVideoSync(player, playerIndex) {
         });
         
         player.on('seeked', function() {
-            console.log('=== VIDEO SYNC: Player', playerIndex, 'seeked to:', player.currentTime());
+            console.log('=== VIDEO SYNC: Player', playerIndex, 'seeked');
             if (typeof broadcastVideoTime === 'function') {
                 setTimeout(() => broadcastVideoTime(), 100);
             }
@@ -529,11 +705,10 @@ function setupVideoSync(player, playerIndex) {
         
         // Periodic sync check for smooth synchronization
         var syncInterval = setInterval(function() {
-            if (player && !player.isDisposed()) {
-                checkVideoSyncDrift(player, playerIndex);
+            if (videoJSPlayer[playerIndex]) {
+                checkVideoSyncDrift(videoJSPlayer[playerIndex], playerIndex);
             } else {
                 clearInterval(syncInterval);
-                delete videoSyncLastUpdate[playerIndex];
             }
         }, 1000); // Check every second
         
@@ -578,26 +753,26 @@ function syncVideoPlayer(player, playerIndex, targetTime, isPaused, tolerance) {
         
         // Sync time if difference exceeds tolerance
         if (timeDifference > tolerance) {
-            console.log('=== VIDEO SYNC: Correcting time drift for player:', playerIndex, 'by', timeDifference, 'seconds');
             player.currentTime(targetTime);
+            console.log('=== VIDEO SYNC: Adjusted player', playerIndex, 'time to', targetTime);
         }
         
         // Sync play/pause state
         var isCurrentlyPaused = player.paused();
         if (isPaused && !isCurrentlyPaused) {
-            console.log('=== VIDEO SYNC: Pausing player:', playerIndex);
             player.pause();
+            console.log('=== VIDEO SYNC: Paused player', playerIndex);
         } else if (!isPaused && isCurrentlyPaused) {
-            console.log('=== VIDEO SYNC: Playing player:', playerIndex);
             player.play().catch(function(error) {
-                console.warn('=== VIDEO SYNC: Failed to play player:', playerIndex, error);
+                console.warn('=== VIDEO SYNC: Failed to play player', playerIndex, error);
             });
+            console.log('=== VIDEO SYNC: Resumed player', playerIndex);
         }
         
         // Update sync tracking
         if (videoSyncLastUpdate[playerIndex]) {
-            videoSyncLastUpdate[playerIndex].lastCurrentTime = targetTime;
             videoSyncLastUpdate[playerIndex].lastSyncTime = Date.now();
+            videoSyncLastUpdate[playerIndex].lastCurrentTime = targetTime;
         }
         
         return true;
@@ -614,19 +789,16 @@ function getAllVideoPlayersData() {
     
     try {
         if (typeof videoJSPlayer !== 'undefined' && Array.isArray(videoJSPlayer)) {
-            videoJSPlayer.forEach((player, index) => {
-                if (player && !player.isDisposed() && typeof player.currentTime === 'function') {
+            for (var i = 0; i < videoJSPlayer.length; i++) {
+                if (videoJSPlayer[i] && typeof videoJSPlayer[i].currentTime === 'function') {
                     playersData.push({
-                        playerIndex: index,
-                        currentTime: player.currentTime(),
-                        paused: player.paused(),
-                        duration: player.duration() || 0,
-                        playbackRate: player.playbackRate() || 1,
-                        volume: player.volume() || 1,
-                        muted: player.muted() || false
+                        index: i,
+                        currentTime: videoJSPlayer[i].currentTime(),
+                        isPaused: videoJSPlayer[i].paused(),
+                        duration: videoJSPlayer[i].duration()
                     });
                 }
-            });
+            }
         }
     } catch (error) {
         console.warn('=== VIDEO SYNC: Failed to get players data:', error);
@@ -642,12 +814,11 @@ function initVideoSyncSettings() {
             videoSyncConfig = config.syncSettings;
             console.log('=== VIDEO SYNC: Initialized with config:', videoSyncConfig);
         } else {
-            console.log('=== VIDEO SYNC: No sync config found, using defaults');
             videoSyncConfig = {
-                videoSyncEnabled: true,
-                videoSyncThreshold: 0.5,
-                masterBroadcastInterval: 1000
+                enabled: false,
+                tolerance: 0.5
             };
+            console.log('=== VIDEO SYNC: Using default config');
         }
     } catch (error) {
         console.warn('=== VIDEO SYNC: Failed to initialize sync settings:', error);

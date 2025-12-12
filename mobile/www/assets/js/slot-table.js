@@ -342,85 +342,95 @@ function tableRecord(slotitem, index, table) {
                 
                 console.log('[appendColumnImage] Processing media file:', mediaFileName, 'for column:', colNumber);
                 
-                // Determine if running on mobile or desktop
-                var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
+                // Check if this is an external URL
+                const isExternalUrl = mediaFileName && (mediaFileName.startsWith('http://') || mediaFileName.startsWith('https://'));
                 
-                if (isMobile) {
-                    // === MOBILE MODE: Use media manager ===
-                    try {
-                        // Ensure media manager is initialized
-                        if (window.mediaManager && !window.mediaManager.initialized) {
-                            console.log('[appendColumnImage] Waiting for media manager initialization...');
-                            await window.mediaManager.initialize().catch(err => {
-                                console.error('[appendColumnImage] Media manager init failed:', err);
-                            });
-                        }
-                        
-                        if (window.mediaManager) {
-                            // Check if media exists in cache
-                            const mediaExists = await window.mediaManager.checkMediaExists(mediaFileName);
-                            
-                            if (!mediaExists) {
-                                // Download media if not cached
-                                // Get server URL from config
-                                if (!window.config || !window.config.hostserver) {
-                                    console.error('[appendColumnImage] Config not loaded, cannot download media');
-                                    throw new Error('Config not available');
-                                }
-                                
-                                const serverAdd = window.config.hostserver.split('/');
-                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                const downloadUrl = baseUrl + '/res/' + mediaFileName;
-                                
-                                console.log('[appendColumnImage] Downloading media:', downloadUrl);
-                                await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
+                if (isExternalUrl) {
+                    // External URL - use directly without caching
+                    console.log('[appendColumnImage] External URL detected:', mediaFileName);
+                    renderEl = '<img src="' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous" onload="console.log(\'External image loaded\')" onerror="console.error(\'External image load error\')">';
+                } else {
+                    // Local file - handle based on platform
+                    // Determine if running on mobile or desktop
+                    var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
+                    
+                    if (isMobile) {
+                        // === MOBILE MODE: Use media manager with caching ===
+                        try {
+                            // Ensure media manager is initialized
+                            if (window.mediaManager && !window.mediaManager.initialized) {
+                                console.log('[appendColumnImage] Waiting for media manager initialization...');
+                                await window.mediaManager.initialize().catch(err => {
+                                    console.error('[appendColumnImage] Media manager init failed:', err);
+                                });
                             }
                             
-                            // Get web-accessible URI for the file
-                            const mediaUri = await window.mediaManager.getMediaUri(mediaFileName);
-                            
-                            if (mediaUri) {
-                                console.log('[appendColumnImage] Media loaded successfully:', mediaFileName);
-                                renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                            if (window.mediaManager) {
+                                // Check if media exists in cache
+                                const mediaExists = await window.mediaManager.checkMediaExists(mediaFileName);
+                                
+                                if (!mediaExists) {
+                                    // Download media if not cached
+                                    // Get server URL from config
+                                    if (!window.config || !window.config.hostserver) {
+                                        console.error('[appendColumnImage] Config not loaded, cannot download media');
+                                        throw new Error('Config not available');
+                                    }
+                                    
+                                    const serverAdd = window.config.hostserver.split('/');
+                                    const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                    const downloadUrl = baseUrl + '/res/' + mediaFileName;
+                                    
+                                    console.log('[appendColumnImage] Downloading media:', downloadUrl);
+                                    await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
+                                }
+                                
+                                // Get web-accessible URI for the file (uses cache if available)
+                                const mediaUri = await window.mediaManager.getMediaUri(mediaFileName);
+                                
+                                if (mediaUri) {
+                                    console.log('[appendColumnImage] Media loaded from cache');
+                                    renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" onload="console.log(\'Cached image loaded\')" onerror="console.error(\'Cached image load error\')">';
+                                } else {
+                                    console.warn('[appendColumnImage] Failed to get media URI for:', mediaFileName);
+                                    // Fallback: try direct URL from server
+                                    if (window.config && window.config.hostserver) {
+                                        const serverAdd = window.config.hostserver.split('/');
+                                        const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                        renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
+                                        console.log('[appendColumnImage] Using direct URL fallback');
+                                    }
+                                }
                             } else {
-                                console.warn('[appendColumnImage] Failed to get media URI for:', mediaFileName);
-                                // Fallback: try direct URL from server
+                                console.warn('[appendColumnImage] Media manager not available, using direct URL');
                                 if (window.config && window.config.hostserver) {
                                     const serverAdd = window.config.hostserver.split('/');
                                     const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                    renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
-                                    console.log('[appendColumnImage] Using direct URL fallback');
+                                    renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
                                 }
                             }
-                        } else {
-                            console.warn('[appendColumnImage] Media manager not available, using direct URL');
+                            
+                        } catch (error) {
+                            console.error('[appendColumnImage] Mobile media error:', error);
+                            // Fallback to direct URL
                             if (window.config && window.config.hostserver) {
                                 const serverAdd = window.config.hostserver.split('/');
                                 const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                                renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
+                                console.log('[appendColumnImage] Using direct URL after error');
                             }
                         }
                         
-                    } catch (error) {
-                        console.error('[appendColumnImage] Mobile media error:', error);
-                        // Fallback to direct URL
-                        if (window.config && window.config.hostserver) {
-                            const serverAdd = window.config.hostserver.split('/');
-                            const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                            renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
-                            console.log('[appendColumnImage] Using direct URL after error');
-                        }
-                    }
-                    
-                } else {
-                    // === DESKTOP MODE: Use traditional fs.existsSync ===
-                    const filePath = mediaLocalPath + mediaFileName;
-                    if (fs.existsSync(filePath)) {
-                        renderEl = '<img src="' + filePath + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
-                        console.log('[appendColumnImage] Desktop - file exists:', filePath);
                     } else {
-                        console.warn('[appendColumnImage] Desktop - file not found:', filePath);
-                        renderEl = '';
+                        // === DESKTOP MODE: Use traditional fs.existsSync ===
+                        const filePath = mediaLocalPath + mediaFileName;
+                        if (fs.existsSync(filePath)) {
+                            renderEl = '<img src="' + filePath + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                            console.log('[appendColumnImage] Desktop - file exists:', filePath);
+                        } else {
+                            console.warn('[appendColumnImage] Desktop - file not found:', filePath);
+                            renderEl = '';
+                        }
                     }
                 }
                 

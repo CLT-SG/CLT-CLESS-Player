@@ -24,7 +24,14 @@ function mediaFunc(slotitem, slotid, mediapath) {
         medialoop[slotid] = []
     }
     slotitem.forEach(function (media, mindex) {
-        var src = media['elements']['0']['text'].replace('{', '').replace('}', '')
+        var src = media['elements']['0']['text'].replace('{', '').replace('}', '').trim()
+        
+        // Skip "none" media items
+        if (!src || src === 'none' || src === 'None' || src === 'NONE' || src.toLowerCase() === 'none') {
+            console.log('[mediaFunc] Skipping "none" media at index', mindex)
+            return // Continue to next iteration
+        }
+        
         var duration = media['attributes']['duration']
         var n = src.lastIndexOf('.')
         var mediamode = src.substring(n + 1)
