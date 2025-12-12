@@ -75,6 +75,8 @@
       top: 0;
       left: 0;
       overflow: hidden;
+      /* Increased z-index to ensure player content is above system UI */
+      z-index: 9999;
     }
     
     /* Prevent scrolling on mobile */
@@ -122,6 +124,41 @@
     /* Ensure slots render with correct positioning in scaled viewport */
     .main-slot {
       box-sizing: border-box;
+      position: relative;
+      z-index: 10;
+    }
+    
+    /* Android 11+ specific fixes for navigation bar overlay */
+    /* Ensure content extends behind system bars */
+    @supports (-webkit-touch-callout: none) {
+      html, body {
+        height: -webkit-fill-available;
+      }
+    }
+    
+    /* Ensure all player content is above potential system UI */
+    #main > * {
+      position: relative;
+      z-index: 10;
+    }
+    
+    /* Force player to cover entire viewport including safe areas */
+    body.mobile-player #main {
+      /* Use env() for devices with safe area insets */
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      padding-left: env(safe-area-inset-left);
+      padding-right: env(safe-area-inset-right);
+      
+      /* Compensate for safe area padding by extending boundaries */
+      top: calc(-1 * env(safe-area-inset-top));
+      bottom: calc(-1 * env(safe-area-inset-bottom));
+      left: calc(-1 * env(safe-area-inset-left));
+      right: calc(-1 * env(safe-area-inset-right));
+      
+      /* Ensure full coverage */
+      width: calc(100% + env(safe-area-inset-left) + env(safe-area-inset-right));
+      height: calc(100% + env(safe-area-inset-top) + env(safe-area-inset-bottom));
     }
   </style>
   

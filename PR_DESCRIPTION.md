@@ -1,63 +1,88 @@
-Android Mobile App - Text Slot Rendering and Multi-Item Rotation Fix
+Android Mobile App - System Navigation Bar Hiding Fix for Android 11+
 
-This PR fixes text-based slot rendering in the mobile CMS player and adds multi-item rotation support for ticker, scroller, and fader slots.
+This PR fixes the Android system navigation bar (bottom buttons) appearing during playback on Android 11 and newer devices, implementing proper immersive fullscreen mode.
 
 ## Summary of Key Issues Fixed
 
-1. **Text Slots Not Rendering** - Static text slots failed to display content in mobile app
-2. **Ticker Slots Not Appearing** - Ticker text animation slots showed no content
-3. **Scroller Slots Not Working** - Vertical scrolling text slots remained blank
-4. **Fader Slots Not Displaying** - Text fading animation slots showed no content
-5. **Single Item Only Display** - Ticker, scroller, and fader slots only displayed first item instead of rotating through all items
-6. **Instant Item Transitions** - No smooth transitions between items when rotating content
+1. **Android System Navigation Bar Visible** - Bottom navigation bar with back/home/recent buttons appeared during CMS player display on Android 11+ devices
+2. **Immersive Mode Not Working** - Native Android immersive mode was not implemented in MainActivity
+3. **System UI Reappearing on Interaction** - Navigation bar would reappear after user touch/swipe interactions
+4. **Theme Configuration Missing** - Android theme lacked fullscreen and transparent system bar attributes
+5. **Insufficient CSS z-index** - Player content did not have proper z-index to render above system UI overlays
+6. **Weak Immersive Maintenance** - JavaScript kiosk mode did not aggressively maintain immersive state
 
 ## Core Technical Improvements
 
-1. **Enhanced Text Extraction Logic**
-   - Fixed handling of XML data structure where text is directly on item.text property
-   - Added fallback logic to check item.text when item.elements array is empty
-   - Supports both nested elements[0].elements[0].text and direct item.text formats
-   - Proper validation before accessing nested properties
+1. **Native Android Immersive Mode Implementation**
+   - Implemented WindowInsetsController for Android 11+ using modern API 30 approach
+   - Added SYSTEM_UI_FLAG_IMMERSIVE_STICKY fallback for Android 10 and below
+   - Configured BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE for sticky immersive behavior
+   - Set FLAG_LAYOUT_NO_LIMITS for true edge-to-edge display
 
-2. **Multi-Item Rotation Support**
-   - Refactored tickerFunc to process all items in elements array and rotate based on duration
-   - Refactored scrollerFunc to support multiple scrolling text items with timed rotation
-   - Refactored faderFunc to cycle through all fade items with individual durations
-   - Added rotation state management with timeout arrays and index tracking
+2. **Activity Lifecycle Integration**
+   - Added onCreate hook to enable immersive mode on app launch
+   - Added onResume hook to re-apply immersive mode when app resumes from background
+   - Added onWindowFocusChanged hook to maintain immersive mode after user interactions
+   - Configured display cutout mode for notch/punch-hole camera support
 
-3. **Smooth Item Transitions**
-   - Fader slots transition with fade-out then fade-in effect between items
-   - Ticker slots use continuous scrolling motion without interruption
-   - Scroller slots maintain seamless vertical scrolling between items
-   - Proper cleanup of marquee animations before showing next item
+3. **Android Theme Configuration**
+   - Set windowFullscreen to true for fullscreen display
+   - Configured transparent statusBarColor and navigationBarColor
+   - Added windowLayoutInDisplayCutoutMode for edge-to-edge on devices with cutouts
+   - Disabled windowTranslucentStatus and windowTranslucentNavigation for app control
+   - Set fitsSystemWindows to false to prevent UI shifting
 
-4. **Comprehensive Debugging Support**
-   - Added detailed console logging throughout text extraction process
-   - Logs rotation state including current item index and total items
-   - Tracks item durations and transition timing
-   - Clear error messages for troubleshooting
+4. **JavaScript Kiosk Mode Enhancement**
+   - More aggressive immersive mode re-application every 2 seconds instead of 3
+   - Added event listeners for visibilitychange, focus, touchstart, touchend, orientationchange, resize
+   - Multi-trigger approach on orientation change with 3 sequential applications
+   - Debounced event handlers to prevent performance issues while maintaining coverage
+
+5. **CSS Layer Protection**
+   - Increased main container z-index to 9999 for priority over system UI
+   - Added z-index 10 to all main child elements
+   - Implemented safe-area-inset support for devices with notches
+   - Extended viewport boundaries to cover full screen including system bar areas
+
+6. **Multi-Layer Defense Strategy**
+   - Native layer (Java) provides primary enforcement via WindowInsetsController
+   - JavaScript layer continuously monitors and re-applies immersive mode
+   - CSS layer ensures visual coverage with proper z-index hierarchy
+   - Defense-in-depth approach handles edge cases across Android versions
 
 ## Files Changed Summary
 
-**Mobile JavaScript Modified**
-- mobile/www/assets/js/slot-tickerscrollerfader.js - Complete refactor with multi-item rotation and smooth transitions
-- mobile/www/assets/js/slot-text.js - Enhanced text extraction with direct property fallback
+**Android Native Code**
+- mobile/android/app/src/main/java/biz/closedloop/ecless/player/MainActivity.java - Added immersive mode implementation with lifecycle hooks
+- mobile/android/app/src/main/res/values/styles.xml - Enhanced theme with fullscreen and transparent system bar configuration
+
+**Mobile JavaScript**
+- mobile/www/assets/js/mobile/mobile-kiosk.js - Enhanced immersive mode maintenance with aggressive re-application
+
+**Mobile HTML/CSS**
+- mobile/www/index.html - Added enhanced CSS for z-index priority and safe-area coverage
+
+**Documentation**
+- mobile/ANDROID-NAVIGATION-FIX.md - Complete technical documentation with testing procedures
 
 ## Compatibility
 
 - Desktop Electron app unchanged
-- Works on Android 5.0 to 14+
+- Android 11 (API 30) and above with WindowInsetsController
+- Android 10 (API 29) and below with SYSTEM_UI_FLAG fallback
+- Minimum SDK 22 (Android 5.1)
+- Target SDK 33 (Android 13)
 - No breaking changes
 - No server-side changes required
-- Backward compatible with existing layouts
-- Supports both single-item and multi-item slot configurations
+- Works with all existing layout configurations
 
 ## Testing Checklist
 
-- Text slots display content correctly
-- Ticker slots render and rotate through multiple items
-- Scroller slots display and rotate with continuous scrolling
-- Fader slots rotate with smooth fade transitions
-- Item durations respected during rotation
-- Seamless looping back to first item after last item
-- Console logs show rotation state and timing
+- Navigation bar hidden on app launch
+- Navigation bar stays hidden during content playback
+- Navigation bar remains hidden after screen touches
+- Navigation bar auto-hides after orientation change
+- Player content fills entire screen edge-to-edge
+- Swipe-up gesture shows navigation briefly then auto-hides
+- App resume from background maintains immersive mode
+- Lock and unlock device keeps navigation bar hidden
