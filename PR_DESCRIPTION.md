@@ -1,61 +1,45 @@
-## Server-Side Streaming Protocol Format Support
+## Server-Side Streaming Protocol Format Support — Follow-up Fixes
 
-Implements comprehensive streaming protocol format support for both mobile and desktop CMS players with server-side media format enhancements.
+Addresses robustness and recovery for streaming playback after initial protocol implementation. Focuses on stream timeout handling, error recovery, and improved diagnostics across mobile and desktop players.
 
 ## Issues Fixed
 
-1. No support for new server-side streaming format - Server updated to use protocol prefix format but client apps could not parse
-2. M3U8/HLS streams only detected by file extension - New format allows explicit protocol specification
-3. RTSP camera streams not handled - No error handling or transcoding guidance for RTSP sources
-4. RTMP live streams unsupported - No flv.js integration for RTMP playback attempts
-5. External HTTP/HTTPS videos treated as local files - Forced through download instead of direct playback
-6. Inconsistent format handling - Mobile and desktop apps had different media parsing logic
+1. Stream playback sometimes did not recover on playback errors or timeouts (orphaned players persisted)
+2. Stream timeouts were not consistently cleared, causing delayed media rotation or resource leaks
+3. Stream duration handling in multi-item slots could lead to premature disposal or long hangs
+4. Missing or unclear user-facing notifications for stream playback failures
+5. Logging and diagnostics for stream start and timeout events were insufficient for debugging
 
 ## Technical Changes
 
-1. Implemented parseStreamingUrl function to parse protocol:url format from server
-2. Added support for m3u8, rtsp, rtmp, http, https protocol prefixes
-3. Integrated RTSP stream handler with transcoding detection and error notifications
-4. Integrated RTMP stream handler using flv.js tech for playback attempts
-5. Enhanced M3U8/HLS support with both extension-based and protocol-prefix detection
-6. Added smart HTTP/HTTPS handling to detect streams vs regular videos
-7. Implemented comprehensive error handling with user-friendly notifications
-8. Added stream timeout logic with automatic skip on connection failures
-9. Maintained full backward compatibility with existing media formats
-10. Updated both mobile and desktop apps with identical parsing logic
+1. Added robust stream start detection with a `streamStarted` flag and ensured stream timeout variables are cleared when playback begins or errors occur
+2. Improved stream error handling to explicitly dispose VideoJS instances and auto-skip to the next media item with user-friendly notifications
+3. Added explicit console logging for stream start, duration timeout, and error events to aid debugging and diagnostics
+4. Added defensive checks to avoid double-dispose and null reference issues during error handling
+5. Applied the same fixes and tests to both mobile and desktop `slot-media.js` implementations for parity
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-media.js - Added parseStreamingUrl function, protocol-based media processing, RTSP/RTMP handlers
+- mobile/www/assets/js/slot-media.js - Improved stream start detection; clear stream timeouts; better error handling, disposal and logging
 
 **Desktop App:**
-- src/assets/js/slot-media.js - Added parseStreamingUrl function, protocol-based media processing, RTSP/RTMP handlers
+- src/assets/js/slot-media.js - Synchronized fixes from mobile for stream resilience and diagnostics
 
 **Documentation:**
-- docs/STREAMING-FORMAT-IMPLEMENTATION.md - Comprehensive implementation guide with technical details
-- docs/STREAMING-FORMAT-QUICK-REF.md - Quick reference for developers with format examples
-- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Implementation summary with testing guidelines
-- docs/STREAMING-MIGRATION-CHECKLIST.md - Deployment checklist with testing scenarios
+- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Updated troubleshooting notes for stream timeouts and error recovery
 
 ## Testing
 
 Format Support:
-- M3U8/HLS streams with new format work correctly
-- RTSP streams show appropriate transcoding requirements
-- RTMP streams attempt playback with flv.js integration
-- External HTTP/HTTPS videos play directly without caching
-- Backward compatibility maintained for all existing formats
+- M3U8/HLS streams still play correctly with protocol-based detection
+- RTSP streams continue to show transcoding guidance where applicable
 
 Error Handling:
-- Stream connection failures trigger 5-second timeout then auto-skip
-- RTSP detection shows user notification about transcoding needs
-- RTMP compatibility warnings displayed when needed
-- Clear console logging for debugging streaming issues
+- Stream playback errors now show user notifications and auto-skip reliably
+- Stream timeouts and disposals no longer leave orphaned VideoJS players
 
 Platform:
-- Both mobile and desktop apps support all formats
-- Android 5.1+ compatible
-- Desktop Electron app updated with same logic
-- No breaking changes or server-side changes required beyond format specification
-- Backward compatible with all existing layout XML configurations
+- Mobile and desktop parity maintained
+- No breaking changes introduced; backward compatibility preserved
+

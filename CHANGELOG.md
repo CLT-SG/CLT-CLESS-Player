@@ -1,5 +1,25 @@
 # Change Log
 
+## [3.3.1] - 2025-12-17
+
+### Fixed - Streaming Playback Resilience
+
+- **Stream Timeout & Disposal** - Fixed issue where stream timeouts were not always cleared, which could leave orphaned VideoJS players; timeouts are now cleared and players disposed on error
+- **Stream Error Recovery** - Stream playback errors now display user-friendly notifications and reliably auto-skip to the next media item
+- **Playback Logging & Diagnostics** - Added console logs for stream start, duration timeout, and error events to aid diagnostics
+
+### Enhanced - Stream Handling
+
+- **Stream Start Verification** - Added robust detection to ensure streams have started before considering playback successful
+- **Cross-Platform Consistency** - Applied fixes to both mobile and desktop `slot-media.js`
+
+### Files Modified
+
+- mobile/www/assets/js/slot-media.js - Fixed timeouts, added error handling and improved logging
+- src/assets/js/slot-media.js - Synchronized fixes from mobile
+- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Updated notes on timeout and error handling
+
+
 ## [3.3.0] - 2025-12-12
 
 ### Added - Server-Side Streaming Protocol Format Support

@@ -3,9 +3,9 @@
   "appName": "eCLESS Player",
   "webDir": "www",
   "server": {
+    "hostname": "localhost",
     "androidScheme": "https",
     "iosScheme": "https",
-    "hostname": "app.eclessplayer.local",
     "allowNavigation": [
       "*"
     ],
