@@ -27,13 +27,19 @@ class MobileMediaManager {
         this.cachedFiles = new Set();
         this.initialized = false;
         
+        // NEW: In-memory URI cache for fast access (prevents repeated base64 conversions)
+        this.uriCache = new Map(); // filename -> dataURI
+        this.preloadQueue = []; // Array of files to preload
+        this.isPreloading = false;
+        
         // Statistics
         this.stats = {
             totalDownloads: 0,
             successfulDownloads: 0,
             failedDownloads: 0,
             cacheHits: 0,
-            cacheMisses: 0
+            cacheMisses: 0,
+            uriCacheHits: 0
         };
     }
 
@@ -352,10 +358,19 @@ class MobileMediaManager {
     /**
      * Get web-accessible URI for a cached media file
      * This converts the filesystem path to a usable URL for img/video elements
+     * OPTIMIZED: Uses in-memory cache to avoid repeated base64 conversions
      */
     async getMediaUri(filename) {
         try {
             const safeFilename = this.sanitizeFilename(filename);
+            
+            // Check in-memory URI cache first (FAST PATH)
+            if (this.uriCache.has(safeFilename)) {
+                this.stats.uriCacheHits++;
+                console.log('[MediaManager] URI cache hit for:', safeFilename);
+                return this.uriCache.get(safeFilename);
+            }
+            
             const filePath = `${this.cacheDir}/${safeFilename}`;
             
             // Check if file exists
@@ -366,14 +381,23 @@ class MobileMediaManager {
             }
             
             // Get URI from Capacitor
+            let mediaUri;
             if (window.capacitorAPI && window.capacitorAPI.isNative) {
                 // For native apps, we need to read the file and convert to data URI
                 // because Capacitor filesystem URIs may not work in video/img elements
-                return await this._getFileAsDataUri(filePath);
+                mediaUri = await this._getFileAsDataUri(filePath);
             } else {
                 // For web, return the path directly
-                return filePath;
+                mediaUri = filePath;
             }
+            
+            // Store in URI cache for fast subsequent access
+            if (mediaUri) {
+                this.uriCache.set(safeFilename, mediaUri);
+                console.log('[MediaManager] Cached URI for:', safeFilename);
+            }
+            
+            return mediaUri;
             
         } catch (error) {
             console.error('MediaManager: Error getting media URI:', error);
@@ -477,8 +501,9 @@ class MobileMediaManager {
                 }
             }
             
-            // Clear in-memory cache
+            // Clear in-memory caches
             this.cachedFiles.clear();
+            this.clearUriCache();
             
             console.log('MediaManager: Cleared', deletedCount, 'files from cache');
             
@@ -524,6 +549,105 @@ class MobileMediaManager {
             console.error('MediaManager: Error calculating cache size:', error);
             return 0;
         }
+    }
+    
+    /**
+     * NEW: Preload multiple media files in parallel
+     * @param {Array} mediaList - Array of {url, filename} objects
+     * @returns {Promise} Resolves when all preloading is complete
+     */
+    async preloadMediaBatch(mediaList) {
+        if (!mediaList || mediaList.length === 0) {
+            return { success: true, loaded: 0, failed: 0 };
+        }
+        
+        console.log('[MediaManager] Starting batch preload for', mediaList.length, 'files');
+        
+        const results = {
+            success: true,
+            loaded: 0,
+            failed: 0,
+            details: []
+        };
+        
+        // Process downloads in parallel (limit concurrency to 5)
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < mediaList.length; i += BATCH_SIZE) {
+            const batch = mediaList.slice(i, i + BATCH_SIZE);
+            const batchPromises = batch.map(async (item) => {
+                try {
+                    // Check if already cached
+                    const exists = await this.checkMediaExists(item.filename);
+                    if (exists) {
+                        // Preload URI into memory cache
+                        await this.getMediaUri(item.filename);
+                        results.loaded++;
+                        results.details.push({ filename: item.filename, status: 'cached' });
+                        return true;
+                    }
+                    
+                    // Download if not cached
+                    await this.downloadMedia(item.url, item.filename);
+                    
+                    // Preload URI into memory cache
+                    await this.getMediaUri(item.filename);
+                    
+                    results.loaded++;
+                    results.details.push({ filename: item.filename, status: 'downloaded' });
+                    return true;
+                    
+                } catch (error) {
+                    console.error('[MediaManager] Preload failed for', item.filename, ':', error);
+                    results.failed++;
+                    results.details.push({ filename: item.filename, status: 'failed', error: error.message });
+                    return false;
+                }
+            });
+            
+            await Promise.all(batchPromises);
+        }
+        
+        console.log('[MediaManager] Batch preload complete:', results);
+        return results;
+    }
+    
+    /**
+     * NEW: Check if a URL is an external URL (http/https)
+     * @param {string} url - URL to check
+     * @returns {boolean} True if external URL
+     */
+    isExternalUrl(url) {
+        return url && (url.startsWith('http://') || url.startsWith('https://'));
+    }
+    
+    /**
+     * NEW: Get media URI with support for external URLs
+     * @param {string} source - Can be a filename or external URL
+     * @param {boolean} isExternal - Whether this is an external URL
+     * @returns {Promise<string>} Media URI
+     */
+    async getMediaUriSmart(source, isExternal = null) {
+        // Auto-detect if not specified
+        if (isExternal === null) {
+            isExternal = this.isExternalUrl(source);
+        }
+        
+        if (isExternal) {
+            // External URLs can be used directly
+            console.log('[MediaManager] Using external URL:', source);
+            return source;
+        } else {
+            // Local file - use cached version
+            return await this.getMediaUri(source);
+        }
+    }
+    
+    /**
+     * NEW: Clear URI cache (useful when cache is cleared)
+     */
+    clearUriCache() {
+        console.log('[MediaManager] Clearing URI cache...');
+        this.uriCache.clear();
     }
 }
 

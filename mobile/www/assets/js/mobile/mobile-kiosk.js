@@ -27,20 +27,16 @@ class MobileKioskManager {
         this.isPlayerPage = window.location.pathname.includes('index.html') || 
                            window.location.pathname === '/' ||
                            window.location.pathname.endsWith('/www/');
-        
-        console.log('[MobileKiosk] Initialized - Player Page:', this.isPlayerPage);
     }
     
     /**
      * Enable kiosk mode with all features
      */
     async enableKioskMode() {
-        console.log('[MobileKiosk] Enabling kiosk mode...');
         
         try {
             // Only enable kiosk mode on the player page
             if (!this.isPlayerPage) {
-                console.log('[MobileKiosk] Not on player page, skipping kiosk mode');
                 return false;
             }
             
@@ -70,8 +66,6 @@ class MobileKioskManager {
             
             this.isKioskMode = true;
             
-            console.log('[MobileKiosk] Kiosk mode enabled successfully');
-            
             // Emit event
             window.dispatchEvent(new CustomEvent('kiosk-mode-enabled'));
             
@@ -86,7 +80,6 @@ class MobileKioskManager {
      * Disable kiosk mode and restore normal operation
      */
     async disableKioskMode() {
-        console.log('[MobileKiosk] Disabling kiosk mode...');
         
         try {
             // 1. Exit fullscreen
@@ -115,8 +108,6 @@ class MobileKioskManager {
             
             this.isKioskMode = false;
             
-            console.log('[MobileKiosk] Kiosk mode disabled');
-            
             // Emit event
             window.dispatchEvent(new CustomEvent('kiosk-mode-disabled'));
             
@@ -131,7 +122,6 @@ class MobileKioskManager {
      * Enable Android immersive mode (hide system UI)
      */
     async enableImmersiveMode() {
-        console.log('[MobileKiosk] Enabling Android immersive mode...');
         
         try {
             // Priority 1: Use native Android implementation via Capacitor
@@ -141,7 +131,6 @@ class MobileKioskManager {
             if (window.capacitorAPI && window.capacitorAPI.plugins.StatusBar) {
                 // Use Capacitor StatusBar plugin
                 await window.capacitorAPI.hideStatusBar();
-                console.log('[MobileKiosk] Status bar hidden via Capacitor');
             }
             
             // Priority 2: Use App plugin to bring app to foreground (triggers onResume in MainActivity)
@@ -155,14 +144,12 @@ class MobileKioskManager {
                 try {
                     // Use immersiveMode which hides both status and navigation bars
                     await window.AndroidFullScreen.immersiveMode();
-                    console.log('[MobileKiosk] Android immersive mode enabled via plugin');
                 } catch (e) {
                     console.warn('[MobileKiosk] AndroidFullScreen.immersiveMode failed:', e);
                 }
             } else if (window.cordova && window.cordova.plugins && window.cordova.plugins.fullscreen) {
                 try {
                     await window.cordova.plugins.fullscreen.immersiveMode();
-                    console.log('[MobileKiosk] Cordova fullscreen plugin enabled');
                 } catch (e) {
                     console.warn('[MobileKiosk] Cordova fullscreen failed:', e);
                 }
@@ -173,7 +160,6 @@ class MobileKioskManager {
                 const element = document.documentElement;
                 if (element.requestFullscreen) {
                     await element.requestFullscreen();
-                    console.log('[MobileKiosk] Web fullscreen API enabled');
                 }
             } catch (e) {
                 console.warn('[MobileKiosk] Web fullscreen API failed:', e);
@@ -193,7 +179,6 @@ class MobileKioskManager {
         try {
             if (window.capacitorAPI) {
                 await window.capacitorAPI.hideStatusBar();
-                console.log('[MobileKiosk] Status bar hidden');
             }
             return true;
         } catch (error) {
@@ -209,7 +194,6 @@ class MobileKioskManager {
         try {
             if (window.capacitorAPI) {
                 await window.capacitorAPI.showStatusBar();
-                console.log('[MobileKiosk] Status bar shown');
             }
             return true;
         } catch (error) {
@@ -222,7 +206,6 @@ class MobileKioskManager {
      * Request wake lock to keep screen on
      */
     async requestWakeLock() {
-        console.log('[MobileKiosk] Requesting wake lock...');
         
         try {
             // Use modern Wake Lock API if available
@@ -233,14 +216,12 @@ class MobileKioskManager {
                     console.log('[MobileKiosk] Wake lock released');
                 });
                 
-                console.log('[MobileKiosk] Wake lock acquired');
                 return true;
             }
             
             // Fallback: Use Capacitor KeepAwake plugin if available
             if (window.KeepAwake) {
                 await window.KeepAwake.keepAwake();
-                console.log('[MobileKiosk] Keep awake enabled (Capacitor plugin)');
                 return true;
             }
             
@@ -260,12 +241,10 @@ class MobileKioskManager {
             if (this.wakeLock) {
                 await this.wakeLock.release();
                 this.wakeLock = null;
-                console.log('[MobileKiosk] Wake lock released');
             }
             
             if (window.KeepAwake) {
                 await window.KeepAwake.allowSleep();
-                console.log('[MobileKiosk] Keep awake disabled');
             }
             
             return true;
@@ -279,7 +258,6 @@ class MobileKioskManager {
      * Enter fullscreen mode
      */
     async enterFullscreen() {
-        console.log('[MobileKiosk] Entering fullscreen...');
         
         try {
             const element = document.documentElement;
@@ -294,7 +272,6 @@ class MobileKioskManager {
                 await element.msRequestFullscreen();
             }
             
-            console.log('[MobileKiosk] Fullscreen enabled');
             return true;
         } catch (error) {
             console.warn('[MobileKiosk] Could not enter fullscreen:', error);
@@ -317,7 +294,6 @@ class MobileKioskManager {
                 await document.msExitFullscreen();
             }
             
-            console.log('[MobileKiosk] Fullscreen exited');
             return true;
         } catch (error) {
             console.warn('[MobileKiosk] Could not exit fullscreen:', error);
@@ -329,13 +305,11 @@ class MobileKioskManager {
      * Lock device orientation
      */
     async lockOrientation(orientation = 'landscape') {
-        console.log('[MobileKiosk] Locking orientation to:', orientation);
         
         try {
             // Modern Screen Orientation API
             if (screen.orientation && screen.orientation.lock) {
                 await screen.orientation.lock(orientation);
-                console.log('[MobileKiosk] Orientation locked to:', orientation);
                 return true;
             }
             
@@ -374,7 +348,6 @@ class MobileKioskManager {
                 screen.msUnlockOrientation();
             }
             
-            console.log('[MobileKiosk] Orientation unlocked');
             return true;
         } catch (error) {
             console.warn('[MobileKiosk] Could not unlock orientation:', error);
@@ -394,7 +367,6 @@ class MobileKioskManager {
             nav.style.opacity = '0';
             nav.style.transform = 'translateY(-20px)';
             nav.classList.remove('nav-visible');
-            console.log('[MobileKiosk] Navigation buttons hidden (via opacity)');
         }
     }
     
@@ -408,7 +380,6 @@ class MobileKioskManager {
             nav.style.opacity = '1';
             nav.style.transform = 'translateY(0)';
             nav.classList.add('nav-visible');
-            console.log('[MobileKiosk] Navigation buttons shown');
         }
     }
     
@@ -416,7 +387,6 @@ class MobileKioskManager {
      * Apply CSS for kiosk mode
      */
     applyKioskCSS() {
-        console.log('[MobileKiosk] Applying kiosk CSS...');
         
         // Create style element if it doesn't exist
         let styleEl = document.getElementById('mobile-kiosk-styles');
@@ -533,8 +503,6 @@ class MobileKioskManager {
         
         // Add kiosk-mode class to html element
         document.documentElement.classList.add('kiosk-mode');
-        
-        console.log('[MobileKiosk] Kiosk CSS applied');
     }
     
     /**
@@ -548,7 +516,6 @@ class MobileKioskManager {
         
         document.documentElement.classList.remove('kiosk-mode');
         
-        console.log('[MobileKiosk] Kiosk CSS removed');
     }
     
     /**
@@ -556,7 +523,6 @@ class MobileKioskManager {
      * (Some Android versions lose immersive mode on user interaction)
      */
     maintainImmersiveMode() {
-        console.log('[MobileKiosk] Starting immersive mode maintenance...');
         
         // Re-apply immersive mode every 2 seconds (more aggressive for Android 11)
         this.immersiveModeInterval = setInterval(async () => {
@@ -568,7 +534,6 @@ class MobileKioskManager {
         // Re-apply on visibility change
         document.addEventListener('visibilitychange', async () => {
             if (!document.hidden && this.isKioskMode) {
-                console.log('[MobileKiosk] Page visible, re-applying immersive mode');
                 await this.enableImmersiveMode();
                 // Apply twice with a delay to ensure it sticks
                 setTimeout(async () => {
@@ -580,7 +545,6 @@ class MobileKioskManager {
         // Re-apply on focus change
         window.addEventListener('focus', async () => {
             if (this.isKioskMode) {
-                console.log('[MobileKiosk] Window focused, re-applying immersive mode');
                 await this.enableImmersiveMode();
             }
         });
@@ -601,7 +565,6 @@ class MobileKioskManager {
         // Re-apply on orientation change (Android often shows navigation bar after rotation)
         window.addEventListener('orientationchange', async () => {
             if (this.isKioskMode) {
-                console.log('[MobileKiosk] Orientation changed, re-applying immersive mode');
                 // Apply multiple times with delays to ensure it sticks
                 await this.enableImmersiveMode();
                 setTimeout(async () => {
@@ -618,7 +581,6 @@ class MobileKioskManager {
             if (this.isKioskMode) {
                 clearTimeout(this._resizeDebounce);
                 this._resizeDebounce = setTimeout(async () => {
-                    console.log('[MobileKiosk] Window resized, re-applying immersive mode');
                     await this.enableImmersiveMode();
                 }, 300);
             }
@@ -654,12 +616,10 @@ window.mobileKiosk = new MobileKioskManager();
 
 // Auto-enable kiosk mode when on player page and app is ready
 window.addEventListener('appReady', async () => {
-    console.log('[MobileKiosk] App ready event received');
     
     // Small delay to ensure everything is loaded
     setTimeout(async () => {
         if (window.mobileKiosk.isPlayerPage) {
-            console.log('[MobileKiosk] Auto-enabling kiosk mode on player page');
             await window.mobileKiosk.enableKioskMode();
         }
     }, 1000);
@@ -669,7 +629,6 @@ window.addEventListener('appReady', async () => {
 if (document.readyState === 'complete') {
     setTimeout(async () => {
         if (window.mobileKiosk.isPlayerPage && !window.mobileKiosk.isKioskMode) {
-            console.log('[MobileKiosk] Auto-enabling kiosk mode (fallback trigger)');
             await window.mobileKiosk.enableKioskMode();
         }
     }, 2000);
@@ -677,7 +636,6 @@ if (document.readyState === 'complete') {
     window.addEventListener('load', () => {
         setTimeout(async () => {
             if (window.mobileKiosk.isPlayerPage && !window.mobileKiosk.isKioskMode) {
-                console.log('[MobileKiosk] Auto-enabling kiosk mode on page load');
                 await window.mobileKiosk.enableKioskMode();
             }
         }, 2000);
