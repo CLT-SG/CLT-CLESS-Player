@@ -648,10 +648,10 @@ async function appendMediaElement(asset, previewele, slotid) {
                         changeMedia(slotid)
                     }
                 }, duration)
-            } else{
+            } else {
                 console.log('[VideoJS] Stream will play full duration (no timeout set)');
             }
-        } else{
+        } else {
             console.log('[VideoJS] Single stream item - will play full duration');
         }
 
@@ -691,18 +691,8 @@ async function appendMediaElement(asset, previewele, slotid) {
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
 
-        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
-            preload: 'auto',
-            autoplay: true,
-            muted: true,
-            techOrder: ['html5'],
-            html5: {
-                nativeAudioTracks: false,
-                nativeVideoTracks: false,
-                nativeTextTracks: false
-            }
-        }, function () {
-            console.log('[VideoJS] Video player ready');
+        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {
+            console.log('[VideoJS] Video normal type (mp4/mov/webm) player ready,  src:', asset.contentUrl);
         })
 
         videoJSPlayer[videojsid].controls(false)
@@ -743,7 +733,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         //check if duration 0 then play full duration
         if (duration == 0) {
             videoJSPlayer[videojsid].on("timeupdate", function (event) { //chrome fix
-                if (videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
+                if (videoJSPlayer[videojsid] && videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
                     if (errorTimeout) clearTimeout(errorTimeout);
                     if (videoJSPlayer[videojsid]) {
                         videoJSPlayer[videojsid].dispose()
@@ -754,13 +744,15 @@ async function appendMediaElement(asset, previewele, slotid) {
             // if not play with duration 
         } else {
             videoJSPlayer[videojsid].on('timeupdate', function () {
-                var currTime = videoJSPlayer[videojsid].currentTime()
-                currTime = parseInt(currTime) * 1000
-                if (currTime >= duration) {
-                    if (errorTimeout) clearTimeout(errorTimeout);
-                    if (videoJSPlayer[videojsid]) {
-                        videoJSPlayer[videojsid].dispose()
-                        changeMedia(slotid)
+                if (videoJSPlayer[videojsid]) {
+                    var currTime = videoJSPlayer[videojsid].currentTime()
+                    currTime = parseInt(currTime) * 1000
+                    if (currTime >= duration) {
+                        if (errorTimeout) clearTimeout(errorTimeout);
+                        if (videoJSPlayer[videojsid]) {
+                            videoJSPlayer[videojsid].dispose()
+                            changeMedia(slotid)
+                        }
                     }
                 }
             })
@@ -1198,7 +1190,7 @@ function initVideoSyncSettings() {
 // Auto-initialize when script loads
 if (typeof window !== 'undefined') {
     window.addEventListener('load', function () {
-        setTimeout(initVideoSyncSettings, 1000);
+        //setTimeout(initVideoSyncSettings, 1000);
     });
 }
 

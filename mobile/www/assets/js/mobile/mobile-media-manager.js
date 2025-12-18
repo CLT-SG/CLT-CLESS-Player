@@ -432,6 +432,7 @@ class MobileMediaManager {
             
             const mimeType = mimeTypes[ext] || 'application/octet-stream';
             
+            
             // Return as data URI
             return `data:${mimeType};base64,${data}`;
             
