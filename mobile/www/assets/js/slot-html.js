@@ -66,11 +66,46 @@ function htmlFunc(slotitem, index) {
     }
     
     try {
-        var renderEl = '<webview id="html-' + index +
-            '"  src="' + src +
-            '" class="html-slot"></webview>'
-        $('#slot-' + index).html(renderEl);
-        console.log('[htmlFunc] HTML slot rendered successfully for slot:', index, 'URL:', src);
+        // Check if running on mobile platform
+        const isMobile = !!(window.capacitorAPI || window.mobileAPI);
+        
+        if (isMobile) {
+            // USE IFRAME FOR MOBILE (respects slot positioning and dimensions)
+            console.log('[htmlFunc] Mobile platform detected, using iframe for slot:', index);
+            
+            var renderEl = '<iframe id="html-' + index +
+                '" src="' + src +
+                '" class="html-slot mobile-html-iframe" ' +
+                'style="width: 100%; height: 100%; border: none; display: block;" ' +
+                'frameborder="0" ' +
+                'allowfullscreen ' +
+                'allow="geolocation; microphone; camera; midi; encrypted-media; autoplay; fullscreen"' +
+                '></iframe>';
+            
+            $('#slot-' + index).html(renderEl);
+            
+            console.log('[htmlFunc] Mobile iframe HTML slot rendered successfully for slot:', index, 'URL:', src);
+            
+            // Add load event listener for error handling
+            $('#html-' + index).on('load', function() {
+                console.log('[htmlFunc] iframe loaded successfully for slot:', index);
+            });
+            
+            $('#html-' + index).on('error', function(e) {
+                console.error('[htmlFunc] iframe failed to load for slot:', index, e);
+            });
+            
+        } else {
+            // USE WEBVIEW (Electron desktop app)
+            console.log('[htmlFunc] Desktop platform detected, using webview for slot:', index);
+            
+            var renderEl = '<webview id="html-' + index +
+                '"  src="' + src +
+                '" class="html-slot"></webview>'
+            $('#slot-' + index).html(renderEl);
+            console.log('[htmlFunc] HTML slot rendered successfully for slot:', index, 'URL:', src);
+        }
+        
     } catch (error) {
         console.error('[htmlFunc] Error rendering HTML slot:', index, 'Error:', error.message);
     }

@@ -1,36 +1,41 @@
-## Fix: VideoJS Source & Format Validation — Prevent Wrong Data Passed to Player
+## Fix: Mobile HTML Slot Positioning with iframe Implementation
 
-Addresses an issue where VideoJS could receive malformed or incorrect `src`/`type` values (including base64/data URIs or incorrectly inferred MIME types), causing playback failures, rejected promises, or silent errors. This change adds validation and sanitization before passing sources to VideoJS and unifies error handling across mobile and desktop players.
+Addresses an issue where HTML slots on mobile displayed in full-screen mode instead of respecting the position and dimensions defined in the layout XML. This change replaces the InAppBrowser approach with standard HTML iframes that properly embed content within slot boundaries.
 
 ## Issues Fixed
 
-1. VideoJS was sometimes given malformed or incorrect `src`/`type` causing play() to fail or reject
-2. Incorrect inference of `contentType` for streaming vs. regular videos led to playback mismatches
-3. Base64/data URIs and other unsupported values were occasionally passed to the player
-4. Silent failures lacked diagnostic logs and consistent skip/recovery behavior
+1. HTML slots opened in full-screen overlay ignoring layout XML positioning (top, left) and dimensions (width, height)
+2. InAppBrowser plugin dependency added unnecessary complexity and did not support inline embedding
+3. Multiple HTML slots could not display simultaneously as each opened in full-screen mode
+4. Desktop webview behavior was inconsistent with mobile full-screen approach
 
 ## Technical Changes
 
-1. Validate `asset.originalUrl` and inferred `contentType` before calling `videojs.src()` or `player.play()`; skip invalid sources with logs and user notification
-2. Sanitize and avoid passing base64/data URIs as normal video sources; use explicit detection for streaming protocols
-3. Use `videojs.src({src, type})` only for recognized mime types and fall back to skip-on-error when unsupported
-4. Add diagnostic console logs for src/type validation and play Promise rejections; handle rejected play promises by auto-skipping the slot
-5. Applied the same validation and test updates to both mobile and desktop `slot-media.js` implementations for parity
+1. Replace InAppBrowser with standard HTML iframe element for mobile HTML slots
+2. iframe inherits positioning and dimensions from slot container CSS applied by layoutxml.js
+3. Add platform detection to use iframe on mobile and webview on desktop Electron app
+4. Remove InAppBrowser plugin imports and dependencies from capacitor-core.js and package.json
+5. Add defensive coding with null checks and error handling to both mobile and desktop slot-html.js
+6. Configure iframe with appropriate permissions (allowfullscreen, geolocation, camera, etc.)
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-media.js - Add src/type validation, defensive checks, improved logging, skip-on-error behavior
+- mobile/www/assets/js/slot-html.js - Replace InAppBrowser with iframe, add platform detection and error handling
+- mobile/www/assets/js/mobile/capacitor-core.js - Remove InAppBrowser imports and exports
+- mobile/www/index.html - Remove mobile-html-manager.js script reference
+- mobile/package.json - Remove @capgo/inappbrowser dependency
 
 **Desktop App:**
-- src/assets/js/slot-media.js - Synchronized validation fixes from mobile
+- src/assets/js/slot-html.js - Add defensive coding and error handling while maintaining webview
 
 **Documentation:**
-- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Added guidance on content-type validation and play error handling
+- mobile/docs_mobile/HTML-SLOT-IFRAME-SOLUTION.md - Complete implementation guide with positioning details
 
 ## Testing
 
-- Verified malformed/unsupported src values are skipped and the next media item is played
-- Confirmed play Promise rejection is handled gracefully with logs and auto-skip behavior
-- Ensured parity across mobile and desktop implementations
+- Verified iframe respects slot positioning (top, left) and dimensions (width, height) from layout XML
+- Confirmed autoscale calculations apply correctly to iframe containers
+- Tested multiple HTML slots displaying simultaneously in different positions
+- Ensured desktop webview functionality remains unchanged
 
