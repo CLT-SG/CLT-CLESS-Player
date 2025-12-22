@@ -9,6 +9,7 @@ Addresses critical issues where table slot data accumulated instead of refreshin
 3. Multiple page flip intervals were running simultaneously causing erratic pagination behavior
 4. Table state was not properly reset when switching between loop layouts
 5. Old pagination plugin instances remained in memory causing conflicts with new instances
+6. Table columns displaying duplicate data across rows due to async operations targeting wrong rows with tr:last selector
 
 ## Technical Changes
 
@@ -20,6 +21,9 @@ Addresses critical issues where table slot data accumulated instead of refreshin
 6. Enhance layoutxml.js to call cleanupTableState when table content is updated
 7. Enhance looplayout.js to reset all table state arrays when switching layouts
 8. Add comprehensive console logging for debugging table lifecycle
+9. Implement composite key pattern (rowIndex + colNumber) for column state management to prevent data cross-contamination
+10. Add unique data-row-id attribute to each table row and replace tr:last selectors with row-specific selectors to fix async targeting issues
+11. Update cleanupTableState() to use Object.keys() iteration for composite key cleanup
 
 ## Files Changed Summary
 

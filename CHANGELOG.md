@@ -24,6 +24,16 @@
   - Data from previous layout's table would appear in next layout's table
   - Solution: Reset all table state arrays (pagerow, pageincrease, checkpage, pageLengthTime) on layout transitions
 
+- **Table Column Data Duplication Across Rows** - Fixed issue where table columns displayed duplicate data across multiple rows causing wrong images and fader text to appear
+  - Root cause: tr:last selector became unreliable when async operations (await appendColumnImage) caused new rows to be appended before column processing completed, making tr:last point to wrong row
+  - Impact: Multiple table rows showed identical airline images (e.g., SQ.png for all rows instead of SQ.png, AI.png, VA.png) and fader text didn't switch correctly
+  - Solution: Added unique data-row-id attribute to each row and replaced all tr:last selectors with row-specific selectors tr[data-row-id="{rowId}"]
+
+- **Column State Cross-Contamination** - Fixed issue where image and fader column state arrays were indexed only by column number, causing row 2 to overwrite row 1's data
+  - Root cause: colImageloop[colNumber] and colFaderloop[colNumber] arrays shared state across all rows
+  - Solution: Implemented composite key pattern (rowIndex + '-' + colNumber) for all column state arrays
+  - Arrays updated: colImageloop, colFaderloop, colImageCurIndex, colFaderCurIndex, colImageTimeout, colFaderTimeout
+
 ### Enhanced - Table Cleanup Architecture
 
 - **Comprehensive Cleanup Function** - Added cleanupTableState() function for proper state management
