@@ -1,42 +1,41 @@
-## Fix: Mobile Table Slot Data Duplication and Pagination Issues
+## Fix: Mobile Touch Zoom Prevention and Viewport Scale Management
 
-Addresses critical issues where table slot data accumulated instead of refreshing, and pagination counters kept increasing on mobile. This fix ensures proper cleanup and state management when table data is updated or layouts are switched.
+Addresses critical UX issues where touch interactions in the player area triggered unwanted zoom behavior and viewport scale resets on mobile devices. This fix implements comprehensive touch event handling, layout locking, and manual viewport restoration capabilities.
 
 ## Issues Fixed
 
-1. Table rows were duplicating and accumulating on each refresh instead of being replaced
-2. Pagination page numbers kept increasing beyond total pages after multiple refreshes
-3. Multiple page flip intervals were running simultaneously causing erratic pagination behavior
-4. Table state was not properly reset when switching between loop layouts
-5. Old pagination plugin instances remained in memory causing conflicts with new instances
-6. Table columns displaying duplicate data across rows due to async operations targeting wrong rows with tr:last selector
+1. Touch gestures in player area triggered pinch-zoom and double-tap zoom
+2. Viewport maximum-scale was being reset to 1.0 after touch events
+3. Mobile navigation buttons (mobile-nav) were removed during layout rendering
+4. Resize events triggered by touch interactions caused viewport recalculation
+5. No manual recovery mechanism when viewport scale gets accidentally reset
 
 ## Technical Changes
 
-1. Add cleanupTableState() function to properly destroy all table-related state before recreation
-2. Clear pageAutoInterval, colImageTimeout, and colFaderTimeout intervals before creating new ones
-3. Reset pagerow, pageincrease, checkpage, and pageLengthTime arrays when table is recreated
-4. Destroy old jQuery pagination plugin instances before initializing new ones
-5. Remove tbody and colgroup DOM elements before appending new ones to prevent accumulation
-6. Enhance layoutxml.js to call cleanupTableState when table content is updated
-7. Enhance looplayout.js to reset all table state arrays when switching layouts
-8. Add comprehensive console logging for debugging table lifecycle
-9. Implement composite key pattern (rowIndex + colNumber) for column state management to prevent data cross-contamination
-10. Add unique data-row-id attribute to each table row and replace tr:last selectors with row-specific selectors to fix async targeting issues
-11. Update cleanupTableState() to use Object.keys() iteration for composite key cleanup
+1. Add CSS touch-action: manipulation to prevent zoom while allowing other touches
+2. Implement pointer-events: none on main container with auto on children
+3. Add layout locking mechanism (isLayoutLocked flag) to prevent resize handling after initial layout
+4. Remove resize event listener from constructor, only orientationchange listener remains
+5. Preserve mobile-nav, loading-overlay, and no-network elements during DOM cleanup
+6. Add restoreViewportScale() method for manual viewport restoration
+7. Implement viewport monitoring system to detect external modifications
+8. Add showNotification() helper for user feedback
+9. Track lastAppliedScale to prevent redundant viewport updates
+10. Add "Fix Zoom" button to mobile navigation for manual recovery
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-table.js - Add cleanupTableState function, cleanup intervals and state before recreation
-- mobile/www/assets/js/layoutxml.js - Call cleanupTableState when table updates
-- mobile/www/assets/js/looplayout.js - Reset table state arrays when switching layouts
+- mobile/www/index.html - Add Fix Zoom button, CSS touch controls, pointer-events configuration
+- mobile/www/assets/js/layoutxml.js - Preserve mobile-nav and loading-overlay during DOM cleanup
+- mobile/www/assets/js/mobile/mobile-layout-handler.js - Add layout locking, viewport monitoring, and manual restore functionality
 
 ## Testing
 
-- Verified table rows refresh correctly without duplication across multiple updates
-- Confirmed pagination counters reset properly and do not exceed total pages
-- Tested page auto-flip works smoothly with only one interval running
-- Ensured layout loop transitions properly reset table state
-- Verified console logs show proper cleanup sequence during table recreation
+- Verified touch interactions in player area do not trigger zoom
+- Confirmed viewport scale persists after touch events
+- Tested mobile-nav buttons remain visible and accessible after layout loads
+- Ensured Fix Zoom button successfully restores viewport scale when reset
+- Verified orientation changes still properly recalculate viewport
+- Confirmed viewport monitoring detects and alerts on external modifications
 

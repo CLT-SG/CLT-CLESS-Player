@@ -1,5 +1,168 @@
 # Change Log
 
+## [3.3.6] - 2025-12-22
+
+### Fixed - Mobile Touch Zoom and Viewport Scale Management
+
+- **Touch Zoom Prevention** - Fixed issue where touch interactions in player area triggered unwanted pinch-zoom and double-tap zoom
+  - Root cause: Missing CSS touch-action controls on main container and slots
+  - Impact: Users accidentally zoomed when touching player content
+  - Solution: Added touch-action: manipulation to prevent zoom gestures while preserving other touch interactions
+
+- **Viewport Scale Reset on Touch** - Fixed issue where viewport maximum-scale reset to 1.0 after touch events
+  - Root cause: Resize events triggered by touch interactions causing viewport recalculation
+  - Impact: Layout scale changed unexpectedly, breaking intended display dimensions
+  - Solution: Implemented layout locking mechanism (isLayoutLocked flag) to prevent resize handling after initial layout
+
+- **Mobile Navigation Disappearing** - Fixed mobile-nav buttons being removed during layout XML rendering
+  - Root cause: DOM cleanup selector removed all body children except .no-network class
+  - Impact: Navigation buttons inaccessible after layout loads
+  - Solution: Updated selector to preserve mobile-nav, loading-overlay, and no-network elements
+
+- **Touch Event Blocking** - Added pointer-events control to prevent #main container from capturing touches
+  - Root cause: Touch events on parent container triggered viewport changes
+  - Impact: Touching anywhere caused viewport recalculation
+  - Solution: Set pointer-events: none on #main, auto on children
+
+### Enhanced - Viewport Management
+
+- **Manual Viewport Restoration** - Added "Fix Zoom" button for manual viewport scale recovery
+  - Provides restoreViewportScale() method to recalculate and reapply optimal scale
+  - Shows notification confirming restored scale value
+  - Accessible via mobile-nav in top-right corner
+
+- **Viewport Monitoring System** - Implemented automatic detection of viewport modifications
+  - Checks viewport meta tag every 2 seconds for unexpected changes
+  - Logs warnings when maximum-scale differs from expected value
+  - Shows alert notification when reset detected
+  - Instructs user to tap "Fix Zoom" button for recovery
+
+- **Layout Lock Architecture** - Enhanced MobileLayoutHandler with locking mechanism
+  - isLayoutLocked flag prevents viewport changes after initial layout application
+  - Temporarily unlocks only for orientation changes
+  - Resize event listener removed from constructor to prevent touch-triggered resizes
+  - Orientation changes still properly recalculate viewport
+
+- **Viewport Update Optimization** - Added duplicate prevention for viewport updates
+  - Tracks lastAppliedScale to skip redundant meta tag modifications
+  - Reduces DOM thrashing and improves performance
+  - Prevents unnecessary viewport recalculation
+
+### Files Modified
+
+- mobile/www/index.html - Added Fix Zoom button, CSS touch-action and pointer-events controls
+- mobile/www/assets/js/layoutxml.js - Preserved mobile-nav and loading-overlay in DOM cleanup
+- mobile/www/assets/js/mobile/mobile-layout-handler.js - Added layout locking, viewport monitoring, manual restore, and notification system
+
+### Technical Details
+
+**Touch Control Strategy:**
+```css
+#main {
+  touch-action: manipulation;
+  pointer-events: none;
+}
+
+#main > * {
+  pointer-events: auto;
+}
+
+.main-slot {
+  touch-action: manipulation;
+  user-select: none;
+}
+```
+
+**Layout Lock Mechanism:**
+```javascript
+setLayoutBounds(bounds, autoscale) {
+  // ... calculate and apply dimensions ...
+  this.isLayoutLocked = true;
+}
+
+handleResize() {
+  if (this.isLayoutLocked) {
+    return;
+  }
+  // ... process resize ...
+}
+
+handleOrientationChange() {
+  this.isLayoutLocked = false;
+  // ... recalculate layout ...
+}
+```
+
+**Manual Restoration:**
+```javascript
+restoreViewportScale() {
+  const optimalScale = this.calculateViewportScale(
+    this.layoutDimensions.width, 
+    this.layoutDimensions.height
+  );
+  this.lastAppliedScale = null;
+  this.updateViewportScale(optimalScale);
+  this.showNotification('Viewport scale restored to ' + optimalScale);
+}
+```
+
+### Compatibility
+
+- Mobile (Android 5.1+): Full support
+- Mobile (iOS 11+): Full support
+- Desktop (Electron): Unaffected
+- No breaking changes to layout XML format
+- Backward compatible with all existing configurations
+
+### Performance Impact
+
+- Viewport monitoring: Minimal (2-second interval)
+- Layout locking: Eliminates unnecessary resize calculations
+- Touch events: No measurable impact
+- Pointer-events: Native CSS, no overhead
+- Manual restore: On-demand only
+
+### User Experience Improvements
+
+- Touch interactions in player area no longer trigger zoom
+- Viewport scale remains consistent across touch events
+- Mobile navigation buttons always accessible
+- Manual "Fix Zoom" button provides instant recovery
+- Visual notifications keep users informed
+- Orientation changes still work smoothly
+- No more accidental zoom disrupting playback
+
+### Known Behaviors
+
+**Touch Actions:**
+- touch-action: manipulation prevents pinch-zoom and double-tap zoom
+- Single touches, swipes, and gestures still work normally
+- Viewport zoom settings remain locked as configured
+
+**Layout Lock:**
+- Lock applied immediately after initial layout calculation
+- Temporarily released only for device orientation changes
+- Prevents touch-triggered resize events from affecting viewport
+- Manual restore always available via Fix Zoom button
+
+**Viewport Monitoring:**
+- Checks every 2 seconds for external modifications
+- Alerts user if viewport scale was unexpectedly changed
+- Does not automatically restore (requires user action)
+- Logging provides debugging information
+
+### Debugging
+
+**Console Log Messages:**
+```
+[MobileLayoutHandler] Layout locked - viewport scale will not change on touch
+[MobileLayoutHandler] Resize ignored - layout is locked to prevent viewport scale reset
+[MobileLayoutHandler] Viewport monitoring started
+[MobileLayoutHandler] Viewport scale was externally modified!
+[MobileLayoutHandler] Manual viewport restore requested
+[MobileLayoutHandler] Viewport scale restored to: 0.675
+```
+
 ## [3.3.5] - 2025-12-22
 
 ### Fixed - Mobile Table Data Duplication and Pagination

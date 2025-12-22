@@ -77,6 +77,16 @@
       overflow: hidden;
       /* Increased z-index to ensure player content is above system UI */
       z-index: 9999;
+      /* Prevent double-tap zoom but allow single touch interactions */
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+      /* Prevent #main from capturing touch events to avoid viewport scale reset */
+      pointer-events: none;
+    }
+    
+    /* Re-enable pointer events for child elements that need interaction */
+    #main > * {
+      pointer-events: auto;
     }
     
     /* Prevent scrolling on mobile */
@@ -126,6 +136,11 @@
       box-sizing: border-box;
       position: relative;
       z-index: 10;
+      /* Prevent double-tap zoom but allow other touch interactions */
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
     }
     
     /* Android 11+ specific fixes for navigation bar overlay */
@@ -316,18 +331,21 @@
     </div>
 
     <!-- Mobile Navigation with Auto-Hide -->
-    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 8px; transition: opacity 0.3s ease, transform 0.3s ease;">
+    <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 8px; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: auto;">
+        <button onclick="window.mobileLayoutHandler?.restoreViewportScale()" style="padding: 10px 15px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Restore Viewport Scale">
+            🔄 Fix Zoom
+        </button>
         <button onclick="window.location.href='configure.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
-            ⚙️ Settings
+            Settings
         </button>
         <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
-            📊 Dashboard
+            Dashboard
         </button>
         <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="System Diagnostics">
-            🔍 Diagnostics
+            Diagnostics
         </button>
         <button onclick="window.debugPanel?.toggle()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Debug Console">
-            🐛 Debug
+            Debug
         </button>
     </div>
 
