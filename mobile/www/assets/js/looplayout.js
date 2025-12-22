@@ -177,6 +177,21 @@ function playcurrentLayout(xmlData) {
     clearInterval(pageAutoInterval[i]);
   }
   
+  // Reset table-specific state arrays
+  // These should be indexed by table ID, so we need to clear all entries
+  if (typeof pagerow !== 'undefined') {
+    pagerow = [];
+  }
+  if (typeof pageincrease !== 'undefined') {
+    pageincrease = [];
+  }
+  if (typeof checkpage !== 'undefined') {
+    checkpage = [];
+  }
+  if (typeof pageLengthTime !== 'undefined') {
+    pageLengthTime = [];
+  }
+  
   $('#main').html('') //reset whole page html
   if (loopTimeout) { //clear loopTimeout to reset
     clearTimeout(loopTimeout)

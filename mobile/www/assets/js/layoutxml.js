@@ -49,11 +49,21 @@ function updatelayout(result2) {
                             return
                         }
                         log.warn('Player info : Table content updated')
-                        pagerow = []
+                        
+                        // Clean up existing table state properly
+                        if (typeof cleanupTableState === 'function') {
+                            cleanupTableState(slotid);
+                        } else {
+                            // Fallback cleanup if function not available
+                            pagerow = [];
+                        }
+                        
+                        // Remove DOM elements
                         $('#slot-' + slotid).find('table').remove()
                         $('#slot-' + slotid).find('.clearfix').first().remove()
                         $('#pagination-' + slotid).remove()
                         $('#pagination').empty()
+                        
                         log.info('table have records')
                         tableFunc(slotitem, slotid, slot['attributes'])
                         tableRecordList.forEach(function (records, tindex) {

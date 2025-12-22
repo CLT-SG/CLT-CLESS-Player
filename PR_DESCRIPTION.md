@@ -1,36 +1,42 @@
-## Fix: Mobile Table Column Images with Base64 Support
+## Fix: Mobile Table Slot Data Duplication and Pagination Issues
 
-Addresses an issue where table column images on mobile failed to load properly. This change implements proper media manager integration with base64 encoding and batch preloading for table slot images, matching the optimization already present in media slots.
+Addresses critical issues where table slot data accumulated instead of refreshing, and pagination counters kept increasing on mobile. This fix ensures proper cleanup and state management when table data is updated or layouts are switched.
 
 ## Issues Fixed
 
-1. Table column images attempted to use desktop file system methods (fs.existsSync) on mobile, causing "file not found" errors
-2. Images were not cached or converted to base64 format, leading to display failures
-3. Sequential image loading caused performance issues with multiple images per column
-4. No support for external URLs (http/https) in table column images
-5. Platform detection logic failed due to incorrect ipcRenderer check
+1. Table rows were duplicating and accumulating on each refresh instead of being replaced
+2. Pagination page numbers kept increasing beyond total pages after multiple refreshes
+3. Multiple page flip intervals were running simultaneously causing erratic pagination behavior
+4. Table state was not properly reset when switching between loop layouts
+5. Old pagination plugin instances remained in memory causing conflicts with new instances
+6. Table columns displaying duplicate data across rows due to async operations targeting wrong rows with tr:last selector
 
 ## Technical Changes
 
-1. Remove desktop-specific code from mobile slot-table.js (fs.existsSync, file path handling)
-2. Implement media manager integration with getMediaUriSmart() for base64/cached image URIs
-3. Add batch preloading system for table column images (parallel downloads up to 5 concurrent)
-4. Add isExternalMediaUrl() helper function for detecting external http/https URLs
-5. Implement proper async/await support by converting forEach loops to for...of loops
-6. Add comprehensive error handling with server URL fallbacks
-7. Support comma-separated image lists (image:pic1.jpg,pic2.jpg,http://example.com/pic3.jpg)
-8. Add in-memory URI caching to prevent repeated base64 conversions
+1. Add cleanupTableState() function to properly destroy all table-related state before recreation
+2. Clear pageAutoInterval, colImageTimeout, and colFaderTimeout intervals before creating new ones
+3. Reset pagerow, pageincrease, checkpage, and pageLengthTime arrays when table is recreated
+4. Destroy old jQuery pagination plugin instances before initializing new ones
+5. Remove tbody and colgroup DOM elements before appending new ones to prevent accumulation
+6. Enhance layoutxml.js to call cleanupTableState when table content is updated
+7. Enhance looplayout.js to reset all table state arrays when switching layouts
+8. Add comprehensive console logging for debugging table lifecycle
+9. Implement composite key pattern (rowIndex + colNumber) for column state management to prevent data cross-contamination
+10. Add unique data-row-id attribute to each table row and replace tr:last selectors with row-specific selectors to fix async targeting issues
+11. Update cleanupTableState() to use Object.keys() iteration for composite key cleanup
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-table.js - Remove desktop mode, add media manager integration, batch preloading, external URL support
+- mobile/www/assets/js/slot-table.js - Add cleanupTableState function, cleanup intervals and state before recreation
+- mobile/www/assets/js/layoutxml.js - Call cleanupTableState when table updates
+- mobile/www/assets/js/looplayout.js - Reset table state arrays when switching layouts
 
 ## Testing
 
-- Verified local images load correctly via media manager with base64 encoding
-- Confirmed external URLs (http/https) display directly without caching
-- Tested batch preloading improves loading performance for multiple images
-- Ensured comma-separated image lists work with rotation/cycling
-- Verified error handling falls back to server URLs when cache fails
+- Verified table rows refresh correctly without duplication across multiple updates
+- Confirmed pagination counters reset properly and do not exceed total pages
+- Tested page auto-flip works smoothly with only one interval running
+- Ensured layout loop transitions properly reset table state
+- Verified console logs show proper cleanup sequence during table recreation
 
