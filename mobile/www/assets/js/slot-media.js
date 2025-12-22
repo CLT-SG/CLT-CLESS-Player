@@ -624,7 +624,7 @@ async function appendMediaElement(asset, previewele, slotid) {
     } else if (asset.mediaType == "STREAM") { //streaming player (M3U8/HLS)
         mediaEl[slotid] = ""
         mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
@@ -714,7 +714,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         })
     } else if (asset.mediaType == "VIDEO") { //basic video player
         mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
@@ -985,7 +985,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         })
     } else if (asset.mediaType == "CCTV") { //cctv video player (FLV)
         mediaEl[slotid] =
-            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+            '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
@@ -1046,7 +1046,7 @@ async function appendMediaElement(asset, previewele, slotid) {
             console.log('[appendMediaElement] RTSP URL appears to be transcoded - treating as HLS');
 
             // Play as HLS stream
-            mediaEl[slotid] = '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+            mediaEl[slotid] = '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
             mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='application/x-mpegURL'>"
             mediaEl[slotid] += "</video>"
             $(previewele).html(mediaEl[slotid])
@@ -1118,7 +1118,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         // Modern browsers don't support RTMP natively
         // Try using flvjs tech as fallback (if RTMP is converted to FLV on server)
 
-        mediaEl[slotid] = '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay muted playsinline preload="auto">'
+        mediaEl[slotid] = '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='video/x-flv'>"
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])

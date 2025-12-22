@@ -1,5 +1,125 @@
 # Change Log
 
+## [3.3.3] - 2025-12-22
+
+### Fixed - Mobile HTML Slot Positioning
+
+- **HTML Slot Positioning on Mobile** - Fixed issue where HTML slots displayed in full-screen mode instead of respecting position and dimensions from layout XML
+  - Root cause: InAppBrowser plugin opens in full-screen overlay, ignoring CSS positioning and dimensions
+  - Impact: HTML slots could not be positioned correctly, multiple HTML slots could not display simultaneously
+  - Solution: Replaced InAppBrowser with standard HTML iframe that respects slot container CSS
+
+- **iframe Implementation** - Implemented standard HTML iframe for mobile HTML slots
+  - iframe inherits positioning (top, left) and dimensions (width, height) from slot container
+  - CSS applied by layoutxml.js to slot container is respected by iframe child element
+  - iframe uses width: 100% and height: 100% to fill slot container completely
+  - Supports same permissions as webview (allowfullscreen, geolocation, camera, microphone, etc.)
+
+- **Platform-Specific Rendering** - Added platform detection for appropriate HTML rendering method
+  - Mobile (Capacitor): Uses HTML iframe with full permissions
+  - Desktop (Electron): Uses webview tag (unchanged behavior)
+  - Platform detected via window.capacitorAPI or window.mobileAPI presence
+
+- **Enhanced Error Handling** - Added defensive programming to prevent undefined errors
+  - Comprehensive null/undefined checks for slot data structure
+  - Multiple fallback paths for extracting URL from various data formats
+  - URL validation before rendering iframe or webview
+  - Load and error event listeners for debugging
+
+### Removed - InAppBrowser Dependencies
+
+- **Removed InAppBrowser Plugin** - Removed @capgo/inappbrowser dependency as it was unsuitable for embedded content
+  - Removed import from capacitor-core.js
+  - Removed from package.json dependencies
+  - Removed mobile-html-manager.js module (no longer needed)
+  - Removed script reference from index.html
+
+### Enhanced - Code Quality
+
+- **Desktop App Consistency** - Updated desktop slot-html.js with same defensive coding as mobile
+  - Added null checks and error handling
+  - Multiple fallback paths for data extraction
+  - URL validation before rendering
+  - Maintains webview rendering for Electron
+
+### Files Modified
+
+- mobile/www/assets/js/slot-html.js - Replaced InAppBrowser with iframe, added platform detection and defensive coding
+- mobile/www/assets/js/mobile/capacitor-core.js - Removed InAppBrowser imports and exports
+- mobile/www/index.html - Removed mobile-html-manager.js script tag
+- mobile/package.json - Removed @capgo/inappbrowser dependency
+- src/assets/js/slot-html.js - Added defensive coding while maintaining webview for desktop
+
+### Documentation
+
+- mobile/docs_mobile/HTML-SLOT-IFRAME-SOLUTION.md - Complete implementation guide with positioning details, iframe vs InAppBrowser comparison
+- mobile/docs_mobile/HTML-SLOT-INAPPBROWSER.md - Updated with iframe approach notes
+- mobile/docs_mobile/HTML-SLOT-IMPLEMENTATION-SUMMARY.md - Implementation summary (archived)
+- mobile/docs_mobile/HTML-SLOT-QUICKREF.md - Quick reference guide (archived)
+
+### Technical Details
+
+**iframe Implementation:**
+```html
+<iframe id="html-{index}"
+    src="{url}"
+    style="width: 100%; height: 100%; border: none; display: block;"
+    frameborder="0"
+    allowfullscreen
+    allow="geolocation; microphone; camera; midi; encrypted-media; autoplay; fullscreen">
+</iframe>
+```
+
+**Slot Container CSS (from layoutxml.js):**
+```javascript
+$('#slot-' + slotid).css({
+    "position": "absolute",
+    "top": "100px",    // from layout XML
+    "left": "200px",   // from layout XML
+    "width": "800px",  // from layout XML
+    "height": "600px", // from layout XML
+    "z-index": "1"
+});
+```
+
+**Result:** iframe displays at (200, 100) with dimensions 800x600, exactly as specified in layout XML
+
+### Compatibility
+
+- Mobile (Android 5.1+): iframe fully supported via WebView
+- Mobile (iOS 11+): iframe fully supported via WKWebView
+- Desktop (Electron): webview unchanged, fully compatible
+- No breaking changes to layout XML format
+- Backward compatible with all existing HTML slot configurations
+
+### Performance Impact
+
+- iframe: Native browser element, no plugin overhead
+- Memory: Reduced (no InAppBrowser plugin)
+- CPU: Minimal impact (standard HTML rendering)
+- Load time: No change (direct URL loading)
+
+### User Experience Improvements
+
+- HTML slots now display in correct position as defined in layout XML
+- Multiple HTML slots can display simultaneously at different positions
+- Autoscale works correctly with HTML slots
+- No full-screen overlay interrupting other content
+- Consistent behavior with other slot types (media, text, image)
+- Desktop Electron app behavior unchanged
+
+### Known Behaviors
+
+**iframe Security:**
+- iframe content must allow embedding (X-Frame-Options header)
+- Cross-origin content may have restrictions (CORS)
+- Use HTTPS for secure content loading
+
+**iframe Permissions:**
+- Geolocation, camera, microphone require user permission
+- Autoplay may be restricted by browser policies
+- Fullscreen requires user interaction
+
 ## [3.3.2] - 2025-12-19
 
 ### Fixed - VideoJS Source & Format Validation
