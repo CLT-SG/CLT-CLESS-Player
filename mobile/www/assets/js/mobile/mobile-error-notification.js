@@ -169,6 +169,127 @@ class ErrorNotificationSystem {
     clearAll() {
         this.activeNotifications.forEach(id => this.hide(id));
     }
+
+    /**
+     * Show a persistent codec error overlay with actionable buttons
+     * options: { title, message, details, actions: [{ label, type('primary'|'secondary'), callback }], timeout }
+     */
+    codecError(options) {
+        try {
+            const id = 'codec-' + Date.now() + '-' + Math.random();
+            const overlay = document.createElement('div');
+            overlay.id = id;
+            overlay.style.cssText = `
+                position: fixed;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 100000;
+                background: rgba(0,0,0,0.6);
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            `;
+
+            const box = document.createElement('div');
+            box.style.cssText = `
+                background: #111;
+                color: white;
+                padding: 20px;
+                width: min(720px, 92%);
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+                text-align: left;
+            `;
+
+            const title = document.createElement('div');
+            title.style.cssText = 'font-weight: 700; font-size: 18px; margin-bottom: 8px;';
+            title.textContent = options.title || 'Playback Error';
+
+            const msg = document.createElement('div');
+            msg.style.cssText = 'font-size: 14px; opacity: 0.95; margin-bottom: 12px; white-space: pre-wrap;';
+            msg.textContent = options.message || '';
+
+            const detail = document.createElement('div');
+            detail.style.cssText = 'font-size: 12px; opacity: 0.8; margin-bottom: 14px;';
+            detail.textContent = options.details ? JSON.stringify(options.details) : '';
+
+            const actionsDiv = document.createElement('div');
+            actionsDiv.style.cssText = 'display:flex; gap:10px; justify-content:flex-end;';
+
+            (options.actions || []).forEach((act, idx) => {
+                const btn = document.createElement('button');
+                btn.textContent = act.label || ('Action ' + (idx+1));
+                btn.style.cssText = `
+                    padding: 10px 14px;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    border: none;
+                `;
+                if ((act.type || 'secondary') === 'primary') {
+                    btn.style.background = '#28a745';
+                    btn.style.color = 'white';
+                } else {
+                    btn.style.background = '#333';
+                    btn.style.color = 'white';
+                }
+
+                btn.addEventListener('click', (e) => {
+                    try {
+                        if (typeof act.callback === 'function') {
+                            act.callback();
+                        }
+                    } catch (cbErr) {
+                        console.warn('ErrorNotification: codecError action callback threw:', cbErr);
+                    }
+                    // remove overlay when action clicked unless callback returns false
+                    try {
+                        overlay.remove();
+                    } catch (e) {}
+                });
+
+                actionsDiv.appendChild(btn);
+            });
+
+            // Dismiss button
+            const dismiss = document.createElement('button');
+            dismiss.textContent = 'Dismiss';
+            dismiss.style.cssText = `
+                padding: 8px 12px;
+                border-radius: 8px;
+                font-size: 13px;
+                cursor: pointer;
+                background: transparent;
+                color: #ddd;
+                border: 1px solid rgba(255,255,255,0.06);
+            `;
+            dismiss.addEventListener('click', () => overlay.remove());
+            actionsDiv.appendChild(dismiss);
+
+            box.appendChild(title);
+            box.appendChild(msg);
+            if (options.details) box.appendChild(detail);
+            box.appendChild(actionsDiv);
+            overlay.appendChild(box);
+
+            document.body.appendChild(overlay);
+
+            // Auto-dismiss after timeout (if set)
+            if (options.timeout && options.timeout > 0) {
+                setTimeout(() => {
+                    try { overlay.remove(); } catch (e) {}
+                }, options.timeout);
+            }
+
+            return id;
+        } catch (error) {
+            console.warn('ErrorNotification: codecError failed:', error);
+            return null;
+        }
+    }
 }
 
 // Add animation styles

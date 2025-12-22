@@ -476,17 +476,30 @@ async function processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd
 
             // Add preloaded media to playback loop
             for (const item of localMediaToPreload) {
-                const mediaUri = await window.mediaManager.getMediaUri(item.filename);
+                // Use smart URI resolver which will return converted file URIs for native videos
+                const mediaUri = await window.mediaManager.getMediaUriSmart(item.filename, false);
 
                 if (mediaUri) {
+                    console.log('[mediaFunc] Preloaded', item.filename, '->', sanitizeMediaUrlForLog(mediaUri));
                     medialoop[slotid].push({
                         contentUrl: mediaUri,
                         contentDuration: item.duration,
                         contentType: item.contentType,
-                        mediaType: item.type
+                        mediaType: item.type,
+                        filename: item.filename,
+                        originalUrl: item.url // Keep original remote URL for fallback
                     });
                 } else {
-                    console.warn('[mediaFunc] Failed to get URI for:', item.filename);
+                    console.warn('[mediaFunc] Failed to get URI for:', item.filename, '— falling back to remote URL', item.url);
+                    medialoop[slotid].push({
+                        contentUrl: item.url,
+                        contentDuration: item.duration,
+                        contentType: item.contentType,
+                        mediaType: item.type,
+                        filename: item.filename,
+                        originalUrl: item.url,
+                        fallbackRemote: true
+                    });
                 }
             }
         } catch (error) {
@@ -499,13 +512,28 @@ async function processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd
                     if (!exists) {
                         await window.mediaManager.downloadMedia(item.url, item.filename);
                     }
-                    const mediaUri = await window.mediaManager.getMediaUri(item.filename);
+
+                    // Use smart URI resolver
+                    const mediaUri = await window.mediaManager.getMediaUriSmart(item.filename, false);
                     if (mediaUri) {
                         medialoop[slotid].push({
                             contentUrl: mediaUri,
                             contentDuration: item.duration,
                             contentType: item.contentType,
-                            mediaType: item.type
+                            mediaType: item.type,
+                            filename: item.filename,
+                            originalUrl: item.url
+                        });
+                    } else {
+                        console.warn('[mediaFunc] getMediaUriSmart failed for', item.filename, '- falling back to remote URL');
+                        medialoop[slotid].push({
+                            contentUrl: item.url,
+                            contentDuration: item.duration,
+                            contentType: item.contentType,
+                            mediaType: item.type,
+                            filename: item.filename,
+                            originalUrl: item.url,
+                            fallbackRemote: true
                         });
                     }
                 } catch (err) {
@@ -648,10 +676,10 @@ async function appendMediaElement(asset, previewele, slotid) {
                         changeMedia(slotid)
                     }
                 }, duration)
-            } else{
+            } else {
                 console.log('[VideoJS] Stream will play full duration (no timeout set)');
             }
-        } else{
+        } else {
             console.log('[VideoJS] Single stream item - will play full duration');
         }
 
@@ -691,18 +719,9 @@ async function appendMediaElement(asset, previewele, slotid) {
         mediaEl[slotid] += "</video>"
         $(previewele).html(mediaEl[slotid])
 
-        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {
-            preload: 'auto',
-            autoplay: true,
-            muted: true,
-            techOrder: ['html5'],
-            html5: {
-                nativeAudioTracks: false,
-                nativeVideoTracks: false,
-                nativeTextTracks: false
-            }
-        }, function () {
-            console.log('[VideoJS] Video player ready');
+        videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {
+            console.log('[VideoJS] Video normal type (mp4/mov/webm) player ready,  src:', asset.contentUrl);
+            console.log('[VideoJS] Asset details:', asset);
         })
 
         videoJSPlayer[videojsid].controls(false)
@@ -743,7 +762,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         //check if duration 0 then play full duration
         if (duration == 0) {
             videoJSPlayer[videojsid].on("timeupdate", function (event) { //chrome fix
-                if (videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
+                if (videoJSPlayer[videojsid] && videoJSPlayer[videojsid].currentTime() == videoJSPlayer[videojsid].duration()) {
                     if (errorTimeout) clearTimeout(errorTimeout);
                     if (videoJSPlayer[videojsid]) {
                         videoJSPlayer[videojsid].dispose()
@@ -754,19 +773,24 @@ async function appendMediaElement(asset, previewele, slotid) {
             // if not play with duration 
         } else {
             videoJSPlayer[videojsid].on('timeupdate', function () {
-                var currTime = videoJSPlayer[videojsid].currentTime()
-                currTime = parseInt(currTime) * 1000
-                if (currTime >= duration) {
-                    if (errorTimeout) clearTimeout(errorTimeout);
-                    if (videoJSPlayer[videojsid]) {
-                        videoJSPlayer[videojsid].dispose()
-                        changeMedia(slotid)
+                if (videoJSPlayer[videojsid]) {
+                    var currTime = videoJSPlayer[videojsid].currentTime()
+                    currTime = parseInt(currTime) * 1000
+                    if (currTime >= duration) {
+                        if (errorTimeout) clearTimeout(errorTimeout);
+                        if (videoJSPlayer[videojsid]) {
+                            videoJSPlayer[videojsid].dispose()
+                            changeMedia(slotid)
+                        }
                     }
                 }
             })
         }
 
-        // IMPROVED: Better error handling with codec error detection
+        // Add a flag to avoid retry loops
+        var _triedFallbackSrc = false;
+
+        // IMPROVED: Better error handling with codec error detection and fallback to original URL
         videoJSPlayer[videojsid].on('error', function () {
             if (errorTimeout) clearTimeout(errorTimeout);
 
@@ -774,17 +798,177 @@ async function appendMediaElement(asset, previewele, slotid) {
             var errorCode = error ? error.code : 0;
             var errorMsg = error ? error.message : 'Unknown';
 
-            console.error('[VideoJS] Video error:', errorCode + ' - ' + errorMsg);
+            console.error('[VideoJS] Video error:', errorCode + ' - ' + errorMsg, 'for src:', sanitizeMediaUrlForLog(asset.contentUrl));
+
+            try {
+                console.error('[VideoJS] Diagnostic: currentSrc:', videoJSPlayer[videojsid].currentSrc ? videoJSPlayer[videojsid].currentSrc() : null, 'player.src():', videoJSPlayer[videojsid].src ? videoJSPlayer[videojsid].src() : null);
+            } catch (d) { console.warn('[VideoJS] Diagnostic read failed:', d); }
+
+            if (window.mediaManager) {
+                try {
+                    console.log('[VideoJS] mediaManager.getUriCache():', window.mediaManager.getUriCache());
+                    console.log('[VideoJS] mediaManager.getFileUriMap():', window.mediaManager.getFileUriMap());
+                    window.mediaManager.debugResolveUri(asset.filename || asset.contentUrl).then(r => {
+                        console.log('[VideoJS] debugResolveUri result:', r);
+                    }).catch(e => {
+                        console.warn('[VideoJS] debugResolveUri failed:', e);
+                    });
+                } catch (e) {
+                    console.warn('[VideoJS] mediaManager diagnostics failed:', e);
+                }
+            }
+
+            // First attempt fallback to the original remote URL (if available and not tried yet)
+            if (!_triedFallbackSrc && asset.originalUrl && asset.originalUrl !== asset.contentUrl) {
+                _triedFallbackSrc = true;
+                console.log('[VideoJS] Attempting fallback to original remote URL:', sanitizeMediaUrlForLog(asset.originalUrl));
+
+                try {
+                    videoJSPlayer[videojsid].src({ src: asset.originalUrl, type: asset.contentType || 'video/mp4' });
+                    videoJSPlayer[videojsid].play().then(() => {
+                        console.log('[VideoJS] Fallback to original URL started playback');
+                    }).catch((playErr) => {
+                        console.warn('[VideoJS] Fallback play failed:', playErr);
+                        try {
+                            videoJSPlayer[videojsid].dispose();
+                        } catch (e) { console.warn('[VideoJS] Dispose failed after fallback play failure:', e); }
+                        changeMedia(slotid);
+                    });
+                    return; // wait for fallback result
+                } catch (e) {
+                    console.warn('[VideoJS] Fallback attempt threw:', e);
+                    // proceed to normal error handling below
+                }
+            }
 
             // MEDIA_ERR_DECODE (3) = codec not supported or corrupted
             if (errorCode === 3) {
                 console.error('[VideoJS] Codec error - video format not supported by device');
-                if (window.errorNotification) {
-                    window.errorNotification.warning(
-                        'Video Codec Error',
-                        'Video format not supported - skipping to next',
-                        3000
-                    );
+
+                const details = {
+                    filename: asset.filename || asset.contentUrl,
+                    src: asset.contentUrl,
+                    originalUrl: asset.originalUrl || null,
+                    contentType: asset.contentType || null,
+                    error: errorMsg
+                };
+
+                if (window.errorNotification && window.errorNotification.codecError) {
+                    // Show the codec error overlay but AUTOMATICALLY try to play the remote URL once, without requiring user interaction.
+                    const overlayId = window.errorNotification.codecError({
+                        title: 'Video Codec Error',
+                        message: 'This video cannot be decoded on this device. Attempting an automatic remote fallback...',
+                        details: details,
+                        timeout: 8000
+                    });
+
+                    // Automatic fallback behavior
+                    const remote = details.originalUrl || details.src;
+                    if (!_triedFallbackSrc && remote) {
+                        _triedFallbackSrc = true;
+
+                        console.log('[VideoJS] Automatic Play Remote fallback for', remote);
+
+                        try {
+                            // Attempt to play remote fallback and wait for playing event
+                            let fallbackStarted = false;
+                            const onPlaying = function () {
+                                fallbackStarted = true;
+                                console.log('[VideoJS] Remote fallback playing successfully');
+                                // Remove overlay if present
+                                try { const el = document.getElementById(overlayId); if (el) el.remove(); } catch (e) {}
+                                // clean up listener
+                                try { videoJSPlayer[videojsid].off('playing', onPlaying); } catch (e) {}
+                            };
+
+                            videoJSPlayer[videojsid].on('playing', onPlaying);
+
+                            // Set src and try to play
+                            videoJSPlayer[videojsid].src({ src: remote, type: details.contentType || 'video/mp4' });
+                            const playPromise = videoJSPlayer[videojsid].play();
+
+                            // Fallback timeout: if not started within 3s, skip
+                            const fallbackTimeout = setTimeout(function () {
+                                if (!fallbackStarted) {
+                                    console.warn('[VideoJS] Remote fallback did not start within 3s - skipping');
+                                    try { videoJSPlayer[videojsid].dispose(); } catch (e) {}
+                                    try { const el = document.getElementById(overlayId); if (el) el.remove(); } catch (e) {}
+                                    changeMedia(slotid);
+                                }
+                            }, 3000);
+
+                            if (playPromise && typeof playPromise.then === 'function') {
+                                playPromise.then(() => {
+                                    // Play promise resolved; actual playing will trigger 'playing' listener
+                                    console.log('[VideoJS] play() resolved for remote fallback');
+                                }).catch(async (playErr) => {
+                                    clearTimeout(fallbackTimeout);
+                                    console.warn('[VideoJS] Remote fallback play failed:', playErr);
+
+                                    // Try to probe the remote URL to determine if failure is due to CORS or unsupported codec
+                                    try {
+                                        const probe = await probeRemoteUrl(remote);
+                                        console.log('[VideoJS] Remote probe result:', probe);
+
+                                        // If probe indicates remote is reachable but likely unsupported codec, request server transcode
+                                        if (probe.ok && probe.contentType && probe.contentType.includes('video')) {
+                                            try {
+                                                await requestServerTranscode({ filename: details.filename, src: details.src, originalUrl: details.originalUrl || details.src, contentType: details.contentType || '' });
+                                                if (window.errorNotification) window.errorNotification.info('Transcode Requested', 'Requested server transcode for this video', 4000);
+                                            } catch (e) {
+                                                console.warn('[VideoJS] requestServerTranscode failed:', e);
+                                            }
+                                        } else {
+                                            // If probe failed (CORS or unreachable), still try to request transcode
+                                            try {
+                                                await requestServerTranscode({ filename: details.filename, src: details.src, originalUrl: details.originalUrl || details.src, contentType: details.contentType || '' });
+                                                if (window.errorNotification) window.errorNotification.info('Transcode Requested', 'Requested server transcode for this video', 4000);
+                                            } catch (e) {
+                                                console.warn('[VideoJS] requestServerTranscode failed:', e);
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('[VideoJS] Remote probe failed:', e);
+                                    }
+                                });
+                            }
+                            // Return to let the fallback run
+                            return;
+
+                        } catch (e) {
+                            console.warn('[VideoJS] Remote fallback attempt threw:', e);
+                            try { if (videoJSPlayer[videojsid]) videoJSPlayer[videojsid].dispose(); } catch (e) {}
+                            try { const el = document.getElementById(overlayId); if (el) el.remove(); } catch (e) {}
+                            changeMedia(slotid);
+                            return;
+                        }
+                    }
+
+                    // If no remote available or already tried, auto-skip after showing info
+                    setTimeout(async function () {
+                        try { if (videoJSPlayer[videojsid]) videoJSPlayer[videojsid].dispose(); } catch (e) {}
+                        try { const el = document.getElementById(overlayId); if (el) el.remove(); } catch (e) {}
+
+                        // Attempt to request server transcode before skipping (best-effort)
+                        try {
+                            await requestServerTranscode({ filename: details.filename, src: details.src, originalUrl: details.originalUrl || details.src, contentType: details.contentType || '' });
+                            if (window.errorNotification) window.errorNotification.info('Transcode Requested', 'Requested server transcode for this video', 4000);
+                        } catch (e) {
+                            console.warn('[VideoJS] requestServerTranscode (final) failed:', e);
+                        }
+
+                        changeMedia(slotid);
+                    }, 3000);
+
+                    return;
+                } else {
+                    if (window.errorNotification) {
+                        window.errorNotification.warning(
+                            'Video Codec Error',
+                            'Video format not supported - skipping to next',
+                            3000
+                        );
+                    }
                 }
             }
 
@@ -1029,6 +1213,78 @@ async function appendMediaElement(asset, previewele, slotid) {
 }
 
 // ========================================
+// Helper: Probe remote URL and request transcode
+// ========================================
+
+// Probe remote URL with HEAD to get content-type and detect CORS issues
+async function probeRemoteUrl(url) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(url, { method: 'HEAD', mode: 'cors', signal: controller.signal });
+        clearTimeout(timeout);
+        const contentType = res.headers.get('content-type') || '';
+        return { ok: res.ok, status: res.status, contentType };
+    } catch (error) {
+        return { ok: false, status: 0, contentType: null, error: error.message || String(error) };
+    }
+}
+
+// Best-effort: send request to server to request a transcode; tries a few common endpoints
+async function requestServerTranscode(payload) {
+    try {
+        const urlCandidates = [];
+        // If originalUrl has an origin, try typical endpoints on that origin
+        try {
+            const origin = (payload.originalUrl) ? new URL(payload.originalUrl).origin : null;
+            if (origin) {
+                urlCandidates.push(origin + '/api/request-transcode');
+                urlCandidates.push(origin + '/api/media/request-transcode');
+                urlCandidates.push(origin + '/api/media/transcode-request');
+                urlCandidates.push(origin + '/api/transcode');
+            }
+        } catch (e) {}
+
+        // Also try config.hostserver if available
+        try {
+            if (window.config && window.config.hostserver) {
+                const host = window.config.hostserver.replace(/\/$/, '');
+                urlCandidates.push(host + '/api/request-transcode');
+                urlCandidates.push(host + '/api/media/request-transcode');
+            }
+        } catch (e) {}
+
+        const tried = [];
+        for (const endpoint of urlCandidates) {
+            try {
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    mode: 'cors'
+                });
+
+                tried.push({ endpoint, status: res.status });
+
+                if (res.ok) {
+                    console.log('[MediaManager] Transcode request accepted by:', endpoint);
+                    return { success: true, endpoint };
+                }
+            } catch (err) {
+                tried.push({ endpoint, error: err && err.message ? err.message : String(err) });
+            }
+        }
+
+        console.warn('[MediaManager] No transcode endpoint accepted request:', tried);
+        throw new Error('No transcode endpoint accepted request');
+    } catch (error) {
+        console.warn('[MediaManager] requestServerTranscode failed:', error && error.message ? error.message : error);
+        throw error;
+    }
+}
+
+
+// ========================================
 // VIDEO SYNCHRONIZATION FUNCTIONS
 // ========================================
 
@@ -1198,7 +1454,7 @@ function initVideoSyncSettings() {
 // Auto-initialize when script loads
 if (typeof window !== 'undefined') {
     window.addEventListener('load', function () {
-        setTimeout(initVideoSyncSettings, 1000);
+        //setTimeout(initVideoSyncSettings, 1000);
     });
 }
 

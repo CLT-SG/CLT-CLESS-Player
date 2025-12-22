@@ -100,6 +100,58 @@ function parseStreamingUrl(rawSrc) {
 }
 
 
+// ------------------------------
+// Video support / error helpers
+// ------------------------------
+
+/**
+ * Centralized VideoJS error handler.
+ * Captures the error safely, shows a friendly overlay and skips to next media.
+ */
+function _handleVideoJsError(player, previewele, slotid, reason) {
+    var err = null
+    try {
+        if (player && typeof player.error === 'function') {
+            err = player.error()
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    log.warn('VIDEOJS ERROR : ', err && err.code, err && err.type, err && err.message, reason || '')
+    console.log('VIDEOJS ERROR : ', err, reason || '')
+
+    // If this is a decode error (MEDIA_ERR_DECODE), inform user about possible codec issues
+    if (err && err.code === 3) {
+        $(previewele).html('<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#1a1a1a;color:#ff6b6b;font-size:14px;padding:20px;text-align:center;"><div><strong>Video Codec Error</strong><br/>This device/browser does not support the video codec used. Please provide H.264/MP4 or HLS.</div></div>')
+    } else {
+        $(previewele).html('<div style="display:flex;align-items:center;justify-content:center;height:100%;background:#1a1a1a;color:#ff6b6b;font-size:14px;padding:20px;text-align:center;"><div><strong>Video Error</strong><br/>An error occurred while playing this video.</div></div>')
+    }
+
+    try {
+        if (player && typeof player.dispose === 'function' && !player.isDisposed()) {
+            player.dispose()
+        }
+    } catch (e) {
+        // ignore
+    }
+
+    // Give user a short moment to read message and then proceed to next
+    setTimeout(function () {
+        changeMedia(slotid)
+    }, 3000)
+}
+
+/** Quick feature test: is AV1 likely supported by this browser? */
+function _isAv1Supported() {
+    try {
+        var v = document.createElement('video')
+        return v.canPlayType('video/mp4; codecs="av01"') !== ''
+    } catch (e) {
+        return false
+    }
+}
+
 function mediaFunc(slotitem, slotid, mediapath) {
     mediaCurIndex[slotid] = 1
     medialoop[slotid] = []
@@ -354,18 +406,20 @@ async function appendMediaElement(asset, previewele, slotid) {
             // if not play with duration 
         } else {
             setTimeout(function () {
-                const frame = captureVideoFrame('video-' + slotid, 'png')
-                videoJSPlayer[videojsid].poster(frame.dataUri)
-                videoJSPlayer[videojsid].dispose()
+                const frame = captureVideoFrame('video-' + videojsid, 'png')
+                try {
+                    videoJSPlayer[videojsid].poster(frame.dataUri)
+                } catch (e) {
+                    // ignore if poster setting fails
+                }
+                try {
+                    videoJSPlayer[videojsid].dispose()
+                } catch (e) {}
                 changeMedia(slotid)
             }, duration)
         }
         videoJSPlayer[videojsid].on('error', function () {
-            videoJSPlayer[videojsid].dispose()
-            changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
+            _handleVideoJsError(this, previewele, slotid, 'STREAM')
         })
     } else if (asset.mediaType == "VIDEO") { //basic video player
         mediaEl[slotid] =
@@ -402,11 +456,7 @@ async function appendMediaElement(asset, previewele, slotid) {
             })
         }
         videoJSPlayer[videojsid].on('error', function () {
-            videoJSPlayer[videojsid].dispose()
-            changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
+            _handleVideoJsError(this, previewele, slotid, 'VIDEO')
         })
     } else if (asset.mediaType == "CCTV") { //cctv video player
         mediaEl[slotid] =
@@ -439,11 +489,7 @@ async function appendMediaElement(asset, previewele, slotid) {
             }, duration)
         }
         videoJSPlayer[videojsid].on('error', function () {
-            videoJSPlayer[videojsid].dispose()
-            changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS ERROR : ', error.code, error.type, error.message)
+            _handleVideoJsError(this, previewele, slotid, 'CCTV')
         })
     } else if (asset.mediaType == "RTSP_STREAM") { //RTSP streaming player
         console.log('[appendMediaElement] RTSP stream detected:', asset.contentUrl);
@@ -473,10 +519,7 @@ async function appendMediaElement(asset, previewele, slotid) {
             }
             
             videoJSPlayer[videojsid].on('error', function () {
-                videoJSPlayer[videojsid].dispose()
-                changeMedia(slotid)
-                var error = videoJSPlayer[videojsid].error()
-                log.warn('VIDEOJS RTSP ERROR : ', error.code, error.type, error.message)
+                _handleVideoJsError(this, previewele, slotid, 'RTSP')
             })
         } else {
             // Pure RTSP - show error
@@ -526,11 +569,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         }
         
         videoJSPlayer[videojsid].on('error', function () {
-            videoJSPlayer[videojsid].dispose()
-            changeMedia(slotid)
-            var error = videoJSPlayer[videojsid].error()
-            log.warn('VIDEOJS RTMP ERROR : ', error.code, error.type, error.message)
-            console.log('VIDEOJS RTMP ERROR : ', error.code, error.type, error.message)
+            _handleVideoJsError(this, previewele, slotid, 'RTMP')
         })
     }
 }
