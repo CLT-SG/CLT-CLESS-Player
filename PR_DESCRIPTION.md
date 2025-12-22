@@ -1,41 +1,36 @@
-## Fix: Mobile HTML Slot Positioning with iframe Implementation
+## Fix: Mobile Table Column Images with Base64 Support
 
-Addresses an issue where HTML slots on mobile displayed in full-screen mode instead of respecting the position and dimensions defined in the layout XML. This change replaces the InAppBrowser approach with standard HTML iframes that properly embed content within slot boundaries.
+Addresses an issue where table column images on mobile failed to load properly. This change implements proper media manager integration with base64 encoding and batch preloading for table slot images, matching the optimization already present in media slots.
 
 ## Issues Fixed
 
-1. HTML slots opened in full-screen overlay ignoring layout XML positioning (top, left) and dimensions (width, height)
-2. InAppBrowser plugin dependency added unnecessary complexity and did not support inline embedding
-3. Multiple HTML slots could not display simultaneously as each opened in full-screen mode
-4. Desktop webview behavior was inconsistent with mobile full-screen approach
+1. Table column images attempted to use desktop file system methods (fs.existsSync) on mobile, causing "file not found" errors
+2. Images were not cached or converted to base64 format, leading to display failures
+3. Sequential image loading caused performance issues with multiple images per column
+4. No support for external URLs (http/https) in table column images
+5. Platform detection logic failed due to incorrect ipcRenderer check
 
 ## Technical Changes
 
-1. Replace InAppBrowser with standard HTML iframe element for mobile HTML slots
-2. iframe inherits positioning and dimensions from slot container CSS applied by layoutxml.js
-3. Add platform detection to use iframe on mobile and webview on desktop Electron app
-4. Remove InAppBrowser plugin imports and dependencies from capacitor-core.js and package.json
-5. Add defensive coding with null checks and error handling to both mobile and desktop slot-html.js
-6. Configure iframe with appropriate permissions (allowfullscreen, geolocation, camera, etc.)
+1. Remove desktop-specific code from mobile slot-table.js (fs.existsSync, file path handling)
+2. Implement media manager integration with getMediaUriSmart() for base64/cached image URIs
+3. Add batch preloading system for table column images (parallel downloads up to 5 concurrent)
+4. Add isExternalMediaUrl() helper function for detecting external http/https URLs
+5. Implement proper async/await support by converting forEach loops to for...of loops
+6. Add comprehensive error handling with server URL fallbacks
+7. Support comma-separated image lists (image:pic1.jpg,pic2.jpg,http://example.com/pic3.jpg)
+8. Add in-memory URI caching to prevent repeated base64 conversions
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-html.js - Replace InAppBrowser with iframe, add platform detection and error handling
-- mobile/www/assets/js/mobile/capacitor-core.js - Remove InAppBrowser imports and exports
-- mobile/www/index.html - Remove mobile-html-manager.js script reference
-- mobile/package.json - Remove @capgo/inappbrowser dependency
-
-**Desktop App:**
-- src/assets/js/slot-html.js - Add defensive coding and error handling while maintaining webview
-
-**Documentation:**
-- mobile/docs_mobile/HTML-SLOT-IFRAME-SOLUTION.md - Complete implementation guide with positioning details
+- mobile/www/assets/js/slot-table.js - Remove desktop mode, add media manager integration, batch preloading, external URL support
 
 ## Testing
 
-- Verified iframe respects slot positioning (top, left) and dimensions (width, height) from layout XML
-- Confirmed autoscale calculations apply correctly to iframe containers
-- Tested multiple HTML slots displaying simultaneously in different positions
-- Ensured desktop webview functionality remains unchanged
+- Verified local images load correctly via media manager with base64 encoding
+- Confirmed external URLs (http/https) display directly without caching
+- Tested batch preloading improves loading performance for multiple images
+- Ensured comma-separated image lists work with rotation/cycling
+- Verified error handling falls back to server URLs when cache fails
 

@@ -1,6 +1,15 @@
 var zeroPad = (num, places) => String(num).padStart(places, '0')
 var columnStyle = []
 
+/**
+ * Check if a URL is external (http/https)
+ * @param {string} url - The URL to check
+ * @returns {boolean} True if external URL
+ */
+function isExternalMediaUrl(url) {
+    return url && (url.startsWith('http://') || url.startsWith('https://'));
+}
+
 //head row
 var headRowEvenColor
 var headRowOddColor
@@ -225,24 +234,20 @@ function tableNorecords(slotitem, slotid, slotattr) {
     })
 }
 
-function tableRecord(slotitem, index, table) {
+async function tableRecord(slotitem, index, table) {
     var tableid = table['id']
     pagerow[tableid] = [] // set page row array with table id
     pageincrease[tableid] = 1
     checkpage[tableid] = true
 
-    // Determine if running on mobile or desktop
-    var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
-    
-    // Use appropriate media path based on platform
-    var mediaLocalPath;
-    if (isMobile) {
-        // Mobile: Will use media manager for file access
-        mediaLocalPath = null; // Will be resolved per-file via media manager
-    } else {
-        // Desktop: Use traditional homedir path
-        mediaLocalPath = homedir + '/clessapp/res/';
+    // Mobile app - ensure media manager is initialized
+    if (window.mediaManager && !window.mediaManager.initialized) {
+        console.log('[tableRecord] Waiting for media manager initialization...');
+        await window.mediaManager.initialize().catch(err => {
+            console.error('[tableRecord] Media manager init failed:', err);
+        });
     }
+    console.log('[tableRecord] Using mobile media manager for table:', tableid);
 
     $('.slot-table-' + tableid).append('<tbody class="slot-tbody-' + tableid + '"></tbody>')
     $('.slot-table-' + tableid).append('<colgroup class="slot-colgroup-' + tableid + '"></colgroup>')
@@ -255,7 +260,8 @@ function tableRecord(slotitem, index, table) {
 
     //start to render table items
     if (slotitem) {
-        slotitem.forEach(function (row, xindex) {
+        // Use for...of loop to support async/await
+        for (const [xindex, row] of slotitem.entries()) {
             var colRowIndex = xindex
             var colList = row['attributes']
             var objColList = Object.entries(colList)
@@ -264,7 +270,9 @@ function tableRecord(slotitem, index, table) {
                 zindex++
                 $('.slot-table-' + tableid + ' tbody tr:last').append('<td nowrap class="col' + zeroPad(zindex, 2) + '"></td>')
             })
-            objColList.forEach(function (col, zindex) {
+            
+            // Process columns with async support
+            for (const [zindex, col] of objColList.entries()) {
 
                 var colNumber = col[0]
 
@@ -286,18 +294,44 @@ function tableRecord(slotitem, index, table) {
                     colImageList = colImageList.split(',') // split and create array
                     console.log('[tableRecord] Image list for column', colNumber, ':', colImageList);
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
-                    colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
-                        var coltext = ele.replace(/ /g, '') // delete any space
+                    
+                    // Phase 1: Parse and categorize images
+                    const imagesToPreload = [];
+                    colImageList.forEach(function (ele, resId) {
+                        var coltext = ele.trim(); // trim whitespace
                         if (coltext != '') { // cancel if string empty
                             var contentObj = new Object()
                             contentObj.text = coltext
+                            contentObj.isExternal = isExternalMediaUrl(coltext)
                             colImageloop[colNumber].push(contentObj)
+                            
+                            // Add to preload queue if local file
+                            if (!contentObj.isExternal && window.mediaManager) {
+                                if (window.config && window.config.hostserver) {
+                                    const serverAdd = window.config.hostserver.split('/');
+                                    const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                    imagesToPreload.push({
+                                        url: baseUrl + '/res/' + coltext,
+                                        filename: coltext
+                                    });
+                                }
+                            }
                         }
-                        if (resId === colImageList.length - 1) {
-                            console.log('[tableRecord] Starting first image display for column:', colNumber);
-                            appendColumnImage(colImageloop[colNumber][0], colNumber)
-                        }
-                    })
+                    });
+                    
+                    // Phase 2: Batch preload local images
+                    if (imagesToPreload.length > 0 && window.mediaManager) {
+                        console.log('[tableRecord] Preloading', imagesToPreload.length, 'images for column:', colNumber);
+                        await window.mediaManager.preloadMediaBatch(imagesToPreload).catch(err => {
+                            console.warn('[tableRecord] Preload failed for column', colNumber, ':', err);
+                        });
+                    }
+                    
+                    // Phase 3: Display first image
+                    if (colImageloop[colNumber].length > 0) {
+                        console.log('[tableRecord] Starting first image display for column:', colNumber);
+                        await appendColumnImage(colImageloop[colNumber][0], colNumber);
+                    }
                 } else if (colFormat == 'fader:') { //create fader animation for this column
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
@@ -317,7 +351,7 @@ function tableRecord(slotitem, index, table) {
                 } else {
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html(col[1])
                 }
-            })
+            }
             //play next column image after current column image has finished
             function changeColImageMedia(colNumber) {
                 if (colImageloop[colNumber].length == 1) {
@@ -343,93 +377,63 @@ function tableRecord(slotitem, index, table) {
                 console.log('[appendColumnImage] Processing media file:', mediaFileName, 'for column:', colNumber);
                 
                 // Check if this is an external URL
-                const isExternalUrl = mediaFileName && (mediaFileName.startsWith('http://') || mediaFileName.startsWith('https://'));
+                const isExternalUrl = isExternalMediaUrl(mediaFileName);
                 
                 if (isExternalUrl) {
                     // External URL - use directly without caching
-                    console.log('[appendColumnImage] External URL detected:', mediaFileName);
+                    console.log('[appendColumnImage] ✓ External URL detected:', mediaFileName);
                     renderEl = '<img src="' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous" onload="console.log(\'External image loaded\')" onerror="console.error(\'External image load error\')">';
                 } else {
-                    // Local file - handle based on platform
-                    // Determine if running on mobile or desktop
-                    var isMobile = (window.mobileAPI || window.capacitorAPI) && typeof ipcRenderer === 'undefined';
-                    
-                    if (isMobile) {
-                        // === MOBILE MODE: Use media manager with caching ===
-                        try {
-                            // Ensure media manager is initialized
-                            if (window.mediaManager && !window.mediaManager.initialized) {
-                                console.log('[appendColumnImage] Waiting for media manager initialization...');
-                                await window.mediaManager.initialize().catch(err => {
-                                    console.error('[appendColumnImage] Media manager init failed:', err);
-                                });
-                            }
+                    // Local file - use media manager with base64 support
+                    try {
+                        if (window.mediaManager) {
+                            // Use smart URI getter (handles cache, base64, etc.)
+                            const mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
                             
-                            if (window.mediaManager) {
-                                // Check if media exists in cache
-                                const mediaExists = await window.mediaManager.checkMediaExists(mediaFileName);
-                                
-                                if (!mediaExists) {
-                                    // Download media if not cached
-                                    // Get server URL from config
-                                    if (!window.config || !window.config.hostserver) {
-                                        console.error('[appendColumnImage] Config not loaded, cannot download media');
-                                        throw new Error('Config not available');
-                                    }
-                                    
+                            if (mediaUri) {
+                                console.log('[appendColumnImage] ✓ Got media URI from mediaManager (cached/base64)');
+                                renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" onload="console.log(\'Image loaded from cache\')" onerror="console.error(\'Image load error\')">';
+                            } else {
+                                console.warn('[appendColumnImage] Failed to get media URI, trying direct download');
+                                // Try downloading if not in cache
+                                if (window.config && window.config.hostserver) {
                                     const serverAdd = window.config.hostserver.split('/');
                                     const baseUrl = serverAdd[0] + '//' + serverAdd[2];
                                     const downloadUrl = baseUrl + '/res/' + mediaFileName;
                                     
-                                    console.log('[appendColumnImage] Downloading media:', downloadUrl);
                                     await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
-                                }
-                                
-                                // Get web-accessible URI for the file (uses cache if available)
-                                const mediaUri = await window.mediaManager.getMediaUri(mediaFileName);
-                                
-                                if (mediaUri) {
-                                    console.log('[appendColumnImage] Media loaded from cache');
-                                    renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" onload="console.log(\'Cached image loaded\')" onerror="console.error(\'Cached image load error\')">';
-                                } else {
-                                    console.warn('[appendColumnImage] Failed to get media URI for:', mediaFileName);
-                                    // Fallback: try direct URL from server
-                                    if (window.config && window.config.hostserver) {
-                                        const serverAdd = window.config.hostserver.split('/');
-                                        const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                        renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
-                                        console.log('[appendColumnImage] Using direct URL fallback');
+                                    const retryUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
+                                    
+                                    if (retryUri) {
+                                        console.log('[appendColumnImage] ✓ Downloaded and got URI after retry');
+                                        renderEl = '<img src="' + retryUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
+                                    } else {
+                                        // Final fallback: direct URL
+                                        console.warn('[appendColumnImage] Using direct URL fallback');
+                                        renderEl = '<img src="' + downloadUrl + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
                                     }
                                 }
-                            } else {
-                                console.warn('[appendColumnImage] Media manager not available, using direct URL');
-                                if (window.config && window.config.hostserver) {
-                                    const serverAdd = window.config.hostserver.split('/');
-                                    const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                    renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
-                                }
                             }
-                            
-                        } catch (error) {
-                            console.error('[appendColumnImage] Mobile media error:', error);
-                            // Fallback to direct URL
+                        } else {
+                            console.warn('[appendColumnImage] Media manager not available, using server URL fallback');
+                            // Fallback: direct URL from server
                             if (window.config && window.config.hostserver) {
                                 const serverAdd = window.config.hostserver.split('/');
                                 const baseUrl = serverAdd[0] + '//' + serverAdd[2];
                                 renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
-                                console.log('[appendColumnImage] Using direct URL after error');
+                                console.log('[appendColumnImage] Using server URL:', baseUrl + '/res/' + mediaFileName);
+                            } else {
+                                console.error('[appendColumnImage] No config available for server URL');
                             }
                         }
-                        
-                    } else {
-                        // === DESKTOP MODE: Use traditional fs.existsSync ===
-                        const filePath = mediaLocalPath + mediaFileName;
-                        if (fs.existsSync(filePath)) {
-                            renderEl = '<img src="' + filePath + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
-                            console.log('[appendColumnImage] Desktop - file exists:', filePath);
-                        } else {
-                            console.warn('[appendColumnImage] Desktop - file not found:', filePath);
-                            renderEl = '';
+                    } catch (error) {
+                        console.error('[appendColumnImage] Media error:', error);
+                        // Fallback to direct URL
+                        if (window.config && window.config.hostserver) {
+                            const serverAdd = window.config.hostserver.split('/');
+                            const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                            renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
+                            console.log('[appendColumnImage] Using direct URL after error');
                         }
                     }
                 }
@@ -537,7 +541,7 @@ function tableRecord(slotitem, index, table) {
                     'height': bodyRowHeight + "px",
                 });
             });
-        })
+        }
     }
 
     //set style of row odd/even color and row height
