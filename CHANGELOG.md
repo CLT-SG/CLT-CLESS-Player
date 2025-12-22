@@ -1,5 +1,21 @@
 # Change Log
 
+## [3.3.2] - 2025-12-19
+
+### Fixed - VideoJS Source & Format Validation
+
+- **Prevent Wrong Data to VideoJS** - Fixed issue where VideoJS was sometimes given invalid or wrong `src`/`type` values (including base64/data URIs and incorrect MIME inference), causing playback failures; sources are now validated and sanitized before play
+- **Content-Type Inference** - Improved detection to avoid passing incorrect contentType to the player and to correctly treat streaming protocols vs regular video files
+- **Play Error Handling** - Added diagnostics and consistent handling for play Promise rejections and src errors; invalid sources are skipped and slots auto-advance
+- **Cross-Platform Parity** - Changes applied to both mobile and desktop `slot-media.js`
+
+### Files Modified
+
+- mobile/www/assets/js/slot-media.js - Add src/type validation, defensive checks, logging, skip-on-error behavior
+- src/assets/js/slot-media.js - Synchronized validation fixes from mobile
+- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Added notes about content-type validation and play error handling
+
+
 ## [3.3.1] - 2025-12-17
 
 ### Fixed - Streaming Playback Resilience

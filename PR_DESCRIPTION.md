@@ -1,45 +1,36 @@
-## Server-Side Streaming Protocol Format Support — Follow-up Fixes
+## Fix: VideoJS Source & Format Validation — Prevent Wrong Data Passed to Player
 
-Addresses robustness and recovery for streaming playback after initial protocol implementation. Focuses on stream timeout handling, error recovery, and improved diagnostics across mobile and desktop players.
+Addresses an issue where VideoJS could receive malformed or incorrect `src`/`type` values (including base64/data URIs or incorrectly inferred MIME types), causing playback failures, rejected promises, or silent errors. This change adds validation and sanitization before passing sources to VideoJS and unifies error handling across mobile and desktop players.
 
 ## Issues Fixed
 
-1. Stream playback sometimes did not recover on playback errors or timeouts (orphaned players persisted)
-2. Stream timeouts were not consistently cleared, causing delayed media rotation or resource leaks
-3. Stream duration handling in multi-item slots could lead to premature disposal or long hangs
-4. Missing or unclear user-facing notifications for stream playback failures
-5. Logging and diagnostics for stream start and timeout events were insufficient for debugging
+1. VideoJS was sometimes given malformed or incorrect `src`/`type` causing play() to fail or reject
+2. Incorrect inference of `contentType` for streaming vs. regular videos led to playback mismatches
+3. Base64/data URIs and other unsupported values were occasionally passed to the player
+4. Silent failures lacked diagnostic logs and consistent skip/recovery behavior
 
 ## Technical Changes
 
-1. Added robust stream start detection with a `streamStarted` flag and ensured stream timeout variables are cleared when playback begins or errors occur
-2. Improved stream error handling to explicitly dispose VideoJS instances and auto-skip to the next media item with user-friendly notifications
-3. Added explicit console logging for stream start, duration timeout, and error events to aid debugging and diagnostics
-4. Added defensive checks to avoid double-dispose and null reference issues during error handling
-5. Applied the same fixes and tests to both mobile and desktop `slot-media.js` implementations for parity
+1. Validate `asset.originalUrl` and inferred `contentType` before calling `videojs.src()` or `player.play()`; skip invalid sources with logs and user notification
+2. Sanitize and avoid passing base64/data URIs as normal video sources; use explicit detection for streaming protocols
+3. Use `videojs.src({src, type})` only for recognized mime types and fall back to skip-on-error when unsupported
+4. Add diagnostic console logs for src/type validation and play Promise rejections; handle rejected play promises by auto-skipping the slot
+5. Applied the same validation and test updates to both mobile and desktop `slot-media.js` implementations for parity
 
 ## Files Changed Summary
 
 **Mobile App:**
-- mobile/www/assets/js/slot-media.js - Improved stream start detection; clear stream timeouts; better error handling, disposal and logging
+- mobile/www/assets/js/slot-media.js - Add src/type validation, defensive checks, improved logging, skip-on-error behavior
 
 **Desktop App:**
-- src/assets/js/slot-media.js - Synchronized fixes from mobile for stream resilience and diagnostics
+- src/assets/js/slot-media.js - Synchronized validation fixes from mobile
 
 **Documentation:**
-- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Updated troubleshooting notes for stream timeouts and error recovery
+- docs/STREAMING-IMPLEMENTATION-SUMMARY.md - Added guidance on content-type validation and play error handling
 
 ## Testing
 
-Format Support:
-- M3U8/HLS streams still play correctly with protocol-based detection
-- RTSP streams continue to show transcoding guidance where applicable
-
-Error Handling:
-- Stream playback errors now show user notifications and auto-skip reliably
-- Stream timeouts and disposals no longer leave orphaned VideoJS players
-
-Platform:
-- Mobile and desktop parity maintained
-- No breaking changes introduced; backward compatibility preserved
+- Verified malformed/unsupported src values are skipped and the next media item is played
+- Confirmed play Promise rejection is handled gracefully with logs and auto-skip behavior
+- Ensured parity across mobile and desktop implementations
 
