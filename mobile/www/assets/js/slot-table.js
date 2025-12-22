@@ -23,6 +23,67 @@ var pageLengthTime = []
 var pageincrease = []
 var checkpage = []
 
+/**
+ * Cleanup function to properly destroy table state before recreation
+ * @param {string} tableid - The ID of the table to clean up
+ */
+function cleanupTableState(tableid) {
+    console.log('[cleanupTableState] Cleaning up table:', tableid);
+    
+    // Clear page auto-flip interval
+    if (pageAutoInterval[tableid]) {
+        console.log('[cleanupTableState] Clearing pageAutoInterval for table:', tableid);
+        clearInterval(pageAutoInterval[tableid]);
+        pageAutoInterval[tableid] = null;
+    }
+    
+    // Clear column image timeouts
+    if (colImageTimeout[tableid]) {
+        for (let i = 0; i < colImageTimeout[tableid].length; i++) {
+            if (colImageTimeout[tableid][i]) {
+                clearTimeout(colImageTimeout[tableid][i]);
+            }
+        }
+        colImageTimeout[tableid] = null;
+    }
+    
+    // Clear column fader timeouts
+    if (colFaderTimeout[tableid]) {
+        for (let i = 0; i < colFaderTimeout[tableid].length; i++) {
+            if (colFaderTimeout[tableid][i]) {
+                clearTimeout(colFaderTimeout[tableid][i]);
+            }
+        }
+        colFaderTimeout[tableid] = null;
+    }
+    
+    // Reset page row data
+    if (pagerow[tableid]) {
+        console.log('[cleanupTableState] Clearing pagerow data - was:', pagerow[tableid].length, 'rows');
+        pagerow[tableid] = [];
+    }
+    
+    // Reset pagination state
+    pageincrease[tableid] = 1;
+    checkpage[tableid] = true;
+    
+    // Destroy pagination plugin instance if exists
+    var paginationEl = $('#pagination-' + tableid);
+    if (paginationEl.length > 0 && paginationEl.data('pagination')) {
+        console.log('[cleanupTableState] Destroying pagination instance');
+        try {
+            paginationEl.pagination('destroy');
+        } catch (e) {
+            console.warn('[cleanupTableState] Error destroying pagination:', e);
+        }
+    }
+    
+    // Clear tbody content
+    $('.slot-tbody-' + tableid).empty();
+    
+    console.log('[cleanupTableState] Cleanup completed for table:', tableid);
+}
+
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
     //create table
@@ -236,6 +297,11 @@ function tableNorecords(slotitem, slotid, slotattr) {
 
 async function tableRecord(slotitem, index, table) {
     var tableid = table['id']
+    
+    // CRITICAL: Clean up any existing table state before proceeding
+    cleanupTableState(tableid);
+    
+    // Initialize page row array and pagination state
     pagerow[tableid] = [] // set page row array with table id
     pageincrease[tableid] = 1
     checkpage[tableid] = true
@@ -249,6 +315,10 @@ async function tableRecord(slotitem, index, table) {
     }
     console.log('[tableRecord] Using mobile media manager for table:', tableid);
 
+    // Clear any existing tbody and colgroup before appending new ones
+    $('.slot-tbody-' + tableid).remove();
+    $('.slot-colgroup-' + tableid).remove();
+    
     $('.slot-table-' + tableid).append('<tbody class="slot-tbody-' + tableid + '"></tbody>')
     $('.slot-table-' + tableid).append('<colgroup class="slot-colgroup-' + tableid + '"></colgroup>')
 
@@ -584,7 +654,20 @@ async function tableRecord(slotitem, index, table) {
         maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
         maxrows = maxrows - 1;
         console.log('[tableRecord] Calculated max rows per page:', maxrows, '- Slot height:', $('#slot-' + tableid).height(), 'px');
+        
         var pagination = $('#pagination-' + tableid);
+        
+        // Ensure pagination element is clean before initializing
+        if (pagination.data('pagination')) {
+            console.log('[tableRecord] Destroying existing pagination instance');
+            try {
+                pagination.pagination('destroy');
+            } catch (e) {
+                console.warn('[tableRecord] Error destroying pagination:', e);
+            }
+        }
+        pagination.empty();
+        
         var totalRows = pagerow[tableid].length;  // Total number of rows
         var pageSize = parseInt(maxrows);
 
@@ -620,7 +703,12 @@ async function tableRecord(slotitem, index, table) {
                 pagination.pagination('go', pageincrease[tableid]);
             }
 
-            // Auto page flip
+            // Auto page flip - clear any existing interval first
+            if (pageAutoInterval[tableid]) {
+                console.log('[tableRecord] Clearing existing pageAutoInterval before creating new one');
+                clearInterval(pageAutoInterval[tableid]);
+            }
+            
             pageAutoInterval[tableid] = setInterval(function () {
                 pageincrease[tableid] += 1;
                 var totalpage = pagination.pagination('getTotalPage') || 1;

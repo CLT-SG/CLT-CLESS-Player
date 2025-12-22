@@ -767,7 +767,7 @@ class MobileMediaManager {
                         // Preload URI into memory cache
                         await this.getMediaUri(item.filename);
                         try {
-                            console.log('[MediaManager] Preload cached for', item.filename, '->', this.uriCache.get(this.sanitizeFilename(item.filename)));
+                            console.log('[MediaManager] Preload cached for', item.filename);
                         } catch (e) {/* ignore */}
                         results.loaded++;
                         results.details.push({ filename: item.filename, status: 'cached' });
@@ -780,7 +780,7 @@ class MobileMediaManager {
                     // Preload URI into memory cache
                     await this.getMediaUri(item.filename);
                     try {
-                        console.log('[MediaManager] Preload downloaded for', item.filename, '->', this.uriCache.get(this.sanitizeFilename(item.filename)));
+                        console.log('[MediaManager] Preload downloaded for', item.filename);
                     } catch (e) {/* ignore */}
                     results.loaded++;
                     results.details.push({ filename: item.filename, status: 'downloaded' });

@@ -1,5 +1,156 @@
 # Change Log
 
+## [3.3.5] - 2025-12-22
+
+### Fixed - Mobile Table Data Duplication and Pagination
+
+- **Table Row Duplication** - Fixed issue where table rows accumulated instead of refreshing when table data was updated
+  - Root cause: tbody element was never cleared before appending new rows, causing rows to stack on each refresh
+  - Rows would multiply with each update (10 rows became 20, then 30, etc.)
+  - Solution: Added cleanupTableState() function to properly clear tbody before rendering new data
+
+- **Pagination Counter Increasing** - Fixed pagination showing incorrect page numbers that kept growing beyond total pages
+  - Root cause: Multiple page flip intervals running simultaneously, pagination state not reset between refreshes
+  - Page counter would keep incrementing (Page 5/3, Page 8/3, etc.) instead of cycling correctly
+  - Solution: Clear existing intervals before creating new ones, reset pageincrease counter to 1 on refresh
+
+- **Memory Leaks** - Fixed old pagination instances and intervals remaining in memory after table updates
+  - Root cause: jQuery pagination plugin instances not destroyed, intervals not cleared
+  - Multiple intervals would fire simultaneously causing erratic page flipping behavior
+  - Solution: Destroy pagination instances and clear all intervals before recreation
+
+- **Layout Loop State Pollution** - Fixed table state bleeding between different layouts in loop mode
+  - Root cause: Global table state arrays not reset when switching layouts
+  - Data from previous layout's table would appear in next layout's table
+  - Solution: Reset all table state arrays (pagerow, pageincrease, checkpage, pageLengthTime) on layout transitions
+
+### Enhanced - Table Cleanup Architecture
+
+- **Comprehensive Cleanup Function** - Added cleanupTableState() function for proper state management
+  - Clears page auto-flip interval (pageAutoInterval)
+  - Clears column image rotation timeouts (colImageTimeout)
+  - Clears column fader timeouts (colFaderTimeout)
+  - Resets page row data arrays (pagerow)
+  - Resets pagination counters (pageincrease, checkpage)
+  - Destroys jQuery pagination plugin instances
+  - Empties tbody content
+  - Comprehensive console logging for debugging
+
+- **Defensive State Management** - Enhanced table initialization with proper cleanup sequence
+  - cleanupTableState() called at start of tableRecord() before rendering
+  - layoutxml.js calls cleanup when table content updates
+  - looplayout.js resets table state when switching layouts
+  - Removes old tbody/colgroup elements before creating new ones
+  - Ensures only one pagination instance and interval exists per table
+
+### Files Modified
+
+- mobile/www/assets/js/slot-table.js - Added cleanupTableState function, cleanup before table recreation, interval management
+- mobile/www/assets/js/layoutxml.js - Integrated cleanupTableState call on table updates
+- mobile/www/assets/js/looplayout.js - Reset table state arrays on layout transitions
+
+### Technical Details
+
+**Cleanup Sequence:**
+```javascript
+function cleanupTableState(tableid) {
+    // 1. Clear intervals
+    clearInterval(pageAutoInterval[tableid]);
+    
+    // 2. Clear timeouts
+    clearTimeout(colImageTimeout[tableid]);
+    clearTimeout(colFaderTimeout[tableid]);
+    
+    // 3. Reset state arrays
+    pagerow[tableid] = [];
+    pageincrease[tableid] = 1;
+    checkpage[tableid] = true;
+    
+    // 4. Destroy pagination
+    $('#pagination-' + tableid).pagination('destroy');
+    
+    // 5. Clear DOM
+    $('.slot-tbody-' + tableid).empty();
+}
+```
+
+**Lifecycle Integration:**
+```javascript
+// Called automatically before rendering
+async function tableRecord(slotitem, index, table) {
+    cleanupTableState(tableid); // First action
+    // ... then proceed with rendering
+}
+
+// Called on table content update
+if (tablenewupdate >= tableolddate) {
+    cleanupTableState(slotid);
+    // ... remove DOM and recreate
+}
+
+// Called on layout loop transition
+function playcurrentLayout(xmlData) {
+    pagerow = [];
+    pageincrease = [];
+    // ... reset all table state
+}
+```
+
+### Compatibility
+
+- Mobile (Android 5.1+): Full support
+- No breaking changes to layout XML format
+- Backward compatible with existing table configurations
+- Works with single layout and loop layout modes
+- Compatible with all table features (pagination, image columns, faders, etc.)
+
+### Performance Impact
+
+- Cleanup overhead: Negligible (milliseconds per table)
+- Memory usage: Reduced (proper cleanup prevents leaks)
+- Interval count: Reduced (only one interval per table)
+- DOM operations: Optimized (remove old elements before creating new)
+- Pagination: Smoother (no multiple instances conflicting)
+
+### User Experience Improvements
+
+- Table data refreshes correctly without row duplication
+- Pagination displays accurate page numbers (e.g., Page 1/3, Page 2/3)
+- Page flipping works smoothly at configured intervals
+- Layout loop transitions cleanly without data bleeding
+- Console logs provide clear debugging information
+- No more erratic pagination behavior with multiple intervals
+
+### Known Behaviors
+
+**Table Refresh Cycle:**
+- Tables refresh based on serverRefresh setting (typically 60 seconds)
+- Each refresh triggers cleanupTableState() automatically
+- All intervals and state are reset on every refresh
+- Pagination starts from page 1 after refresh
+
+**Layout Loop Behavior:**
+- Table state is completely reset when switching layouts
+- Each layout starts with fresh table state
+- No data or state carries over between layouts
+- Pagination counters reset for each layout
+
+### Debugging
+
+**Console Log Messages:**
+```
+[cleanupTableState] Cleaning up table: 207
+[cleanupTableState] Clearing pageAutoInterval for table: 207
+[cleanupTableState] Clearing pagerow data - was: 15 rows
+[cleanupTableState] Destroying pagination instance
+[cleanupTableState] Cleanup completed for table: 207
+[tableRecord] Setting up pagination for table: 207 - Total rows: 15
+[tableRecord] Calculated max rows per page: 10
+[tableRecord] Multiple pages detected - initializing pagination with pageSize: 10
+[tableRecord] Pagination initialized - Page 1/2
+[tableRecord] Auto page flip interval set to: 120000 ms
+```
+
 ## [3.3.4] - 2025-12-22
 
 ### Fixed - Mobile Table Column Image Loading
