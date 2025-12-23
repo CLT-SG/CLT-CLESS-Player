@@ -50,12 +50,7 @@ class MediaLoadingStates {
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(
-                    90deg,
-                    #2a2a2a 25%,
-                    #3a3a3a 50%,
-                    #2a2a2a 75%
-                );
+                background: transparent;
                 background-size: 200% 100%;
                 animation: media-skeleton-shimmer 1.5s infinite;
             }
@@ -80,8 +75,7 @@ class MediaLoadingStates {
             .media-spinner {
                 width: 48px;
                 height: 48px;
-                border: 4px solid rgba(255, 255, 255, 0.1);
-                border-top-color: #667eea;
+                border: 4px solid rgba(255, 255, 255, 0);
                 border-radius: 50%;
                 animation: media-spinner-rotate 0.8s linear infinite;
             }
@@ -92,7 +86,7 @@ class MediaLoadingStates {
             }
 
             .media-spinner-text {
-                color: rgba(255, 255, 255, 0.7);
+                color: rgba(255, 255, 255, 0.0);
                 font-size: 12px;
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 font-weight: 500;
@@ -106,7 +100,7 @@ class MediaLoadingStates {
                 left: 0;
                 width: 0%;
                 height: 3px;
-                background: linear-gradient(90deg, #667eea, #764ba2);
+                background: transparent;
                 transition: width 0.3s ease;
             }
 
@@ -133,7 +127,7 @@ class MediaLoadingStates {
                 left: 50%;
                 transform: translate(-50%, -50%);
                 text-align: center;
-                color: rgba(255, 255, 255, 0.7);
+                color: rgba(255, 255, 255, 0);
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             }
 

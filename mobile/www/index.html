@@ -365,6 +365,7 @@
   <!-- Additional Mobile Modules -->
   <script src="assets/js/mobile/mobile-media-loading-states.js"></script>
   <script src="assets/js/mobile/mobile-media-manager.js"></script>
+  <script src="assets/js/mobile/mobile-media-import.js"></script>
   <script src="assets/js/mobile/mobile-serial-validator.js"></script>
   <script src="assets/js/mobile/mobile-debug-panel.js"></script>
   <script src="assets/js/mobile/mobile-error-notification.js"></script>
@@ -388,19 +389,22 @@
 
     <!-- Mobile Navigation with Auto-Hide -->
     <div id="mobile-nav" style="position: fixed; top: 10px; right: 10px; z-index: 10000; display: flex; gap: 8px; transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: auto;">
-        <button onclick="window.mobileLayoutHandler?.reloadWebView()" style="padding: 10px 15px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Reload App">
+        <button onclick="window.mobileLayoutHandler?.reloadWebView()" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Reload App">
             Reload
         </button>
-        <button onclick="window.location.href='configure.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+        <button onclick="window.mediaImportManager?.openFilePicker('all')" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Import Media Files">
+            Import Media
+        </button>
+        <button onclick="window.location.href='configure.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
             Settings
         </button>
-        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
+        <button onclick="window.location.href='dashboard.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;">
             Dashboard
         </button>
         <button onclick="window.location.href='diagnostics.html'" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="System Diagnostics">
             Diagnostics
         </button>
-        <button onclick="window.debugPanel?.toggle()" style="padding: 10px 15px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Debug Console">
+        <button onclick="window.debugPanel?.toggle()" style="padding: 10px 15px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 14px; font-weight: 500;" title="Debug Console">
             Debug
         </button>
     </div>
