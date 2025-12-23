@@ -40,7 +40,7 @@ class MediaLoadingStates {
                 width: 100%;
                 height: 100%;
                 overflow: hidden;
-                background: #1a1a1a;
+                background: transparent;
             }
 
             /* Skeleton Loader for Images */
@@ -140,10 +140,11 @@ class MediaLoadingStates {
             .media-error-icon {
                 font-size: 48px;
                 margin-bottom: 12px;
-                opacity: 0.5;
+                opacity: 0;
             }
 
             .media-error-text {
+                opacity: 0;
                 font-size: 14px;
                 font-weight: 500;
             }

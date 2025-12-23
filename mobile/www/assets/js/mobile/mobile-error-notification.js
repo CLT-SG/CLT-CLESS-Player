@@ -78,7 +78,6 @@ class ErrorNotificationSystem {
         
         notification.innerHTML = `
             <div style="display: flex; align-items: start; gap: 10px;">
-                <div style="font-size: 24px; flex-shrink: 0;">${style.icon}</div>
                 <div style="flex: 1;">
                     <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px;">${title}</div>
                     <div style="font-size: 14px; opacity: 0.9; line-height: 1.4;">${message}</div>

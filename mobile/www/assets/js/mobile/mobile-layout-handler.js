@@ -329,6 +329,32 @@ class MobileLayoutHandler {
     }
     
     /**
+     * Reload the entire webview/app
+     * This is useful to reset all state and fix any display issues
+     * Similar to restarting the electron app on desktop
+     */
+    reloadWebView() {
+        console.log('[MobileLayoutHandler] Webview reload requested');
+        
+        try {
+            // Show loading indicator
+            this.showNotification('Reloading app...');
+            
+            // Small delay to show the notification before reload
+            setTimeout(() => {
+                // Use standard window.location.reload() which works for:
+                // - Capacitor native apps
+                // - Web browsers
+                // - All mobile platforms
+                window.location.reload();
+            }, 300);
+        } catch (error) {
+            console.error('[MobileLayoutHandler] Failed to reload webview:', error);
+            this.showNotification('Reload failed');
+        }
+    }
+    
+    /**
      * Show a temporary notification
      * @param {string} message - Message to display
      */
