@@ -28,6 +28,24 @@
 
 - **Synchronous Row Rendering** - Table rows now render synchronously like Electron version
   - Outer loop: Changed from for (const [xindex, row] of slotitem.entries()) to slotitem.forEach(function (row, xindex) {})
+
+### Enhanced - Table Column Image Transitions
+
+- **Fade-In Animation for Images** - Added smooth fade-in transition when table column images cycle through items
+  - Enhancement: Table column images now fade in smoothly (800ms duration) when changing from one item to next
+  - Behavior: Transition only applies after first image render (colImageCurIndex >= 1) to avoid loading delay perception
+  - User Experience: Professional smooth transitions matching text fader column behavior
+  - Performance: Lightweight jQuery fade animation with no measurable impact on rendering speed
+  - Implementation: Uses .hide().fadeIn(800) pattern applied to img element within imagecol container
+
+### Enhanced - Code Quality and Logging
+
+- **Debug Log Cleanup** - Removed excessive debug console.log statements for cleaner production logs
+  - Removed: Verbose pagerow object type debugging statements
+  - Removed: tbody HTML length checks and tr element counting logs
+  - Removed: Row-by-row push operation logging during collection
+  - Kept: Essential lifecycle logs (initialization, cleanup, row collection counts, pagination setup, errors)
+  - Result: Cleaner console output without losing critical debugging information
   - Inner loop: Changed from for (const [zindex, col] of objColList.entries()) to objColList.forEach(function (col, zindex) {})
   - Ensures predictable execution order and immediate DOM access
 

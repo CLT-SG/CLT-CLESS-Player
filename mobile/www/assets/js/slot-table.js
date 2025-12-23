@@ -315,11 +315,7 @@ async function tableRecord(slotitem, index, table) {
         checkpage[tableid] = true
 
         console.log('[tableRecord] ✓ Initialized pagerow[' + tableid + '] as empty array');
-        console.log('[tableRecord] DEBUG: pagerow object type:', typeof pagerow);
-        console.log('[tableRecord] DEBUG: pagerow is Array?', Array.isArray(pagerow));
-        console.log('[tableRecord] DEBUG: pagerow[' + tableid + '] type:', typeof pagerow[tableid]);
-        console.log('[tableRecord] DEBUG: pagerow[' + tableid + '] is Array?', Array.isArray(pagerow[tableid]));
-
+        
         // Mobile app - ensure media manager is initialized
         if (window.mediaManager && !window.mediaManager.initialized) {
             console.log('[tableRecord] Waiting for media manager initialization...');
@@ -602,6 +598,14 @@ async function tableRecord(slotitem, index, table) {
                         "height": "auto",
                     })
 
+                    // Apply blinking transition (3 times) for image changes (skip first render)
+                    if (colImageCurIndex[compositeKey] >= 1) {
+                        $('.' + colNumber + ' .imagecol-' + rowIndex + ' img')
+                            .fadeOut(200).fadeIn(200)
+                            .fadeOut(200).fadeIn(200)
+                            .fadeOut(200).fadeIn(200);
+                    }
+
                     // go to the next column fader after 20 seconds
                     colImageTimeout[compositeKey] = setTimeout(function () {
                         changeColImageMedia(colNumber, rowIndex)
@@ -714,12 +718,8 @@ async function tableRecord(slotitem, index, table) {
 
         // Store all data to pagerow object (synchronous like Electron version)
         console.log('[tableRecord] Collecting rows for table:', tableid);
-        console.log('[tableRecord] DEBUG: tbody element exists?', $('.slot-tbody-' + tableid).length);
-        console.log('[tableRecord] DEBUG: tbody HTML length:', $('.slot-tbody-' + tableid).html()?.length || 0);
         var foundRows = $('.slot-tbody-' + tableid).find('tr');
-        console.log('[tableRecord] DEBUG: Found', foundRows.length, 'tr elements in tbody');
         foundRows.each(function (i, row) {
-            console.log('[tableRecord] DEBUG: Pushing row', i, 'with data-row-id:', $(row).attr('data-row-id'));
             return pagerow[tableid].push(row)
         })
         console.log('[tableRecord] ✓ Collected', pagerow[tableid].length, 'rows into pagerow array');

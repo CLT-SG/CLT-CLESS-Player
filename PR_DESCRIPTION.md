@@ -9,6 +9,7 @@ Addresses critical table rendering issue where mobile tables collected 0 rows de
 3. Media preloading blocked row collection until completion
 4. jQuery selectors executed before rows fully rendered to DOM
 5. Pagination failed due to empty pagerow array
+6. Table column images lacked smooth transitions when cycling through items
 
 ## Technical Changes
 
@@ -18,11 +19,14 @@ Addresses critical table rendering issue where mobile tables collected 0 rows de
 4. Removed await from appendColumnImage() call (synchronous rendering)
 5. Row collection now executes immediately after rendering completes
 6. Matches Electron desktop version's synchronous rendering pattern
+7. Added 800ms fade-in transition for table column images when cycling through items
+8. Fade-in transition skips first render to avoid loading delay perception
+9. Removed debug console.log statements for cleaner production logs
 
 ## Files Changed Summary
 
 Mobile App:
-- mobile/www/assets/js/slot-table.js - Replace async loops with synchronous forEach, remove await statements
+- mobile/www/assets/js/slot-table.js - Replace async loops with synchronous forEach, remove await statements, add fade-in transitions, cleanup debug logs
 
 ## Testing
 
@@ -31,4 +35,7 @@ Mobile App:
 - Tested page flipping works smoothly
 - Ensured media preloading still functions in background
 - Verified no rendering race conditions
+- Confirmed smooth 800ms fade-in transition when images cycle every 20 seconds
+- Validated fade-in only applies after first image (no initial delay)
+- Tested console logs are clean without excessive debug output
 
