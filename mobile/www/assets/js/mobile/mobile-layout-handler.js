@@ -380,7 +380,7 @@ class MobileLayoutHandler {
                         console.warn('  Viewport content:', content);
                         
                         // Show warning notification
-                        this.showNotification('⚠️ Viewport scale was reset! Tap "Fix Zoom" button to restore.');
+                        this.showNotification('Viewport scale was reset! Tap "Fix Zoom" button to restore.');
                     }
                 }
             }

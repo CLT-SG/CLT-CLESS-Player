@@ -128,7 +128,7 @@ function getLayoutXML(result2) {
     $('body > *').not('.no-network, #mobile-nav, #loading-overlay').remove()
     $('body').append('<div id="main"></div>')
     $('#main').css({
-        "background-color": "black",
+        "background-color": "transparent",
     })
 
     //adjust window size
