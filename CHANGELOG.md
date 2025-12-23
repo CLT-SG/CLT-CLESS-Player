@@ -1,5 +1,117 @@
 # Change Log
 
+## [3.3.8] - 2025-12-23
+
+### Fixed - Mobile Duplicate Initialization on Startup
+
+- **Duplicate Connected Notification** - Fixed issue where "Connected to server successfully" notification appeared twice on mobile app startup
+  - Root cause: initializeWithConfig() called from two locations - configLoaded event listener (line 251) and fallback check (line 1119)
+  - Both calls triggered full initialization sequence: validateActivation() → startApplication() → playcheckNetwork() → notification
+  - Solution: Added isAppInitialized guard flag to prevent duplicate initialization
+
+- **Race Condition Prevention** - Implemented singleton pattern for app initialization lifecycle
+  - Root cause: No guard mechanism existed to prevent concurrent initialization flows
+  - Multiple initialization paths could execute simultaneously causing unpredictable behavior
+  - Solution: Guard flag checked at start of initializeWithConfig() with early return if already initialized
+
+- **Initialization Flow Control** - Enhanced initializeWithConfig() with duplicate prevention logic
+  - Added isAppInitialized boolean flag at script level (line 563)
+  - Modified initializeWithConfig() to check flag before proceeding (line 650-654)
+  - Flag set to true immediately after check passes to prevent re-entry
+  - Console logging for debugging when duplicate call detected
+
+### Enhanced - App Lifecycle Management
+
+- **Guard Flag Pattern** - Implemented professional initialization guard pattern
+  - isAppInitialized flag initialized to false at script start
+  - Checked on every initializeWithConfig() call
+  - Set to true on first successful initialization
+  - Follows singleton initialization best practices
+
+- **Debug Visibility** - Added logging for duplicate initialization attempts
+  - Console message when duplicate call is detected and prevented
+  - Helps debugging initialization flow issues
+  - Provides visibility into app lifecycle events
+
+### Files Modified
+
+- mobile/www/index.html - Added isAppInitialized guard flag and duplicate prevention in initializeWithConfig()
+
+### Technical Details
+
+**Initialization Paths:**
+```javascript
+// Path 1: Event listener (line 251)
+window.addEventListener('configLoaded', function(event) {
+  if (typeof initializeWithConfig === 'function') {
+    initializeWithConfig(); // First call
+  }
+});
+
+// Path 2: Fallback check (line 1119)
+if (window.configLoader && window.configLoader.config) {
+  initializeWithConfig(); // Second call (DUPLICATE)
+}
+```
+
+**Guard Implementation:**
+```javascript
+// Guard flag at script level
+var isAppInitialized = false;
+
+// Modified initialization function
+function initializeWithConfig() {
+  // Prevent duplicate initialization
+  if (isAppInitialized) {
+    console.log('eCLESS: Application already initialized, skipping duplicate call');
+    return;
+  }
+  isAppInitialized = true;
+  
+  // ... rest of initialization logic
+}
+```
+
+### Compatibility
+
+- Mobile (Android 5.1+): Full support
+- Mobile (iOS 11+): Full support
+- Desktop (Electron): Unaffected (already had single initialization)
+- No breaking changes to initialization flow
+- Backward compatible with all configurations
+
+### Performance Impact
+
+- Guard check: Negligible (single boolean check)
+- Initialization time: Reduced (no duplicate execution)
+- Network requests: Reduced (playcheckNetwork runs once)
+- Notification display: Cleaner (single notification)
+- Overall startup: Faster and more predictable
+
+### User Experience Improvements
+
+- Single "Connected" notification on successful startup
+- Cleaner app initialization without duplicates
+- Faster startup (no redundant initialization)
+- More predictable app behavior
+- Better debugging with clear console messages
+- Consistent with Electron desktop version behavior
+
+### Debugging
+
+**Console Log Messages:**
+```
+eCLESS: Initializing application with configuration
+eCLESS: Server: [server] ID: [id] Mode: online
+eCLESS: Starting application...
+Checking network connectivity...
+Server connection: OK
+[Single notification displayed]
+
+// If duplicate call attempted:
+eCLESS: Application already initialized, skipping duplicate call
+```
+
 ## [3.3.7] - 2025-12-23
 
 ### Fixed - Mobile Table Row Collection with Async Loops

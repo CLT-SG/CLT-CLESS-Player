@@ -559,6 +559,9 @@
 <script>
   try {
     
+    // Guard flag to prevent duplicate initialization
+    var isAppInitialized = false;
+    
     // Function to validate serial key before launching app
     async function validateActivation() {
       try {
@@ -643,6 +646,13 @@
     
     // Function to initialize app with loaded configuration
     function initializeWithConfig() {
+      // Prevent duplicate initialization
+      if (isAppInitialized) {
+        console.log('eCLESS: Application already initialized, skipping duplicate call');
+        return;
+      }
+      isAppInitialized = true;
+      
       console.log('eCLESS: Initializing application with configuration')
       console.log('eCLESS: Server:', hostserver, 'ID:', dsid, 'Mode:', mode)
       

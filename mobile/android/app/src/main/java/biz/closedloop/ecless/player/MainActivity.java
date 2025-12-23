@@ -11,12 +11,22 @@ import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import com.getcapacitor.BridgeActivity;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 
 public class MainActivity extends BridgeActivity {
     
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Grab WebView
+        WebView webView = (WebView) findViewById(R.id.webview);
+        WebSettings webSettings = webView.getSettings();
+
+        // The Magic
+        webSettings.setUseWideViewPort(true);
+        webSettings.setLoadWithOverviewMode(true);
         
         // Enable immersive full-screen mode
         enableImmersiveMode();
