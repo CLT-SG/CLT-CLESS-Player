@@ -594,7 +594,7 @@ function changeMedia(slotid) {
     }
 }
 
-//render every media slot with IMPROVED VIDEO INITIALIZATION
+//render every media slot with IMPROVED VIDEO INITIALIZATION and LOADING STATES
 async function appendMediaElement(asset, previewele, slotid) {
     videoIdIncrease[slotid] = generateRandomNumber()
     var videojsid = parseInt(slotid) + videoIdIncrease[slotid]
@@ -602,17 +602,53 @@ async function appendMediaElement(asset, previewele, slotid) {
         clearTimeout(mediaTimeout[slotid])
     }
     var duration = parseInt(asset.contentDuration * 1000)
+    const loaderId = `media-${slotid}-${Date.now()}`;
 
     if (asset.mediaType == "IMAGE") { //image player
-        //object-fit to fit image inside the image elements //fill : image stretched on slot
-        mediaEl[slotid] = '<img id="lp-preview-image" class="media-slot" style="object-fit: fill;" src="' + asset.contentUrl + '" onload="console.log(\'Image loaded successfully\')" onerror="console.error(\'Image load error\')">'
-        $(previewele).html(mediaEl[slotid])
-        // image: go to the next media after specific seconds
-        if (medialoop[slotid].length > 1) {
-            mediaTimeout[slotid] = setTimeout(function () {
-                changeMedia(slotid)
-            }, duration)
+        // Show skeleton loader while image loads
+        if (window.mediaLoadingStates) {
+            const loader = window.mediaLoadingStates.createImageLoader($(previewele)[0], loaderId);
+            $(previewele).html(loader);
         }
+
+        //object-fit to fit image inside the image elements //fill : image stretched on slot
+        const img = new Image();
+        img.id = "lp-preview-image";
+        img.className = "media-slot";
+        img.style.objectFit = "fill";
+        
+        img.onload = function() {
+            console.log('Image loaded successfully');
+            // Remove loader and show image with fade-in
+            if (window.mediaLoadingStates) {
+                window.mediaLoadingStates.removeLoader(loaderId, img);
+            }
+            mediaEl[slotid] = img.outerHTML;
+            $(previewele).html(img);
+            
+            // image: go to the next media after specific seconds
+            if (medialoop[slotid].length > 1) {
+                mediaTimeout[slotid] = setTimeout(function () {
+                    changeMedia(slotid)
+                }, duration)
+            }
+        };
+        
+        img.onerror = function() {
+            console.error('Image load error');
+            if (window.mediaLoadingStates) {
+                window.mediaLoadingStates.showError(loaderId, 'Image failed to load');
+                setTimeout(() => {
+                    window.mediaLoadingStates.removeLoader(loaderId);
+                    // Try next media on error
+                    if (medialoop[slotid].length > 1) {
+                        changeMedia(slotid);
+                    }
+                }, 2000);
+            }
+        };
+        
+        img.src = asset.contentUrl;
 
     } else if (asset.mediaType == "YTB") {
         mediaEl[slotid] = '<iframe src="https://www.youtube.com/embed/' + asset.contentUrl + '?autoplay=1&controls=0" frameborder="0" allow="accelerometer;" ></iframe>'
@@ -713,11 +749,22 @@ async function appendMediaElement(asset, previewele, slotid) {
             changeMedia(slotid)
         })
     } else if (asset.mediaType == "VIDEO") { //basic video player
+        // Show spinner loader while video initializes
+        if (window.mediaLoadingStates) {
+            const loader = window.mediaLoadingStates.createVideoLoader($(previewele)[0], loaderId, 'Loading video...');
+            $(previewele).html(loader);
+        }
+
         mediaEl[slotid] =
             '<video id="video-' + videojsid + '" class="video-js vjs-default-skin vjs-fill media-slot" autoplay playsinline preload="auto">'
         mediaEl[slotid] += "<source src='" + asset.contentUrl + "' type='" + asset.contentType + "'>"
         mediaEl[slotid] += "</video>"
-        $(previewele).html(mediaEl[slotid])
+        
+        // Append video element (it will be under the loader initially)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = mediaEl[slotid];
+        const videoElement = tempDiv.firstChild;
+        $(previewele).append(videoElement);
 
         videoJSPlayer[videojsid] = videojs('video-' + videojsid, {}, function () {
             console.log('[VideoJS] Video normal type (mp4/mov/webm) player ready,  src:', asset.contentUrl);
@@ -735,6 +782,20 @@ async function appendMediaElement(asset, previewele, slotid) {
         var playbackStarted = false;
         var errorTimeout = null;
 
+        videoJSPlayer[videojsid].on('loadeddata', function () {
+            console.log('[VideoJS] Video data loaded');
+            if (window.mediaLoadingStates) {
+                window.mediaLoadingStates.updateProgress(loaderId, 50);
+            }
+        });
+
+        videoJSPlayer[videojsid].on('canplay', function () {
+            console.log('[VideoJS] Video can play');
+            if (window.mediaLoadingStates) {
+                window.mediaLoadingStates.updateProgress(loaderId, 80);
+            }
+        });
+
         videoJSPlayer[videojsid].on('canplaythrough', function () {
             playbackStarted = true;
             console.log('[VideoJS] Video can play through');
@@ -742,22 +803,31 @@ async function appendMediaElement(asset, previewele, slotid) {
                 clearTimeout(errorTimeout);
                 errorTimeout = null;
             }
+            // Remove loader and show video with fade-in
+            if (window.mediaLoadingStates) {
+                window.mediaLoadingStates.removeLoader(loaderId, videoElement);
+            }
         });
 
-        // IMPROVED: Skip to next if video doesn't start within 3 seconds
+        // IMPROVED: Skip to next if video doesn't start within 5 seconds
         errorTimeout = setTimeout(function () {
             if (!playbackStarted && videoJSPlayer[videojsid]) {
-                console.warn('[VideoJS] Video failed to start playing within 3s - skipping');
-                try {
-                    if (videoJSPlayer[videojsid]) {
-                        videoJSPlayer[videojsid].dispose();
-                    }
-                } catch (e) {
-                    console.warn('[VideoJS] Error disposing stuck player:', e);
+                console.warn('[VideoJS] Video failed to start playing within 5s - skipping');
+                if (window.mediaLoadingStates) {
+                    window.mediaLoadingStates.showError(loaderId, 'Video timeout');
                 }
-                changeMedia(slotid);
+                setTimeout(() => {
+                    try {
+                        if (videoJSPlayer[videojsid]) {
+                            videoJSPlayer[videojsid].dispose();
+                        }
+                    } catch (e) {
+                        console.warn('[VideoJS] Error disposing stuck player:', e);
+                    }
+                    changeMedia(slotid);
+                }, 2000);
             }
-        }, 3000);
+        }, 5000);
 
         //check if duration 0 then play full duration
         if (duration == 0) {
