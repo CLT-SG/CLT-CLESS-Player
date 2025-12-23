@@ -177,7 +177,19 @@ function playcurrentLayout(xmlData) {
     clearInterval(pageAutoInterval[i]);
   }
   
-  $('#main').html('') //reset whole page html
+  // Use View Transition API for smooth layout switching
+  const supportsViewTransitions = 'startViewTransition' in document;
+  
+  if (supportsViewTransitions) {
+    // Modern browsers with View Transition API support
+    document.startViewTransition(() => {
+      $('#main').html(''); // Reset whole page html
+    });
+  } else {
+    // Fallback for browsers without support
+    $('#main').html('');
+  }
+  
   if (loopTimeout) { //clear loopTimeout to reset
     clearTimeout(loopTimeout)
     loopTimeout = null
