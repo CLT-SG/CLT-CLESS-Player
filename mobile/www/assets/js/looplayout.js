@@ -180,7 +180,7 @@ function playcurrentLayout(xmlData) {
   // Reset table-specific state arrays
   // These should be indexed by table ID, so we need to clear all entries
   if (typeof pagerow !== 'undefined') {
-    pagerow = [];
+    // Do NOT reset pagerow - it's an object indexed by table ID, managed per table
   }
   if (typeof pageincrease !== 'undefined') {
     pageincrease = [];

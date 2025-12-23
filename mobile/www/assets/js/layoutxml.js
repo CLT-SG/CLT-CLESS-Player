@@ -53,10 +53,9 @@ function updatelayout(result2) {
                         // Clean up existing table state properly
                         if (typeof cleanupTableState === 'function') {
                             cleanupTableState(slotid);
-                        } else {
-                            // Fallback cleanup if function not available
-                            pagerow = [];
                         }
+                        // Do NOT reset entire pagerow array - it's an object indexed by table ID
+                        // Individual tables manage their own pagerow[tableid] entries
                         
                         // Remove DOM elements
                         $('#slot-' + slotid).find('table').remove()
@@ -66,9 +65,19 @@ function updatelayout(result2) {
                         
                         log.info('table have records')
                         tableFunc(slotitem, slotid, slot['attributes'])
-                        tableRecordList.forEach(function (records, tindex) {
-                            tableRecord(records['elements'], slotid, records['attributes'])
-                        })
+                        
+                        // CRITICAL FIX: tableRecordList contains ONE record with ALL rows inside
+                        // Calling tableRecord in forEach duplicates the entire dataset
+                        if (tableRecordList.length > 1) {
+                            log.warn('Multiple table records detected: ' + tableRecordList.length + ' - Only processing first to prevent duplicates');
+                        }
+                        
+                        // Only process the FIRST record which contains all table rows
+                        if (tableRecordList[0] && tableRecordList[0]['elements']) {
+                            log.info('Processing table record with ' + tableRecordList[0]['elements'].length + ' rows');
+                            tableRecord(tableRecordList[0]['elements'], slotid, tableRecordList[0]['attributes']);
+                        }
+                        
                         clearInterval(tableCheckLoop)
 
                     }
@@ -82,7 +91,8 @@ function updatelayout(result2) {
 function getLayoutXML(result2) {
     //reset pagination table when playing loop
     if (isLoopLyt) {
-        pagerow = []
+        // Do NOT reset pagerow here - it's managed by individual table renders
+        // pagerow is an associative array indexed by table ID, not a simple array
         videoJSPlayer = []
     }
     //if layout cannot read go to offline page
@@ -432,9 +442,18 @@ function getLayoutXML(result2) {
                         var tableRecordList = result2['elements']['0']['elements']['1']['elements']
                         if (tableRecordList && !tableRecordList[0]['elements']) return
                         if (tableRecordList) {
-                            tableRecordList.forEach(function (records, tindex) {
-                                tableRecord(records['elements'], slotid, records['attributes'])
-                            })
+                            // CRITICAL FIX: tableRecordList should only have ONE item containing ALL rows
+                            // Each record in tableRecordList.forEach contains the complete dataset
+                            // Calling tableRecord multiple times appends duplicate row sets
+                            if (tableRecordList.length > 1) {
+                                console.warn('[layoutxml] ⚠️ Multiple table records detected:', tableRecordList.length, '- Only processing the first one to prevent duplicates');
+                            }
+                            
+                            // Only process the FIRST record which contains all the table rows
+                            if (tableRecordList[0] && tableRecordList[0]['elements']) {
+                                console.log('[layoutxml] Processing table record with', tableRecordList[0]['elements'].length, 'rows');
+                                tableRecord(tableRecordList[0]['elements'], slotid, tableRecordList[0]['attributes']);
+                            }
                         }
                     }
                 } catch (error) {
