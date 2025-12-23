@@ -54,10 +54,10 @@ class ErrorNotificationSystem {
         notification.id = id;
         
         const colors = {
-            error: { bg: '#dc3545', icon: '❌' },
-            warning: { bg: '#ffc107', icon: '⚠️' },
-            info: { bg: '#17a2b8', icon: 'ℹ️' },
-            success: { bg: '#28a745', icon: '✅' }
+            error: { bg: '#dc3545'},
+            warning: { bg: '#ffc107'},
+            info: { bg: '#17a2b8'},
+            success: { bg: '#28a745' }
         };
         
         const style = colors[type] || colors.error;
