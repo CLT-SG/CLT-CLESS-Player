@@ -664,24 +664,32 @@ async function tableRecord(slotitem, index, table) {
                     })
 
                     // Specifically target images inside the cells
+                    // FIXED: Added display flex and align-items to ensure vertical centering
                     $('.imagecol-' + rowIndex).css({
                         "white-space": "nowrap",
                         "width": "auto",
-                        "height": "auto",
+                        "height": "100%",
+                        "display": "flex",
+                        "align-items": "center",
+                        "justify-content": "center"
                     })
 
                     // Apply blinking transition (3 times) for image changes (skip first render)
-                    if (colImageCurIndex[compositeKey] >= 1) {
+                    // FIXED: Only apply blinking effect if there are multiple items to cycle through
+                    if (colImageCurIndex[compositeKey] >= 1 && colImageloop[compositeKey].length > 1) {
                         $('.' + colNumber + ' .imagecol-' + rowIndex + ' img')
                             .fadeOut(200).fadeIn(200)
                             .fadeOut(200).fadeIn(200)
                             .fadeOut(200).fadeIn(200);
                     }
 
-                    // go to the next column fader after 20 seconds
-                    colImageTimeout[compositeKey] = setTimeout(function () {
-                        changeColImageMedia(colNumber, rowIndex)
-                    }, 20000)
+                    // FIXED: Only set timeout for next image if there are multiple items
+                    // go to the next column image after 20 seconds
+                    if (colImageloop[compositeKey].length > 1) {
+                        colImageTimeout[compositeKey] = setTimeout(function () {
+                            changeColImageMedia(colNumber, rowIndex)
+                        }, 20000)
+                    }
                 }
 
                 //play next column fader after current column fader has finished
@@ -739,12 +747,18 @@ async function tableRecord(slotitem, index, table) {
                         "vertical-align": tableStyleVAlign,
                     })
 
-                    if (colFaderCurIndex[compositeKey] >= 1) $('.' + colNumber + ' .fadercol-' + rowIndex + ' #col-' + rowIndex).fadeIn(500).fadeOut(500).fadeIn(1500)
+                    // FIXED: Only apply fading effect if there are multiple items to cycle through
+                    if (colFaderCurIndex[compositeKey] >= 1 && colFaderloop[compositeKey].length > 1) {
+                        $('.' + colNumber + ' .fadercol-' + rowIndex + ' #col-' + rowIndex).fadeIn(500).fadeOut(500).fadeIn(1500)
+                    }
 
+                    // FIXED: Only set timeout for next fader if there are multiple items
                     // go to the next column fader after 20 seconds
-                    colFaderTimeout[compositeKey] = setTimeout(function () {
-                        changeColTextFader(colNumber, rowIndex)
-                    }, 20000)
+                    if (colFaderloop[compositeKey].length > 1) {
+                        colFaderTimeout[compositeKey] = setTimeout(function () {
+                            changeColTextFader(colNumber, rowIndex)
+                        }, 20000)
+                    }
                 }
 
                 // Append <col> with width, and apply other styles to <td>/<th>

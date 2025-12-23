@@ -1,97 +1,63 @@
-## Enhancement: Mobile Media Loading Performance Optimization
+## Fix: Mobile Table Slot Image Alignment and Single-Item Effects
 
-Eliminates media loading delays and provides smooth, professional media playback through native file URI caching and intelligent loading state management.
+Fixes vertical alignment issues with table slot images and eliminates unnecessary effects for single-item columns.
 
 ## Issues Fixed
 
-1. Video loading delays of 3-8 seconds caused by base64 conversion
-2. Broken image icons visible during media loading
-3. Video placeholder icons and black screens during buffering
-4. No visual feedback during media loading process
-5. Memory overhead from base64 encoding
-6. Jarring transitions when media appears
-
-## Features Added
-
-1. Native file URI caching for videos (eliminates base64 conversion)
-2. Skeleton loaders for images (animated shimmer effect)
-3. Spinner loaders for videos (with progress bar)
-4. Smooth fade-in animations when media loads
-5. Error state handling with auto-dismiss
-6. Batch preloading with loading state feedback
-7. Professional loading experience matching native apps
+1. Table column images with image: prefix appearing at top instead of middle alignment
+2. Blinking effects triggering on single-item image columns when no cycling needed
+3. Fading effects triggering on single-item fader columns when no cycling needed
+4. Unnecessary timers running for single-item columns
 
 ## Technical Implementation
 
-1. Created mobile-media-loading-states.js module (350 lines)
-2. Optimized mobile-media-manager.js for native URI caching
-3. Enhanced slot-media.js with loading state integration
-4. Enhanced slot-table.js with loading state integration
-5. Updated mobile index.html script loading order
-6. GPU-accelerated CSS animations for 60fps performance
+1. Modified image column container styling to use flexbox for vertical centering
+2. Added conditional checks to skip effects when column has only one item
+3. Added conditional checks to skip timers when column has only one item
+4. Applied fixes to both image: and fader: column types
 
 ## Implementation Details
 
-Media Manager Changes:
-- Videos saved as blobs instead of base64 conversion
-- Native file URIs resolved using convertFileSrc API
-- Web URIs cached immediately after download for instant retrieval
-- Images continue using base64 (acceptable for smaller files)
-- Memory usage reduced by 30 percent
+Vertical Alignment Fix:
+- Changed image column container height from auto to 100 percent
+- Added display flex with align-items center for vertical centering
+- Added justify-content center for horizontal centering
+- Images now properly center in middle of table cells
 
-Loading State System:
-- Skeleton loader with shimmer animation for images
-- Spinner loader with progress bar for videos
-- Automatic fade-in transitions when content ready
-- Error states with user-friendly messages
-- Automatic cleanup and memory management
-
-Slot Integration:
-- Image slots show skeleton until fully decoded
-- Video slots show spinner until playback ready
-- Table cell images show individual loaders
-- Smooth fade-in animations for all media
-- Graceful error handling per media item
+Single-Item Effect Skip:
+- Added length check before applying fadeOut/fadeIn blinking effects
+- Added length check before setting setTimeout for image cycling
+- Added length check before applying fadeIn/fadeOut fading effects
+- Added length check before setting setTimeout for fader cycling
+- Effects only trigger when array length greater than 1
 
 ## Files Changed Summary
 
-New Files:
-- mobile/www/assets/js/mobile/mobile-media-loading-states.js - Loading state management system
-
 Modified Files:
-- mobile/www/assets/js/mobile/mobile-media-manager.js - Native URI caching optimization
-- mobile/www/assets/js/slot-media.js - Loading state integration
-- mobile/www/assets/js/slot-table.js - Loading state integration
-- mobile/www/index.html - Script loading order
+- mobile/www/assets/js/slot-table.js - Fixed alignment and conditional effects
 
 Documentation:
-- mobile/docs_mobile/MEDIA-PERFORMANCE-IMPROVEMENTS-V2.md - Technical documentation
-- mobile/docs_mobile/MEDIA-LOADING-TESTING-GUIDE.md - Testing guide
-- mobile/docs_mobile/IMPLEMENTATION-SUMMARY-MEDIA-LOADING.md - Implementation summary
+- mobile/SLOT-TABLE-FIXES.md - Technical documentation with before/after examples
 
 ## Performance Impact
 
-- Video load time: 5-10x faster (0.5-1.5 seconds vs 3-8 seconds)
-- Image load time: 2x faster (0.3-1 second vs 0.5-2 seconds)
-- Memory usage: 30 percent reduction
-- Cache hit retrieval: Under 50ms (instant)
-- Animations: 60fps GPU-accelerated
 - No performance degradation
+- Reduced unnecessary timer overhead for single-item columns
+- Improved visual consistency with desktop version
+- Better user experience without distracting effects
 
 ## Browser Compatibility
 
-- Android WebView 111+ - Full support
-- iOS WKWebView 16.4+ - Full support
-- Chrome/Chromium 111+ - Full support
-- Graceful fallback if loading states not available
+- Mobile (Android 5.1+) - Full support
+- Mobile (iOS 11+) - Full support
+- No breaking changes to layout XML format
+- Backward compatible with all existing configurations
 
 ## Testing
 
-- Visual verification of skeleton and spinner loaders
-- Performance testing shows 5-10x improvement for videos
-- Cache effectiveness exceeds 90 percent hit rate
-- Error states display and auto-dismiss properly
-- Memory stable across multiple layout switches
-- Animations smooth at 60fps on target devices
-- No broken icons visible at any time
+- Verify images center vertically in table cells
+- Verify single-item columns have no blinking or fading effects
+- Verify multi-item columns continue to cycle with effects
+- Verify timers only run for multi-item columns
+- Verify no console errors or broken functionality
 

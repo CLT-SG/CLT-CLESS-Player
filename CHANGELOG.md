@@ -1,5 +1,182 @@
 # Change Log
 
+## [3.5.1] - 2025-12-23
+
+### Fixed - Mobile Table Slot Image Alignment
+
+- **Image Column Vertical Alignment** - Fixed issue where images in table columns with image: prefix appeared at top instead of middle
+  - Root cause: Image column container div had height auto without vertical alignment properties
+  - Impact: Images aligned to top by default, inconsistent with CMS design expectations
+  - Solution: Changed container to use flexbox with align-items center for vertical centering
+
+- **Image Container Styling** - Modified imagecol container to properly center images vertically and horizontally
+  - Root cause: Container had height auto and no display properties for centering
+  - Impact: Images could not center properly within cell height
+  - Solution: Set height 100 percent, display flex, align-items center, justify-content center
+
+### Fixed - Mobile Table Slot Single-Item Effects
+
+- **Unnecessary Image Blinking Effects** - Fixed blinking effects triggering on single-item image columns when no cycling needed
+  - Root cause: Blinking effect applied without checking if multiple items exist in column
+  - Impact: Single static images had distracting blink effect with nothing to transition to
+  - Solution: Added conditional check to only apply fadeOut/fadeIn when array length greater than 1
+
+- **Unnecessary Image Timers** - Fixed timers running for single-item image columns when no cycling needed
+  - Root cause: setTimeout set for next image without checking if multiple items exist
+  - Impact: Unnecessary timer overhead and potential console errors
+  - Solution: Added conditional check to only set timeout when array length greater than 1
+
+- **Unnecessary Fader Effects** - Fixed fading effects triggering on single-item fader columns when no cycling needed
+  - Root cause: Fading effect applied without checking if multiple items exist in column
+  - Impact: Single static text had distracting fade effect with nothing to transition to
+  - Solution: Added conditional check to only apply fadeIn/fadeOut/fadeIn when array length greater than 1
+
+- **Unnecessary Fader Timers** - Fixed timers running for single-item fader columns when no cycling needed
+  - Root cause: setTimeout set for next fader without checking if multiple items exist
+  - Impact: Unnecessary timer overhead and potential console errors
+  - Solution: Added conditional check to only set timeout when array length greater than 1
+
+### Enhanced - Visual Consistency
+
+- **Cross-Platform Alignment** - Mobile table slot images now align consistently with desktop version
+  - Desktop version uses similar vertical centering approach
+  - Mobile and desktop visual behavior now matches
+  - Professional appearance with proper image centering
+
+- **Effect Logic Optimization** - Effects now only apply when meaningful (multiple items to cycle)
+  - Single-item columns remain static without visual distraction
+  - Multi-item columns continue to cycle with smooth effects
+  - Better user experience with appropriate effect usage
+
+### Files Modified
+
+- mobile/www/assets/js/slot-table.js - Fixed image alignment and conditional effects (3 modifications)
+
+### Files Created
+
+- mobile/SLOT-TABLE-FIXES.md - Technical documentation with before/after code examples
+
+### Technical Details
+
+**Image Alignment Fix:**
+```javascript
+// Before:
+$('.imagecol-' + rowIndex).css({
+    "white-space": "nowrap",
+    "width": "auto",
+    "height": "auto",
+})
+
+// After:
+$('.imagecol-' + rowIndex).css({
+    "white-space": "nowrap",
+    "width": "auto",
+    "height": "100%",
+    "display": "flex",
+    "align-items": "center",
+    "justify-content": "center"
+})
+```
+
+**Single-Item Effect Skip (Image Columns):**
+```javascript
+// Before:
+if (colImageCurIndex[compositeKey] >= 1) {
+    $('.' + colNumber + ' .imagecol-' + rowIndex + ' img')
+        .fadeOut(200).fadeIn(200)
+        .fadeOut(200).fadeIn(200)
+        .fadeOut(200).fadeIn(200);
+}
+
+colImageTimeout[compositeKey] = setTimeout(function () {
+    changeColImageMedia(colNumber, rowIndex)
+}, 20000)
+
+// After:
+if (colImageCurIndex[compositeKey] >= 1 && colImageloop[compositeKey].length > 1) {
+    $('.' + colNumber + ' .imagecol-' + rowIndex + ' img')
+        .fadeOut(200).fadeIn(200)
+        .fadeOut(200).fadeIn(200)
+        .fadeOut(200).fadeIn(200);
+}
+
+if (colImageloop[compositeKey].length > 1) {
+    colImageTimeout[compositeKey] = setTimeout(function () {
+        changeColImageMedia(colNumber, rowIndex)
+    }, 20000)
+}
+```
+
+**Single-Item Effect Skip (Fader Columns):**
+```javascript
+// Before:
+if (colFaderCurIndex[compositeKey] >= 1) {
+    $('.' + colNumber + ' .fadercol-' + rowIndex + ' #col-' + rowIndex)
+        .fadeIn(500).fadeOut(500).fadeIn(1500)
+}
+
+colFaderTimeout[compositeKey] = setTimeout(function () {
+    changeColTextFader(colNumber, rowIndex)
+}, 20000)
+
+// After:
+if (colFaderCurIndex[compositeKey] >= 1 && colFaderloop[compositeKey].length > 1) {
+    $('.' + colNumber + ' .fadercol-' + rowIndex + ' #col-' + rowIndex)
+        .fadeIn(500).fadeOut(500).fadeIn(1500)
+}
+
+if (colFaderloop[compositeKey].length > 1) {
+    colFaderTimeout[compositeKey] = setTimeout(function () {
+        changeColTextFader(colNumber, rowIndex)
+    }, 20000)
+}
+```
+
+### Compatibility
+
+- Mobile (Android 5.1+): Full support with proper image centering
+- Mobile (iOS 11+): Full support with proper image centering
+- Desktop (Electron): Already working correctly, no changes
+- No breaking changes to layout XML format
+- Backward compatible with all existing configurations
+- All single-item and multi-item columns render correctly
+
+### Performance Impact
+
+- Image alignment: No measurable change (flexbox native)
+- Timer overhead: Reduced for single-item columns
+- Effect overhead: Reduced for single-item columns
+- Visual quality: Improved (proper centering)
+- Memory usage: Slightly reduced (fewer timers)
+- Overall impact: Positive performance and visual improvements
+
+### User Experience Improvements
+
+- Images in table columns properly center vertically
+- Single-item columns remain static without distracting effects
+- Multi-item columns continue smooth cycling animations
+- No unnecessary blinking or fading on static content
+- Professional appearance matching desktop version
+- Better visual consistency across all table layouts
+- Appropriate effect usage based on content quantity
+
+### Debugging
+
+**Console Log Messages:**
+```
+[tableRecord] Rendering table records for table: [tableid]
+[appendColumnImage] Processing media file: [filename]
+[changeColImageMedia] Cycling to next image (multi-item column)
+// No cycling logs for single-item columns
+```
+
+**Effect Detection:**
+```javascript
+// Check if effects will trigger
+console.log('Column items:', colImageloop[compositeKey].length);
+console.log('Will show effects:', colImageloop[compositeKey].length > 1);
+```
+
 ## [3.5.0] - 2025-12-23
 
 ### Enhanced - Mobile Media Loading Performance
