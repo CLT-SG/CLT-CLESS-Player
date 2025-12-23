@@ -18,12 +18,15 @@ class MobileLayoutHandler {
         this.layoutDimensions = null;
         this.scaleFactor = 1;
         this.isFullscreen = false;
+        this.lastAppliedScale = null;
+        this.lastViewportWidth = window.innerWidth;
+        this.lastViewportHeight = window.innerHeight;
+        this.isLayoutLocked = false; // Prevent resize handling after initial layout
         
-        // Listen for orientation changes
+        // Listen for orientation changes only (not resize)
         window.addEventListener('orientationchange', () => this.handleOrientationChange());
-        window.addEventListener('resize', () => this.handleResize());
         
-        console.log('[MobileLayoutHandler] Initialized');
+        console.log('[MobileLayoutHandler] Initialized - resize handling disabled to prevent viewport scale resets');
     }
     
     /**
@@ -78,6 +81,9 @@ class MobileLayoutHandler {
         // Apply dimensions to the main container
         this.applyDimensionsToContainer();
         
+        // Lock layout to prevent touch-triggered viewport changes
+        this.isLayoutLocked = true;
+        
         // Store globally for backward compatibility
         window.layoutDimensions = this.layoutDimensions;
         
@@ -85,6 +91,8 @@ class MobileLayoutHandler {
         window.dispatchEvent(new CustomEvent('mobile-layout-bounds-set', {
             detail: this.layoutDimensions
         }));
+        
+        console.log('[MobileLayoutHandler] Layout locked - viewport scale will not change on touch');
         
         return this.layoutDimensions;
     }
@@ -155,6 +163,13 @@ class MobileLayoutHandler {
     handleOrientationChange() {
         console.log('[MobileLayoutHandler] Orientation changed');
         
+        // Temporarily unlock layout for orientation change
+        this.isLayoutLocked = false;
+        
+        // Update viewport dimensions
+        this.lastViewportWidth = window.innerWidth;
+        this.lastViewportHeight = window.innerHeight;
+        
         // Wait for resize to complete
         setTimeout(() => {
             if (this.layoutDimensions && this.layoutDimensions.original) {
@@ -166,10 +181,32 @@ class MobileLayoutHandler {
     }
     
     /**
-     * Handle window resize
+     * Handle window resize (disabled for mobile to prevent touch-triggered viewport resets)
+     * Only processes resize if layout is unlocked (e.g., during orientation change)
      */
     handleResize() {
-        console.log('[MobileLayoutHandler] Window resized');
+        // Ignore resize events if layout is locked
+        if (this.isLayoutLocked) {
+            console.log('[MobileLayoutHandler] Resize ignored - layout is locked to prevent viewport scale reset');
+            return;
+        }
+        
+        const currentWidth = window.innerWidth;
+        const currentHeight = window.innerHeight;
+        
+        // Only process significant size changes (more than 100px difference)
+        const widthDiff = Math.abs(currentWidth - this.lastViewportWidth);
+        const heightDiff = Math.abs(currentHeight - this.lastViewportHeight);
+        
+        if (widthDiff < 100 && heightDiff < 100) {
+            console.log('[MobileLayoutHandler] Resize ignored - change too small:', widthDiff, 'x', heightDiff);
+            return;
+        }
+        
+        console.log('[MobileLayoutHandler] Significant resize detected:', widthDiff, 'x', heightDiff);
+        
+        this.lastViewportWidth = currentWidth;
+        this.lastViewportHeight = currentHeight;
         
         // Debounce resize handling
         clearTimeout(this._resizeTimeout);
@@ -218,6 +255,12 @@ class MobileLayoutHandler {
      * @param {number} scale - The maximum-scale value to apply
      */
     updateViewportScale(scale) {
+        // Don't reapply if scale hasn't changed
+        if (this.lastAppliedScale === scale) {
+            console.log('[MobileLayoutHandler] Viewport scale unchanged, skipping update:', scale);
+            return;
+        }
+        
         let viewportMeta = document.querySelector('meta[name="viewport"]');
         
         if (!viewportMeta) {
@@ -231,6 +274,7 @@ class MobileLayoutHandler {
         const viewportContent = `width=device-width, initial-scale=1.0, maximum-scale=${scale}, user-scalable=no`;
         viewportMeta.setAttribute('content', viewportContent);
         
+        this.lastAppliedScale = scale;
         console.log('[MobileLayoutHandler] Viewport updated:', viewportContent);
     }
     
@@ -238,13 +282,111 @@ class MobileLayoutHandler {
      * Reset viewport to default (for autoscale mode)
      */
     resetViewportScale() {
+        // Don't reapply if already at default scale
+        if (this.lastAppliedScale === 1.0) {
+            console.log('[MobileLayoutHandler] Viewport already at default scale, skipping reset');
+            return;
+        }
+        
         let viewportMeta = document.querySelector('meta[name="viewport"]');
         
         if (viewportMeta) {
             const viewportContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
             viewportMeta.setAttribute('content', viewportContent);
+            this.lastAppliedScale = 1.0;
             console.log('[MobileLayoutHandler] Viewport reset to default');
         }
+    }
+    
+    /**
+     * Restore viewport scale to the last applied scale
+     * This is useful when viewport gets accidentally reset by user interaction
+     */
+    restoreViewportScale() {
+        console.log('[MobileLayoutHandler] Manual viewport restore requested');
+        
+        if (!this.layoutDimensions || this.isFullscreen) {
+            console.log('[MobileLayoutHandler] Cannot restore - no fixed layout or in fullscreen mode');
+            return;
+        }
+        
+        // Force recalculation
+        const optimalScale = this.calculateViewportScale(
+            this.layoutDimensions.width, 
+            this.layoutDimensions.height
+        );
+        
+        // Clear last applied scale to force update
+        this.lastAppliedScale = null;
+        
+        // Reapply viewport scale
+        this.updateViewportScale(optimalScale);
+        
+        console.log('[MobileLayoutHandler] Viewport scale restored to:', optimalScale);
+        
+        // Show notification
+        this.showNotification('Viewport scale restored to ' + optimalScale);
+    }
+    
+    /**
+     * Show a temporary notification
+     * @param {string} message - Message to display
+     */
+    showNotification(message) {
+        const notification = document.createElement('div');
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 70px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            z-index: 100000;
+            pointer-events: none;
+            animation: slideIn 0.3s ease;
+        `;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 3000);
+    }
+    
+    /**
+     * Start monitoring viewport changes (detects external modifications)
+     */
+    startViewportMonitoring() {
+        // Check viewport every 2 seconds for unexpected changes
+        setInterval(() => {
+            const viewportMeta = document.querySelector('meta[name="viewport"]');
+            if (viewportMeta) {
+                const content = viewportMeta.getAttribute('content');
+                const maxScaleMatch = content.match(/maximum-scale=([0-9.]+)/);
+                
+                if (maxScaleMatch) {
+                    const currentMaxScale = parseFloat(maxScaleMatch[1]);
+                    
+                    // Check if viewport was reset unexpectedly
+                    if (this.lastAppliedScale && currentMaxScale !== this.lastAppliedScale && !this.isFullscreen) {
+                        console.warn('[MobileLayoutHandler] Viewport scale was externally modified!');
+                        console.warn('  Expected:', this.lastAppliedScale);
+                        console.warn('  Current:', currentMaxScale);
+                        console.warn('  Viewport content:', content);
+                        
+                        // Show warning notification
+                        this.showNotification('⚠️ Viewport scale was reset! Tap "Fix Zoom" button to restore.');
+                    }
+                }
+            }
+        }, 2000);
+        
+        console.log('[MobileLayoutHandler] Viewport monitoring started');
     }
     
     /**
@@ -263,6 +405,9 @@ window.mobileLayoutHandler = new MobileLayoutHandler();
 
 console.log('[MobileLayoutHandler] Global instance created');
 console.log('[MobileLayoutHandler] Is mobile device:', MobileLayoutHandler.isMobile());
+
+// Start monitoring viewport for unexpected changes
+window.mobileLayoutHandler.startViewportMonitoring();
 
 // Export for module systems
 if (typeof module !== 'undefined' && module.exports) {

@@ -114,7 +114,8 @@ function getLayoutXML(result2) {
     console.log('[LayoutXML] Media path:', mediapath);
 
     //custom background - CREATE #main FIRST before any dimension calculations
-    $('body *').not('.no-network').remove()
+    // IMPORTANT: Preserve mobile-nav, loading-overlay, and no-network elements
+    $('body > *').not('.no-network, #mobile-nav, #loading-overlay').remove()
     $('body').append('<div id="main"></div>')
     $('#main').css({
         "background-color": "black",
