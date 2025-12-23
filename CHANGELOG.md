@@ -1,5 +1,107 @@
 # Change Log
 
+## [3.3.7] - 2025-12-23
+
+### Fixed - Mobile Table Row Collection with Async Loops
+
+- **Table Row Collection Failure** - Fixed issue where mobile tables collected 0 rows despite having data, causing empty display and pagination failure
+  - Root cause: Async for...of loops with await statements created timing issues where row collection executed before DOM fully settled
+  - Mobile version used async loops while Electron version used synchronous forEach, causing behavioral differences
+  - Solution: Replaced async for...of loops with synchronous forEach to match Electron pattern
+
+- **Media Preloading Blocking Render** - Fixed media preloading blocking table row collection until completion
+  - Root cause: await window.mediaManager.preloadMediaBatch() blocked execution flow
+  - Media loading delays prevented timely row collection from DOM
+  - Solution: Made media preloading non-blocking (fire and forget) to allow immediate row collection
+
+- **Async Loop Timing Issues** - Fixed DOM access timing problems caused by async/await in rendering loops
+  - Root cause: for...of loops with await created unpredictable execution order
+  - jQuery selectors executed before rows fully appended to tbody
+  - Solution: Synchronous forEach ensures sequential execution and immediate DOM availability
+
+### Enhanced - Table Rendering Performance
+
+- **Non-Blocking Media Loads** - Media preloading now happens in background without blocking table display
+  - Images preload asynchronously while table renders immediately
+  - Users see table content faster while media loads progressively
+  - No await on preloadMediaBatch() or appendColumnImage() calls
+
+- **Synchronous Row Rendering** - Table rows now render synchronously like Electron version
+  - Outer loop: Changed from for (const [xindex, row] of slotitem.entries()) to slotitem.forEach(function (row, xindex) {})
+  - Inner loop: Changed from for (const [zindex, col] of objColList.entries()) to objColList.forEach(function (col, zindex) {})
+  - Ensures predictable execution order and immediate DOM access
+
+### Files Modified
+
+- mobile/www/assets/js/slot-table.js - Replaced async loops with synchronous forEach, made media loading non-blocking
+
+### Technical Details
+
+**Before (Broken - Async):**
+```javascript
+for (const [xindex, row] of slotitem.entries()) {
+    for (const [zindex, col] of objColList.entries()) {
+        await window.mediaManager.preloadMediaBatch(...)
+        await appendColumnImage(...)
+    }
+}
+$('.slot-tbody-' + tableid).find('tr').each(...) // Found 0 rows!
+```
+
+**After (Fixed - Synchronous):**
+```javascript
+slotitem.forEach(function (row, xindex) {
+    objColList.forEach(function (col, zindex) {
+        window.mediaManager.preloadMediaBatch(...) // Non-blocking
+        appendColumnImage(...) // Synchronous
+    })
+})
+$('.slot-tbody-' + tableid).find('tr').each(...) // Finds all rows!
+```
+
+**Loop Changes:**
+- Outer loop: `for...of` → `forEach` (synchronous)
+- Inner loop: `for...of` → `forEach` (synchronous)
+- Media preload: `await` → fire and forget (non-blocking)
+- Image append: `await` → synchronous call
+
+### Compatibility
+
+- Mobile (Android 5.1+): Full support with fixed row collection
+- No breaking changes to layout XML format
+- Backward compatible with all table configurations
+- Works with image columns, fader columns, and text columns
+- Compatible with pagination and page flipping
+
+### Performance Impact
+
+- Table display: Faster (no blocking on media loads)
+- Media loading: Same speed but non-blocking
+- Row collection: Immediate (was 0 rows, now correct count)
+- Pagination: Works correctly with proper row counts
+- No measurable performance degradation
+
+### User Experience Improvements
+
+- Tables now display all rows correctly on mobile
+- Pagination shows accurate page counts (e.g., Page 1/3 instead of empty)
+- Page flipping works smoothly with correct data
+- Table content appears faster (media loads in background)
+- No more empty tables despite having data in XML
+- Consistent behavior with Electron desktop version
+
+### Debugging
+
+Console Log Messages:
+```
+[tableRecord] Rendering table records for table: 207 with 70 unique rows
+[tableRecord] tbody initialized - confirmed empty, ready for 70 rows
+[tableRecord] Collecting rows for table: 207
+[tableRecord] DEBUG: Found 70 tr elements in tbody
+[tableRecord] Collected 70 rows into pagerow array
+[tableRecord] Setting up pagination for table: 207 - Total rows: 70
+```
+
 ## [3.3.6] - 2025-12-22
 
 ### Fixed - Mobile Touch Zoom and Viewport Scale Management
