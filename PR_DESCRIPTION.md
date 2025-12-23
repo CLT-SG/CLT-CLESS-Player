@@ -1,46 +1,43 @@
-## Fix: Mobile Duplicate Initialization on Startup
+## Fix: Mobile PNG Image Transparency - Remove Black Background
 
-Addresses issue where mobile app initialization ran twice on startup, causing duplicate notifications and potential race conditions.
+Addresses issue where PNG images with transparency displayed a black background instead of being transparent in the mobile app.
 
 ## Issues Fixed
 
-1. Connected notification appeared twice on mobile app startup
-2. initializeWithConfig() called from two locations simultaneously
-3. playcheckNetwork() executed twice due to duplicate initialization
-4. Potential race conditions from concurrent app initialization flows
-5. No guard mechanism to prevent duplicate initialization
+1. PNG images with transparent areas showed black background in mobile app
+2. Main container initialized with black background before layout background color applied
+3. Transparent slots displayed black background underneath transparent images
+4. Mobile behavior inconsistent with desktop Electron app which had no black background
+5. Layout background briefly flashed black during initialization
 
 ## Technical Changes
 
-1. Added isAppInitialized guard flag to prevent duplicate initialization
-2. Modified initializeWithConfig() to check guard flag and return early if already initialized
-3. Guard flag set to true on first successful initialization
-4. Follows singleton pattern for app initialization lifecycle
-5. Matches Electron desktop version's single initialization pattern
+1. Changed main container initial background-color from black to transparent in layoutxml.js
+2. Removed hardcoded black background initialization at line 131
+3. Transparent background maintained until actual layout background color loads from server
+4. Ensures PNG transparency renders correctly without black showing through
+5. Matches desktop Electron app behavior for consistent cross-platform experience
 
 ## Root Cause
 
-The app had two initialization paths:
-- configLoaded event listener at line 251 (when config loads asynchronously)
-- Fallback check at line 1119 (checking if config already loaded)
-
-Both paths called initializeWithConfig() leading to duplicate execution of:
-- validateActivation()
-- startApplication()
-- playcheckNetwork()
-- Success notification display
+The mobile app's layoutxml.js set a temporary black background on the main container:
+- Line 131: $('#main').css({ "background-color": "black" })
+- This black background persisted behind transparent elements
+- Later, line 196 applied actual layout background color from server
+- Gap between initialization and server config caused black to show through transparent PNGs
+- Desktop version never had this black background initialization
 
 ## Files Changed Summary
 
 Mobile App:
-- mobile/www/index.html - Added isAppInitialized guard flag and duplicate prevention logic in initializeWithConfig()
+- mobile/www/assets/js/layoutxml.js - Changed background-color from black to transparent on line 131
 
 ## Testing
 
-- Verified Connected notification appears only once on startup
-- Confirmed no duplicate playcheckNetwork() calls
-- Tested both initialization paths (event listener and fallback)
-- Ensured app starts correctly without race conditions
-- Validated guard flag prevents duplicate initialization
-- Console logs show single initialization sequence
+- Verified PNG images with transparency render without black background
+- Confirmed transparent slots show proper background
+- Tested layout initialization with various background colors
+- Ensured server background color still applies correctly at line 196
+- Validated behavior matches desktop Electron app
+- No visual artifacts or background color issues
 
