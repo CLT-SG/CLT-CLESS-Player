@@ -499,27 +499,59 @@ async function tableRecord(slotitem, index, table) {
 
                     var renderEl = '';
                     var mediaFileName = item.text;
+                    const loaderId = `table-img-${tableid}-${compositeKey}-${Date.now()}`;
 
                     console.log('[appendColumnImage] Processing media file:', mediaFileName, 'for column:', colNumber, 'rowIndex:', rowIndex, 'key:', compositeKey);
+
+                    // Show skeleton loader while loading
+                    const cellContainer = $('.' + colNumber + ' .imagecol-' + rowIndex)[0];
+                    if (window.mediaLoadingStates && cellContainer) {
+                        const loader = window.mediaLoadingStates.createImageLoader(cellContainer, loaderId);
+                        $(cellContainer).html(loader);
+                    }
 
                     // Check if this is an external URL
                     const isExternalUrl = isExternalMediaUrl(mediaFileName);
 
-                    if (isExternalUrl) {
-                        // External URL - use directly without caching
-                        console.log('[appendColumnImage] ✓ External URL detected:', mediaFileName);
-                        renderEl = '<img src="' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous" onload="console.log(\'External image loaded\')" onerror="console.error(\'External image load error\')">';
-                    } else {
-                        // Local file - use media manager with base64 support
-                        try {
+                    try {
+                        if (isExternalUrl) {
+                            // External URL - use directly without caching
+                            console.log('[appendColumnImage] ✓ External URL detected:', mediaFileName);
+                            
+                            // Create and load image with proper error handling
+                            const img = new Image();
+                            img.style.maxHeight = bodyRowHeight + 'px';
+                            img.style.width = 'auto';
+                            img.style.height = 'auto';
+                            img.crossOrigin = 'anonymous';
+                            
+                            img.onload = function() {
+                                console.log('External image loaded');
+                                if (window.mediaLoadingStates) {
+                                    window.mediaLoadingStates.removeLoader(loaderId, img);
+                                }
+                                $(cellContainer).html(img);
+                            };
+                            
+                            img.onerror = function() {
+                                console.error('External image load error');
+                                if (window.mediaLoadingStates) {
+                                    window.mediaLoadingStates.showError(loaderId, 'Failed to load');
+                                }
+                            };
+                            
+                            img.src = mediaFileName;
+                            return; // Exit early for external URLs
+                            
+                        } else {
+                            // Local file - use media manager with base64 support
+                            let mediaUri = null;
+                            
                             if (window.mediaManager) {
                                 // Use smart URI getter (handles cache, base64, etc.)
-                                const mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
+                                mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
 
-                                if (mediaUri) {
-                                    console.log('[appendColumnImage] ✓ Got media URI from mediaManager (cached/base64)');
-                                    renderEl = '<img src="' + mediaUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" onload="console.log(\'Image loaded from cache\')" onerror="console.error(\'Image load error\')">';
-                                } else {
+                                if (!mediaUri) {
                                     console.warn('[appendColumnImage] Failed to get media URI, trying direct download');
                                     // Try downloading if not in cache
                                     if (window.config && window.config.hostserver) {
@@ -528,15 +560,12 @@ async function tableRecord(slotitem, index, table) {
                                         const downloadUrl = baseUrl + '/res/' + mediaFileName;
 
                                         await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
-                                        const retryUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
+                                        mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
 
-                                        if (retryUri) {
-                                            console.log('[appendColumnImage] ✓ Downloaded and got URI after retry');
-                                            renderEl = '<img src="' + retryUri + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;">';
-                                        } else {
+                                        if (!mediaUri) {
                                             // Final fallback: direct URL
                                             console.warn('[appendColumnImage] Using direct URL fallback');
-                                            renderEl = '<img src="' + downloadUrl + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
+                                            mediaUri = downloadUrl;
                                         }
                                     }
                                 }
@@ -546,25 +575,68 @@ async function tableRecord(slotitem, index, table) {
                                 if (window.config && window.config.hostserver) {
                                     const serverAdd = window.config.hostserver.split('/');
                                     const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                    renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
-                                    console.log('[appendColumnImage] Using server URL:', baseUrl + '/res/' + mediaFileName);
-                                } else {
-                                    console.error('[appendColumnImage] No config available for server URL');
+                                    mediaUri = baseUrl + '/res/' + mediaFileName;
+                                    console.log('[appendColumnImage] Using server URL:', mediaUri);
                                 }
                             }
-                        } catch (error) {
-                            console.error('[appendColumnImage] Media error:', error);
-                            // Fallback to direct URL
-                            if (window.config && window.config.hostserver) {
-                                const serverAdd = window.config.hostserver.split('/');
-                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                renderEl = '<img src="' + baseUrl + '/res/' + mediaFileName + '" style="max-height: ' + bodyRowHeight + 'px; width: auto; height: auto;" crossorigin="anonymous">';
-                                console.log('[appendColumnImage] Using direct URL after error');
+
+                            if (mediaUri) {
+                                // Create and load image with proper error handling
+                                const img = new Image();
+                                img.style.maxHeight = bodyRowHeight + 'px';
+                                img.style.width = 'auto';
+                                img.style.height = 'auto';
+                                
+                                img.onload = function() {
+                                    console.log('Image loaded from cache/server');
+                                    if (window.mediaLoadingStates) {
+                                        window.mediaLoadingStates.removeLoader(loaderId, img);
+                                    }
+                                    $(cellContainer).html(img);
+                                };
+                                
+                                img.onerror = function() {
+                                    console.error('Image load error');
+                                    if (window.mediaLoadingStates) {
+                                        window.mediaLoadingStates.showError(loaderId, 'Failed to load');
+                                    }
+                                };
+                                
+                                img.src = mediaUri;
+                            } else {
+                                throw new Error('No media URI available');
                             }
                         }
+                    } catch (error) {
+                        console.error('[appendColumnImage] Media error:', error);
+                        
+                        if (window.mediaLoadingStates) {
+                            window.mediaLoadingStates.showError(loaderId, 'Error loading image');
+                        }
+                        
+                        // Fallback to direct URL as last resort
+                        if (!isExternalUrl && window.config && window.config.hostserver) {
+                            const serverAdd = window.config.hostserver.split('/');
+                            const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                            const fallbackUrl = baseUrl + '/res/' + mediaFileName;
+                            
+                            const img = new Image();
+                            img.style.maxHeight = bodyRowHeight + 'px';
+                            img.style.width = 'auto';
+                            img.style.height = 'auto';
+                            img.crossOrigin = 'anonymous';
+                            
+                            img.onload = function() {
+                                if (window.mediaLoadingStates) {
+                                    window.mediaLoadingStates.removeLoader(loaderId, img);
+                                }
+                                $(cellContainer).html(img);
+                            };
+                            
+                            img.src = fallbackUrl;
+                            console.log('[appendColumnImage] Using direct URL after error:', fallbackUrl);
+                        }
                     }
-
-                    $('.' + colNumber + ' .imagecol-' + rowIndex).html(renderEl)
 
                     //row table height
                     $('.slot-tbody-' + tableid).find('tr').css({
