@@ -9,12 +9,13 @@
  * - Provide import progress feedback
  * - Notify MediaManager to reload cache index after successful imports
  * 
- * OPTIMIZATIONS (matches mobile-media-manager.js):
- * - Videos: Direct blob storage (no base64 conversion) for 5-10x faster processing
- * - Images: Base64 conversion (acceptable for smaller files)
+ * OPTIMIZATION (Updated):
+ * - ALL media types (images + videos): Direct blob storage without base64 conversion
+ * - Prevents memory crashes with large images (5MB+)
  * - Native file URI generation using convertFileSrc for instant playback
  * - Automatic URI caching in MediaManager for immediate access
  * - Proper cache invalidation when replacing existing files
+ * - All files stored in ecless/media/cache directory
  * 
  * @module mobile-media-import
  */
@@ -291,7 +292,8 @@ class MobileMediaImportManager {
 
     /**
      * Import a single media file
-     * OPTIMIZED: Uses blob storage + native URI (matches mobile-media-manager.js strategy)
+     * OPTIMIZED: Uses blob storage for ALL media types (matches mobile-media-manager.js strategy)
+     * Previously images used base64, but this causes memory crashes with large files (5MB+)
      * @param {File} file - File object to import
      * @returns {Promise<Object>} Import result with URI info
      */
@@ -302,18 +304,10 @@ class MobileMediaImportManager {
         const filePath = `${this.mediaDir}/${file.name}`;
         
         try {
-            // Determine write strategy based on file type (matches MediaManager)
-            let writeData;
-            
-            if (isVideo) {
-                // Videos: Write blob directly (most efficient, no base64 conversion)
-                console.log(`MediaImportManager: Writing video as blob (optimized): ${file.name}`);
-                writeData = file; // File object is already a Blob
-            } else {
-                // Images: Convert to base64 (smaller files, acceptable)
-                console.log(`MediaImportManager: Converting image to base64: ${file.name}`);
-                writeData = await this._fileToBase64(file);
-            }
+            // CRITICAL: Use blob storage for ALL media types to prevent memory issues
+            // File object is already a Blob, so we can write it directly
+            console.log(`MediaImportManager: Writing ${isVideo ? 'video' : 'image'} as blob (optimized): ${file.name}`);
+            let writeData = file; // File extends Blob - can be used directly
             
             // Write file using Capacitor API
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
@@ -402,10 +396,14 @@ class MobileMediaImportManager {
     
     /**
      * Convert File to Base64 string
+     * @deprecated This method is kept for backward compatibility but should NOT be used.
+     * All media (images + videos) now use direct blob storage without base64 conversion.
+     * WARNING: Converting large files (5MB+) to base64 can cause memory crashes.
      * @param {File} file - File object to convert
      * @returns {Promise<string>} Base64 encoded string (without data URL prefix)
      */
     _fileToBase64(file) {
+        console.warn('[MediaImportManager] WARNING: Using deprecated _fileToBase64 method. Use blob storage instead.');
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             

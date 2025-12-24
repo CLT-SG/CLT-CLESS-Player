@@ -11,6 +11,13 @@
  * - Track download progress and errors
  * - Manage media cache (check existence, clear cache, etc.)
  * 
+ * OPTIMIZATION (Updated):
+ * - ALL media types (images + videos): Direct blob storage without base64 conversion
+ * - Prevents memory crashes with large images (5MB+)
+ * - Native file URI generation using convertFileSrc for instant playback
+ * - Automatic URI caching for immediate access
+ * - All files stored in ecless/media/cache directory
+ * 
  * @module mobile-media-manager
  */
 
@@ -302,20 +309,14 @@ class MobileMediaManager {
                 blob = await response.blob();
             }
             
-            // CRITICAL OPTIMIZATION: Save as blob directly (no base64 conversion for videos)
+            // CRITICAL OPTIMIZATION: Save as blob directly for ALL media types (no base64 conversion)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
-                // Determine write strategy based on file type
-                let writeData;
+                // Use blob storage for both images and videos to prevent memory issues
+                // Previously images used base64, but this causes crashes with large files (5MB+)
+                console.log('[MediaManager] Writing media as blob (optimized) for:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
                 
-                if (isVideo) {
-                    // Videos: Write blob directly (most efficient)
-                    console.log('[MediaManager] Writing video as blob (optimized):', safeFilename);
-                    writeData = blob;
-                } else {
-                    // Images: Can use base64 (smaller files, acceptable)
-                    console.log('[MediaManager] Converting image to base64:', safeFilename);
-                    writeData = await this._blobToBase64(blob);
-                }
+                // Write blob directly - works for all media types
+                let writeData = blob;
 
                 // Write file and capture result
                 let writeResult = await window.capacitorAPI.writeFile(filePath, writeData);
@@ -402,6 +403,8 @@ class MobileMediaManager {
 
     /**
      * Convert Blob to Base64 string
+     * @deprecated This method is kept for backward compatibility but is no longer used.
+     * All media (images + videos) now use direct blob storage without base64 conversion.
      */
     _blobToBase64(blob) {
         return new Promise((resolve, reject) => {
@@ -427,7 +430,8 @@ class MobileMediaManager {
     /**
      * Get web-accessible URI for a cached media file
      * This converts the filesystem path to a usable URL for img/video elements
-     * OPTIMIZED: Uses in-memory cache to avoid repeated base64 conversions
+     * OPTIMIZED: Uses in-memory cache to avoid repeated conversions
+     * UPDATED: Prefers native URIs for both images and videos (no data URI conversion for large files)
      */
     async getMediaUri(filename) {
         try {
@@ -453,9 +457,12 @@ class MobileMediaManager {
             // Determine extension for handling
             const ext = safeFilename.split('.').pop().toLowerCase();
             const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
+            const imageExts = ['jpg','jpeg','png','gif','webp','bmp'];
+            const isVideo = videoExts.includes(ext);
+            const isImage = imageExts.includes(ext);
 
-            // Prefer using Capacitor's native URI conversion for video files on device
-            if (videoExts.includes(ext) && window.capacitorAPI && window.capacitorAPI.isNative) {
+            // UPDATED: Use native URI for BOTH images and videos on device (no data URI conversion)
+            if ((isVideo || isImage) && window.capacitorAPI && window.capacitorAPI.isNative) {
                 let mediaUri = null;
 
                 try {
@@ -472,7 +479,7 @@ class MobileMediaManager {
                         }
                     }
                 } catch (err) {
-                    console.warn('MediaManager: getUri/convertFileSrc failed, will fallback to data URI:', err && err.message ? err.message : err);
+                    console.warn('[MediaManager] getUri/convertFileSrc failed, will try alternative methods:', err && err.message ? err.message : err);
                 }
 
                 // If still not resolved and convertFileSrc is available, try convertFileSrc directly
@@ -480,13 +487,13 @@ class MobileMediaManager {
                     try {
                         mediaUri = window.capacitorAPI.convertFileSrc(filePath);
                     } catch (err) {
-                        console.warn('MediaManager: convertFileSrc(filePath) failed:', err && err.message ? err.message : err);
+                        console.warn('[MediaManager] convertFileSrc(filePath) failed:', err && err.message ? err.message : err);
                     }
                 }
 
                 if (mediaUri) {
                     this.uriCache.set(safeFilename, mediaUri);
-                    console.log('[MediaManager] Returning native URI for video:', safeFilename, mediaUri);
+                    console.log(`[MediaManager] Returning native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, mediaUri);
                     return mediaUri;
                 }
 
@@ -497,15 +504,15 @@ class MobileMediaManager {
                         const converted = window.capacitorAPI.convertFileSrc(recordedNative);
                         if (converted) {
                             this.uriCache.set(safeFilename, converted);
-                            console.log('[MediaManager] Returning converted recorded native URI for video:', safeFilename, converted);
+                            console.log(`[MediaManager] Returning converted recorded native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, converted);
                             return converted;
                         }
                     } catch (err) {
-                        console.warn('MediaManager: convertFileSrc(recordedNative) failed:', err && err.message ? err.message : err);
+                        console.warn('[MediaManager] convertFileSrc(recordedNative) failed:', err && err.message ? err.message : err);
                     }
                 }
 
-                console.warn('[MediaManager] Native file URI unavailable for video, will not convert to data URI (unsafe):', safeFilename);
+                console.warn('[MediaManager] Native file URI unavailable for media, will not convert to data URI:', safeFilename);
 
                 // Diagnostic dump to aid debugging playback issues
                 try {
@@ -534,7 +541,7 @@ class MobileMediaManager {
                                         return converted;
                                     }
                                 } catch (err) {
-                                    console.warn('MediaManager: convertFileSrc(getUri) failed:', err && err.message ? err.message : err);
+                                    console.warn('[MediaManager] convertFileSrc(getUri) failed:', err && err.message ? err.message : err);
                                 }
                             } else {
                                 console.warn('[MediaManager] convertFileSrc not available; returning native URI directly:', nativeFromGetUri);
@@ -544,27 +551,17 @@ class MobileMediaManager {
                         }
                     }
                 } catch (err) {
-                    console.warn('MediaManager: getUri(filePath) final attempt failed:', err && err.message ? err.message : err);
+                    console.warn('[MediaManager] getUri(filePath) final attempt failed:', err && err.message ? err.message : err);
                 }
+                
+                // Record fallback event
+                this.stats.fallbackCount = (this.stats.fallbackCount || 0) + 1;
+                console.warn('[MediaManager] All native URI methods exhausted for:', safeFilename);
+                return null;
             }
 
-            // Otherwise: images or web fallback
-            let mediaUri = null;
-            if (window.capacitorAPI && window.capacitorAPI.isNative) {
-                // For native apps, we will not convert videos to data URIs; for images only
-                try {
-                    mediaUri = await this._getFileAsDataUri(filePath);
-                } catch (err) {
-                    console.warn('MediaManager: data URI conversion failed (as expected) for:', safeFilename, err && err.message ? err.message : err);
-                    // Record fallback event
-                    try { this.stats.fallbackCount = (this.stats.fallbackCount || 0) + 1; } catch (e) {}
-                    // Do not throw further - return null so caller can fallback to remote URL
-                    return null;
-                }
-            } else {
-                // For web, return the path directly
-                mediaUri = filePath;
-            }
+            // For web platform, return the path directly
+            let mediaUri = filePath;
 
             // Store in URI cache for fast subsequent access
             if (mediaUri) {
@@ -575,13 +572,16 @@ class MobileMediaManager {
             return mediaUri;
             
         } catch (error) {
-            console.error('MediaManager: Error getting media URI:', error);
+            console.error('[MediaManager] Error getting media URI:', error);
             return null;
         }
     }
 
     /**
      * Read file and convert to data URI
+     * @deprecated This method should NOT be used for most cases. Native URIs are preferred.
+     * WARNING: Converting large images (5MB+) to data URIs can cause memory crashes.
+     * Only use for small images when native URIs are unavailable.
      */
     async _getFileAsDataUri(filePath) {
         try {
@@ -593,10 +593,13 @@ class MobileMediaManager {
             const ext = filePath.split('.').pop().toLowerCase();
             const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
 
-            // Safety: refuse to convert video files into data URIs because they are large and will crash playback.
+            // Safety: refuse to convert video files into data URIs because they are large and will crash playback
             if (videoExts.includes(ext)) {
                 throw new Error('Refusing to convert video file to data URI; use convertFileSrc/getUri instead');
             }
+            
+            // Safety: warn about potential memory issues with large images
+            console.warn('[MediaManager] Converting file to data URI (not recommended for large files):', filePath);
 
             const data = await window.capacitorAPI.readFile(filePath);
 
@@ -615,7 +618,7 @@ class MobileMediaManager {
             return `data:${mimeType};base64,${data}`;
             
         } catch (error) {
-            console.error('MediaManager: Error reading file as data URI:', error);
+            console.error('[MediaManager] Error reading file as data URI:', error);
             throw error;
         }
     }

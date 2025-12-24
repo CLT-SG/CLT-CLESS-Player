@@ -618,7 +618,7 @@ async function appendMediaElement(asset, previewele, slotid) {
         img.style.objectFit = "fill";
         
         img.onload = function() {
-            console.log('Image loaded successfully');
+            console.log('[appendMediaElement] Image loaded successfully filename:', asset.filename || 'N/A');
             // Remove loader and show image with fade-in
             if (window.mediaLoadingStates) {
                 window.mediaLoadingStates.removeLoader(loaderId, img);
@@ -635,9 +635,9 @@ async function appendMediaElement(asset, previewele, slotid) {
         };
         
         img.onerror = function() {
-            console.error('[appendMediaElement] Image load error for', sanitizeMediaUrlForLog(asset.contentUrl));
+            console.error('[appendMediaElement] Image load error for filename:', asset.filename || 'N/A', 'src:', sanitizeMediaUrlForLog(asset.contentUrl));
             if (window.mediaLoadingStates) {
-                window.mediaLoadingStates.showError(loaderId, `[appendMediaElement] Failed to load image`);
+                window.mediaLoadingStates.showError(loaderId, `[appendMediaElement] Failed to load image filename: ${asset.filename || 'N/A'}`);
                 setTimeout(() => {
                     window.mediaLoadingStates.removeLoader(loaderId);
                     // Try next media on error

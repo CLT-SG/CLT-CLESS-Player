@@ -920,12 +920,10 @@ class CapacitorAPI {
      */
     async readFile(path, directory = Directory.Data) {
         try {
-            // Use DATA directory by default for app-private storage (no permissions needed)
             const targetDir = directory || Directory.Data;
             const result = await Filesystem.readFile({
                 path,
                 directory: targetDir,
-                encoding: Encoding.UTF8
             });
             return result.data;
         } catch (error) {
@@ -939,19 +937,14 @@ class CapacitorAPI {
      */
     async writeFile(path, data, directory = Directory.Data) {
         try {
-            // Use DATA directory by default for app-private storage (no permissions needed)
             const targetDir = directory || Directory.Data;
-            
             console.log(`Writing file to ${targetDir}: ${path}`);
-            
             await Filesystem.writeFile({
                 path,
                 data,
                 directory: targetDir,
-                encoding: Encoding.UTF8,
                 recursive: true
             });
-            
             console.log(`Successfully wrote file to ${targetDir}: ${path}`);
             return true;
         } catch (error) {
@@ -1134,6 +1127,79 @@ class CapacitorAPI {
             await StatusBar.setStyle({ style });
         } catch (error) {
             console.warn('Failed to set status bar style:', error);
+        }
+    }
+    
+    /**
+     * Kiosk mode and full-screen controls
+     */
+    async enableKioskMode() {
+        console.log('CapacitorAPI: Enabling kiosk mode...');
+        
+        try {
+            // Hide status bar
+            await this.hideStatusBar();
+            
+            // Request fullscreen (HTML5 Fullscreen API)
+            const element = document.documentElement;
+            if (element.requestFullscreen) {
+                await element.requestFullscreen();
+            } else if (element.webkitRequestFullscreen) {
+                await element.webkitRequestFullscreen();
+            } else if (element.mozRequestFullScreen) {
+                await element.mozRequestFullScreen();
+            }
+            
+            console.log('CapacitorAPI: Kiosk mode enabled');
+            return true;
+        } catch (error) {
+            console.warn('CapacitorAPI: Failed to enable kiosk mode:', error);
+            return false;
+        }
+    }
+    
+    async disableKioskMode() {
+        console.log('CapacitorAPI: Disabling kiosk mode...');
+        
+        try {
+            // Show status bar
+            await this.showStatusBar();
+            
+            // Exit fullscreen
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                await document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                await document.mozCancelFullScreen();
+            }
+            
+            console.log('CapacitorAPI: Kiosk mode disabled');
+            return true;
+        } catch (error) {
+            console.warn('CapacitorAPI: Failed to disable kiosk mode:', error);
+            return false;
+        }
+    }
+    
+    /**
+     * Keep screen awake (prevent sleep)
+     */
+    async keepScreenAwake() {
+        console.log('CapacitorAPI: Requesting screen wake lock...');
+        
+        try {
+            if ('wakeLock' in navigator) {
+                const wakeLock = await navigator.wakeLock.request('screen');
+                console.log('CapacitorAPI: Screen wake lock acquired');
+                return wakeLock;
+            } else {
+                console.warn('CapacitorAPI: Wake Lock API not supported');
+                return null;
+            }
+        } catch (error) {
+            console.warn('CapacitorAPI: Failed to acquire wake lock:', error);
+            return null;
         }
     }
 

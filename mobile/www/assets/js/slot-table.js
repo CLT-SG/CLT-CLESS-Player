@@ -601,7 +601,7 @@ async function tableRecord(slotitem, index, table) {
                                         window.mediaLoadingStates.showError(loaderId, '[appendColumnImage] Failed to load');
                                     }
                                 };
-                                
+                                console.log('[appendColumnImage] Setting image filename:', mediaFileName, 'with URI:', mediaUri);
                                 img.src = mediaUri;
                             } else {
                                 throw new Error('[appendColumnImage] No media URI available');

@@ -313,6 +313,7 @@ body .window-controls-container .window-icon-bg .window-icon {
 .media-slot {
     width: 100%;
     height: 100%;
+    background-color: transparent;
 }
 
 .date-slot,

@@ -104,7 +104,6 @@ class CapacitorAPI {
             const result = await Filesystem.readFile({
                 path,
                 directory: targetDir,
-                encoding: Encoding.UTF8
             });
             return result.data;
         } catch (error) {
@@ -124,7 +123,6 @@ class CapacitorAPI {
                 path,
                 data,
                 directory: targetDir,
-                encoding: Encoding.UTF8,
                 recursive: true
             });
             console.log(`Successfully wrote file to ${targetDir}: ${path}`);
