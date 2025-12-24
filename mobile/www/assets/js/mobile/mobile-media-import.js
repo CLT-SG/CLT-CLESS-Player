@@ -304,66 +304,41 @@ class MobileMediaImportManager {
         const filePath = `${this.mediaDir}/${file.name}`;
         
         try {
-            // CRITICAL: Use blob storage for ALL media types to prevent memory issues
-            // File object is already a Blob, so we can write it directly
-            console.log(`MediaImportManager: Writing ${isVideo ? 'video' : 'image'} as blob (optimized): ${file.name}`);
-            let writeData = file; // File extends Blob - can be used directly
+            console.log(`[MediaImportManager] Importing ${isVideo ? 'video' : 'image'}: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
             
-            // Write file using Capacitor API
+            // Write file using Capacitor API (auto-converts Blob to base64 internally)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
-                // Write file and capture result
-                let writeResult = await window.capacitorAPI.writeFile(filePath, writeData);
+                // writeFile now returns {success, path, uri, directory}
+                const writeResult = await window.capacitorAPI.writeFile(filePath, file);
                 
-                // Normalize writeResult
-                if (typeof writeResult === 'string') {
-                    writeResult = { path: writeResult };
+                if (!writeResult || !writeResult.success) {
+                    throw new Error('writeFile returned unsuccessful result');
                 }
                 
-                // CRITICAL: Resolve native URI and register with MediaManager
-                let nativeUri = (writeResult && (writeResult.uri || writeResult.path || writeResult.result)) ? 
-                                (writeResult.uri || writeResult.path || writeResult.result) : null;
+                const nativeUri = writeResult.uri;
                 
                 if (nativeUri) {
-                    console.log(`MediaImportManager: writeFile returned native URI: ${nativeUri}`);
+                    console.log(`[MediaImportManager] Native URI obtained: ${nativeUri.substring(0, 50)}...`);
                     
-                    // Register with MediaManager's fileUriMap
+                    // Register native URI with MediaManager
                     if (window.mediaManager) {
                         window.mediaManager.fileUriMap.set(file.name, nativeUri);
                     }
-                }
-                
-                // If no native URI from writeResult, try getUri
-                if (!nativeUri && window.capacitorAPI.getUri) {
-                    try {
-                        const uriRes = await window.capacitorAPI.getUri(filePath);
-                        nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
-                        if (nativeUri) {
-                            console.log(`MediaImportManager: getUri returned native URI: ${nativeUri}`);
-                            
-                            // Register with MediaManager's fileUriMap
-                            if (window.mediaManager) {
-                                window.mediaManager.fileUriMap.set(file.name, nativeUri);
-                            }
-                        }
-                    } catch (err) {
-                        console.warn(`MediaImportManager: getUri failed:`, err && err.message ? err.message : err);
-                    }
-                }
-                
-                // CRITICAL: Convert to web-accessible URI and cache in MediaManager
-                if (nativeUri && window.capacitorAPI.convertFileSrc) {
-                    try {
-                        const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
-                        if (convertedUri) {
-                            // Cache in MediaManager's uriCache for instant access
-                            if (window.mediaManager) {
+                    
+                    // Convert to web-accessible URI and cache
+                    if (window.capacitorAPI.convertFileSrc) {
+                        try {
+                            const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                            if (convertedUri && window.mediaManager) {
                                 window.mediaManager.uriCache.set(file.name, convertedUri);
-                                console.log(`MediaImportManager: ✓ Cached web URI in MediaManager: ${file.name}`);
+                                console.log(`[MediaImportManager] ✓ Cached web URI for: ${file.name}`);
                             }
+                        } catch (err) {
+                            console.warn(`[MediaImportManager] convertFileSrc failed:`, err.message);
                         }
-                    } catch (err) {
-                        console.warn(`MediaImportManager: convertFileSrc failed:`, err && err.message ? err.message : err);
                     }
+                } else {
+                    console.warn(`[MediaImportManager] No native URI returned for: ${file.name}`);
                 }
                 
                 // Update MediaManager's cached files index
@@ -371,7 +346,7 @@ class MobileMediaImportManager {
                     window.mediaManager.cachedFiles.add(file.name);
                 }
                 
-                console.log(`MediaImportManager: File written to ${filePath}`);
+                console.log(`[MediaImportManager] ✓ Successfully imported: ${file.name}`);
                 
                 return { 
                     success: true, 
@@ -380,16 +355,11 @@ class MobileMediaImportManager {
                 };
                 
             } else {
-                // Fallback: Try to save to browser storage (limited)
-                console.warn('MediaImportManager: Capacitor API not available, using fallback storage');
-                const base64Data = await this._fileToBase64(file);
-                this.saveToBrowserStorage(file.name, base64Data);
-                
-                return { success: true, filePath, hasWebUri: false };
+                throw new Error('Capacitor API not available');
             }
             
         } catch (error) {
-            console.error(`MediaImportManager: Failed to write file ${file.name}:`, error);
+            console.error(`[MediaImportManager] Failed to import ${file.name}:`, error);
             throw error;
         }
     }

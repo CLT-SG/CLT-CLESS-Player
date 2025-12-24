@@ -309,67 +309,47 @@ class MobileMediaManager {
                 blob = await response.blob();
             }
             
-            // CRITICAL OPTIMIZATION: Save as blob directly for ALL media types (no base64 conversion)
+            // Write to filesystem (auto-converts Blob to base64 internally)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
-                // Use blob storage for both images and videos to prevent memory issues
-                // Previously images used base64, but this causes crashes with large files (5MB+)
-                console.log('[MediaManager] Writing media as blob (optimized) for:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
+                console.log('[MediaManager] Saving media file:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
                 
-                // Write blob directly - works for all media types
-                let writeData = blob;
-
-                // Write file and capture result
-                let writeResult = await window.capacitorAPI.writeFile(filePath, writeData);
-
-                // Normalize writeResult
-                if (typeof writeResult === 'string') {
-                    writeResult = { path: writeResult };
+                // writeFile now returns {success, path, uri, directory}
+                const writeResult = await window.capacitorAPI.writeFile(filePath, blob);
+                
+                if (!writeResult || !writeResult.success) {
+                    throw new Error('writeFile returned unsuccessful result');
                 }
-
-                // OPTIMIZATION: Immediately resolve native URI and cache it
-                let nativeUri = (writeResult && (writeResult.uri || writeResult.path || writeResult.result)) ? 
-                                (writeResult.uri || writeResult.path || writeResult.result) : null;
+                
+                const nativeUri = writeResult.uri;
                 
                 if (nativeUri) {
-                    console.log('[MediaManager] writeFile returned native URI:', nativeUri);
+                    console.log('[MediaManager] Native URI obtained:', nativeUri.substring(0, 50), '...');
                     this.fileUriMap.set(safeFilename, nativeUri);
-                }
-
-                // If no native URI from writeResult, try getUri
-                if (!nativeUri && window.capacitorAPI.getUri) {
-                    try {
-                        const uriRes = await window.capacitorAPI.getUri(filePath);
-                        nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
-                        if (nativeUri) {
-                            console.log('[MediaManager] getUri returned native URI:', nativeUri);
-                            this.fileUriMap.set(safeFilename, nativeUri);
+                    
+                    // Convert to web-accessible URI and cache
+                    if (window.capacitorAPI.convertFileSrc) {
+                        try {
+                            const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                            if (convertedUri) {
+                                this.uriCache.set(safeFilename, convertedUri);
+                                console.log('[MediaManager] ✓ Cached web URI for:', safeFilename);
+                            }
+                        } catch (err) {
+                            console.warn('[MediaManager] convertFileSrc failed:', err.message);
                         }
-                    } catch (err) {
-                        console.warn('[MediaManager] getUri failed:', err && err.message ? err.message : err);
                     }
-                }
-
-                // CRITICAL: Immediately convert to web-accessible URI and cache it
-                if (nativeUri && window.capacitorAPI.convertFileSrc) {
-                    try {
-                        const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
-                        if (convertedUri) {
-                            this.uriCache.set(safeFilename, convertedUri);
-                            console.log('[MediaManager] ✓ Cached web URI for instant access:', safeFilename);
-                        }
-                    } catch (err) {
-                        console.warn('[MediaManager] convertFileSrc failed:', err && err.message ? err.message : err);
-                    }
+                } else {
+                    console.warn('[MediaManager] No native URI returned for:', safeFilename);
                 }
 
                 // Update cache index
                 this.cachedFiles.add(safeFilename);
                 
-                console.log('[MediaManager] ✓ Successfully cached:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
+                console.log('[MediaManager] ✓ Successfully downloaded and cached:', safeFilename);
                 
                 this.stats.successfulDownloads++;
                 
-                // Show success notification (optional, every 5 downloads)
+                // Show success notification (every 5 downloads)
                 if (window.errorNotification && this.stats.successfulDownloads % 5 === 0) {
                     window.errorNotification.success(
                         'Media Cached',
