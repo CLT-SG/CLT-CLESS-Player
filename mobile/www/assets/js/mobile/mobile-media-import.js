@@ -2,11 +2,12 @@
  * eCLESS Player Mobile - Media Import Manager
  * 
  * This module handles importing media files (images and videos) from device storage
- * to the app's media directory. It provides functionality to:
+ * to the app's media cache directory. It provides functionality to:
  * - Select media files using HTML5 file picker
- * - Copy files to assets/media/ directory
+ * - Copy files to ecless/media/cache/ directory (shared with MediaManager)
  * - Replace existing files if they exist
  * - Provide import progress feedback
+ * - Notify MediaManager to reload cache index after successful imports
  * 
  * @module mobile-media-import
  */
@@ -18,8 +19,8 @@ console.log('=== MOBILE MEDIA IMPORT MANAGER: Initializing ===');
  */
 class MobileMediaImportManager {
     constructor() {
-        this.mediaDir = 'assets/media';
-        this.wwwMediaDir = 'www/assets/media'; // For external storage path
+        // IMPORTANT: Use the same cache directory as MobileMediaManager
+        this.mediaDir = 'ecless/media/cache';
         this.allowedTypes = {
             image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'],
             video: ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo']
@@ -61,7 +62,7 @@ class MobileMediaImportManager {
             
             this.initialized = true;
             console.log('MediaImportManager: Initialized successfully');
-            console.log('MediaImportManager: Media directory:', this.mediaDir);
+            console.log('MediaImportManager: Cache directory:', this.mediaDir);
             
             return true;
             
@@ -98,18 +99,18 @@ class MobileMediaImportManager {
     }
 
     /**
-     * Ensure media directory exists
+     * Ensure media cache directory exists (shared with MediaManager)
      */
     async ensureMediaDirectory() {
         try {
             if (window.capacitorAPI && window.capacitorAPI.createDirectory) {
-                // Try to create in Data directory (internal storage)
-                await window.capacitorAPI.createDirectory(this.mediaDir, window.CapacitorDirectory.Data);
-                console.log('MediaImportManager: Media directory created/verified in Data directory');
+                // Create cache directory in Data directory (same as MediaManager)
+                await window.capacitorAPI.createDirectory(this.mediaDir);
+                console.log('MediaImportManager: Cache directory created/verified:', this.mediaDir);
             }
         } catch (error) {
             // Directory might already exist, which is fine
-            console.log('MediaImportManager: Media directory check:', error.message);
+            console.log('MediaImportManager: Cache directory check:', error.message);
         }
     }
 
@@ -249,6 +250,17 @@ class MobileMediaImportManager {
 
             console.log('MediaImportManager: Import completed:', results);
             
+            // Notify MediaManager to reload cache index if any files were imported successfully
+            if (results.success > 0 && window.mediaManager) {
+                try {
+                    console.log('MediaImportManager: Reloading MediaManager cache index...');
+                    await window.mediaManager.loadCacheIndex();
+                    console.log('MediaImportManager: MediaManager cache reloaded successfully');
+                } catch (error) {
+                    console.warn('MediaImportManager: Failed to reload MediaManager cache:', error);
+                }
+            }
+            
             // Show result notification
             this.showImportResult(results);
             
@@ -287,7 +299,7 @@ class MobileMediaImportManager {
                             recursive: true
                         });
                         
-                        console.log(`MediaImportManager: File written to ${filePath}`);
+                        console.log(`MediaImportManager: File written to cache: ${filePath}`);
                         resolve();
                     } else {
                         // Fallback: Try to save to IndexedDB or localStorage (limited)

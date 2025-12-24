@@ -73,7 +73,6 @@ class MobileMediaManager {
             this.initialized = true;
             console.log('MediaManager: Initialized successfully');
             console.log('MediaManager: Cache directory:', this.cacheDir);
-            console.log('MediaManager: Cached files count:', this.cachedFiles.size);
             
             return true;
             
@@ -825,7 +824,6 @@ class MobileMediaManager {
         } else {
             // Local file - use cached version
             const uri = await this.getMediaUri(source);
-            console.log('[MediaManager] getMediaUriSmart resolved URI for', source, ':', uri);
             return uri;
         }
     }
