@@ -534,7 +534,7 @@ async function tableRecord(slotitem, index, table) {
                             };
                             
                             img.onerror = function() {
-                                console.error('External image load error');
+                                console.error('[appendColumnImage] External image load error URL:', mediaFileName);
                                 if (window.mediaLoadingStates) {
                                     window.mediaLoadingStates.showError(loaderId, 'Failed to load');
                                 }
@@ -588,7 +588,7 @@ async function tableRecord(slotitem, index, table) {
                                 img.style.height = 'auto';
                                 
                                 img.onload = function() {
-                                    console.log('Image loaded from cache/server');
+                                    console.log('[appendColumnImage] Image loaded from cache/server');
                                     if (window.mediaLoadingStates) {
                                         window.mediaLoadingStates.removeLoader(loaderId, img);
                                     }
@@ -596,15 +596,15 @@ async function tableRecord(slotitem, index, table) {
                                 };
                                 
                                 img.onerror = function() {
-                                    console.error('Image load error');
+                                    console.error('[appendColumnImage] Image load error filename:', mediaFileName);
                                     if (window.mediaLoadingStates) {
-                                        window.mediaLoadingStates.showError(loaderId, 'Failed to load');
+                                        window.mediaLoadingStates.showError(loaderId, '[appendColumnImage] Failed to load');
                                     }
                                 };
                                 
                                 img.src = mediaUri;
                             } else {
-                                throw new Error('No media URI available');
+                                throw new Error('[appendColumnImage] No media URI available');
                             }
                         }
                     } catch (error) {

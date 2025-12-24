@@ -635,9 +635,9 @@ async function appendMediaElement(asset, previewele, slotid) {
         };
         
         img.onerror = function() {
-            console.error('Image load error');
+            console.error('[appendMediaElement] Image load error for', sanitizeMediaUrlForLog(asset.contentUrl));
             if (window.mediaLoadingStates) {
-                window.mediaLoadingStates.showError(loaderId, 'Image failed to load');
+                window.mediaLoadingStates.showError(loaderId, `[appendMediaElement] Failed to load image`);
                 setTimeout(() => {
                     window.mediaLoadingStates.removeLoader(loaderId);
                     // Try next media on error

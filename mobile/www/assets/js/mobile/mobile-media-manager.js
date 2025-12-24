@@ -904,6 +904,48 @@ class MobileMediaManager {
             return { success: false, message: e && e.message ? e.message : String(e) };
         }
     }
+    
+    /**
+     * NEW: Force refresh URI for a specific file (useful after import/replacement)
+     * @param {string} filename - Filename to refresh
+     * @returns {Promise<string|null>} Refreshed web URI or null
+     */
+    async refreshMediaUri(filename) {
+        const safeFilename = this.sanitizeFilename(filename);
+        const filePath = this.getLocalMediaPath(safeFilename);
+        
+        console.log(`[MediaManager] Refreshing URI for: ${safeFilename}`);
+        
+        // Clear existing cache entries
+        this.uriCache.delete(safeFilename);
+        this.fileUriMap.delete(safeFilename);
+        
+        // Try to regenerate native URI and web URI
+        try {
+            if (window.capacitorAPI && window.capacitorAPI.getUri) {
+                const uriRes = await window.capacitorAPI.getUri(filePath);
+                const nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
+                
+                if (nativeUri) {
+                    this.fileUriMap.set(safeFilename, nativeUri);
+                    
+                    // Convert to web URI
+                    if (window.capacitorAPI.convertFileSrc) {
+                        const webUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                        if (webUri) {
+                            this.uriCache.set(safeFilename, webUri);
+                            console.log(`[MediaManager] ✓ Refreshed web URI: ${safeFilename}`);
+                            return webUri;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(`[MediaManager] Failed to refresh URI for ${safeFilename}:`, error);
+        }
+        
+        return null;
+    }
 }
 
 // Create global instance
