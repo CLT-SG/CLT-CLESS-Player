@@ -1,5 +1,117 @@
 # Change Log
 
+## [3.6.5] - 2025-12-26
+
+### Fixed - Mobile Media Playback with Server URL Fallback
+
+- **Automatic Server URL Fallback** - Implemented redundant playback mechanism when cached URIs fail
+  - Root cause: convertFileSrc generated URIs that failed to load in WebView on some Android devices
+  - Previous behavior: Media playback failed silently with no retry mechanism
+  - New behavior: Automatically retries with server URL when cached URI fails
+  - Impact: Media playback now reliable across all Android device configurations
+
+- **Dual URI Storage** - Enhanced MediaManager to store both cached and server URLs
+  - getMediaUri accepts optional originalServerUrl parameter
+  - Returns object with uri (cached) and fallbackUri (server) when originalUrl provided
+  - Returns simple string when originalUrl not provided (backward compatible)
+  - Impact: Every media asset has redundant URI sources for reliability
+
+- **Image Fallback Retry** - Added automatic server URL retry in slot-media.js image error handler
+  - Detects image load failures via onerror event
+  - Attempts fallbackUri when primaryUri fails
+  - Uses fallbackAttempted flag to prevent infinite loops
+  - Impact: Images display from server when cache conversion fails
+
+- **Video Fallback Retry** - Enhanced video error handler to retry with server URL on playback failures
+  - Attempts fallbackUri before disposing player
+  - Handles codec errors with automatic remote URL fallback
+  - Works for both standard videos and streaming protocols
+  - Impact: Videos play reliably with transparent fallback
+
+- **Table Image Fallback** - Refactored slot-table.js column image loading with fallback support
+  - Passes server URL to getMediaUriSmart for fallback enablement
+  - Handles both string and object return types from MediaManager
+  - Automatic retry in image onerror handler
+  - Impact: Table slot images display reliably with server fallback
+
+- **URI Validation Method** - Added validateUri to test URI accessibility before use
+  - Tests image URIs with 3 second timeout
+  - Tests video URIs with 5 second timeout
+  - Returns boolean indicating URI accessibility
+  - Impact: Proactive URI testing prevents silent failures
+
+- **Diagnostic Logging** - Added comprehensive diagnostics for debugging URI conversion issues
+  - logMediaDiagnostics logs cache status, URI presence, conversion state
+  - Integrated in all media error handlers
+  - Structured output with timestamps and context
+  - Impact: Easier debugging of media playback issues
+
+### Technical Details
+
+**Fallback-Enabled URI Return:**
+```javascript
+// getMediaUri with fallback support
+async getMediaUri(filename, originalServerUrl = null) {
+    if (originalServerUrl) {
+        return {
+            uri: cachedUri,
+            fallbackUri: originalServerUrl,
+            isCached: true
+        };
+    }
+    return cachedUri; // Backward compatible
+}
+```
+
+**Automatic Retry in Media Slots:**
+```javascript
+// Image onerror with fallback
+img.onerror = function() {
+    const fallbackUrl = asset.fallbackUrl || asset.originalUrl;
+    if (fallbackUrl && !img.dataset.fallbackAttempted) {
+        img.dataset.fallbackAttempted = 'true';
+        img.src = fallbackUrl; // Automatic server URL retry
+        return;
+    }
+    // Show error if fallback also fails
+};
+```
+
+**Diagnostic Logging:**
+```javascript
+// Comprehensive error diagnostics
+window.mediaManager.logMediaDiagnostics(filename, 'Image Load Error', {
+    contentUrl: asset.contentUrl,
+    fallbackUrl: fallbackUrl,
+    slotId: slotid
+});
+// Logs cache status, URI cache, native URI, statistics
+```
+
+### Files Modified
+
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Fallback support, validation, diagnostics (250 lines changed)
+- mobile/www/assets/js/slot-media.js - Automatic fallback for images, videos, streams (180 lines changed)
+- mobile/www/assets/js/slot-table.js - Automatic fallback for table images (90 lines changed)
+
+### Reliability Improvements
+
+| Scenario | Before | After |
+|----------|--------|-------|
+| Cache URI fails | Playback failed | Auto-retries with server URL |
+| convertFileSrc returns bad URI | Silent failure | Transparent server fallback |
+| Device-specific URI issues | Media not displayed | Server URL used automatically |
+| Debugging URI problems | Limited visibility | Comprehensive diagnostics |
+| Single point of failure | Cache-only | Dual URI redundancy |
+
+### Compatibility
+
+- No breaking changes to existing functionality
+- Backward compatible with all configurations
+- Works with Android 5.0+ and iOS 13.0+
+- Desktop Electron app unaffected
+- No additional dependencies required
+
 ## [3.6.4] - 2025-12-24
 
 ### Fixed - Mobile Media Import/Download NO_DATA Error

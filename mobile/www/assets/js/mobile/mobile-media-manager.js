@@ -412,17 +412,28 @@ class MobileMediaManager {
      * This converts the filesystem path to a usable URL for img/video elements
      * OPTIMIZED: Uses in-memory cache to avoid repeated conversions
      * UPDATED: Prefers native URIs for both images and videos (no data URI conversion for large files)
+     * FALLBACK: Returns object with both cached URI and original server URL for redundancy
      */
-    async getMediaUri(filename) {
+    async getMediaUri(filename, originalServerUrl = null) {
         try {
             const safeFilename = this.sanitizeFilename(filename);
-            console.log('[MediaManager] getMediaUri called for:', safeFilename, 'original filename:', filename);
+            console.log('[MediaManager] getMediaUri called for:', safeFilename, 'original filename:', filename, 'with originalUrl:', originalServerUrl ? 'provided' : 'none');
             
             // Check in-memory URI cache first (FAST PATH)
             if (this.uriCache.has(safeFilename)) {
                 this.stats.uriCacheHits++;
                 console.log('[MediaManager] URI cache hit for:', safeFilename);
-                return this.uriCache.get(safeFilename);
+                const cachedUri = this.uriCache.get(safeFilename);
+                
+                // Return object with fallback support if originalUrl provided
+                if (originalServerUrl) {
+                    return {
+                        uri: cachedUri,
+                        fallbackUri: originalServerUrl,
+                        isCached: true
+                    };
+                }
+                return cachedUri;
             }
             
             const filePath = `${this.cacheDir}/${safeFilename}`;
@@ -431,6 +442,17 @@ class MobileMediaManager {
             const exists = await this.checkMediaExists(safeFilename);
             if (!exists) {
                 console.warn('MediaManager: File not found in cache:', safeFilename);
+                
+                // If originalServerUrl provided, return it as fallback
+                if (originalServerUrl) {
+                    console.log('[MediaManager] Cache miss - returning server URL as fallback:', originalServerUrl);
+                    return {
+                        uri: null,
+                        fallbackUri: originalServerUrl,
+                        isCached: false,
+                        useFallback: true
+                    };
+                }
                 return null;
             }
 
@@ -474,6 +496,15 @@ class MobileMediaManager {
                 if (mediaUri) {
                     this.uriCache.set(safeFilename, mediaUri);
                     console.log(`[MediaManager] Returning native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, mediaUri);
+                    
+                    // Return object with fallback support if originalUrl provided
+                    if (originalServerUrl) {
+                        return {
+                            uri: mediaUri,
+                            fallbackUri: originalServerUrl,
+                            isCached: true
+                        };
+                    }
                     return mediaUri;
                 }
 
@@ -485,6 +516,15 @@ class MobileMediaManager {
                         if (converted) {
                             this.uriCache.set(safeFilename, converted);
                             console.log(`[MediaManager] Returning converted recorded native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, converted);
+                            
+                            // Return object with fallback support if originalUrl provided
+                            if (originalServerUrl) {
+                                return {
+                                    uri: converted,
+                                    fallbackUri: originalServerUrl,
+                                    isCached: true
+                                };
+                            }
                             return converted;
                         }
                     } catch (err) {
@@ -518,6 +558,15 @@ class MobileMediaManager {
                                     if (converted) {
                                         this.uriCache.set(safeFilename, converted);
                                         console.log('[MediaManager] Cached converted URI from getUri for:', safeFilename, converted);
+                                        
+                                        // Return object with fallback support if originalUrl provided
+                                        if (originalServerUrl) {
+                                            return {
+                                                uri: converted,
+                                                fallbackUri: originalServerUrl,
+                                                isCached: true
+                                            };
+                                        }
                                         return converted;
                                     }
                                 } catch (err) {
@@ -526,6 +575,15 @@ class MobileMediaManager {
                             } else {
                                 console.warn('[MediaManager] convertFileSrc not available; returning native URI directly:', nativeFromGetUri);
                                 this.uriCache.set(safeFilename, nativeFromGetUri);
+                                
+                                // Return object with fallback support if originalUrl provided
+                                if (originalServerUrl) {
+                                    return {
+                                        uri: nativeFromGetUri,
+                                        fallbackUri: originalServerUrl,
+                                        isCached: true
+                                    };
+                                }
                                 return nativeFromGetUri;
                             }
                         }
@@ -537,6 +595,17 @@ class MobileMediaManager {
                 // Record fallback event
                 this.stats.fallbackCount = (this.stats.fallbackCount || 0) + 1;
                 console.warn('[MediaManager] All native URI methods exhausted for:', safeFilename);
+                
+                // If originalServerUrl provided, return it as fallback
+                if (originalServerUrl) {
+                    console.log('[MediaManager] Native URI failed - returning server URL as fallback:', originalServerUrl);
+                    return {
+                        uri: null,
+                        fallbackUri: originalServerUrl,
+                        isCached: false,
+                        useFallback: true
+                    };
+                }
                 return null;
             }
 
@@ -547,6 +616,15 @@ class MobileMediaManager {
             if (mediaUri) {
                 this.uriCache.set(safeFilename, mediaUri);
                 console.log('[MediaManager] Cached URI for:', safeFilename);
+                
+                // Return object with fallback support if originalUrl provided
+                if (originalServerUrl) {
+                    return {
+                        uri: mediaUri,
+                        fallbackUri: originalServerUrl,
+                        isCached: true
+                    };
+                }
             }
 
             return mediaUri;
@@ -791,9 +869,10 @@ class MobileMediaManager {
      * NEW: Get media URI with support for external URLs
      * @param {string} source - Can be a filename or external URL
      * @param {boolean} isExternal - Whether this is an external URL
-     * @returns {Promise<string>} Media URI
+     * @param {string} originalUrl - Original server URL for fallback
+     * @returns {Promise<string|Object>} Media URI (string for simple case, object with fallback for complex)
      */
-    async getMediaUriSmart(source, isExternal = null) {
+    async getMediaUriSmart(source, isExternal = null, originalUrl = null) {
         console.log('[MediaManager] getMediaUriSmart called with source:', source, 'isExternal:', isExternal);
         // Auto-detect if not specified
         if (isExternal === null) {
@@ -805,9 +884,9 @@ class MobileMediaManager {
             console.log('[MediaManager] Using external URL:', source);
             return source;
         } else {
-            // Local file - use cached version
-            const uri = await this.getMediaUri(source);
-            return uri;
+            // Local file - use cached version with fallback support
+            const result = await this.getMediaUri(source, originalUrl);
+            return result;
         }
     }
     
@@ -928,6 +1007,115 @@ class MobileMediaManager {
         }
         
         return null;
+    }
+    
+    /**
+     * NEW: Validate if a URI is accessible (basic check)
+     * @param {string} uri - URI to validate
+     * @param {string} type - Media type ('image' or 'video')
+     * @returns {Promise<boolean>} True if URI appears valid
+     */
+    async validateUri(uri, type = 'image') {
+        if (!uri || typeof uri !== 'string') {
+            console.warn('[MediaManager] validateUri: Invalid URI provided');
+            return false;
+        }
+        
+        console.log(`[MediaManager] Validating URI for ${type}:`, uri.substring(0, 100) + '...');
+        
+        return new Promise((resolve) => {
+            try {
+                if (type === 'image') {
+                    const img = new Image();
+                    const timeout = setTimeout(() => {
+                        img.onload = null;
+                        img.onerror = null;
+                        console.warn('[MediaManager] URI validation timeout:', uri.substring(0, 50));
+                        resolve(false);
+                    }, 3000);
+                    
+                    img.onload = () => {
+                        clearTimeout(timeout);
+                        console.log('[MediaManager] ✓ URI validated successfully (image)');
+                        resolve(true);
+                    };
+                    
+                    img.onerror = () => {
+                        clearTimeout(timeout);
+                        console.warn('[MediaManager] URI validation failed (image)');
+                        resolve(false);
+                    };
+                    
+                    img.src = uri;
+                } else if (type === 'video') {
+                    const video = document.createElement('video');
+                    const timeout = setTimeout(() => {
+                        video.onloadeddata = null;
+                        video.onerror = null;
+                        console.warn('[MediaManager] URI validation timeout:', uri.substring(0, 50));
+                        resolve(false);
+                    }, 5000);
+                    
+                    video.onloadeddata = () => {
+                        clearTimeout(timeout);
+                        console.log('[MediaManager] ✓ URI validated successfully (video)');
+                        resolve(true);
+                    };
+                    
+                    video.onerror = () => {
+                        clearTimeout(timeout);
+                        console.warn('[MediaManager] URI validation failed (video)');
+                        resolve(false);
+                    };
+                    
+                    video.src = uri;
+                    video.load();
+                } else {
+                    console.warn('[MediaManager] Unknown media type for validation:', type);
+                    resolve(false);
+                }
+            } catch (error) {
+                console.error('[MediaManager] URI validation error:', error);
+                resolve(false);
+            }
+        });
+    }
+    
+    /**
+     * NEW: Log detailed diagnostics for media loading issues
+     * @param {string} filename - Filename being diagnosed
+     * @param {string} operation - Operation being performed
+     * @param {Object} context - Additional context information
+     */
+    logMediaDiagnostics(filename, operation, context = {}) {
+        const safeFilename = this.sanitizeFilename(filename);
+        const diagnostics = {
+            timestamp: new Date().toISOString(),
+            operation: operation,
+            filename: filename,
+            safeFilename: safeFilename,
+            fileInCache: this.cachedFiles.has(safeFilename),
+            hasUriCache: this.uriCache.has(safeFilename),
+            hasNativeUri: this.fileUriMap.has(safeFilename),
+            stats: this.stats,
+            context: context
+        };
+        
+        if (this.uriCache.has(safeFilename)) {
+            const uri = this.uriCache.get(safeFilename);
+            diagnostics.cachedUri = uri ? uri.substring(0, 100) + '...' : null;
+        }
+        
+        if (this.fileUriMap.has(safeFilename)) {
+            const nativeUri = this.fileUriMap.get(safeFilename);
+            diagnostics.nativeUri = nativeUri ? nativeUri.substring(0, 100) + '...' : null;
+        }
+        
+        console.group(`[MediaManager] 📊 Diagnostics: ${operation}`);
+        console.table(diagnostics);
+        console.groupEnd();
+        
+        return diagnostics;
     }
 }
 

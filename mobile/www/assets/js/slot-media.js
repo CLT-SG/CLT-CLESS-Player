@@ -477,29 +477,39 @@ async function processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd
             // Add preloaded media to playback loop
             for (const item of localMediaToPreload) {
                 // Use smart URI resolver which will return converted file URIs for native videos
-                const mediaUri = await window.mediaManager.getMediaUriSmart(item.filename, false);
+                // Pass originalUrl for fallback support
+                const mediaUriResult = await window.mediaManager.getMediaUriSmart(item.filename, false, item.url);
 
-                if (mediaUri) {
-                    console.log('[mediaFunc] Preloaded', item.filename, '->', sanitizeMediaUrlForLog(mediaUri));
+                // Handle both string and object return types
+                let primaryUri = null;
+                let fallbackUri = null;
+                
+                if (typeof mediaUriResult === 'object' && mediaUriResult !== null) {
+                    // Fallback-enabled result
+                    primaryUri = mediaUriResult.uri;
+                    fallbackUri = mediaUriResult.fallbackUri;
+                    
+                    console.log('[mediaFunc] Preloaded', item.filename, '- Primary URI:', sanitizeMediaUrlForLog(primaryUri), '- Fallback:', sanitizeMediaUrlForLog(fallbackUri));
+                } else {
+                    // Simple string result
+                    primaryUri = mediaUriResult;
+                    fallbackUri = item.url; // Always keep server URL as fallback
+                    
+                    console.log('[mediaFunc] Preloaded', item.filename, '->', sanitizeMediaUrlForLog(primaryUri));
+                }
+
+                if (primaryUri || fallbackUri) {
                     medialoop[slotid].push({
-                        contentUrl: mediaUri,
+                        contentUrl: primaryUri || fallbackUri,
                         contentDuration: item.duration,
                         contentType: item.contentType,
                         mediaType: item.type,
                         filename: item.filename,
-                        originalUrl: item.url // Keep original remote URL for fallback
+                        originalUrl: fallbackUri || item.url, // Always store fallback URL
+                        fallbackUrl: fallbackUri || item.url  // Explicit fallback field
                     });
                 } else {
-                    console.warn('[mediaFunc] Failed to get URI for:', item.filename, '— falling back to remote URL', item.url);
-                    medialoop[slotid].push({
-                        contentUrl: item.url,
-                        contentDuration: item.duration,
-                        contentType: item.contentType,
-                        mediaType: item.type,
-                        filename: item.filename,
-                        originalUrl: item.url,
-                        fallbackRemote: true
-                    });
+                    console.error('[mediaFunc] No valid URI for:', item.filename);
                 }
             }
         } catch (error) {
@@ -513,31 +523,47 @@ async function processMediaItemsOptimized(slotitem, slotid, mediapath, serverAdd
                         await window.mediaManager.downloadMedia(item.url, item.filename);
                     }
 
-                    // Use smart URI resolver
-                    const mediaUri = await window.mediaManager.getMediaUriSmart(item.filename, false);
-                    if (mediaUri) {
+                    // Use smart URI resolver with fallback support
+                    const mediaUriResult = await window.mediaManager.getMediaUriSmart(item.filename, false, item.url);
+                    
+                    // Handle both string and object return types
+                    let primaryUri = null;
+                    let fallbackUri = null;
+                    
+                    if (typeof mediaUriResult === 'object' && mediaUriResult !== null) {
+                        primaryUri = mediaUriResult.uri;
+                        fallbackUri = mediaUriResult.fallbackUri;
+                    } else {
+                        primaryUri = mediaUriResult;
+                        fallbackUri = item.url;
+                    }
+                    
+                    if (primaryUri || fallbackUri) {
                         medialoop[slotid].push({
-                            contentUrl: mediaUri,
+                            contentUrl: primaryUri || fallbackUri,
                             contentDuration: item.duration,
                             contentType: item.contentType,
                             mediaType: item.type,
                             filename: item.filename,
-                            originalUrl: item.url
+                            originalUrl: fallbackUri || item.url,
+                            fallbackUrl: fallbackUri || item.url
                         });
                     } else {
-                        console.warn('[mediaFunc] getMediaUriSmart failed for', item.filename, '- falling back to remote URL');
-                        medialoop[slotid].push({
-                            contentUrl: item.url,
-                            contentDuration: item.duration,
-                            contentType: item.contentType,
-                            mediaType: item.type,
-                            filename: item.filename,
-                            originalUrl: item.url,
-                            fallbackRemote: true
-                        });
+                        console.error('[mediaFunc] No URI available for', item.filename);
                     }
                 } catch (err) {
                     console.error('[mediaFunc] Failed to load:', item.filename, err);
+                    // Even on error, add with server URL as fallback
+                    medialoop[slotid].push({
+                        contentUrl: item.url,
+                        contentDuration: item.duration,
+                        contentType: item.contentType,
+                        mediaType: item.type,
+                        filename: item.filename,
+                        originalUrl: item.url,
+                        fallbackUrl: item.url,
+                        useFallback: true
+                    });
                 }
             }
         }
@@ -635,9 +661,30 @@ async function appendMediaElement(asset, previewele, slotid) {
         };
         
         img.onerror = function() {
+            const fallbackUrl = asset.fallbackUrl || asset.originalUrl;
             console.error('[appendMediaElement] Image load error for filename:', asset.filename || 'N/A', 'src:', sanitizeMediaUrlForLog(asset.contentUrl));
+            
+            // Log diagnostics
+            if (window.mediaManager && asset.filename) {
+                window.mediaManager.logMediaDiagnostics(asset.filename, 'Image Load Error', {
+                    contentUrl: asset.contentUrl ? sanitizeMediaUrlForLog(asset.contentUrl) : null,
+                    fallbackUrl: fallbackUrl ? sanitizeMediaUrlForLog(fallbackUrl) : null,
+                    slotId: slotid
+                });
+            }
+            
+            // Try fallback URL if available and not already tried
+            if (fallbackUrl && asset.contentUrl !== fallbackUrl && !img.dataset.fallbackAttempted) {
+                console.log('[appendMediaElement] Attempting fallback URL:', sanitizeMediaUrlForLog(fallbackUrl));
+                img.dataset.fallbackAttempted = 'true';
+                img.src = fallbackUrl;
+                return;
+            }
+            
+            // If fallback also failed or not available, show error
+            console.error('[appendMediaElement] All loading attempts failed for:', asset.filename || 'N/A');
             if (window.mediaLoadingStates) {
-                window.mediaLoadingStates.showError(loaderId, `[appendMediaElement] Failed to load image filename: ${asset.filename || 'N/A'}`);
+                window.mediaLoadingStates.showError(loaderId, `Failed to load image: ${asset.filename || 'N/A'}`);
                 setTimeout(() => {
                     window.mediaLoadingStates.removeLoader(loaderId);
                     // Try next media on error
@@ -719,7 +766,7 @@ async function appendMediaElement(asset, previewele, slotid) {
             console.log('[VideoJS] Single stream item - will play full duration');
         }
 
-        // IMPROVED: Better stream error handling
+        // IMPROVED: Better stream error handling with fallback support
         videoJSPlayer[videojsid].on('error', function () {
             if (streamTimeout) clearTimeout(streamTimeout);
 
@@ -728,6 +775,21 @@ async function appendMediaElement(asset, previewele, slotid) {
             var errorMsg = error ? error.message : 'Unknown';
 
             console.error('[VideoJS] Stream error:', errorCode + ' - ' + errorMsg);
+
+            // Try fallback URL if available
+            const fallbackUrl = asset.fallbackUrl || asset.originalUrl;
+            if (fallbackUrl && fallbackUrl !== asset.contentUrl && !asset._fallbackAttempted) {
+                asset._fallbackAttempted = true;
+                console.log('[VideoJS] Attempting stream fallback URL:', sanitizeMediaUrlForLog(fallbackUrl));
+                
+                try {
+                    videoJSPlayer[videojsid].src({ src: fallbackUrl, type: asset.contentType });
+                    videoJSPlayer[videojsid].play();
+                    return;
+                } catch (e) {
+                    console.error('[VideoJS] Stream fallback failed:', e);
+                }
+            }
 
             // Show user-friendly error
             if (window.errorNotification) {
@@ -870,6 +932,18 @@ async function appendMediaElement(asset, previewele, slotid) {
 
             console.error('[VideoJS] Video error:', errorCode + ' - ' + errorMsg, 'for src:', sanitizeMediaUrlForLog(asset.contentUrl));
 
+            // Log diagnostics
+            if (window.mediaManager && asset.filename) {
+                window.mediaManager.logMediaDiagnostics(asset.filename, 'Video Load Error', {
+                    contentUrl: asset.contentUrl ? sanitizeMediaUrlForLog(asset.contentUrl) : null,
+                    fallbackUrl: (asset.fallbackUrl || asset.originalUrl) ? sanitizeMediaUrlForLog(asset.fallbackUrl || asset.originalUrl) : null,
+                    errorCode: errorCode,
+                    errorMsg: errorMsg,
+                    slotId: slotid,
+                    videojsId: videojsid
+                });
+            }
+
             try {
                 console.error('[VideoJS] Diagnostic: currentSrc:', videoJSPlayer[videojsid].currentSrc ? videoJSPlayer[videojsid].currentSrc() : null, 'player.src():', videoJSPlayer[videojsid].src ? videoJSPlayer[videojsid].src() : null);
             } catch (d) { console.warn('[VideoJS] Diagnostic read failed:', d); }
@@ -889,14 +963,15 @@ async function appendMediaElement(asset, previewele, slotid) {
             }
 
             // First attempt fallback to the original remote URL (if available and not tried yet)
-            if (!_triedFallbackSrc && asset.originalUrl && asset.originalUrl !== asset.contentUrl) {
+            const fallbackUrl = asset.fallbackUrl || asset.originalUrl;
+            if (!_triedFallbackSrc && fallbackUrl && fallbackUrl !== asset.contentUrl) {
                 _triedFallbackSrc = true;
-                console.log('[VideoJS] Attempting fallback to original remote URL:', sanitizeMediaUrlForLog(asset.originalUrl));
+                console.log('[VideoJS] Attempting fallback to server URL:', sanitizeMediaUrlForLog(fallbackUrl));
 
                 try {
-                    videoJSPlayer[videojsid].src({ src: asset.originalUrl, type: asset.contentType || 'video/mp4' });
+                    videoJSPlayer[videojsid].src({ src: fallbackUrl, type: asset.contentType || 'video/mp4' });
                     videoJSPlayer[videojsid].play().then(() => {
-                        console.log('[VideoJS] Fallback to original URL started playback');
+                        console.log('[VideoJS] Fallback to server URL started playback successfully');
                     }).catch((playErr) => {
                         console.warn('[VideoJS] Fallback play failed:', playErr);
                         try {
@@ -918,7 +993,7 @@ async function appendMediaElement(asset, previewele, slotid) {
                 const details = {
                     filename: asset.filename || asset.contentUrl,
                     src: asset.contentUrl,
-                    originalUrl: asset.originalUrl || null,
+                    originalUrl: asset.fallbackUrl || asset.originalUrl || null,
                     contentType: asset.contentType || null,
                     error: errorMsg
                 };
@@ -934,10 +1009,10 @@ async function appendMediaElement(asset, previewele, slotid) {
 
                     // Automatic fallback behavior
                     const remote = details.originalUrl || details.src;
-                    if (!_triedFallbackSrc && remote) {
+                    if (!_triedFallbackSrc && remote && remote !== asset.contentUrl) {
                         _triedFallbackSrc = true;
 
-                        console.log('[VideoJS] Automatic Play Remote fallback for', remote);
+                        console.log('[VideoJS] Automatic Play Remote fallback for', sanitizeMediaUrlForLog(remote));
 
                         try {
                             // Attempt to play remote fallback and wait for playing event
