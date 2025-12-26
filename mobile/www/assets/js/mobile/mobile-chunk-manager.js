@@ -381,20 +381,52 @@ class MobileChunkManager {
      */
     async _getRemoteFileSize(url) {
         try {
-            // Try HEAD request first
-            const response = await fetch(url, { method: 'HEAD' });
+            // Use CapacitorHttp for mobile to avoid CORS issues
+            if (window.capacitorAPI && window.capacitorAPI.isNative && window.capacitorAPI.plugins.CapacitorHttp) {
+                console.log('[ChunkManager] Using CapacitorHttp for HEAD request:', url);
+                
+                try {
+                    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
+                        url: url,
+                        connectTimeout: 10000
+                    });
+                    
+                    if (response.status === 200 && response.headers && response.headers['content-length']) {
+                        return parseInt(response.headers['content-length'], 10);
+                    }
+                } catch (headError) {
+                    console.warn('[ChunkManager] HEAD request failed, trying GET');
+                }
+                
+                // Fallback: GET request to determine size
+                console.warn('[ChunkManager] Using GET to estimate size');
+                const getResponse = await window.capacitorAPI.plugins.CapacitorHttp.get({
+                    url: url,
+                    responseType: 'blob',
+                    connectTimeout: 30000
+                });
+                
+                if (getResponse.status === 200 && getResponse.data) {
+                    const blob = getResponse.data instanceof Blob ? getResponse.data : new Blob([getResponse.data]);
+                    return blob.size;
+                }
+            } else {
+                // Web fallback
+                // Try HEAD request first
+                const response = await fetch(url, { method: 'HEAD' });
 
-            if (response.ok && response.headers.has('content-length')) {
-                return parseInt(response.headers.get('content-length'), 10);
-            }
+                if (response.ok && response.headers.has('content-length')) {
+                    return parseInt(response.headers.get('content-length'), 10);
+                }
 
-            // Fallback: GET request and check response size
-            console.warn('[ChunkManager] HEAD request failed, using GET to estimate size');
-            const getResponse = await fetch(url);
+                // Fallback: GET request and check response size
+                console.warn('[ChunkManager] HEAD request failed, using GET to estimate size');
+                const getResponse = await fetch(url);
 
-            if (getResponse.ok) {
-                const blob = await getResponse.blob();
-                return blob.size;
+                if (getResponse.ok) {
+                    const blob = await getResponse.blob();
+                    return blob.size;
+                }
             }
 
             throw new Error('Cannot determine file size');
@@ -413,18 +445,41 @@ class MobileChunkManager {
         try {
             const rangeHeader = `bytes=${offset}-${offset + length - 1}`;
 
-            const response = await fetch(url, {
-                headers: {
-                    'Range': rangeHeader
-                }
-            });
+            // Use CapacitorHttp for mobile to avoid CORS issues
+            if (window.capacitorAPI && window.capacitorAPI.isNative && window.capacitorAPI.plugins.CapacitorHttp) {
+                console.log('[ChunkManager] Using CapacitorHttp for range request:', rangeHeader);
+                
+                const response = await window.capacitorAPI.plugins.CapacitorHttp.get({
+                    url: url,
+                    headers: { 'Range': rangeHeader },
+                    responseType: 'arraybuffer',
+                    connectTimeout: 30000,
+                    readTimeout: 60000
+                });
 
-            // Accept 200 (full response) or 206 (partial content)
-            if (response.status === 200 || response.status === 206) {
-                const arrayBuffer = await response.arrayBuffer();
-                return new Uint8Array(arrayBuffer);
+                // Accept 200 (full response) or 206 (partial content)
+                if (response.status === 200 || response.status === 206) {
+                    const arrayBuffer = response.data instanceof ArrayBuffer ? response.data : 
+                                       (response.data && response.data.arrayBuffer instanceof ArrayBuffer ? response.data.arrayBuffer : response.data);
+                    return new Uint8Array(arrayBuffer);
+                } else {
+                    throw new Error(`Unexpected response status: ${response.status}`);
+                }
             } else {
-                throw new Error(`Unexpected response status: ${response.status}`);
+                // Web fallback
+                const response = await fetch(url, {
+                    headers: {
+                        'Range': rangeHeader
+                    }
+                });
+
+                // Accept 200 (full response) or 206 (partial content)
+                if (response.status === 200 || response.status === 206) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    return new Uint8Array(arrayBuffer);
+                } else {
+                    throw new Error(`Unexpected response status: ${response.status}`);
+                }
             }
 
         } catch (error) {

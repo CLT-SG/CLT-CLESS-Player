@@ -221,16 +221,15 @@ class CapacitorAPI {
                 recursive: true
             };
             
-            // CRITICAL FIX: Do NOT use Encoding.Base64 for already-encoded base64 strings!
-            // FileReader.readAsDataURL() already encodes to base64, so if we use Encoding.Base64
-            // again, Capacitor will DOUBLE-ENCODE the data, making it unreadable.
+            // CRITICAL FIX: Use Encoding.Base64 for base64-encoded strings
+            // FileReader.readAsDataURL() already encodes to base64, and we need to store it properly.
+            // Using Encoding.Base64 tells Capacitor this is base64 data and it should be stored/retrieved correctly.
             // 
-            // Only use Encoding.Base64 when writing RAW binary data (not pre-encoded strings).
-            // Since we convert Blob/File to base64 via FileReader, we should write as UTF8 string.
+            // When reading back, we MUST use Encoding.Base64 as well to get the data back in base64 format.
             if (dataType === 'base64-string') {
-                // Write as UTF8 string - data is already base64-encoded
-                writeParams.encoding = Encoding.UTF8;
-                console.log(`[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ${path}`);
+                // Write as Base64 - data is already base64-encoded and should be stored as such
+                writeParams.encoding = Encoding.Base64;
+                console.log(`[CapacitorAPI] Writing pre-encoded base64 with Base64 encoding: ${path}`);
             }
             
             const writeResult = await Filesystem.writeFile(writeParams);

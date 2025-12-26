@@ -438,9 +438,9 @@ class MobileMediaManager {
                 throw new Error('Failed to write image to filesystem');
             }
             
-            // Step 3: Read back as base64 (stored as UTF8 string to avoid double-encoding)
+            // Step 3: Read back as base64 (must use 'base64' encoding to match write encoding)
             console.log('[MediaManager] Reading image back as base64 string:', safeFilename);
-            const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
+            const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
             
             if (!readResult || !readResult.data) {
                 throw new Error('Failed to read image as base64 string');
@@ -649,25 +649,45 @@ class MobileMediaManager {
      */
     async _estimateFileSize(url) {
         try {
-            // Try HEAD request first (most efficient)
-            const response = await fetch(url, { method: 'HEAD' });
-            
-            if (response.ok && response.headers.has('content-length')) {
-                return parseInt(response.headers.get('content-length'), 10);
-            }
-            
-            // Fallback: Some servers don't support HEAD, try GET with Range header
-            console.warn('[MediaManager] HEAD request failed, trying Range request');
-            const rangeResponse = await fetch(url, {
-                headers: { 'Range': 'bytes=0-0' }
-            });
-            
-            if (rangeResponse.status === 206 && rangeResponse.headers.has('content-range')) {
-                // Parse "bytes 0-0/12345" to get total size
-                const contentRange = rangeResponse.headers.get('content-range');
-                const match = contentRange.match(/bytes \d+-\d+\/(\d+)/);
-                if (match) {
-                    return parseInt(match[1], 10);
+            // Use CapacitorHttp for mobile to avoid CORS issues
+            if (window.capacitorAPI && window.capacitorAPI.isNative && window.capacitorAPI.plugins.CapacitorHttp) {
+                console.log('[MediaManager] Using CapacitorHttp for HEAD request:', url);
+                
+                try {
+                    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
+                        url: url,
+                        connectTimeout: 10000
+                    });
+                    
+                    if (response.status === 200 && response.headers && response.headers['content-length']) {
+                        const size = parseInt(response.headers['content-length'], 10);
+                        console.log('[MediaManager] File size from HEAD:', size, 'bytes');
+                        return size;
+                    }
+                } catch (headError) {
+                    console.warn('[MediaManager] HEAD request failed, will use standard download');
+                }
+            } else {
+                // Web fallback: Try HEAD request first (most efficient)
+                const response = await fetch(url, { method: 'HEAD' });
+                
+                if (response.ok && response.headers.has('content-length')) {
+                    return parseInt(response.headers.get('content-length'), 10);
+                }
+                
+                // Fallback: Some servers don't support HEAD, try GET with Range header
+                console.warn('[MediaManager] HEAD request failed, trying Range request');
+                const rangeResponse = await fetch(url, {
+                    headers: { 'Range': 'bytes=0-0' }
+                });
+                
+                if (rangeResponse.status === 206 && rangeResponse.headers.has('content-range')) {
+                    // Parse "bytes 0-0/12345" to get total size
+                    const contentRange = rangeResponse.headers.get('content-range');
+                    const match = contentRange.match(/bytes \d+-\d+\/(\d+)/);
+                    if (match) {
+                        return parseInt(match[1], 10);
+                    }
                 }
             }
             

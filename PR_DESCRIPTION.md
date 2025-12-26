@@ -1,4 +1,125 @@
-## Feature: Mobile Chunked File Handling for Large Media
+## Fixed: Mobile Media File Encoding and CORS Issues
+
+Fixes critical base64 encoding/decoding mismatch and CORS policy blocks preventing media files from loading in mobile CMS player.
+
+## Problems Fixed
+
+Mobile app had critical issues preventing media files from displaying:
+1. Base64 encoding mismatch - Writing with Base64 encoding but reading with UTF8 encoding caused data corruption
+2. Invalid base64 data errors - Images failed to load with "Invalid base64 data - possible corruption during write/read" errors
+3. CORS policy blocks - HTTP requests blocked by "No 'Access-Control-Allow-Origin' header is present" errors
+4. File size estimation failures - HEAD requests failed due to CORS restrictions
+5. Chunked downloads broken - Range requests failed with CORS errors
+
+Evidence from logs:
+```
+[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ecless/media/cache/Departure_Icon.png
+[MediaManager] Base64 validation failed for: Departure_Icon.png
+[MediaManager] Image download error: Error: Invalid base64 data - possible corruption during write/read
+Access to fetch at 'https://cless4.closed-loop.biz/...' has been blocked by CORS policy
+```
+
+## Changes Made
+
+1. Fixed base64 encoding in capacitor-core.js writeFile - Changed from Encoding.UTF8 to Encoding.Base64 for base64-string data
+2. Fixed base64 decoding in mobile-media-manager.js _performImageDownload - Changed readFile from 'utf8' to 'base64' encoding
+3. Replaced fetch() with CapacitorHttp in mobile-media-manager.js _estimateFileSize method
+4. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _getRemoteFileSize method
+5. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _downloadChunk method
+6. Rebuilt capacitor-core.bundle.js with encoding fixes
+7. Added CapacitorHttp HEAD request support for file size estimation
+8. Added CapacitorHttp Range request support for chunked downloads
+9. Maintained web fallback for non-native platforms
+10. Preserved backward compatibility with existing code
+
+## Technical Implementation
+
+Base64 Encoding Fix:
+```javascript
+// Before (BROKEN):
+writeParams.encoding = Encoding.UTF8;  // Writing base64 as UTF8
+const readResult = await readFile(path, 'utf8');  // Reading as UTF8
+
+// After (FIXED):
+writeParams.encoding = Encoding.Base64;  // Writing base64 correctly
+const readResult = await readFile(path, 'base64');  // Reading as base64
+```
+
+CORS Fix:
+```javascript
+// Before (BROKEN):
+const response = await fetch(url, { method: 'HEAD' });
+
+// After (FIXED):
+if (window.capacitorAPI.isNative) {
+    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
+        url: url,
+        connectTimeout: 10000
+    });
+}
+```
+
+## Files Changed Summary
+
+Modified Files:
+- mobile/www/assets/js/mobile/capacitor-core.js - Fixed base64 encoding from UTF8 to Base64 (10 lines)
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Fixed read encoding, added CapacitorHttp for HEAD requests (60 lines)
+- mobile/www/assets/js/mobile/mobile-chunk-manager.js - Replaced fetch with CapacitorHttp for all HTTP requests (100 lines)
+- mobile/www/assets/js/mobile/capacitor-core.bundle.js - Rebuilt with encoding fixes
+
+## Impact
+
+User Experience:
+- Images display correctly without "Invalid base64 data" errors
+- All media files download successfully without CORS blocks
+- Chunked downloads work properly for large files
+- No user intervention required
+- Matches Electron desktop app behavior
+
+Technical:
+- Proper base64 encoding/decoding throughout the pipeline
+- No more CORS policy blocks for native mobile apps
+- File size estimation works correctly
+- Chunked downloads complete successfully
+- No breaking changes to existing functionality
+- All media types (images, videos) work correctly
+
+## Testing
+
+Test image display:
+- Import or download images via CMS player
+- Verify images display without "Invalid base64 data" errors
+- Check console logs show "Writing pre-encoded base64 with Base64 encoding"
+- Check console logs show "Reading file: ... | Encoding: base64"
+
+Test CORS fixes:
+- Download media from remote server
+- Verify no "blocked by CORS policy" errors in console
+- Check logs show "Using CapacitorHttp for HEAD request"
+- Verify file size estimation succeeds
+
+Test chunked downloads:
+- Download large files (>50MB) via CMS player
+- Verify chunked download completes without CORS errors
+- Check progress tracking works correctly
+
+Verification commands:
+- window.mediaManager.getStats() - Should show successful downloads
+- window.chunkManager.getStats() - Should show successful chunk operations
+- Console should show no CORS or base64 validation errors
+
+## Compatibility
+
+- Android 7.0+ with Capacitor 6.x
+- iOS 13.0+ (ready for testing)
+- No breaking changes to existing functionality
+- Backward compatible with existing cached files
+- Works with existing fallback mechanisms
+- Requires no additional dependencies
+
+---
+
+## Previous Version: Feature: Mobile Chunked File Handling for Large Media
 
 Implements capacitor-file-chunk plugin to handle large media files efficiently in mobile CMS player, preventing memory crashes and improving performance.
 

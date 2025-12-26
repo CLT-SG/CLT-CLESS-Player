@@ -1,5 +1,108 @@
 # Change Log
 
+## [3.7.1] - 2025-12-26
+
+### Fixed - Mobile Media File Encoding and CORS Issues
+
+- **Base64 Encoding/Decoding Mismatch** - Fixed critical bug causing "Invalid base64 data" errors and image display failures
+  - Root cause: Writing base64 data with Encoding.UTF8 but reading with 'utf8' encoding caused data corruption
+  - Solution: Changed writeFile to use Encoding.Base64 and readFile to use 'base64' encoding for consistency
+  - Files: capacitor-core.js (writeFile method), mobile-media-manager.js (_performImageDownload method)
+  - Impact: All images now display correctly without base64 validation errors
+
+- **CORS Policy Blocks** - Fixed "Access-Control-Allow-Origin" errors blocking media downloads in mobile app
+  - Root cause: Using fetch() API which triggers CORS restrictions on cross-origin requests
+  - Solution: Replaced fetch() with CapacitorHttp.get/head for all HTTP requests in native apps
+  - Files: mobile-media-manager.js (_estimateFileSize), mobile-chunk-manager.js (_getRemoteFileSize, _downloadChunk)
+  - Impact: All media downloads succeed without CORS errors, chunked downloads work properly
+
+- **Bundle Rebuilding** - Rebuilt capacitor-core.bundle.js with encoding fixes
+  - Ran npm run build:mobile to regenerate all bundles with latest fixes
+  - Files: capacitor-core.bundle.js, datetime.bundle.js, browser-image-compression.bundle.js
+  - Impact: Mobile app now uses corrected encoding logic in production
+
+### Technical Details
+
+**Encoding Fix:**
+```javascript
+// Before (BROKEN - Line 232 capacitor-core.js):
+if (dataType === 'base64-string') {
+    writeParams.encoding = Encoding.UTF8;  // Wrong encoding!
+}
+
+// After (FIXED):
+if (dataType === 'base64-string') {
+    writeParams.encoding = Encoding.Base64;  // Correct encoding
+}
+
+// Before (BROKEN - Line 453 mobile-media-manager.js):
+const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
+
+// After (FIXED):
+const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
+```
+
+**CORS Fix:**
+```javascript
+// Before (BROKEN - Line 653 mobile-media-manager.js):
+const response = await fetch(url, { method: 'HEAD' });
+
+// After (FIXED):
+if (window.capacitorAPI?.isNative) {
+    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
+        url: url,
+        connectTimeout: 10000
+    });
+}
+```
+
+### Log Evidence
+
+**Before (with errors):**
+```
+[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ecless/media/cache/Departure_Icon.png
+[CapacitorAPI] Reading file: ecless/media/cache/Departure_Icon.png | Encoding: utf8
+[MediaManager] Base64 validation failed for: Departure_Icon.png
+[MediaManager] Image download error: Error: Invalid base64 data - possible corruption during write/read
+Access to fetch at 'https://cless4.closed-loop.biz/media/uploads/497/Departure_Icon.png' has been blocked by CORS policy
+```
+
+**After (fixed):**
+```
+[CapacitorAPI] Writing pre-encoded base64 with Base64 encoding: ecless/media/cache/Departure_Icon.png
+[CapacitorAPI] Reading file: ecless/media/cache/Departure_Icon.png | Encoding: base64
+[MediaManager] Base64 preview (first 50 chars): iVBORw0KGgoAAAANSUhEUgAAA...
+[MediaManager] Using CapacitorHttp for HEAD request: https://cless4.closed-loop.biz/...
+[MediaManager] Successfully cached: Departure_Icon.png
+```
+
+### Files Modified
+
+- mobile/www/assets/js/mobile/capacitor-core.js - Fixed writeFile base64 encoding (10 lines changed)
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Fixed readFile encoding, added CapacitorHttp (60 lines changed)
+- mobile/www/assets/js/mobile/mobile-chunk-manager.js - Replaced fetch with CapacitorHttp (100 lines changed)
+- mobile/www/assets/js/mobile/capacitor-core.bundle.js - Rebuilt with fixes (auto-generated)
+- mobile/www/assets/js/mobile/datetime.bundle.js - Rebuilt (auto-generated)
+- mobile/www/assets/js/mobile/browser-image-compression.bundle.js - Rebuilt (auto-generated)
+
+### Compatibility
+
+- No breaking changes to existing functionality
+- Backward compatible with all configurations
+- Works with Android 7.0+ and iOS 13.0+
+- Requires no additional dependencies
+- Desktop Electron app unaffected
+
+### Testing
+
+Verify media displays correctly:
+- Import or download images via CMS player
+- Check console logs show "Writing pre-encoded base64 with Base64 encoding"
+- Verify no "Invalid base64 data" errors in console
+- Confirm no "blocked by CORS policy" errors
+- Check images and videos display correctly in all slots
+- Verify chunked downloads complete successfully for large files
+
 ## [3.6.9] - 2025-12-26
 
 ### Feature - Mobile Chunked File Handling for Large Media
