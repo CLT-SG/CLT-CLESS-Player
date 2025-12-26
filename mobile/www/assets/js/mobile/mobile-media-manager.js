@@ -359,6 +359,31 @@ class MobileMediaManager {
                 blob = await response.blob();
             }
             
+            // Step 1.5: Compress image if needed (NEW)
+            if (window.imageCompressionManager && window.imageCompressionManager.isEnabled()) {
+                const originalSize = blob.size;
+                const shouldCompress = window.imageCompressionManager.shouldCompress(blob);
+                
+                if (shouldCompress) {
+                    console.log('[MediaManager] Compressing image before caching:', safeFilename, 
+                               `(${(originalSize / 1024).toFixed(2)} KB)`);
+                    
+                    try {
+                        blob = await window.imageCompressionManager.compressImage(blob);
+                        const newSize = blob.size;
+                        const savedKB = ((originalSize - newSize) / 1024).toFixed(2);
+                        const savedPercent = (((originalSize - newSize) / originalSize) * 100).toFixed(1);
+                        
+                        console.log(`[MediaManager] ✓ Image compressed: ${savedKB} KB saved (${savedPercent}%)`);
+                    } catch (compressionError) {
+                        console.warn('[MediaManager] Compression failed, using original:', compressionError.message);
+                        // Continue with original blob
+                    }
+                } else {
+                    console.log('[MediaManager] Image is small enough, skipping compression');
+                }
+            }
+            
             // Step 2: Write blob to filesystem
             if (!window.capacitorAPI || !window.capacitorAPI.writeFile) {
                 throw new Error('Capacitor Filesystem API not available');
@@ -371,17 +396,33 @@ class MobileMediaManager {
                 throw new Error('Failed to write image to filesystem');
             }
             
-            // Step 3: Read back as base64
-            console.log('[MediaManager] Reading image back as base64:', safeFilename);
-            const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
+            // Step 3: Read back as base64 (stored as UTF8 string to avoid double-encoding)
+            console.log('[MediaManager] Reading image back as base64 string:', safeFilename);
+            const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
             
             if (!readResult || !readResult.data) {
-                throw new Error('Failed to read image as base64');
+                throw new Error('Failed to read image as base64 string');
+            }
+            
+            // Validate base64 data
+            const base64Data = readResult.data;
+            if (!this._validateImageBase64(base64Data, ext)) {
+                console.error('[MediaManager] Base64 validation failed for:', safeFilename);
+                console.error('[MediaManager] Base64 preview (first 100 chars):', base64Data.substring(0, 100));
+                throw new Error('Invalid base64 data - possible corruption during write/read');
             }
             
             // Step 4: Create data URL with proper MIME type
             const mimeType = this.getMimeTypeFromExtension(ext);
-            const dataUrl = `data:${mimeType};base64,${readResult.data}`;
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
+            
+            // Additional validation: Check data URL format
+            if (!dataUrl.startsWith('data:image/')) {
+                throw new Error(`Invalid data URL format. MIME: ${mimeType}`);
+            }
+            
+            console.log('[MediaManager] Base64 preview (first 50 chars):', base64Data.substring(0, 50));
+            console.log('[MediaManager] Data URL length:', dataUrl.length, 'bytes');
             
             // Step 5: Cache the data URL for immediate access
             this.uriCache.set(safeFilename, dataUrl);
@@ -628,7 +669,7 @@ class MobileMediaManager {
                 console.log('[MediaManager] Loading IMAGE as base64:', safeFilename);
                 
                 try {
-                    const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
+                    const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
                     
                     if (!readResult || !readResult.data) {
                         throw new Error('Failed to read image as base64');
@@ -1105,6 +1146,92 @@ class MobileMediaManager {
         console.log('[MediaManager] Clearing URI cache...');
         this.uriCache.clear();
     }
+    
+    /**
+     * Validate base64 image data by checking file format headers
+     * @private
+     * @param {string} base64 - Base64 encoded image data
+     * @param {string} ext - File extension (jpg, png, etc.)
+     * @returns {boolean} True if base64 appears valid for the image type
+     */
+    _validateImageBase64(base64, ext) {
+        if (!base64 || typeof base64 !== 'string' || base64.length < 10) {
+            return false;
+        }
+        
+        // Check for valid base64 characters
+        const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Pattern.test(base64)) {
+            console.error('[MediaManager] Invalid base64 characters detected');
+            return false;
+        }
+        
+        // Validate file format by checking magic bytes (decoded first few bytes)
+        const firstBytes = base64.substring(0, 24); // First ~18 bytes when decoded
+        
+        try {
+            // Decode first bytes to check file signature
+            const decoded = atob(firstBytes);
+            const bytes = new Uint8Array(decoded.split('').map(c => c.charCodeAt(0)));
+            
+            // PNG: starts with [137, 80, 78, 71] = 0x89504E47 = "‰PNG"
+            if ((ext === 'png') && bytes.length >= 4) {
+                if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+                    console.log('[MediaManager] ✓ Valid PNG header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid PNG header. Expected: 89504E47, Got:', 
+                        Array.from(bytes.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    return false;
+                }
+            }
+            
+            // JPEG: starts with [255, 216, 255] = 0xFFD8FF
+            if ((ext === 'jpg' || ext === 'jpeg') && bytes.length >= 3) {
+                if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+                    console.log('[MediaManager] ✓ Valid JPEG header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid JPEG header. Expected: FFD8FF, Got:', 
+                        Array.from(bytes.slice(0, 3)).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    return false;
+                }
+            }
+            
+            // GIF: starts with "GIF87a" or "GIF89a"
+            if ((ext === 'gif') && bytes.length >= 6) {
+                const gifHeader = String.fromCharCode(...bytes.slice(0, 6));
+                if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') {
+                    console.log('[MediaManager] ✓ Valid GIF header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid GIF header. Got:', gifHeader);
+                    return false;
+                }
+            }
+            
+            // WEBP: starts with "RIFF" at byte 0 and "WEBP" at byte 8
+            if ((ext === 'webp') && bytes.length >= 12) {
+                const riff = String.fromCharCode(...bytes.slice(0, 4));
+                const webp = String.fromCharCode(...bytes.slice(8, 12));
+                if (riff === 'RIFF' && webp === 'WEBP') {
+                    console.log('[MediaManager] ✓ Valid WEBP header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid WEBP header');
+                    return false;
+                }
+            }
+            
+            // For other formats, just verify base64 is valid
+            console.log('[MediaManager] ⚠ Skipping header validation for extension:', ext);
+            return true;
+            
+        } catch (error) {
+            console.error('[MediaManager] Error validating base64 header:', error.message);
+            return false;
+        }
+    }
 
     // DEBUG helper: return a plain object of recorded native URIs from writeFile
     getFileUriMap() {
@@ -1202,7 +1329,7 @@ class MobileMediaManager {
             if (isImage && window.capacitorAPI && window.capacitorAPI.readFile) {
                 // IMAGE: Read as base64 and create data URL
                 console.log(`[MediaManager] Refreshing IMAGE URI: ${safeFilename}`);
-                const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
+                const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
                 
                 if (readResult && readResult.data) {
                     const mimeType = this.getMimeTypeFromExtension(ext);

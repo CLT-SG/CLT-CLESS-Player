@@ -97,17 +97,64 @@ class CapacitorAPI {
 
     /**
      * Read file from device storage
+     * @param {string} path - File path relative to directory
+     * @param {string} encoding - Encoding format ('utf8', 'base64', etc.) - if provided as second param
+     * @param {Directory} directory - Target directory (default: Directory.Data) - if encoding not provided, this becomes second param
+     * @returns {Promise<Object>} Result object with data property
      */
-    async readFile(path, directory = Directory.Data) {
+    async readFile(path, encodingOrDirectory = null, directory = Directory.Data) {
         try {
-            const targetDir = directory || Directory.Data;
-            const result = await Filesystem.readFile({
+            // Smart parameter detection for backward compatibility
+            // If second param is a string like 'base64' or 'utf8', treat it as encoding
+            // Otherwise, treat it as directory
+            let encoding = null;
+            let targetDir = Directory.Data;
+            
+            if (typeof encodingOrDirectory === 'string') {
+                // Check if it looks like an encoding (base64, utf8, etc.)
+                if (encodingOrDirectory === 'base64' || encodingOrDirectory === 'utf8' || encodingOrDirectory === 'ascii') {
+                    encoding = encodingOrDirectory;
+                    targetDir = directory || Directory.Data;
+                } else {
+                    // Treat as directory for backward compatibility
+                    targetDir = encodingOrDirectory;
+                }
+            } else if (encodingOrDirectory) {
+                // It's a Directory constant
+                targetDir = encodingOrDirectory;
+            }
+            
+            // Build Filesystem.readFile parameters
+            const readParams = {
                 path,
-                directory: targetDir,
-            });
-            return result.data;
+                directory: targetDir
+            };
+            
+            // Add encoding if specified
+            if (encoding === 'base64') {
+                readParams.encoding = Encoding.Base64;
+            } else if (encoding === 'utf8') {
+                readParams.encoding = Encoding.UTF8;
+            } else if (encoding === 'ascii') {
+                readParams.encoding = Encoding.ASCII;
+            }
+            
+            console.log(`[CapacitorAPI] Reading file: ${path} | Directory: ${targetDir} | Encoding: ${encoding || 'default'}`);
+            
+            const result = await Filesystem.readFile(readParams);
+            
+            // Validate base64 data if encoding was requested
+            if (encoding === 'base64' && result.data) {
+                const isValid = this._validateBase64(result.data);
+                if (!isValid) {
+                    console.warn(`[CapacitorAPI] Warning: Base64 data may be corrupted for ${path}`);
+                }
+            }
+            
+            // Return result object with data property
+            return { data: result.data };
         } catch (error) {
-            console.error(`Failed to read file ${path} from ${directory}:`, error);
+            console.error(`Failed to read file ${path} from ${encodingOrDirectory || directory}:`, error);
             throw error;
         }
     }
@@ -137,14 +184,14 @@ class CapacitorAPI {
                 const sizeKB = (data.size / 1024).toFixed(2);
                 console.log(`[CapacitorAPI] Converting ${data instanceof File ? 'File' : 'Blob'} to base64: ${path} (${sizeKB} KB)`);
                 writeData = await this._blobToBase64(data);
-                dataType = 'base64';
+                dataType = 'base64-string'; // Already base64-encoded by FileReader
             }
             // Convert ArrayBuffer to base64
             else if (data instanceof ArrayBuffer) {
                 console.log(`[CapacitorAPI] Converting ArrayBuffer to base64: ${path}`);
                 const blob = new Blob([data]);
                 writeData = await this._blobToBase64(blob);
-                dataType = 'base64';
+                dataType = 'base64-string'; // Already base64-encoded by FileReader
             }
             // String data - use as is
             else if (typeof data === 'string') {
@@ -152,7 +199,7 @@ class CapacitorAPI {
                 if (data.startsWith('data:')) {
                     // Extract base64 part from data URI
                     writeData = data.split(',')[1];
-                    dataType = 'base64';
+                    dataType = 'base64-string'; // Already base64-encoded
                 } else {
                     writeData = data;
                     dataType = 'string';
@@ -162,15 +209,29 @@ class CapacitorAPI {
                 throw new Error(`Unsupported data type: ${typeof data}`);
             }
             
-            // Write to filesystem
-            const writeResult = await Filesystem.writeFile({
+            // Write to filesystem with proper encoding
+            const writeParams = {
                 path,
                 data: writeData,
                 directory: targetDir,
                 recursive: true
-            });
+            };
             
-            console.log(`[CapacitorAPI] ✓ File written successfully: ${path}`);
+            // CRITICAL FIX: Do NOT use Encoding.Base64 for already-encoded base64 strings!
+            // FileReader.readAsDataURL() already encodes to base64, so if we use Encoding.Base64
+            // again, Capacitor will DOUBLE-ENCODE the data, making it unreadable.
+            // 
+            // Only use Encoding.Base64 when writing RAW binary data (not pre-encoded strings).
+            // Since we convert Blob/File to base64 via FileReader, we should write as UTF8 string.
+            if (dataType === 'base64-string') {
+                // Write as UTF8 string - data is already base64-encoded
+                writeParams.encoding = Encoding.UTF8;
+                console.log(`[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ${path}`);
+            }
+            
+            const writeResult = await Filesystem.writeFile(writeParams);
+            
+            console.log(`[CapacitorAPI] ✓ File written successfully: ${path} | Data Type: ${dataType}`);
             
             // Get the native URI for the written file
             let nativeUri = null;
@@ -217,6 +278,22 @@ class CapacitorAPI {
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+    }
+    
+    /**
+     * Validate base64 string format
+     * @private
+     * @param {string} base64 - Base64 string to validate
+     * @returns {boolean} True if valid base64
+     */
+    _validateBase64(base64) {
+        if (!base64 || typeof base64 !== 'string') return false;
+        
+        // Base64 pattern: only A-Z, a-z, 0-9, +, /, and = for padding
+        const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/;
+        
+        // Check pattern and length (must be multiple of 4)
+        return base64Pattern.test(base64) && base64.length % 4 === 0;
     }
 
     /**
