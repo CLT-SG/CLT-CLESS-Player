@@ -17,6 +17,7 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { FileChunk } from 'capacitor-file-chunk';
 
 console.log('=== CAPACITOR CORE: Initializing ===');
 
@@ -38,6 +39,9 @@ class CapacitorAPI {
             SplashScreen,
             CapacitorHttp
         };
+        
+        // Add FileChunk plugin for chunked file operations
+        this.FileChunk = FileChunk;
         
         console.log(`eCLESS Mobile: Running on ${this.platform} (native: ${this.isNative})`);
     }

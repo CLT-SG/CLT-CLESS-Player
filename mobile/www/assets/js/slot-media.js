@@ -8,6 +8,8 @@
  * - Parallel processing
  * - Better error handling
  * - M3U8/HLS stream support
+ * - CHUNKED FILE SUPPORT: Large files (>2MB) downloaded via capacitor-file-chunk
+ *   are stored as native file URIs and work transparently with VideoJS and <img> elements
  */
 
 var previewContainer

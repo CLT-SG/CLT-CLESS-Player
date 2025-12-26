@@ -40,6 +40,7 @@
     "@capacitor/status-bar": "^6.0.1",
     "axios": "^1.7.7",
     "browser-image-compression": "^2.0.2",
+    "capacitor-file-chunk": "^2.0.0",
     "date-and-time": "^4.1.1",
     "qrcode": "^1.5.0",
     "socket.io-client": "^4.8.1"

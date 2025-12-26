@@ -58,6 +58,10 @@ class MobileMediaManager {
         this.preloadQueue = []; // Array of files to preload
         this.isPreloading = false;
         
+        // NEW: Chunk manager reference for large files
+        this.chunkManager = null;
+        this.useChunking = true; // Enable chunking by default
+        
         // Statistics
         this.stats = {
             totalDownloads: 0,
@@ -66,7 +70,9 @@ class MobileMediaManager {
             cacheHits: 0,
             cacheMisses: 0,
             uriCacheHits: 0,
-            fallbackCount: 0
+            fallbackCount: 0,
+            chunkedDownloads: 0,
+            standardDownloads: 0
         };
     }
 
@@ -95,9 +101,18 @@ class MobileMediaManager {
             // Load cached files index
             await this.loadCacheIndex();
             
+            // Initialize chunk manager for large files
+            if (this.useChunking && window.chunkManager) {
+                this.chunkManager = window.chunkManager;
+                console.log('MediaManager: Chunk manager available for large files');
+            } else {
+                console.warn('MediaManager: Chunk manager not available, large files may cause issues');
+            }
+            
             this.initialized = true;
             console.log('MediaManager: Initialized successfully');
             console.log('MediaManager: Cache directory:', this.cacheDir);
+            console.log('MediaManager: Chunking enabled:', this.useChunking);
             
             return true;
             
@@ -257,6 +272,7 @@ class MobileMediaManager {
 
     /**
      * Download media file from server
+     * ENHANCED: Smart download routing based on file size
      */
     async downloadMedia(mediaURL, filename) {
         try {
@@ -278,8 +294,34 @@ class MobileMediaManager {
                 return { success: true, filePath, fromCache: true };
             }
             
-            // Create download promise
-            const downloadPromise = this._performDownload(mediaURL, safeFilename, filePath);
+            // NEW: Estimate file size and choose download strategy
+            let downloadPromise;
+            
+            if (this.useChunking && this.chunkManager && window.chunkConfigHelpers) {
+                try {
+                    const fileSize = await this._estimateFileSize(mediaURL);
+                    console.log(`[MediaManager] Estimated file size: ${(fileSize / 1024 / 1024).toFixed(2)} MB`);
+                    
+                    // Use chunk config helper to decide
+                    if (window.chunkConfigHelpers.shouldUseChunking(fileSize, safeFilename)) {
+                        console.log('[MediaManager] Using CHUNKED download for large file:', safeFilename);
+                        downloadPromise = this._performChunkedDownload(mediaURL, safeFilename, filePath, fileSize);
+                        this.stats.chunkedDownloads++;
+                    } else {
+                        console.log('[MediaManager] Using STANDARD download for small file:', safeFilename);
+                        downloadPromise = this._performDownload(mediaURL, safeFilename, filePath);
+                        this.stats.standardDownloads++;
+                    }
+                } catch (sizeError) {
+                    console.warn('[MediaManager] Could not estimate file size, using standard download:', sizeError.message);
+                    downloadPromise = this._performDownload(mediaURL, safeFilename, filePath);
+                    this.stats.standardDownloads++;
+                }
+            } else {
+                // Chunking disabled or not available
+                downloadPromise = this._performDownload(mediaURL, safeFilename, filePath);
+                this.stats.standardDownloads++;
+            }
             
             // Add to queue
             this.downloadQueue.set(safeFilename, downloadPromise);
@@ -597,6 +639,234 @@ class MobileMediaManager {
             reader.onerror = reject;
             reader.readAsDataURL(blob);
         });
+    }
+
+    /**
+     * NEW: Estimate file size from server using HEAD request
+     * @private
+     * @param {string} url - URL to check
+     * @returns {Promise<number>} File size in bytes
+     */
+    async _estimateFileSize(url) {
+        try {
+            // Try HEAD request first (most efficient)
+            const response = await fetch(url, { method: 'HEAD' });
+            
+            if (response.ok && response.headers.has('content-length')) {
+                return parseInt(response.headers.get('content-length'), 10);
+            }
+            
+            // Fallback: Some servers don't support HEAD, try GET with Range header
+            console.warn('[MediaManager] HEAD request failed, trying Range request');
+            const rangeResponse = await fetch(url, {
+                headers: { 'Range': 'bytes=0-0' }
+            });
+            
+            if (rangeResponse.status === 206 && rangeResponse.headers.has('content-range')) {
+                // Parse "bytes 0-0/12345" to get total size
+                const contentRange = rangeResponse.headers.get('content-range');
+                const match = contentRange.match(/bytes \d+-\d+\/(\d+)/);
+                if (match) {
+                    return parseInt(match[1], 10);
+                }
+            }
+            
+            // Last resort: Assume it's a small file (under 2MB threshold)
+            console.warn('[MediaManager] Could not determine file size, assuming small file');
+            return 1 * 1024 * 1024; // 1MB (will use standard download)
+            
+        } catch (error) {
+            console.warn('[MediaManager] File size estimation failed:', error.message);
+            return 1 * 1024 * 1024; // 1MB fallback (use standard download)
+        }
+    }
+
+    /**
+     * NEW: Perform chunked download for large files using capacitor-file-chunk
+     * @private
+     * @param {string} mediaURL - URL to download from
+     * @param {string} safeFilename - Sanitized filename
+     * @param {string} filePath - Destination file path
+     * @param {number} fileSize - Estimated file size in bytes
+     * @returns {Promise<Object>} Download result
+     */
+    async _performChunkedDownload(mediaURL, safeFilename, filePath, fileSize) {
+        console.log(`[MediaManager] ✓ CHUNKED DOWNLOAD: ${safeFilename} (${(fileSize / 1024 / 1024).toFixed(2)} MB)`);
+        
+        try {
+            // Ensure chunk manager is ready
+            if (!this.chunkManager) {
+                throw new Error('Chunk manager not available');
+            }
+            
+            // Get optimal chunk configuration
+            const serverConfig = window.chunkConfigHelpers 
+                ? window.chunkConfigHelpers.getServerConfig(fileSize, safeFilename)
+                : { encryption: false, chunkSize: 10 * 1024 * 1024 };
+            
+            console.log('[MediaManager] Chunk config:', serverConfig);
+            
+            // Ensure server is started
+            await this.chunkManager.ensureServerReady(serverConfig);
+            
+            // Perform chunked download with progress tracking
+            const result = await this.chunkManager.downloadFileChunked(
+                mediaURL,
+                filePath,
+                (progress) => {
+                    // Update progress tracking
+                    this.downloadProgress.set(safeFilename, progress);
+                    
+                    // Log every 10%
+                    if (progress.progress % 10 === 0) {
+                        console.log(`[MediaManager] Download progress: ${safeFilename} ${progress.progress}%`);
+                    }
+                    
+                    // Show progress notification
+                    if (window.errorNotification && window.CHUNK_CONFIG?.features?.showProgress) {
+                        window.errorNotification.info(
+                            'Downloading',
+                            `${safeFilename}: ${progress.progress}%`,
+                            1000
+                        );
+                    }
+                }
+            );
+            
+            if (!result.success) {
+                throw new Error(result.error || 'Chunked download failed');
+            }
+            
+            console.log(`[MediaManager] ✓ Chunked download completed: ${safeFilename}`);
+            
+            // Add to cache index
+            this.cachedFiles.add(safeFilename);
+            
+            // Determine file type for URI caching
+            const ext = safeFilename.split('.').pop().toLowerCase();
+            const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+            const isImage = imageExts.includes(ext);
+            
+            // For images: Read and cache as data URI
+            if (isImage) {
+                console.log('[MediaManager] Reading chunked image as data URI:', safeFilename);
+                try {
+                    const mimeType = this.getMimeTypeFromExtension(ext);
+                    const dataUri = await this._getDataUriFromChunkedFile(result.filePath, mimeType);
+                    
+                    if (dataUri) {
+                        this.uriCache.set(safeFilename, dataUri);
+                        console.log('[MediaManager] ✓ Image data URI cached');
+                    }
+                } catch (uriError) {
+                    console.warn('[MediaManager] Could not generate data URI, will read on demand:', uriError.message);
+                }
+            } else {
+                // For videos: Cache native URI
+                console.log('[MediaManager] Generating native URI for chunked video:', safeFilename);
+                try {
+                    const fileUriPath = 'file://' + result.filePath;
+                    this.fileUriMap.set(safeFilename, fileUriPath);
+                    
+                    if (window.capacitorAPI?.plugins?.Capacitor?.convertFileSrc) {
+                        const webUri = window.capacitorAPI.plugins.Capacitor.convertFileSrc(fileUriPath);
+                        this.uriCache.set(safeFilename, webUri);
+                        console.log('[MediaManager] ✓ Video web URI cached');
+                    }
+                } catch (uriError) {
+                    console.warn('[MediaManager] Could not generate video URI:', uriError.message);
+                }
+            }
+            
+            this.stats.successfulDownloads++;
+            
+            // Show success notification
+            if (window.errorNotification) {
+                window.errorNotification.success(
+                    'Large File Downloaded',
+                    `${safeFilename} ready for offline use`,
+                    3000
+                );
+            }
+            
+            return { 
+                success: true, 
+                filePath: result.filePath, 
+                fromCache: false,
+                chunked: true,
+                fileSize: result.fileSize
+            };
+            
+        } catch (error) {
+            console.error('[MediaManager] Chunked download failed:', error);
+            
+            // Show error notification
+            if (window.errorNotification) {
+                window.errorNotification.error(
+                    'Download Failed',
+                    `Failed to download ${safeFilename}: ${error.message}`,
+                    5000
+                );
+            }
+            
+            // Try fallback to standard download for smaller files
+            if (fileSize < 10 * 1024 * 1024) { // < 10MB
+                console.warn('[MediaManager] Falling back to standard download...');
+                return await this._performDownload(mediaURL, safeFilename, filePath);
+            }
+            
+            throw error;
+        }
+    }
+
+    /**
+     * NEW: Get data URI from a chunked file by reading it in chunks
+     * @private
+     * @param {string} filePath - Path to the file
+     * @param {string} mimeType - MIME type for data URI
+     * @returns {Promise<string>} Data URI
+     */
+    async _getDataUriFromChunkedFile(filePath, mimeType) {
+        try {
+            // Get file size
+            const fileSize = await this.chunkManager.getFileSize(filePath);
+            
+            if (fileSize <= 0) {
+                throw new Error('Invalid file size');
+            }
+            
+            console.log(`[MediaManager] Reading chunked file (${(fileSize / 1024 / 1024).toFixed(2)} MB) as data URI`);
+            
+            // Read file in 5MB chunks
+            const chunkSize = 5 * 1024 * 1024;
+            const chunks = [];
+            let offset = 0;
+            
+            while (offset < fileSize) {
+                const bytesToRead = Math.min(chunkSize, fileSize - offset);
+                const chunk = await this.chunkManager.readChunk(filePath, offset, bytesToRead);
+                
+                if (!chunk || chunk.length === 0) {
+                    throw new Error(`Failed to read chunk at offset ${offset}`);
+                }
+                
+                chunks.push(chunk);
+                offset += chunk.length;
+            }
+            
+            // Combine chunks into blob
+            const blob = new Blob(chunks);
+            
+            // Convert to base64
+            const base64 = await this._blobToBase64(blob);
+            
+            // Return data URI
+            return `data:${mimeType};base64,${base64}`;
+            
+        } catch (error) {
+            console.error('[MediaManager] Failed to read chunked file as data URI:', error);
+            throw error;
+        }
     }
 
     /**
