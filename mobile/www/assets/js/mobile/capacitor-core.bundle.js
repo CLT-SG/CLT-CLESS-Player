@@ -661,15 +661,15 @@ const CapacitorHttp = registerPlugin('CapacitorHttp', {
 });
 
 const App = registerPlugin('App', {
-    web: () => Promise.resolve().then(function () { return web$5; }).then(m => new m.AppWeb()),
+    web: () => Promise.resolve().then(function () { return web$6; }).then(m => new m.AppWeb()),
 });
 
 const Device = registerPlugin('Device', {
-    web: () => Promise.resolve().then(function () { return web$4; }).then(m => new m.DeviceWeb()),
+    web: () => Promise.resolve().then(function () { return web$5; }).then(m => new m.DeviceWeb()),
 });
 
 const Network = registerPlugin('Network', {
-    web: () => Promise.resolve().then(function () { return web$3; }).then(m => new m.NetworkWeb()),
+    web: () => Promise.resolve().then(function () { return web$4; }).then(m => new m.NetworkWeb()),
 });
 
 var Directory;
@@ -765,11 +765,11 @@ var Encoding;
 })(Encoding || (Encoding = {}));
 
 const Filesystem = registerPlugin('Filesystem', {
-    web: () => Promise.resolve().then(function () { return web$2; }).then(m => new m.FilesystemWeb()),
+    web: () => Promise.resolve().then(function () { return web$3; }).then(m => new m.FilesystemWeb()),
 });
 
 const Preferences = registerPlugin('Preferences', {
-    web: () => Promise.resolve().then(function () { return web$1; }).then(m => new m.PreferencesWeb()),
+    web: () => Promise.resolve().then(function () { return web$2; }).then(m => new m.PreferencesWeb()),
 });
 
 var Style;
@@ -824,7 +824,11 @@ var Animation;
 const StatusBar = registerPlugin('StatusBar');
 
 const SplashScreen = registerPlugin('SplashScreen', {
-    web: () => Promise.resolve().then(function () { return web; }).then(m => new m.SplashScreenWeb()),
+    web: () => Promise.resolve().then(function () { return web$1; }).then(m => new m.SplashScreenWeb()),
+});
+
+const FileChunk = registerPlugin('FileChunk', {
+    web: () => Promise.resolve().then(function () { return web; }).then(m => new m.FileChunkWeb()),
 });
 
 /**
@@ -858,6 +862,9 @@ class CapacitorAPI {
             SplashScreen,
             CapacitorHttp
         };
+        
+        // Add FileChunk plugin for chunked file operations
+        this.FileChunk = FileChunk;
         
         console.log(`eCLESS Mobile: Running on ${this.platform} (native: ${this.isNative})`);
     }
@@ -1037,16 +1044,15 @@ class CapacitorAPI {
                 recursive: true
             };
             
-            // CRITICAL FIX: Do NOT use Encoding.Base64 for already-encoded base64 strings!
-            // FileReader.readAsDataURL() already encodes to base64, so if we use Encoding.Base64
-            // again, Capacitor will DOUBLE-ENCODE the data, making it unreadable.
+            // CRITICAL FIX: Use Encoding.Base64 for base64-encoded strings
+            // FileReader.readAsDataURL() already encodes to base64, and we need to store it properly.
+            // Using Encoding.Base64 tells Capacitor this is base64 data and it should be stored/retrieved correctly.
             // 
-            // Only use Encoding.Base64 when writing RAW binary data (not pre-encoded strings).
-            // Since we convert Blob/File to base64 via FileReader, we should write as UTF8 string.
+            // When reading back, we MUST use Encoding.Base64 as well to get the data back in base64 format.
             if (dataType === 'base64-string') {
-                // Write as UTF8 string - data is already base64-encoded
-                writeParams.encoding = Encoding.UTF8;
-                console.log(`[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ${path}`);
+                // Write as Base64 - data is already base64-encoded and should be stored as such
+                writeParams.encoding = Encoding.Base64;
+                console.log(`[CapacitorAPI] Writing pre-encoded base64 with Base64 encoding: ${path}`);
             }
             
             const writeResult = await Filesystem.writeFile(writeParams);
@@ -1517,7 +1523,7 @@ class AppWeb extends WebPlugin {
     }
 }
 
-var web$5 = /*#__PURE__*/Object.freeze({
+var web$6 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     AppWeb: AppWeb
 });
@@ -1690,7 +1696,7 @@ class DeviceWeb extends WebPlugin {
     }
 }
 
-var web$4 = /*#__PURE__*/Object.freeze({
+var web$5 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     DeviceWeb: DeviceWeb
 });
@@ -1771,7 +1777,7 @@ class NetworkWeb extends WebPlugin {
 }
 new NetworkWeb();
 
-var web$3 = /*#__PURE__*/Object.freeze({
+var web$4 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     NetworkWeb: NetworkWeb
 });
@@ -2370,7 +2376,7 @@ class FilesystemWeb extends WebPlugin {
 }
 FilesystemWeb._debug = true;
 
-var web$2 = /*#__PURE__*/Object.freeze({
+var web$3 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     FilesystemWeb: FilesystemWeb
 });
@@ -2445,7 +2451,7 @@ class PreferencesWeb extends WebPlugin {
     }
 }
 
-var web$1 = /*#__PURE__*/Object.freeze({
+var web$2 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     PreferencesWeb: PreferencesWeb
 });
@@ -2459,9 +2465,43 @@ class SplashScreenWeb extends WebPlugin {
     }
 }
 
-var web = /*#__PURE__*/Object.freeze({
+var web$1 = /*#__PURE__*/Object.freeze({
     __proto__: null,
     SplashScreenWeb: SplashScreenWeb
+});
+
+class FileChunkWeb extends WebPlugin {
+    ////////////////////////////////////////////////////////////////
+    // START SERVER
+    async startServer(_options) {
+        console.warn('FileChunk does not work on the browser!');
+        return {
+            version: 2,
+            platform: 'web',
+            baseUrl: 'not-needed',
+            authToken: 'not-needed',
+            chunkSize: 0,
+            encryptionType: 'none',
+            ready: false
+        };
+    }
+    ////////////////////////////////////////////////////////////////
+    // STOP SERVER
+    async stopServer() {
+        console.warn('FileChunk does not work on the browser!');
+        // DO NOTHING
+    }
+    ////////////////////////////////////////////////////////////////
+    // READ FILE CHUNK
+    async readFileChunk(_options) {
+        console.warn('FileChunk does not work on the browser!');
+        return { data: '' };
+    }
+}
+
+var web = /*#__PURE__*/Object.freeze({
+    __proto__: null,
+    FileChunkWeb: FileChunkWeb
 });
 
 export { Capacitor, capacitorAPI, capacitorAPI as default };

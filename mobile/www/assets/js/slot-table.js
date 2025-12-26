@@ -585,7 +585,9 @@ async function tableRecord(slotitem, index, table) {
                             }
 
                             if (primaryUri || fallbackUri) {
-                                // Create and load image with proper error handling and fallback
+                                // Load image directly
+                                console.log('[appendColumnImage] Loading image directly for:', mediaFileName);
+                                
                                 const img = new Image();
                                 img.style.maxHeight = bodyRowHeight + 'px';
                                 img.style.width = 'auto';
@@ -602,33 +604,6 @@ async function tableRecord(slotitem, index, table) {
                                 img.onerror = function() {
                                     console.error('[appendColumnImage] Image load error for:', mediaFileName, 'src:', img.src);
                                     
-                                    // Enhanced diagnostics for base64 data URLs
-                                    if (img.src && img.src.startsWith('data:')) {
-                                        const parts = img.src.split(',');
-                                        const header = parts[0];
-                                        const base64Data = parts[1] || '';
-                                        
-                                        console.error('[appendColumnImage] Data URL header:', header);
-                                        console.error('[appendColumnImage] Base64 length:', base64Data.length, 'chars');
-                                        console.error('[appendColumnImage] Base64 preview (first 100):', base64Data.substring(0, 100));
-                                        
-                                        // Check for common issues
-                                        if (base64Data.length === 0) {
-                                            console.error('[appendColumnImage] ERROR: Empty base64 data!');
-                                        } else if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
-                                            console.error('[appendColumnImage] ERROR: Invalid base64 characters');
-                                        }
-                                    }
-                                    
-                                    // Log diagnostics
-                                    if (window.mediaManager) {
-                                        window.mediaManager.logMediaDiagnostics(mediaFileName, 'Table Image Load Error', {
-                                            src: img.src ? img.src.substring(0, 100) + '...' : null,
-                                            fallbackUri: fallbackUri ? fallbackUri.substring(0, 100) + '...' : null,
-                                            tableid: tableid
-                                        });
-                                    }
-                                    
                                     // Try fallback URL if available and not already tried
                                     if (fallbackUri && img.src !== fallbackUri && !img.dataset.fallbackAttempted) {
                                         console.log('[appendColumnImage] Attempting fallback URL:', fallbackUri);
@@ -644,7 +619,6 @@ async function tableRecord(slotitem, index, table) {
                                     }
                                 };
                                 
-                                console.log('[appendColumnImage] Setting image for:', mediaFileName, '- Primary:', primaryUri ? 'present' : 'none', '- Fallback:', fallbackUri ? 'present' : 'none');
                                 img.src = primaryUri || fallbackUri;
                             } else {
                                 throw new Error('[appendColumnImage] No media URI available');

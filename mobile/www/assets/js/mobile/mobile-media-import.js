@@ -38,12 +38,18 @@ class MobileMediaImportManager {
         this.isImporting = false;
         this.initialized = false;
         
+        // NEW: Chunk manager reference for large files
+        this.chunkManager = null;
+        this.useChunking = true; // Enable chunking by default
+        
         // Statistics
         this.stats = {
             totalImports: 0,
             successfulImports: 0,
             failedImports: 0,
-            replacedFiles: 0
+            replacedFiles: 0,
+            chunkedImports: 0,
+            directImports: 0
         };
     }
 
@@ -68,9 +74,18 @@ class MobileMediaImportManager {
             // Ensure media directory exists
             await this.ensureMediaDirectory();
             
+            // Initialize chunk manager for large file imports
+            if (this.useChunking && window.chunkManager) {
+                this.chunkManager = window.chunkManager;
+                console.log('MediaImportManager: Chunk manager available for large file imports');
+            } else {
+                console.warn('MediaImportManager: Chunk manager not available, large imports may cause issues');
+            }
+            
             this.initialized = true;
             console.log('MediaImportManager: Initialized successfully');
             console.log('MediaImportManager: Cache directory:', this.mediaDir);
+            console.log('MediaImportManager: Chunking enabled:', this.useChunking);
             
             return true;
             
@@ -292,8 +307,7 @@ class MobileMediaImportManager {
 
     /**
      * Import a single media file
-     * OPTIMIZED: Uses blob storage for ALL media types (matches mobile-media-manager.js strategy)
-     * Previously images used base64, but this causes memory crashes with large files (5MB+)
+     * ENHANCED: Smart routing between chunked (large files) and direct (small files) import
      * @param {File} file - File object to import
      * @returns {Promise<Object>} Import result with URI info
      */
@@ -304,8 +318,43 @@ class MobileMediaImportManager {
         const filePath = `${this.mediaDir}/${file.name}`;
         
         try {
-            console.log(`[MediaImportManager] Importing ${isVideo ? 'video' : 'image'}: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+            console.log(`[MediaImportManager] Importing ${isVideo ? 'video' : 'image'}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
             
+            // NEW: Choose import strategy based on file size
+            if (this.useChunking && this.chunkManager && window.chunkConfigHelpers) {
+                const shouldChunk = window.chunkConfigHelpers.shouldUseChunking(file.size, file.name);
+                
+                if (shouldChunk) {
+                    console.log(`[MediaImportManager] Using CHUNKED import for large file: ${file.name}`);
+                    this.stats.chunkedImports++;
+                    return await this._importFileChunked(file, filePath);
+                } else {
+                    console.log(`[MediaImportManager] Using DIRECT import for small file: ${file.name}`);
+                    this.stats.directImports++;
+                    return await this._importFileDirect(file, filePath);
+                }
+            } else {
+                // Chunking disabled or not available, use direct import
+                console.log(`[MediaImportManager] Using DIRECT import (chunking disabled): ${file.name}`);
+                this.stats.directImports++;
+                return await this._importFileDirect(file, filePath);
+            }
+            
+        } catch (error) {
+            console.error(`[MediaImportManager] Failed to import ${file.name}:`, error);
+            throw error;
+        }
+    }
+    
+    /**
+     * NEW: Import file directly using standard Capacitor Filesystem (for small files)
+     * @private
+     * @param {File} file - File object to import
+     * @param {string} filePath - Destination file path
+     * @returns {Promise<Object>} Import result
+     */
+    async _importFileDirect(file, filePath) {
+        try {
             // Write file using Capacitor API (auto-converts Blob to base64 internally)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
                 // writeFile now returns {success, path, uri, directory}
@@ -346,12 +395,13 @@ class MobileMediaImportManager {
                     window.mediaManager.cachedFiles.add(file.name);
                 }
                 
-                console.log(`[MediaImportManager] ✓ Successfully imported: ${file.name}`);
+                console.log(`[MediaImportManager] ✓ Successfully imported (direct): ${file.name}`);
                 
                 return { 
                     success: true, 
                     filePath, 
-                    hasWebUri: window.mediaManager && window.mediaManager.uriCache.has(file.name) 
+                    hasWebUri: window.mediaManager && window.mediaManager.uriCache.has(file.name),
+                    chunked: false
                 };
                 
             } else {
@@ -359,7 +409,132 @@ class MobileMediaImportManager {
             }
             
         } catch (error) {
-            console.error(`[MediaImportManager] Failed to import ${file.name}:`, error);
+            console.error(`[MediaImportManager] Direct import failed for ${file.name}:`, error);
+            throw error;
+        }
+    }
+    
+    /**
+     * NEW: Import large file using chunked operations
+     * @private
+     * @param {File} file - File object to import
+     * @param {string} filePath - Destination file path
+     * @returns {Promise<Object>} Import result
+     */
+    async _importFileChunked(file, filePath) {
+        console.log(`[MediaImportManager] ✓ CHUNKED IMPORT: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+        
+        try {
+            // Ensure chunk manager is ready
+            if (!this.chunkManager) {
+                throw new Error('Chunk manager not available');
+            }
+            
+            // Get optimal chunk configuration
+            const serverConfig = window.chunkConfigHelpers 
+                ? window.chunkConfigHelpers.getServerConfig(file.size, file.name)
+                : { encryption: false, chunkSize: 10 * 1024 * 1024 };
+            
+            console.log('[MediaImportManager] Chunk config:', serverConfig);
+            
+            // Ensure server is started
+            await this.chunkManager.ensureServerReady(serverConfig);
+            
+            // Create empty file
+            const fileUri = await this.chunkManager.createEmptyFile(filePath);
+            console.log('[MediaImportManager] Empty file created:', fileUri);
+            
+            // Read file in chunks and write
+            const chunkSize = serverConfig.chunkSize || (10 * 1024 * 1024); // 10MB default
+            let offset = 0;
+            let totalWritten = 0;
+            
+            while (offset < file.size) {
+                // Read chunk from File object
+                const chunkEnd = Math.min(offset + chunkSize, file.size);
+                const chunk = file.slice(offset, chunkEnd);
+                const arrayBuffer = await chunk.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                
+                // Write chunk
+                const success = await this.chunkManager.appendChunk(fileUri, uint8Array);
+                
+                if (!success) {
+                    throw new Error(`Failed to write chunk at offset ${offset}`);
+                }
+                
+                totalWritten += uint8Array.length;
+                offset = chunkEnd;
+                
+                // Update progress
+                const progress = Math.round((totalWritten / file.size) * 100);
+                this.showImportProgress(totalWritten, file.size);
+                
+                // Log every 20%
+                if (progress % 20 === 0) {
+                    console.log(`[MediaImportManager] Import progress: ${file.name} ${progress}%`);
+                }
+            }
+            
+            console.log(`[MediaImportManager] ✓ Chunked import completed: ${file.name}`);
+            
+            // Get native URI and cache it
+            const nativeUri = 'file://' + fileUri;
+            
+            // Register with MediaManager
+            if (window.mediaManager) {
+                window.mediaManager.fileUriMap.set(file.name, nativeUri);
+                window.mediaManager.cachedFiles.add(file.name);
+                
+                // Convert to web-accessible URI
+                if (window.capacitorAPI?.convertFileSrc) {
+                    try {
+                        const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                        if (convertedUri) {
+                            window.mediaManager.uriCache.set(file.name, convertedUri);
+                            console.log(`[MediaImportManager] ✓ Cached web URI for: ${file.name}`);
+                        }
+                    } catch (err) {
+                        console.warn(`[MediaImportManager] convertFileSrc failed:`, err.message);
+                    }
+                }
+            }
+            
+            // Show success notification
+            if (window.errorNotification) {
+                window.errorNotification.success(
+                    'Large File Imported',
+                    `${file.name} ready for use`,
+                    3000
+                );
+            }
+            
+            return {
+                success: true,
+                filePath: fileUri,
+                hasWebUri: window.mediaManager && window.mediaManager.uriCache.has(file.name),
+                chunked: true,
+                fileSize: file.size
+            };
+            
+        } catch (error) {
+            console.error('[MediaImportManager] Chunked import failed:', error);
+            
+            // Show error notification
+            if (window.errorNotification) {
+                window.errorNotification.error(
+                    'Import Failed',
+                    `Failed to import ${file.name}: ${error.message}`,
+                    5000
+                );
+            }
+            
+            // Try fallback to direct import for medium-sized files
+            if (file.size < 20 * 1024 * 1024) { // < 20MB
+                console.warn('[MediaImportManager] Falling back to direct import...');
+                return await this._importFileDirect(file, filePath);
+            }
+            
             throw error;
         }
     }

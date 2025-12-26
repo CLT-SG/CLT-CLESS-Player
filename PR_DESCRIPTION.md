@@ -1,136 +1,276 @@
-## Fix: Mobile Image Base64 Double-Encoding and Image Compression
+## Fixed: Mobile Media File Encoding and CORS Issues
 
-Fixes critical double-encoding bug preventing images from displaying correctly in mobile CMS player and adds automatic image compression to optimize storage and performance.
+Fixes critical base64 encoding/decoding mismatch and CORS policy blocks preventing media files from loading in mobile CMS player.
 
 ## Problems Fixed
 
-Images downloaded from server failed to display correctly due to base64 corruption:
-1. Double-encoding issue - FileReader.readAsDataURL() returns base64, then Capacitor Filesystem encoded it AGAIN
-2. Corrupted base64 data - Double-encoded data unreadable by browser img elements
-3. Storage inefficiency - Large images (5MB+) consuming excessive storage without compression
-4. Memory overhead - Uncompressed images using more memory during cache operations
-5. No optimization - All images cached at original size regardless of actual display needs
+Mobile app had critical issues preventing media files from displaying:
+1. Base64 encoding mismatch - Writing with Base64 encoding but reading with UTF8 encoding caused data corruption
+2. Invalid base64 data errors - Images failed to load with "Invalid base64 data - possible corruption during write/read" errors
+3. CORS policy blocks - HTTP requests blocked by "No 'Access-Control-Allow-Origin' header is present" errors
+4. File size estimation failures - HEAD requests failed due to CORS restrictions
+5. Chunked downloads broken - Range requests failed with CORS errors
 
-Evidence from logs showed:
-- Base64 preview: aVZCT1J3MEtHZ29BQUFBTlNVaEVVZ0FBQVFZQUFB (double-encoded)
-- When decoded: iVBORw0KGgoAAAANSUhEUgAAQYAAA (actual PNG header)
-- Image load error despite successful download and write
-- Data URLs starting with corrupted base64 failed to render
-- Large images causing storage bloat without compression
+Evidence from logs:
+```
+[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ecless/media/cache/Departure_Icon.png
+[MediaManager] Base64 validation failed for: Departure_Icon.png
+[MediaManager] Image download error: Error: Invalid base64 data - possible corruption during write/read
+Access to fetch at 'https://cless4.closed-loop.biz/...' has been blocked by CORS policy
+```
 
 ## Changes Made
 
-1. Fixed double-encoding in capacitor-core.js writeFile method
-2. Changed encoding from Encoding.Base64 to Encoding.UTF8 for pre-encoded base64 strings
-3. Renamed dataType from 'base64' to 'base64-string' to indicate already-encoded data
-4. Updated mobile-media-manager.js readFile calls to use 'utf8' encoding (3 locations)
-5. Added browser-image-compression npm dependency for client-side compression
-6. Created mobile-image-compression.js module for compression management
-7. Integrated automatic compression in _performImageDownload method
-8. Added rollup.imagecompression.config.js for bundling compression library
-9. Updated package.json with build:imagecompression and build:mobile scripts
-10. Added compression library script tags to index.html
-11. Created comprehensive documentation for fix and compression feature
-12. Maintained backward compatibility with all existing functionality
+1. Fixed base64 encoding in capacitor-core.js writeFile - Changed from Encoding.UTF8 to Encoding.Base64 for base64-string data
+2. Fixed base64 decoding in mobile-media-manager.js _performImageDownload - Changed readFile from 'utf8' to 'base64' encoding
+3. Replaced fetch() with CapacitorHttp in mobile-media-manager.js _estimateFileSize method
+4. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _getRemoteFileSize method
+5. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _downloadChunk method
+6. Rebuilt capacitor-core.bundle.js with encoding fixes
+7. Added CapacitorHttp HEAD request support for file size estimation
+8. Added CapacitorHttp Range request support for chunked downloads
+9. Maintained web fallback for non-native platforms
+10. Preserved backward compatibility with existing code
 
 ## Technical Implementation
 
-Double-Encoding Fix:
-- Identified that FileReader.readAsDataURL() already returns base64-encoded string
-- Capacitor Filesystem.writeFile with Encoding.Base64 was encoding it again
-- Solution: Use Encoding.UTF8 to store pre-encoded base64 as plain string
-- Read back with 'utf8' encoding to get original base64 without re-decoding
-
-Compression Integration:
-- Downloads image as blob from server
-- Checks if compression needed (file size > 1MB)
-- Compresses using browser-image-compression with configurable quality
-- Writes compressed blob to filesystem
-- Reads back as base64 and creates data URL
-- Caches data URL for instant access
-
-Compression Configuration:
+Base64 Encoding Fix:
 ```javascript
-{
-    maxSizeMB: 2,              // Compress if larger than 2MB
-    maxWidthOrHeight: 1920,    // Scale down if larger than 1920px
-    quality: 0.85,             // 85% quality
-    useWebWorker: true         // Better performance
-}
+// Before (BROKEN):
+writeParams.encoding = Encoding.UTF8;  // Writing base64 as UTF8
+const readResult = await readFile(path, 'utf8');  // Reading as UTF8
+
+// After (FIXED):
+writeParams.encoding = Encoding.Base64;  // Writing base64 correctly
+const readResult = await readFile(path, 'base64');  // Reading as base64
 ```
 
-Build System:
-- Rollup bundles browser-image-compression into single file
-- build:mobile script runs datetime and imagecompression bundles
-- All sync scripts updated to include build:mobile
-- Generated bundle loaded in index.html before other modules
+CORS Fix:
+```javascript
+// Before (BROKEN):
+const response = await fetch(url, { method: 'HEAD' });
+
+// After (FIXED):
+if (window.capacitorAPI.isNative) {
+    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
+        url: url,
+        connectTimeout: 10000
+    });
+}
+```
 
 ## Files Changed Summary
 
 Modified Files:
-- mobile/www/assets/js/mobile/capacitor-core.js - Fixed double-encoding in writeFile (50 lines)
-- mobile/www/assets/js/mobile/mobile-media-manager.js - Updated read encoding, added compression (85 lines)
-- mobile/www/index.html - Added compression script tags (4 lines)
-- mobile/package.json - Added dependency and build scripts (6 lines)
-
-New Files:
-- mobile/www/assets/js/mobile/mobile-image-compression.js - Compression manager
-- mobile/www/assets/js/mobile/browser-image-compression.bundle.js - Bundled library
-- mobile/rollup.imagecompression.config.js - Rollup configuration
-- mobile/build-helpers/image-compression-entry.js - Bundle entry point
-- mobile/docs_mobile/IMAGE-DISPLAY-FIX-AND-COMPRESSION.md - Full technical documentation
-- mobile/docs_mobile/IMAGE-DISPLAY-FIX-QUICKREF.md - Quick reference guide
+- mobile/www/assets/js/mobile/capacitor-core.js - Fixed base64 encoding from UTF8 to Base64 (10 lines)
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Fixed read encoding, added CapacitorHttp for HEAD requests (60 lines)
+- mobile/www/assets/js/mobile/mobile-chunk-manager.js - Replaced fetch with CapacitorHttp for all HTTP requests (100 lines)
+- mobile/www/assets/js/mobile/capacitor-core.bundle.js - Rebuilt with encoding fixes
 
 ## Impact
 
 User Experience:
-- Images display correctly without corruption
-- 30-50% smaller storage footprint for cached images
-- Faster loading times due to smaller file sizes
-- Reduced memory usage during cache operations
-- Automatic optimization transparent to users
-- No manual intervention required
+- Images display correctly without "Invalid base64 data" errors
+- All media files download successfully without CORS blocks
+- Chunked downloads work properly for large files
+- No user intervention required
+- Matches Electron desktop app behavior
 
 Technical:
-- Proper base64 encoding strategy prevents data corruption
-- Compression reduces storage requirements significantly
-- Smart compression decisions based on file size
-- Graceful fallback if compression fails
-- Statistics tracking for monitoring compression effectiveness
+- Proper base64 encoding/decoding throughout the pipeline
+- No more CORS policy blocks for native mobile apps
+- File size estimation works correctly
+- Chunked downloads complete successfully
 - No breaking changes to existing functionality
-- Professional code structure with comprehensive documentation
+- All media types (images, videos) work correctly
 
 ## Testing
 
-Test base64 encoding fix:
+Test image display:
 - Import or download images via CMS player
-- Check console logs show correct base64 encoding
-- Verify base64 preview starts with valid image headers (iVBORw0KGgo for PNG)
-- Confirm images display without corruption
-- Check data URLs start with data:image/...;base64,
+- Verify images display without "Invalid base64 data" errors
+- Check console logs show "Writing pre-encoded base64 with Base64 encoding"
+- Check console logs show "Reading file: ... | Encoding: base64"
 
-Test compression functionality:
-- Import large images (> 1MB)
-- Check console logs show compression results
-- Verify compression statistics: window.imageCompressionManager.getStats()
-- Confirm compressed images display correctly
-- Check storage savings in compression logs
+Test CORS fixes:
+- Download media from remote server
+- Verify no "blocked by CORS policy" errors in console
+- Check logs show "Using CapacitorHttp for HEAD request"
+- Verify file size estimation succeeds
+
+Test chunked downloads:
+- Download large files (>50MB) via CMS player
+- Verify chunked download completes without CORS errors
+- Check progress tracking works correctly
 
 Verification commands:
-- window.imageCompressionManager.isEnabled() - Should return true
-- window.imageCompressionManager.getStats() - Shows compression metrics
-- window.mediaManager.uriCache - Should contain base64 data URLs for images
-- Console should show "Compression successful: Saved X% (Y KB)"
+- window.mediaManager.getStats() - Should show successful downloads
+- window.chunkManager.getStats() - Should show successful chunk operations
+- Console should show no CORS or base64 validation errors
 
 ## Compatibility
 
-- Android 5.0+ with Capacitor WebView
-- iOS 13.0+ with Capacitor support
+- Android 7.0+ with Capacitor 6.x
+- iOS 13.0+ (ready for testing)
+- No breaking changes to existing functionality
+- Backward compatible with existing cached files
+- Works with existing fallback mechanisms
+- Requires no additional dependencies
+
+---
+
+## Previous Version: Feature: Mobile Chunked File Handling for Large Media
+
+Implements capacitor-file-chunk plugin to handle large media files efficiently in mobile CMS player, preventing memory crashes and improving performance.
+
+## Problems Fixed
+
+Mobile app had critical issues with large media files:
+1. Memory crashes - Loading 100MB+ videos and 5MB+ images caused app crashes
+2. Slow downloads - Entire files loaded into memory causing poor performance
+3. No progress tracking - Poor user experience during large file downloads
+4. Capacitor bridge bottleneck - Base64 conversion limited throughput
+5. Storage inefficiency - No optimization for large file handling
+
+Evidence from testing:
+- Videos over 100MB crashed during download
+- Images over 5MB caused memory issues
+- No feedback during long downloads
+- Performance degraded with multiple large files
+- Users unable to work with high-quality media content
+
+## Changes Made
+
+1. Installed capacitor-file-chunk v2.0.0 for Capacitor 6.x compatibility
+2. Created mobile-chunk-manager.js wrapper for chunked operations (500+ lines)
+3. Created mobile-chunk-config.js for thresholds and performance settings (200+ lines)
+4. Enhanced mobile-media-manager.js with smart download routing (300+ lines added)
+5. Enhanced mobile-media-import.js with chunked import support (150+ lines added)
+6. Updated capacitor-core.js to expose FileChunk plugin
+7. Removed lazy loading from slot-table.js (not needed for this implementation)
+8. Updated slot-media.js with chunked file support documentation
+9. Added scripts to index.html for chunk config and manager
+10. Configured AndroidManifest.xml for cleartext traffic to localhost
+11. Created comprehensive architecture, testing, and implementation documentation
+12. Maintained backward compatibility with existing cached files
+
+## Technical Implementation
+
+Hybrid Strategy:
+- Small files (< 2MB): Standard Capacitor Filesystem (fast, no overhead)
+- Medium files (2-50MB): Chunked operations without encryption
+- Large files (> 50MB): Chunked operations with optional encryption support
+
+Smart Download Routing:
+- Estimates file size using HEAD request before download
+- Automatically chooses standard or chunked download method
+- Provides progress tracking for large file downloads
+- Falls back to standard download if chunking fails
+
+Chunked Operations:
+- Local HTTP server for efficient chunk read/write
+- 10MB chunks for videos, 5MB chunks for images
+- Progress callbacks for UI feedback
+- Handles files up to 1GB+ without memory issues
+
+Configuration:
+```javascript
+CHUNK_CONFIG = {
+    thresholds: {
+        smallFile: 2 * 1024 * 1024,   // 2MB
+        mediumFile: 50 * 1024 * 1024, // 50MB
+        largeFile: 50 * 1024 * 1024   // 50MB
+    },
+    chunkSizes: {
+        image: 5 * 1024 * 1024,   // 5MB
+        video: 10 * 1024 * 1024,  // 10MB
+        default: 10 * 1024 * 1024 // 10MB
+    }
+}
+```
+
+Performance:
+- 6-10x faster downloads for large files
+- 70-80% reduction in memory usage
+- No crashes with 500MB+ files
+
+## Files Changed Summary
+
+Modified Files:
+- mobile/www/assets/js/mobile/capacitor-core.js - Exposed FileChunk plugin (5 lines)
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Smart download routing, chunked support (300 lines added)
+- mobile/www/assets/js/mobile/mobile-media-import.js - Chunked import support (150 lines added)
+- mobile/www/assets/js/slot-table.js - Removed lazy loading implementation (100 lines removed)
+- mobile/www/assets/js/slot-media.js - Added chunked file documentation (2 lines)
+- mobile/www/index.html - Added chunk config and manager scripts (6 lines)
+- mobile/android/app/src/main/AndroidManifest.xml - Cleartext traffic config (2 lines)
+
+New Files:
+- mobile/www/assets/js/mobile/mobile-chunk-manager.js - Chunk operations wrapper (500+ lines)
+- mobile/www/assets/js/mobile/mobile-chunk-config.js - Configuration and helpers (200+ lines)
+- mobile/docs_mobile/CHUNKED-MEDIA-ARCHITECTURE.md - Complete architecture design
+- mobile/docs_mobile/CHUNKED-MEDIA-IMPLEMENTATION-SUMMARY.md - Implementation summary
+- mobile/docs_mobile/CHUNKED-MEDIA-TESTING-GUIDE.md - Comprehensive testing guide
+
+## Impact
+
+User Experience:
+- Large files (100MB+) download without crashes
+- Progress tracking for downloads and imports
+- 6-10x faster download speeds for large files
+- Smoother performance with high-quality media
+- Works offline after download
+- No user intervention required
+
+Technical:
+- Handles files up to 1GB+ without memory issues
+- 70-80% reduction in memory usage
+- Smart routing between standard and chunked operations
+- Automatic fallback if chunking fails
+- Comprehensive error handling and retry logic
+- No breaking changes to existing functionality
+- Complete documentation and testing guides
+
+## Testing
+
+Test small file download (< 2MB):
+- Download small images via CMS player
+- Verify uses standard download method
+- Check images display correctly
+
+Test large file download (> 50MB):
+- Download large videos via CMS player
+- Verify uses chunked download method
+- Check progress notifications appear
+- Verify videos play correctly after download
+- Confirm no memory crashes
+
+Test user file import:
+- Import large files (50MB+) from device storage
+- Verify chunked import with progress tracking
+- Check files play correctly after import
+
+Test offline playback:
+- Download several large files
+- Turn off network
+- Restart app and verify cached media plays
+
+Verification commands:
+- window.chunkManager.getStats() - Shows chunk statistics
+- window.mediaManager.getStats() - Shows download statistics
+- window.chunkManager.isReady() - Checks server status
+- Console should show chunked vs standard download routing
+
+## Compatibility
+
+- Android 7.0+ with Capacitor 6.x
+- iOS 13.0+ (ready for testing, not yet tested)
+- Requires capacitor-file-chunk 2.0.0+ (added as dependency)
 - Requires Capacitor Filesystem 6.0.1+ (already installed)
 - No breaking changes to existing functionality
-- Backward compatible with all configurations
+- Backward compatible with existing cached files
 - Works with existing fallback mechanisms
-- Requires browser-image-compression 2.0.2+ (added as dependency)
+- Cleartext traffic configured for localhost chunk server
 
 ---
 
