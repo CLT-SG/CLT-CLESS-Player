@@ -1,5 +1,118 @@
 # Change Log
 
+## [3.6.6] - 2025-12-26
+
+### Feature - Mobile Image Base64 Data URL Implementation
+
+- **Dual-Strategy Media Handling** - Implemented separate handling for images and videos in mobile player
+  - Root cause: Native URI approach unreliable for images across different Android devices
+  - Images now use base64 data URLs for consistent display
+  - Videos continue using native URIs for efficient streaming
+  - Impact: Images display reliably matching Electron desktop app behavior
+
+- **Image Base64 Flow** - Created dedicated image download and retrieval pipeline
+  - Download as blob, write to filesystem, read as base64
+  - Build data URL with proper MIME type: data:image/jpeg;base64,...
+  - Cache data URL in memory for instant access
+  - Impact: Images work consistently across all Android versions
+
+- **MIME Type Mapping** - Added helper method for correct MIME type assignment
+  - Maps jpg/jpeg to image/jpeg, png to image/png, etc.
+  - Ensures proper browser rendering of base64 images
+  - Supports jpg, jpeg, png, gif, webp, bmp, svg formats
+  - Impact: All image formats display with correct content types
+
+- **Type-Aware Routing** - Split download logic based on media type
+  - _performImageDownload handles images with base64 conversion
+  - _performVideoDownload handles videos with native URI
+  - Automatic detection based on file extension
+  - Impact: Optimized handling for each media type
+
+- **Enhanced getMediaUri** - Updated to return appropriate URI format per type
+  - Returns base64 data URLs for images
+  - Returns native URIs for videos
+  - Maintains backward compatibility with fallback support
+  - Impact: Type-specific optimizations transparent to consumers
+
+### Technical Details
+
+**Image Handling Strategy:**
+```javascript
+// Download -> Write -> Read as base64 -> Create data URL
+async _performImageDownload(mediaURL, safeFilename, filePath, ext) {
+    const blob = await downloadBlob(mediaURL);
+    await capacitorAPI.writeFile(filePath, blob);
+    const readResult = await capacitorAPI.readFile(filePath, 'base64');
+    const mimeType = getMimeTypeFromExtension(ext);
+    const dataUrl = `data:${mimeType};base64,${readResult.data}`;
+    return dataUrl;
+}
+```
+
+**Video Handling (Unchanged):**
+```javascript
+// Download -> Write -> Get native URI -> Convert
+async _performVideoDownload(mediaURL, safeFilename, filePath) {
+    const blob = await downloadBlob(mediaURL);
+    const writeResult = await capacitorAPI.writeFile(filePath, blob);
+    const nativeUri = writeResult.uri;
+    const webUri = capacitorAPI.convertFileSrc(nativeUri);
+    return webUri;
+}
+```
+
+**Type Detection:**
+```javascript
+const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+const videoExts = ['mp4', 'webm', 'mkv', 'mov', 'avi', 'm4v'];
+const isImage = imageExts.includes(ext);
+
+if (isImage) {
+    return await _performImageDownload(...);
+} else {
+    return await _performVideoDownload(...);
+}
+```
+
+### Files Modified
+
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Dual-strategy implementation (320 lines changed)
+  - Added getMimeTypeFromExtension helper method
+  - Added _performImageDownload method
+  - Added _performVideoDownload method
+  - Modified _performDownload routing logic
+  - Updated getMediaUri for type-specific handling
+  - Updated refreshMediaUri with type awareness
+  - Updated module documentation
+
+### Documentation
+
+- mobile/docs_mobile/IMAGE-BASE64-IMPLEMENTATION.md - Comprehensive technical guide (new file)
+  - Problem statement and solution overview
+  - Implementation details with code examples
+  - Usage examples for developers
+  - Troubleshooting guide
+  - Testing checklist
+
+### Benefits
+
+| Aspect | Images | Videos |
+|--------|--------|--------|
+| Strategy | Base64 data URLs | Native URIs |
+| Reliability | High across all devices | High with streaming |
+| Performance | Instant after cache | Efficient streaming |
+| Memory | Minimal for typical sizes | No memory overhead |
+| Compatibility | Universal | Platform optimized |
+
+### Compatibility
+
+- No breaking changes to existing functionality
+- Backward compatible with all configurations
+- Works with Android 5.0+ and iOS 13.0+
+- Maintains existing fallback mechanisms
+- Desktop Electron app unaffected
+- No additional dependencies required
+
 ## [3.6.5] - 2025-12-26
 
 ### Fixed - Mobile Media Playback with Server URL Fallback
