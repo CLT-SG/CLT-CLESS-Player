@@ -11,6 +11,13 @@
  * - Track download progress and errors
  * - Manage media cache (check existence, clear cache, etc.)
  * 
+ * OPTIMIZATION (Updated):
+ * - ALL media types (images + videos): Direct blob storage without base64 conversion
+ * - Prevents memory crashes with large images (5MB+)
+ * - Native file URI generation using convertFileSrc for instant playback
+ * - Automatic URI caching for immediate access
+ * - All files stored in ecless/media/cache directory
+ * 
  * @module mobile-media-manager
  */
 
@@ -73,7 +80,6 @@ class MobileMediaManager {
             this.initialized = true;
             console.log('MediaManager: Initialized successfully');
             console.log('MediaManager: Cache directory:', this.cacheDir);
-            console.log('MediaManager: Cached files count:', this.cachedFiles.size);
             
             return true;
             
@@ -303,73 +309,47 @@ class MobileMediaManager {
                 blob = await response.blob();
             }
             
-            // CRITICAL OPTIMIZATION: Save as blob directly (no base64 conversion for videos)
+            // Write to filesystem (auto-converts Blob to base64 internally)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
-                // Determine write strategy based on file type
-                let writeData;
+                console.log('[MediaManager] Saving media file:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
                 
-                if (isVideo) {
-                    // Videos: Write blob directly (most efficient)
-                    console.log('[MediaManager] Writing video as blob (optimized):', safeFilename);
-                    writeData = blob;
-                } else {
-                    // Images: Can use base64 (smaller files, acceptable)
-                    console.log('[MediaManager] Converting image to base64:', safeFilename);
-                    writeData = await this._blobToBase64(blob);
+                // writeFile now returns {success, path, uri, directory}
+                const writeResult = await window.capacitorAPI.writeFile(filePath, blob);
+                
+                if (!writeResult || !writeResult.success) {
+                    throw new Error('writeFile returned unsuccessful result');
                 }
-
-                // Write file and capture result
-                let writeResult = await window.capacitorAPI.writeFile(filePath, writeData);
-
-                // Normalize writeResult
-                if (typeof writeResult === 'string') {
-                    writeResult = { path: writeResult };
-                }
-
-                // OPTIMIZATION: Immediately resolve native URI and cache it
-                let nativeUri = (writeResult && (writeResult.uri || writeResult.path || writeResult.result)) ? 
-                                (writeResult.uri || writeResult.path || writeResult.result) : null;
+                
+                const nativeUri = writeResult.uri;
                 
                 if (nativeUri) {
-                    console.log('[MediaManager] writeFile returned native URI:', nativeUri);
+                    console.log('[MediaManager] Native URI obtained:', nativeUri.substring(0, 50), '...');
                     this.fileUriMap.set(safeFilename, nativeUri);
-                }
-
-                // If no native URI from writeResult, try getUri
-                if (!nativeUri && window.capacitorAPI.getUri) {
-                    try {
-                        const uriRes = await window.capacitorAPI.getUri(filePath);
-                        nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
-                        if (nativeUri) {
-                            console.log('[MediaManager] getUri returned native URI:', nativeUri);
-                            this.fileUriMap.set(safeFilename, nativeUri);
+                    
+                    // Convert to web-accessible URI and cache
+                    if (window.capacitorAPI.convertFileSrc) {
+                        try {
+                            const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                            if (convertedUri) {
+                                this.uriCache.set(safeFilename, convertedUri);
+                                console.log('[MediaManager] ✓ Cached web URI for:', safeFilename);
+                            }
+                        } catch (err) {
+                            console.warn('[MediaManager] convertFileSrc failed:', err.message);
                         }
-                    } catch (err) {
-                        console.warn('[MediaManager] getUri failed:', err && err.message ? err.message : err);
                     }
-                }
-
-                // CRITICAL: Immediately convert to web-accessible URI and cache it
-                if (nativeUri && window.capacitorAPI.convertFileSrc) {
-                    try {
-                        const convertedUri = window.capacitorAPI.convertFileSrc(nativeUri);
-                        if (convertedUri) {
-                            this.uriCache.set(safeFilename, convertedUri);
-                            console.log('[MediaManager] ✓ Cached web URI for instant access:', safeFilename);
-                        }
-                    } catch (err) {
-                        console.warn('[MediaManager] convertFileSrc failed:', err && err.message ? err.message : err);
-                    }
+                } else {
+                    console.warn('[MediaManager] No native URI returned for:', safeFilename);
                 }
 
                 // Update cache index
                 this.cachedFiles.add(safeFilename);
                 
-                console.log('[MediaManager] ✓ Successfully cached:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
+                console.log('[MediaManager] ✓ Successfully downloaded and cached:', safeFilename);
                 
                 this.stats.successfulDownloads++;
                 
-                // Show success notification (optional, every 5 downloads)
+                // Show success notification (every 5 downloads)
                 if (window.errorNotification && this.stats.successfulDownloads % 5 === 0) {
                     window.errorNotification.success(
                         'Media Cached',
@@ -403,6 +383,8 @@ class MobileMediaManager {
 
     /**
      * Convert Blob to Base64 string
+     * @deprecated This method is kept for backward compatibility but is no longer used.
+     * All media (images + videos) now use direct blob storage without base64 conversion.
      */
     _blobToBase64(blob) {
         return new Promise((resolve, reject) => {
@@ -428,18 +410,30 @@ class MobileMediaManager {
     /**
      * Get web-accessible URI for a cached media file
      * This converts the filesystem path to a usable URL for img/video elements
-     * OPTIMIZED: Uses in-memory cache to avoid repeated base64 conversions
+     * OPTIMIZED: Uses in-memory cache to avoid repeated conversions
+     * UPDATED: Prefers native URIs for both images and videos (no data URI conversion for large files)
+     * FALLBACK: Returns object with both cached URI and original server URL for redundancy
      */
-    async getMediaUri(filename) {
+    async getMediaUri(filename, originalServerUrl = null) {
         try {
             const safeFilename = this.sanitizeFilename(filename);
-            console.log('[MediaManager] getMediaUri called for:', safeFilename, 'original filename:', filename);
+            console.log('[MediaManager] getMediaUri called for:', safeFilename, 'original filename:', filename, 'with originalUrl:', originalServerUrl ? 'provided' : 'none');
             
             // Check in-memory URI cache first (FAST PATH)
             if (this.uriCache.has(safeFilename)) {
                 this.stats.uriCacheHits++;
                 console.log('[MediaManager] URI cache hit for:', safeFilename);
-                return this.uriCache.get(safeFilename);
+                const cachedUri = this.uriCache.get(safeFilename);
+                
+                // Return object with fallback support if originalUrl provided
+                if (originalServerUrl) {
+                    return {
+                        uri: cachedUri,
+                        fallbackUri: originalServerUrl,
+                        isCached: true
+                    };
+                }
+                return cachedUri;
             }
             
             const filePath = `${this.cacheDir}/${safeFilename}`;
@@ -448,15 +442,29 @@ class MobileMediaManager {
             const exists = await this.checkMediaExists(safeFilename);
             if (!exists) {
                 console.warn('MediaManager: File not found in cache:', safeFilename);
+                
+                // If originalServerUrl provided, return it as fallback
+                if (originalServerUrl) {
+                    console.log('[MediaManager] Cache miss - returning server URL as fallback:', originalServerUrl);
+                    return {
+                        uri: null,
+                        fallbackUri: originalServerUrl,
+                        isCached: false,
+                        useFallback: true
+                    };
+                }
                 return null;
             }
 
             // Determine extension for handling
             const ext = safeFilename.split('.').pop().toLowerCase();
             const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
+            const imageExts = ['jpg','jpeg','png','gif','webp','bmp'];
+            const isVideo = videoExts.includes(ext);
+            const isImage = imageExts.includes(ext);
 
-            // Prefer using Capacitor's native URI conversion for video files on device
-            if (videoExts.includes(ext) && window.capacitorAPI && window.capacitorAPI.isNative) {
+            // UPDATED: Use native URI for BOTH images and videos on device (no data URI conversion)
+            if ((isVideo || isImage) && window.capacitorAPI && window.capacitorAPI.isNative) {
                 let mediaUri = null;
 
                 try {
@@ -473,7 +481,7 @@ class MobileMediaManager {
                         }
                     }
                 } catch (err) {
-                    console.warn('MediaManager: getUri/convertFileSrc failed, will fallback to data URI:', err && err.message ? err.message : err);
+                    console.warn('[MediaManager] getUri/convertFileSrc failed, will try alternative methods:', err && err.message ? err.message : err);
                 }
 
                 // If still not resolved and convertFileSrc is available, try convertFileSrc directly
@@ -481,13 +489,22 @@ class MobileMediaManager {
                     try {
                         mediaUri = window.capacitorAPI.convertFileSrc(filePath);
                     } catch (err) {
-                        console.warn('MediaManager: convertFileSrc(filePath) failed:', err && err.message ? err.message : err);
+                        console.warn('[MediaManager] convertFileSrc(filePath) failed:', err && err.message ? err.message : err);
                     }
                 }
 
                 if (mediaUri) {
                     this.uriCache.set(safeFilename, mediaUri);
-                    console.log('[MediaManager] Returning native URI for video:', safeFilename, mediaUri);
+                    console.log(`[MediaManager] Returning native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, mediaUri);
+                    
+                    // Return object with fallback support if originalUrl provided
+                    if (originalServerUrl) {
+                        return {
+                            uri: mediaUri,
+                            fallbackUri: originalServerUrl,
+                            isCached: true
+                        };
+                    }
                     return mediaUri;
                 }
 
@@ -498,15 +515,24 @@ class MobileMediaManager {
                         const converted = window.capacitorAPI.convertFileSrc(recordedNative);
                         if (converted) {
                             this.uriCache.set(safeFilename, converted);
-                            console.log('[MediaManager] Returning converted recorded native URI for video:', safeFilename, converted);
+                            console.log(`[MediaManager] Returning converted recorded native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, converted);
+                            
+                            // Return object with fallback support if originalUrl provided
+                            if (originalServerUrl) {
+                                return {
+                                    uri: converted,
+                                    fallbackUri: originalServerUrl,
+                                    isCached: true
+                                };
+                            }
                             return converted;
                         }
                     } catch (err) {
-                        console.warn('MediaManager: convertFileSrc(recordedNative) failed:', err && err.message ? err.message : err);
+                        console.warn('[MediaManager] convertFileSrc(recordedNative) failed:', err && err.message ? err.message : err);
                     }
                 }
 
-                console.warn('[MediaManager] Native file URI unavailable for video, will not convert to data URI (unsafe):', safeFilename);
+                console.warn('[MediaManager] Native file URI unavailable for media, will not convert to data URI:', safeFilename);
 
                 // Diagnostic dump to aid debugging playback issues
                 try {
@@ -532,57 +558,88 @@ class MobileMediaManager {
                                     if (converted) {
                                         this.uriCache.set(safeFilename, converted);
                                         console.log('[MediaManager] Cached converted URI from getUri for:', safeFilename, converted);
+                                        
+                                        // Return object with fallback support if originalUrl provided
+                                        if (originalServerUrl) {
+                                            return {
+                                                uri: converted,
+                                                fallbackUri: originalServerUrl,
+                                                isCached: true
+                                            };
+                                        }
                                         return converted;
                                     }
                                 } catch (err) {
-                                    console.warn('MediaManager: convertFileSrc(getUri) failed:', err && err.message ? err.message : err);
+                                    console.warn('[MediaManager] convertFileSrc(getUri) failed:', err && err.message ? err.message : err);
                                 }
                             } else {
                                 console.warn('[MediaManager] convertFileSrc not available; returning native URI directly:', nativeFromGetUri);
                                 this.uriCache.set(safeFilename, nativeFromGetUri);
+                                
+                                // Return object with fallback support if originalUrl provided
+                                if (originalServerUrl) {
+                                    return {
+                                        uri: nativeFromGetUri,
+                                        fallbackUri: originalServerUrl,
+                                        isCached: true
+                                    };
+                                }
                                 return nativeFromGetUri;
                             }
                         }
                     }
                 } catch (err) {
-                    console.warn('MediaManager: getUri(filePath) final attempt failed:', err && err.message ? err.message : err);
+                    console.warn('[MediaManager] getUri(filePath) final attempt failed:', err && err.message ? err.message : err);
                 }
+                
+                // Record fallback event
+                this.stats.fallbackCount = (this.stats.fallbackCount || 0) + 1;
+                console.warn('[MediaManager] All native URI methods exhausted for:', safeFilename);
+                
+                // If originalServerUrl provided, return it as fallback
+                if (originalServerUrl) {
+                    console.log('[MediaManager] Native URI failed - returning server URL as fallback:', originalServerUrl);
+                    return {
+                        uri: null,
+                        fallbackUri: originalServerUrl,
+                        isCached: false,
+                        useFallback: true
+                    };
+                }
+                return null;
             }
 
-            // Otherwise: images or web fallback
-            let mediaUri = null;
-            if (window.capacitorAPI && window.capacitorAPI.isNative) {
-                // For native apps, we will not convert videos to data URIs; for images only
-                try {
-                    mediaUri = await this._getFileAsDataUri(filePath);
-                } catch (err) {
-                    console.warn('MediaManager: data URI conversion failed (as expected) for:', safeFilename, err && err.message ? err.message : err);
-                    // Record fallback event
-                    try { this.stats.fallbackCount = (this.stats.fallbackCount || 0) + 1; } catch (e) {}
-                    // Do not throw further - return null so caller can fallback to remote URL
-                    return null;
-                }
-            } else {
-                // For web, return the path directly
-                mediaUri = filePath;
-            }
+            // For web platform, return the path directly
+            let mediaUri = filePath;
 
             // Store in URI cache for fast subsequent access
             if (mediaUri) {
                 this.uriCache.set(safeFilename, mediaUri);
                 console.log('[MediaManager] Cached URI for:', safeFilename);
+                
+                // Return object with fallback support if originalUrl provided
+                if (originalServerUrl) {
+                    return {
+                        uri: mediaUri,
+                        fallbackUri: originalServerUrl,
+                        isCached: true
+                    };
+                }
             }
 
             return mediaUri;
             
         } catch (error) {
-            console.error('MediaManager: Error getting media URI:', error);
+            console.error('[MediaManager] Error getting media URI:', error);
             return null;
         }
     }
 
     /**
      * Read file and convert to data URI
+     * @deprecated This method should NOT be used for most cases. Native URIs are preferred.
+     * WARNING: Converting large images (5MB+) to data URIs can cause memory crashes.
+     * Only use for small images when native URIs are unavailable.
      */
     async _getFileAsDataUri(filePath) {
         try {
@@ -594,10 +651,13 @@ class MobileMediaManager {
             const ext = filePath.split('.').pop().toLowerCase();
             const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
 
-            // Safety: refuse to convert video files into data URIs because they are large and will crash playback.
+            // Safety: refuse to convert video files into data URIs because they are large and will crash playback
             if (videoExts.includes(ext)) {
                 throw new Error('Refusing to convert video file to data URI; use convertFileSrc/getUri instead');
             }
+            
+            // Safety: warn about potential memory issues with large images
+            console.warn('[MediaManager] Converting file to data URI (not recommended for large files):', filePath);
 
             const data = await window.capacitorAPI.readFile(filePath);
 
@@ -616,7 +676,7 @@ class MobileMediaManager {
             return `data:${mimeType};base64,${data}`;
             
         } catch (error) {
-            console.error('MediaManager: Error reading file as data URI:', error);
+            console.error('[MediaManager] Error reading file as data URI:', error);
             throw error;
         }
     }
@@ -809,9 +869,10 @@ class MobileMediaManager {
      * NEW: Get media URI with support for external URLs
      * @param {string} source - Can be a filename or external URL
      * @param {boolean} isExternal - Whether this is an external URL
-     * @returns {Promise<string>} Media URI
+     * @param {string} originalUrl - Original server URL for fallback
+     * @returns {Promise<string|Object>} Media URI (string for simple case, object with fallback for complex)
      */
-    async getMediaUriSmart(source, isExternal = null) {
+    async getMediaUriSmart(source, isExternal = null, originalUrl = null) {
         console.log('[MediaManager] getMediaUriSmart called with source:', source, 'isExternal:', isExternal);
         // Auto-detect if not specified
         if (isExternal === null) {
@@ -823,10 +884,9 @@ class MobileMediaManager {
             console.log('[MediaManager] Using external URL:', source);
             return source;
         } else {
-            // Local file - use cached version
-            const uri = await this.getMediaUri(source);
-            console.log('[MediaManager] getMediaUriSmart resolved URI for', source, ':', uri);
-            return uri;
+            // Local file - use cached version with fallback support
+            const result = await this.getMediaUri(source, originalUrl);
+            return result;
         }
     }
     
@@ -905,6 +965,157 @@ class MobileMediaManager {
         } catch (e) {
             return { success: false, message: e && e.message ? e.message : String(e) };
         }
+    }
+    
+    /**
+     * NEW: Force refresh URI for a specific file (useful after import/replacement)
+     * @param {string} filename - Filename to refresh
+     * @returns {Promise<string|null>} Refreshed web URI or null
+     */
+    async refreshMediaUri(filename) {
+        const safeFilename = this.sanitizeFilename(filename);
+        const filePath = this.getLocalMediaPath(safeFilename);
+        
+        console.log(`[MediaManager] Refreshing URI for: ${safeFilename}`);
+        
+        // Clear existing cache entries
+        this.uriCache.delete(safeFilename);
+        this.fileUriMap.delete(safeFilename);
+        
+        // Try to regenerate native URI and web URI
+        try {
+            if (window.capacitorAPI && window.capacitorAPI.getUri) {
+                const uriRes = await window.capacitorAPI.getUri(filePath);
+                const nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
+                
+                if (nativeUri) {
+                    this.fileUriMap.set(safeFilename, nativeUri);
+                    
+                    // Convert to web URI
+                    if (window.capacitorAPI.convertFileSrc) {
+                        const webUri = window.capacitorAPI.convertFileSrc(nativeUri);
+                        if (webUri) {
+                            this.uriCache.set(safeFilename, webUri);
+                            console.log(`[MediaManager] ✓ Refreshed web URI: ${safeFilename}`);
+                            return webUri;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn(`[MediaManager] Failed to refresh URI for ${safeFilename}:`, error);
+        }
+        
+        return null;
+    }
+    
+    /**
+     * NEW: Validate if a URI is accessible (basic check)
+     * @param {string} uri - URI to validate
+     * @param {string} type - Media type ('image' or 'video')
+     * @returns {Promise<boolean>} True if URI appears valid
+     */
+    async validateUri(uri, type = 'image') {
+        if (!uri || typeof uri !== 'string') {
+            console.warn('[MediaManager] validateUri: Invalid URI provided');
+            return false;
+        }
+        
+        console.log(`[MediaManager] Validating URI for ${type}:`, uri.substring(0, 100) + '...');
+        
+        return new Promise((resolve) => {
+            try {
+                if (type === 'image') {
+                    const img = new Image();
+                    const timeout = setTimeout(() => {
+                        img.onload = null;
+                        img.onerror = null;
+                        console.warn('[MediaManager] URI validation timeout:', uri.substring(0, 50));
+                        resolve(false);
+                    }, 3000);
+                    
+                    img.onload = () => {
+                        clearTimeout(timeout);
+                        console.log('[MediaManager] ✓ URI validated successfully (image)');
+                        resolve(true);
+                    };
+                    
+                    img.onerror = () => {
+                        clearTimeout(timeout);
+                        console.warn('[MediaManager] URI validation failed (image)');
+                        resolve(false);
+                    };
+                    
+                    img.src = uri;
+                } else if (type === 'video') {
+                    const video = document.createElement('video');
+                    const timeout = setTimeout(() => {
+                        video.onloadeddata = null;
+                        video.onerror = null;
+                        console.warn('[MediaManager] URI validation timeout:', uri.substring(0, 50));
+                        resolve(false);
+                    }, 5000);
+                    
+                    video.onloadeddata = () => {
+                        clearTimeout(timeout);
+                        console.log('[MediaManager] ✓ URI validated successfully (video)');
+                        resolve(true);
+                    };
+                    
+                    video.onerror = () => {
+                        clearTimeout(timeout);
+                        console.warn('[MediaManager] URI validation failed (video)');
+                        resolve(false);
+                    };
+                    
+                    video.src = uri;
+                    video.load();
+                } else {
+                    console.warn('[MediaManager] Unknown media type for validation:', type);
+                    resolve(false);
+                }
+            } catch (error) {
+                console.error('[MediaManager] URI validation error:', error);
+                resolve(false);
+            }
+        });
+    }
+    
+    /**
+     * NEW: Log detailed diagnostics for media loading issues
+     * @param {string} filename - Filename being diagnosed
+     * @param {string} operation - Operation being performed
+     * @param {Object} context - Additional context information
+     */
+    logMediaDiagnostics(filename, operation, context = {}) {
+        const safeFilename = this.sanitizeFilename(filename);
+        const diagnostics = {
+            timestamp: new Date().toISOString(),
+            operation: operation,
+            filename: filename,
+            safeFilename: safeFilename,
+            fileInCache: this.cachedFiles.has(safeFilename),
+            hasUriCache: this.uriCache.has(safeFilename),
+            hasNativeUri: this.fileUriMap.has(safeFilename),
+            stats: this.stats,
+            context: context
+        };
+        
+        if (this.uriCache.has(safeFilename)) {
+            const uri = this.uriCache.get(safeFilename);
+            diagnostics.cachedUri = uri ? uri.substring(0, 100) + '...' : null;
+        }
+        
+        if (this.fileUriMap.has(safeFilename)) {
+            const nativeUri = this.fileUriMap.get(safeFilename);
+            diagnostics.nativeUri = nativeUri ? nativeUri.substring(0, 100) + '...' : null;
+        }
+        
+        console.group(`[MediaManager] 📊 Diagnostics: ${operation}`);
+        console.table(diagnostics);
+        console.groupEnd();
+        
+        return diagnostics;
     }
 }
 

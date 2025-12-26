@@ -534,7 +534,7 @@ async function tableRecord(slotitem, index, table) {
                             };
                             
                             img.onerror = function() {
-                                console.error('External image load error');
+                                console.error('[appendColumnImage] External image load error URL:', mediaFileName);
                                 if (window.mediaLoadingStates) {
                                     window.mediaLoadingStates.showError(loaderId, 'Failed to load');
                                 }
@@ -544,51 +544,55 @@ async function tableRecord(slotitem, index, table) {
                             return; // Exit early for external URLs
                             
                         } else {
-                            // Local file - use media manager with base64 support
-                            let mediaUri = null;
+                            // Local file - use media manager with fallback support
+                            let mediaUriResult = null;
+                            let serverUrl = null;
+                            
+                            // Build server URL for fallback
+                            if (window.config && window.config.hostserver) {
+                                const serverAdd = window.config.hostserver.split('/');
+                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
+                                serverUrl = baseUrl + '/res/' + mediaFileName;
+                            }
                             
                             if (window.mediaManager) {
-                                // Use smart URI getter (handles cache, base64, etc.)
-                                mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
+                                // Use smart URI getter with server URL as fallback
+                                mediaUriResult = await window.mediaManager.getMediaUriSmart(mediaFileName, false, serverUrl);
 
-                                if (!mediaUri) {
+                                if (!mediaUriResult || (typeof mediaUriResult === 'object' && !mediaUriResult.uri && !mediaUriResult.fallbackUri)) {
                                     console.warn('[appendColumnImage] Failed to get media URI, trying direct download');
                                     // Try downloading if not in cache
-                                    if (window.config && window.config.hostserver) {
-                                        const serverAdd = window.config.hostserver.split('/');
-                                        const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                        const downloadUrl = baseUrl + '/res/' + mediaFileName;
-
-                                        await window.mediaManager.downloadMedia(downloadUrl, mediaFileName);
-                                        mediaUri = await window.mediaManager.getMediaUriSmart(mediaFileName, false);
-
-                                        if (!mediaUri) {
-                                            // Final fallback: direct URL
-                                            console.warn('[appendColumnImage] Using direct URL fallback');
-                                            mediaUri = downloadUrl;
-                                        }
+                                    if (serverUrl) {
+                                        await window.mediaManager.downloadMedia(serverUrl, mediaFileName);
+                                        mediaUriResult = await window.mediaManager.getMediaUriSmart(mediaFileName, false, serverUrl);
                                     }
                                 }
                             } else {
                                 console.warn('[appendColumnImage] Media manager not available, using server URL fallback');
-                                // Fallback: direct URL from server
-                                if (window.config && window.config.hostserver) {
-                                    const serverAdd = window.config.hostserver.split('/');
-                                    const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                    mediaUri = baseUrl + '/res/' + mediaFileName;
-                                    console.log('[appendColumnImage] Using server URL:', mediaUri);
-                                }
+                                mediaUriResult = serverUrl;
                             }
 
-                            if (mediaUri) {
-                                // Create and load image with proper error handling
+                            // Extract primary and fallback URIs
+                            let primaryUri = null;
+                            let fallbackUri = null;
+                            
+                            if (typeof mediaUriResult === 'object' && mediaUriResult !== null) {
+                                primaryUri = mediaUriResult.uri;
+                                fallbackUri = mediaUriResult.fallbackUri || serverUrl;
+                            } else {
+                                primaryUri = mediaUriResult;
+                                fallbackUri = serverUrl;
+                            }
+
+                            if (primaryUri || fallbackUri) {
+                                // Create and load image with proper error handling and fallback
                                 const img = new Image();
                                 img.style.maxHeight = bodyRowHeight + 'px';
                                 img.style.width = 'auto';
                                 img.style.height = 'auto';
                                 
                                 img.onload = function() {
-                                    console.log('Image loaded from cache/server');
+                                    console.log('[appendColumnImage] Image loaded successfully:', mediaFileName);
                                     if (window.mediaLoadingStates) {
                                         window.mediaLoadingStates.removeLoader(loaderId, img);
                                     }
@@ -596,15 +600,36 @@ async function tableRecord(slotitem, index, table) {
                                 };
                                 
                                 img.onerror = function() {
-                                    console.error('Image load error');
+                                    console.error('[appendColumnImage] Image load error for:', mediaFileName, 'src:', img.src);
+                                    
+                                    // Log diagnostics
+                                    if (window.mediaManager) {
+                                        window.mediaManager.logMediaDiagnostics(mediaFileName, 'Table Image Load Error', {
+                                            src: img.src ? img.src.substring(0, 100) + '...' : null,
+                                            fallbackUri: fallbackUri ? fallbackUri.substring(0, 100) + '...' : null,
+                                            tableid: tableid
+                                        });
+                                    }
+                                    
+                                    // Try fallback URL if available and not already tried
+                                    if (fallbackUri && img.src !== fallbackUri && !img.dataset.fallbackAttempted) {
+                                        console.log('[appendColumnImage] Attempting fallback URL:', fallbackUri);
+                                        img.dataset.fallbackAttempted = 'true';
+                                        img.src = fallbackUri;
+                                        return;
+                                    }
+                                    
+                                    // All attempts failed
+                                    console.error('[appendColumnImage] All loading attempts failed for:', mediaFileName);
                                     if (window.mediaLoadingStates) {
-                                        window.mediaLoadingStates.showError(loaderId, 'Failed to load');
+                                        window.mediaLoadingStates.showError(loaderId, 'Failed to load image');
                                     }
                                 };
                                 
-                                img.src = mediaUri;
+                                console.log('[appendColumnImage] Setting image for:', mediaFileName, '- Primary:', primaryUri ? 'present' : 'none', '- Fallback:', fallbackUri ? 'present' : 'none');
+                                img.src = primaryUri || fallbackUri;
                             } else {
-                                throw new Error('No media URI available');
+                                throw new Error('[appendColumnImage] No media URI available');
                             }
                         }
                     } catch (error) {

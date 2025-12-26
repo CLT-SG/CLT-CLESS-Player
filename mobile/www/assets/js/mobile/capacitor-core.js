@@ -104,7 +104,6 @@ class CapacitorAPI {
             const result = await Filesystem.readFile({
                 path,
                 directory: targetDir,
-                encoding: Encoding.UTF8
             });
             return result.data;
         } catch (error) {
@@ -115,25 +114,109 @@ class CapacitorAPI {
 
     /**
      * Write file to device storage
+     * 
+     * IMPORTANT: Capacitor Filesystem API requires base64-encoded strings for binary data.
+     * This method automatically converts Blob/File objects to base64 for storage.
+     * The stored files can then be accessed via native URIs using getUri() and convertFileSrc().
+     * 
+     * @param {string} path - File path relative to directory
+     * @param {string|Blob|File|ArrayBuffer} data - Data to write (auto-converts Blob/File to base64)
+     * @param {Directory} directory - Target directory (default: Directory.Data)
+     * @returns {Promise<Object>} Result with success flag and native URI
      */
     async writeFile(path, data, directory = Directory.Data) {
         try {
             const targetDir = directory || Directory.Data;
-            console.log(`Writing file to ${targetDir}: ${path}`);
-            await Filesystem.writeFile({
+            console.log(`[CapacitorAPI] Writing file to ${targetDir}: ${path}`);
+            
+            let writeData = data;
+            let dataType = 'string';
+            
+            // Convert Blob/File to base64 string (required by Capacitor Filesystem API)
+            if (data instanceof Blob || data instanceof File) {
+                const sizeKB = (data.size / 1024).toFixed(2);
+                console.log(`[CapacitorAPI] Converting ${data instanceof File ? 'File' : 'Blob'} to base64: ${path} (${sizeKB} KB)`);
+                writeData = await this._blobToBase64(data);
+                dataType = 'base64';
+            }
+            // Convert ArrayBuffer to base64
+            else if (data instanceof ArrayBuffer) {
+                console.log(`[CapacitorAPI] Converting ArrayBuffer to base64: ${path}`);
+                const blob = new Blob([data]);
+                writeData = await this._blobToBase64(blob);
+                dataType = 'base64';
+            }
+            // String data - use as is
+            else if (typeof data === 'string') {
+                // Check if it's already a base64 string (for backward compatibility)
+                if (data.startsWith('data:')) {
+                    // Extract base64 part from data URI
+                    writeData = data.split(',')[1];
+                    dataType = 'base64';
+                } else {
+                    writeData = data;
+                    dataType = 'string';
+                }
+            }
+            else {
+                throw new Error(`Unsupported data type: ${typeof data}`);
+            }
+            
+            // Write to filesystem
+            const writeResult = await Filesystem.writeFile({
                 path,
-                data,
+                data: writeData,
                 directory: targetDir,
-                encoding: Encoding.UTF8,
                 recursive: true
             });
-            console.log(`Successfully wrote file to ${targetDir}: ${path}`);
-            return true;
+            
+            console.log(`[CapacitorAPI] ✓ File written successfully: ${path}`);
+            
+            // Get the native URI for the written file
+            let nativeUri = null;
+            try {
+                const uriResult = await Filesystem.getUri({
+                    path,
+                    directory: targetDir
+                });
+                nativeUri = uriResult.uri;
+                console.log(`[CapacitorAPI] Native URI: ${nativeUri}`);
+            } catch (uriError) {
+                console.warn(`[CapacitorAPI] Could not get URI for ${path}:`, uriError.message);
+            }
+            
+            // Return comprehensive result
+            return {
+                success: true,
+                path: path,
+                uri: nativeUri,
+                directory: targetDir
+            };
+            
         } catch (error) {
-            console.error(`Failed to write file ${path} to ${directory}:`, error);
-            console.error('Error details:', error.message, error.code);
+            console.error(`[CapacitorAPI] Failed to write file ${path}:`, error);
+            console.error('[CapacitorAPI] Error details:', error.message, error.code);
             throw error;
         }
+    }
+    
+    /**
+     * Convert Blob/File to base64 string (without data URI prefix)
+     * @private
+     * @param {Blob|File} blob - Blob or File to convert
+     * @returns {Promise<string>} Base64 string (no prefix)
+     */
+    async _blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                // Remove data URI prefix (e.g., "data:image/png;base64,")
+                const base64String = reader.result.split(',')[1];
+                resolve(base64String);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
     }
 
     /**
@@ -150,6 +233,37 @@ class CapacitorAPI {
         } catch {
             return false;
         }
+    }
+    
+    /**
+     * Get native URI for a file
+     * @param {string} path - File path relative to directory
+     * @param {Directory} directory - Target directory (default: Directory.Data)
+     * @returns {Promise<string>} Native file URI
+     */
+    async getUri(path, directory = Directory.Data) {
+        try {
+            const targetDir = directory || Directory.Data;
+            const result = await Filesystem.getUri({
+                path,
+                directory: targetDir
+            });
+            return result.uri;
+        } catch (error) {
+            console.error(`[CapacitorAPI] Failed to get URI for ${path}:`, error);
+            throw error;
+        }
+    }
+    
+    /**
+     * Convert native file URI to web-accessible URL
+     * Uses Capacitor.convertFileSrc() to convert file:// URIs to capacitor:// or https://localhost
+     * @param {string} uri - Native file URI (e.g., file:///data/...)
+     * @returns {string} Web-accessible URL
+     */
+    convertFileSrc(uri) {
+        if (!uri) return uri;
+        return Capacitor.convertFileSrc(uri);
     }
 
     /**

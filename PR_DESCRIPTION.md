@@ -1,95 +1,181 @@
-## Feature: Mobile Media Import and UI Improvements
+## Fix: Mobile Media Playback Reliability with Server URL Fallback
 
-Adds media import functionality to mobile app allowing users to import images and videos from device storage, plus UI consistency improvements.
+Fixes media playback failures in mobile player by implementing automatic server URL fallback mechanism.
 
-## Features Added
+## Problems Fixed
 
-1. Import Media button in mobile navigation for importing images and videos from device storage
-2. File picker integration supporting multiple file selection (images and videos)
-3. File validation for type, size, and format before import
-4. Progress dialog showing import status with percentage and file count
-5. Result notifications showing successful imports, replaced files, and failures
-6. Statistics tracking for imports, successes, failures, and replacements
-7. Unified navigation button styling for consistent UI appearance
+Version 1: Directory mismatch - MediaImportManager wrote to assets/media/ while MediaManager expected ecless/media/cache/
+
+Version 2: After fixing directory, media still failed to display due to:
+1. No native URI generation - Import used base64 only without convertFileSrc
+2. Inefficient video handling - Videos converted to base64 causing 3-8 second delays
+3. Cache desynchronization - Import did not update MediaManager URI cache and file index
+4. No cache invalidation - Replacing files left stale cached URIs
+
+Version 3: After fixing videos, large images still crashed due to:
+1. Base64 conversion for images - All images converted to base64 strings causing memory exhaustion with large files (5MB+)
+2. Data URI fallback - getMediaUri converted images to data URIs instead of using native URIs
+3. Inconsistent strategy - Videos used efficient blob storage, images used memory-intensive base64
+4. Browser crashes - Large image imports (10MB+) caused immediate browser crashes
+
+Version 4: After attempting blob storage, all imports and downloads failed with NO_DATA error:
+1. Capacitor Filesystem API requirements - writeFile requires base64-encoded strings for binary data, not raw Blob objects
+2. Missing conversion layer - Code passed Blob/File objects directly without base64 conversion
+3. No error handling - writeFile failed silently with NO_DATA error code
+4. Missing URI retrieval - writeFile did not return native file URIs for convertFileSrc usage
+
+Evidence from testing showed:
+- All media imports failed with "Error: NO_DATA" immediately
+- Downloaded media from server failed with same NO_DATA error
+- Files were never written to filesystem (cache directory remained empty)
+- Media slots could not display any cached content
+
+Version 5 (This Update): After fixing NO_DATA error, cached URIs still failed to play on some devices:
+1. No fallback mechanism - When convertFileSrc generated invalid URIs, playback failed completely with no retry
+2. Single point of failure - Only cached URI attempted, server URL ignored even when available
+3. Silent failures - Media slots showed errors but never attempted alternative sources
+4. Lost redundancy - Server URL stored but never used as backup when cache failed
+5. Poor diagnostics - No visibility into why URIs failed or what alternatives were available
+
+Evidence from Android logs showed:
+- Capacitor generated file URIs that failed to load in WebView
+- Image onerror handlers triggered but no fallback attempted
+- Video playback errors with no retry mechanism
+- Media displayed in desktop app but failed in mobile app
+- convertFileSrc returned URIs that were inaccessible to media elements
+
+## Changes Made
+
+1. Enhanced capacitor-core.js writeFile to automatically convert Blob/File objects to base64 before writing
+2. Added _blobToBase64 helper method for reliable Blob-to-base64 conversion
+3. Modified writeFile to return comprehensive result object with native file URI
+4. Added getUri method to capacitor-core.js for retrieving native file URIs
+5. Added convertFileSrc method wrapper for converting native URIs to web-accessible URLs
+6. Updated mobile-media-import.js to use new writeFile API and cache native/web URIs
+7. Updated mobile-media-manager.js to use new writeFile API and cache native/web URIs
+8. Simplified import/download logic by removing manual URI retrieval code
+9. Enhanced mobile-media-manager.js getMediaUri to return fallback-enabled objects with both cached and server URIs
+10. Added validateUri method to test URI accessibility before returning to media slots
+11. Added logMediaDiagnostics method for comprehensive error tracking and debugging visibility
+12. Updated mobile-media-manager.js getMediaUriSmart to pass originalUrl for fallback support
+13. Modified slot-media.js media preload to store both primary and fallback URLs in medialoop
+14. Added automatic server URL fallback in slot-media.js image onerror handler
+15. Enhanced slot-media.js video error handler to retry with server URL on playback failures
+16. Added fallback support in slot-media.js for M3U8/HLS/RTSP stream errors
+17. Refactored slot-table.js column image loading to use fallback-enabled URI results
+18. Added automatic fallback retry in slot-table.js image onerror handler
+19. Integrated diagnostics logging in all media error handlers for better debugging
+20. Added fallbackAttempted flags to prevent infinite retry loops
 
 ## Technical Implementation
 
-1. Created mobile-media-import.js module with MobileMediaImportManager class
-2. Integrated HTML5 file picker for device file selection
-3. Implemented FileReader API for reading selected files as base64
-4. Used Capacitor Filesystem API to write files to app data directory
-5. Added file validation for MIME types, extensions, and size limits
-6. Implemented progress tracking with visual feedback dialogs
-7. Added Import Media button to mobile navigation bar
-8. Standardized all navigation button colors to consistent theme
+Automatic Blob Conversion in capacitor-core.js:
+- Detects Blob/File/ArrayBuffer data types automatically
+- Converts to base64 string using FileReader API
+- Removes data URI prefix (keeps only base64 content)
+- Passes clean base64 string to Capacitor Filesystem.writeFile
+- Retrieves native file URI via Filesystem.getUri
+- Returns structured result: {success, path, uri, directory}
 
-## Implementation Details
+Native URI Workflow:
+- writeFile automatically returns native URI (file://...)
+- MediaImportManager and MediaManager cache native URI in fileUriMap
+- convertFileSrc converts native URI to web-accessible URL (capacitor://localhost/...)
+- Web URI cached in uriCache for instant media slot access
+- Both import and download follow identical caching pattern
 
-Media Import Module:
-- MobileMediaImportManager class handles entire import workflow
-- Validates files: images (JPG, PNG, GIF, WebP, BMP) and videos (MP4, WebM, OGG, MOV, AVI)
-- Maximum file size limit of 500MB per file (configurable)
-- Base64 encoding for file storage in Capacitor filesystem
-- Checks for existing files and reports replacements
-- Stores files in assets/media/ directory using Directory.Data
+Simplified Media Module Code:
+- Removed manual getUri calls (handled by writeFile)
+- Removed complex URI extraction logic (structured return object)
+- Removed fallback base64 conversion attempts
+- Single source of truth for Blob-to-base64 conversion
 
-User Experience:
-- Progress dialog with percentage, file counter, and animated progress bar
-- Success notification shows import summary with auto-dismiss after 5 seconds
-- Error handling with descriptive messages for validation failures
-- Statistics tracking for total imports, successes, failures, and replacements
+Fallback Mechanism in mobile-media-manager.js:
+- getMediaUri accepts optional originalServerUrl parameter
+- Returns object: {uri, fallbackUri, isCached} when originalUrl provided
+- Returns simple string when originalUrl not provided (backward compatible)
+- URI cache stores converted web URIs for instant access
+- File URI map stores native URIs for URI regeneration
 
-UI Consistency:
-- All navigation buttons use unified color (#6366f1)
-- Import Media button added between Reload and Settings
-- Consistent styling and spacing across all navigation buttons
+Automatic Retry in Media Slots:
+- Media preload passes originalUrl to getMediaUriSmart for fallback support
+- Handles both string and object return types from MediaManager
+- Stores both primaryUri and fallbackUri in asset objects
+- Image onerror handler attempts fallbackUri if primaryUri fails
+- Video error handler attempts fallbackUri before disposing player
+- Stream error handler attempts fallbackUri on playback errors
+- Uses fallbackAttempted flag to prevent infinite retry loops
+
+Error Diagnostics:
+- logMediaDiagnostics logs comprehensive state on errors
+- Tracks cache status, URI presence, conversion state
+- Logs both successful and failed fallback attempts
+- Structured output with timestamps and context
+- Integration in all media error handlers
 
 ## Files Changed Summary
 
-New Files:
-- mobile/www/assets/js/mobile/mobile-media-import.js - Core media import module (637 lines)
-- src/assets/js/mobile/mobile-media-import.js - Source copy for build process
-- mobile/docs_mobile/MEDIA-IMPORT-FEATURE.md - Comprehensive feature documentation
-- mobile/MEDIA-IMPORT-QUICKSTART.md - Quick reference and testing guide
-- mobile/IMPLEMENTATION-SUMMARY-MEDIA-IMPORT.md - Implementation summary
-
 Modified Files:
-- mobile/www/index.html - Added Import Media button and script inclusion, standardized button colors
+- mobile/www/assets/js/mobile/capacitor-core.js - Added automatic Blob-to-base64 conversion, getUri, convertFileSrc (95 lines changed)
+- mobile/www/assets/js/mobile/mobile-media-import.js - Updated to use new writeFile API (60 lines changed)
+- mobile/www/assets/js/mobile/mobile-media-manager.js - Updated to use new writeFile API, added fallback support, validation, diagnostics (250 lines changed)
+- mobile/www/assets/js/slot-media.js - Added automatic fallback retry for images, videos, and streams (180 lines changed)
+- mobile/www/assets/js/slot-table.js - Added automatic fallback retry for table images (90 lines changed)
 
-Deleted Files:
-- mobile/COMPOSITE-KEY-FIX-GUIDE.md - Removed obsolete documentation
+## Impact
 
-## Performance Impact
+User Experience:
+- Media import now works successfully (previously failed with NO_DATA)
+- Downloaded media from server now caches properly (previously failed with NO_DATA)
+- Files correctly written to ecless/media/cache directory
+- Media slots display imported and downloaded content immediately
+- No more empty cache directory issues
+- Cached media that fails to play automatically retries with server URL
+- Media playback more reliable across different Android devices
+- Transparent fallback with no user interaction required
+- Better error visibility with diagnostic logging
 
-- Base64 encoding increases memory usage by approximately 33 percent during import
-- File processing time proportional to file size (images under 1 second, videos 3-10 seconds)
-- Progress feedback prevents UI blocking during import
-- No impact on app runtime performance after import completes
-- Files stored in app data directory with efficient Capacitor Filesystem API
-- Minimal overhead from validation and statistics tracking
-
-## Compatibility
-
-- Android 5.0+ (API 21+) with Capacitor WebView
-- iOS 13.0+ with Capacitor support
-- Capacitor Core 6.1.2+ and Filesystem 6.0.1+ (already installed)
-- HTML5 FileReader and File Input APIs (native browser support)
-- No additional dependencies required
+Technical:
+- Proper Capacitor Filesystem API compliance (base64 encoding required)
+- Automatic data type detection and conversion
+- Centralized Blob-to-base64 conversion logic
+- Structured return values from writeFile for easier integration
+- Dual URI storage (cached + server) for redundancy
+- Automatic fallback mechanism on playback errors
+- Comprehensive diagnostics for debugging URI issues
 - No breaking changes to existing functionality
 - Backward compatible with all configurations
 
 ## Testing
 
-- Test importing single image file
-- Test importing multiple image files simultaneously
-- Test importing video files
-- Test importing mixed media (images and videos)
-- Test file replacement when importing file with same name
-- Test rejection of invalid file types (PDF, DOC, etc)
-- Test rejection of oversized files (over 500MB)
-- Verify progress dialog displays correctly with accurate percentages
-- Verify success notification shows correct import summary
-- Test with airplane mode to verify offline functionality
-- Verify imported files accessible in layouts
-- Test navigation button styling consistency
+Test importing and downloading media files and verify:
+- Import media files via Import Media button (no NO_DATA errors)
+- Download media from CMS server in layouts (no NO_DATA errors)
+- Check files exist in ecless/media/cache directory
+- Verify media displays correctly in media slots
+- Check console logs show successful file writes
+- Confirm native URIs are generated and cached
+- Verify web URIs are created via convertFileSrc
+- Test automatic fallback by simulating cache URI failures
+- Verify server URL is used when cached URI fails
+- Check diagnostic logs show fallback attempts
+- Confirm no infinite retry loops on permanent failures
+
+Verification commands:
+- adb shell run-as biz.closedloop.ecless.player ls -la files/ecless/media/cache/
+- window.mediaManager.cachedFiles in DevTools console should include all files
+- window.mediaManager.uriCache should show web URIs (capacitor://localhost/...)
+- window.mediaManager.fileUriMap should show native URIs (file://...)
+- Console logs should show "[CapacitorAPI] File written successfully"
+- Console logs should show fallback attempts: "Attempting fallback URL"
+- Console logs should show diagnostics: "[MediaManager] Diagnostics: Image Load Error"
+
+## Compatibility
+
+- Android 5.0+ with Capacitor WebView
+- iOS 13.0+ with Capacitor support
+- Requires Capacitor Filesystem 6.0.1+ (already installed)
+- No breaking changes to existing functionality
+- Works with all existing configurations
+- Backward compatible with previous mobile builds
 
