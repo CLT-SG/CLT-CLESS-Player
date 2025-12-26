@@ -1,6 +1,6 @@
 {
   "name": "ecless-player-mobile",
-  "version": "3.6.5",
+  "version": "3.6.8",
   "type": "module",
   "description": "eCLESS Player Mobile App - Android & iOS",
   "author": {
@@ -10,12 +10,15 @@
   "license": "ISC",
   "homepage": "www.closed-loop.biz",
   "scripts": {
+    "build:capacitor": "npx rollup -c rollup.config.js",
     "build:datetime": "npx rollup -c rollup.datetime.config.js",
-    "build:android": "npm run build:datetime && npx cap sync android && npx cap open android",
-    "build:ios": "npm run build:datetime && npx cap sync ios && npx cap open ios",
-    "sync": "npm run build:datetime && npx cap sync",
-    "sync:android": "npm run build:datetime && npx cap sync android",
-    "sync:ios": "npm run build:datetime && npx cap sync ios",
+    "build:imagecompression": "npx rollup -c rollup.imagecompression.config.js",
+    "build:mobile": "npm run build:capacitor && npm run build:datetime && npm run build:imagecompression",
+    "build:android": "npm run build:mobile && npx cap sync android && npx cap open android",
+    "build:ios": "npm run build:mobile && npx cap sync ios && npx cap open ios",
+    "sync": "npm run build:mobile && npx cap sync",
+    "sync:android": "npm run build:mobile && npx cap sync android",
+    "sync:ios": "npm run build:mobile && npx cap sync ios",
     "open:android": "npx cap open android",
     "open:ios": "npx cap open ios",
     "add:android": "npx cap add android",
@@ -36,6 +39,7 @@
     "@capacitor/splash-screen": "^6.0.2",
     "@capacitor/status-bar": "^6.0.1",
     "axios": "^1.7.7",
+    "browser-image-compression": "^2.0.2",
     "date-and-time": "^4.1.1",
     "qrcode": "^1.5.0",
     "socket.io-client": "^4.8.1"

@@ -664,6 +664,37 @@ async function appendMediaElement(asset, previewele, slotid) {
             const fallbackUrl = asset.fallbackUrl || asset.originalUrl;
             console.error('[appendMediaElement] Image load error for filename:', asset.filename || 'N/A', 'src:', sanitizeMediaUrlForLog(asset.contentUrl));
             
+            // Enhanced diagnostics for base64 data URLs
+            if (asset.contentUrl && asset.contentUrl.startsWith('data:')) {
+                const parts = asset.contentUrl.split(',');
+                const header = parts[0]; // data:image/png;base64
+                const base64Data = parts[1] || '';
+                
+                console.error('[appendMediaElement] Data URL header:', header);
+                console.error('[appendMediaElement] Base64 length:', base64Data.length, 'chars');
+                console.error('[appendMediaElement] Base64 preview (first 100):', base64Data.substring(0, 100));
+                console.error('[appendMediaElement] Base64 preview (last 50):', base64Data.substring(Math.max(0, base64Data.length - 50)));
+                
+                // Check for common issues
+                if (base64Data.length === 0) {
+                    console.error('[appendMediaElement] ERROR: Empty base64 data!');
+                } else if (base64Data.length < 100) {
+                    console.error('[appendMediaElement] WARNING: Base64 data suspiciously short');
+                } else if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64Data)) {
+                    console.error('[appendMediaElement] ERROR: Invalid base64 characters detected');
+                }
+                
+                // Try to decode and check header
+                try {
+                    const decoded = atob(base64Data.substring(0, 24));
+                    const bytes = new Uint8Array(decoded.split('').map(c => c.charCodeAt(0)));
+                    console.error('[appendMediaElement] First 8 bytes (hex):', 
+                        Array.from(bytes.slice(0, 8)).map(b => b.toString(16).padStart(2, '0')).join(' '));
+                } catch (e) {
+                    console.error('[appendMediaElement] ERROR: Failed to decode base64:', e.message);
+                }
+            }
+            
             // Log diagnostics
             if (window.mediaManager && asset.filename) {
                 window.mediaManager.logMediaDiagnostics(asset.filename, 'Image Load Error', {

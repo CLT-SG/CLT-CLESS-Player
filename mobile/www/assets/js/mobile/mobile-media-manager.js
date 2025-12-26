@@ -11,12 +11,30 @@
  * - Track download progress and errors
  * - Manage media cache (check existence, clear cache, etc.)
  * 
- * OPTIMIZATION (Updated):
- * - ALL media types (images + videos): Direct blob storage without base64 conversion
- * - Prevents memory crashes with large images (5MB+)
- * - Native file URI generation using convertFileSrc for instant playback
- * - Automatic URI caching for immediate access
+ * MEDIA HANDLING STRATEGY (Updated):
+ * 
+ * IMAGES (jpg, jpeg, png, gif, webp, bmp, svg):
+ * - Download as blob from server
+ * - Write to filesystem using Capacitor Filesystem API
+ * - Read back as base64 with encoding: 'base64'
+ * - Return data URL format: data:image/{mime};base64,{base64data}
+ * - Cache data URL in memory for instant access
+ * - Compatible with <img> elements: <img src={dataUrl} />
+ * 
+ * VIDEOS (mp4, webm, mkv, mov, avi, m4v):
+ * - Download as blob from server
+ * - Write to filesystem as binary
+ * - Get native file URI using getUri()
+ * - Convert to web-accessible URI using convertFileSrc()
+ * - Cache converted URI for instant playback
+ * - Compatible with VideoJS and <video> elements
+ * 
+ * BENEFITS:
+ * - Images: Base64 data URLs work reliably across all Android versions
+ * - Videos: Native URIs enable efficient streaming without memory issues
+ * - Prevents memory crashes with large media files
  * - All files stored in ecless/media/cache directory
+ * - Persistent caching survives app restarts
  * 
  * @module mobile-media-manager
  */
@@ -175,6 +193,33 @@ class MobileMediaManager {
     }
 
     /**
+     * Get MIME type from file extension
+     * @param {string} extension - File extension (e.g., 'jpg', 'png')
+     * @returns {string} MIME type (e.g., 'image/jpeg')
+     */
+    getMimeTypeFromExtension(extension) {
+        const ext = extension.toLowerCase();
+        const mimeTypes = {
+            // Images
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'bmp': 'image/bmp',
+            'svg': 'image/svg+xml',
+            // Videos (for reference, though not used with base64)
+            'mp4': 'video/mp4',
+            'webm': 'video/webm',
+            'mkv': 'video/x-matroska',
+            'mov': 'video/quicktime',
+            'avi': 'video/x-msvideo',
+            'm4v': 'video/x-m4v'
+        };
+        return mimeTypes[ext] || `application/octet-stream`;
+    }
+
+    /**
      * Check if media file exists in cache
      */
     async checkMediaExists(filename) {
@@ -256,23 +301,178 @@ class MobileMediaManager {
 
     /**
      * Perform the actual download
-     * OPTIMIZED: Downloads as blob and immediately converts to native file URI (no base64)
+     * IMAGES: Download -> Write to filesystem -> Read as base64 -> Return data URL
+     * VIDEOS: Download -> Write to filesystem -> Return native URI (no base64)
      */
     async _performDownload(mediaURL, safeFilename, filePath) {
         this.stats.totalDownloads++;
         
         // Determine extension for type handling
         const ext = (safeFilename || '').split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
         const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
+        const isImage = imageExts.includes(ext);
         const isVideo = videoExts.includes(ext);
+        
+        // Route images to base64 handling, videos to native URI handling
+        if (isImage) {
+            return await this._performImageDownload(mediaURL, safeFilename, filePath, ext);
+        } else {
+            return await this._performVideoDownload(mediaURL, safeFilename, filePath);
+        }
 
+    }
+
+    /**
+     * Download IMAGE file and return base64 data URL
+     * Flow: Download -> Write to filesystem -> Read as base64 -> Create data URL
+     */
+    async _performImageDownload(mediaURL, safeFilename, filePath, ext) {
+        console.log('[MediaManager] Starting IMAGE download for:', safeFilename);
+        
+        try {
+            // Step 1: Download the image as blob
+            let blob;
+            
+            if (window.capacitorAPI && window.capacitorAPI.isNative && window.capacitorAPI.plugins.CapacitorHttp) {
+                console.log('[MediaManager] Using CapacitorHttp for image download:', safeFilename);
+                
+                const response = await window.capacitorAPI.plugins.CapacitorHttp.get({
+                    url: mediaURL,
+                    responseType: 'blob',
+                    connectTimeout: 30000,
+                    readTimeout: 60000
+                });
+                
+                if (response.status !== 200) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText || 'Download failed'}`);
+                }
+                
+                blob = response.data instanceof Blob ? response.data : 
+                       (response.data && response.data.blob instanceof Blob ? response.data.blob : new Blob([response.data]));
+            } else {
+                console.log('[MediaManager] Using fetch for image download:', safeFilename);
+                const response = await fetch(mediaURL);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                blob = await response.blob();
+            }
+            
+            // Step 1.5: Compress image if needed (NEW)
+            if (window.imageCompressionManager && window.imageCompressionManager.isEnabled()) {
+                const originalSize = blob.size;
+                const shouldCompress = window.imageCompressionManager.shouldCompress(blob);
+                
+                if (shouldCompress) {
+                    console.log('[MediaManager] Compressing image before caching:', safeFilename, 
+                               `(${(originalSize / 1024).toFixed(2)} KB)`);
+                    
+                    try {
+                        blob = await window.imageCompressionManager.compressImage(blob);
+                        const newSize = blob.size;
+                        const savedKB = ((originalSize - newSize) / 1024).toFixed(2);
+                        const savedPercent = (((originalSize - newSize) / originalSize) * 100).toFixed(1);
+                        
+                        console.log(`[MediaManager] ✓ Image compressed: ${savedKB} KB saved (${savedPercent}%)`);
+                    } catch (compressionError) {
+                        console.warn('[MediaManager] Compression failed, using original:', compressionError.message);
+                        // Continue with original blob
+                    }
+                } else {
+                    console.log('[MediaManager] Image is small enough, skipping compression');
+                }
+            }
+            
+            // Step 2: Write blob to filesystem
+            if (!window.capacitorAPI || !window.capacitorAPI.writeFile) {
+                throw new Error('Capacitor Filesystem API not available');
+            }
+            
+            console.log('[MediaManager] Writing image to filesystem:', safeFilename);
+            const writeResult = await window.capacitorAPI.writeFile(filePath, blob);
+            
+            if (!writeResult || !writeResult.success) {
+                throw new Error('Failed to write image to filesystem');
+            }
+            
+            // Step 3: Read back as base64 (stored as UTF8 string to avoid double-encoding)
+            console.log('[MediaManager] Reading image back as base64 string:', safeFilename);
+            const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
+            
+            if (!readResult || !readResult.data) {
+                throw new Error('Failed to read image as base64 string');
+            }
+            
+            // Validate base64 data
+            const base64Data = readResult.data;
+            if (!this._validateImageBase64(base64Data, ext)) {
+                console.error('[MediaManager] Base64 validation failed for:', safeFilename);
+                console.error('[MediaManager] Base64 preview (first 100 chars):', base64Data.substring(0, 100));
+                throw new Error('Invalid base64 data - possible corruption during write/read');
+            }
+            
+            // Step 4: Create data URL with proper MIME type
+            const mimeType = this.getMimeTypeFromExtension(ext);
+            const dataUrl = `data:${mimeType};base64,${base64Data}`;
+            
+            // Additional validation: Check data URL format
+            if (!dataUrl.startsWith('data:image/')) {
+                throw new Error(`Invalid data URL format. MIME: ${mimeType}`);
+            }
+            
+            console.log('[MediaManager] Base64 preview (first 50 chars):', base64Data.substring(0, 50));
+            console.log('[MediaManager] Data URL length:', dataUrl.length, 'bytes');
+            
+            // Step 5: Cache the data URL for immediate access
+            this.uriCache.set(safeFilename, dataUrl);
+            this.cachedFiles.add(safeFilename);
+            
+            console.log('[MediaManager] ✓ Image successfully cached as base64:', safeFilename, '| MIME:', mimeType);
+            
+            this.stats.successfulDownloads++;
+            
+            // Show success notification
+            if (window.errorNotification && this.stats.successfulDownloads % 5 === 0) {
+                window.errorNotification.success(
+                    'Media Cached',
+                    `${this.stats.successfulDownloads} files ready for offline playback`,
+                    2000
+                );
+            }
+            
+            return { success: true, filePath, fromCache: false, isBase64: true, dataUrl };
+            
+        } catch (error) {
+            console.error('[MediaManager] Image download error for', mediaURL, ':', error);
+            this.stats.failedDownloads++;
+            
+            if (window.errorNotification) {
+                window.errorNotification.error(
+                    'Image Download Failed',
+                    `Failed to download ${safeFilename}: ${error.message}`,
+                    5000
+                );
+            }
+            
+            throw error;
+        }
+    }
+
+    /**
+     * Download VIDEO file and return native URI
+     * Flow: Download -> Write to filesystem -> Get native URI -> Convert to web URI
+     */
+    async _performVideoDownload(mediaURL, safeFilename, filePath) {
+        console.log('[MediaManager] Starting VIDEO download for:', safeFilename);
+        
         try {
             // Use Capacitor HTTP for native apps, fetch for web
             let blob;
             
             if (window.capacitorAPI && window.capacitorAPI.isNative && window.capacitorAPI.plugins.CapacitorHttp) {
                 // Native platform - use CapacitorHttp
-                console.log('[MediaManager] Using CapacitorHttp for native download:', safeFilename);
+                console.log('[MediaManager] Using CapacitorHttp for video download:', safeFilename);
                 
                 const response = await window.capacitorAPI.plugins.CapacitorHttp.get({
                     url: mediaURL,
@@ -298,7 +498,7 @@ class MobileMediaManager {
                 
             } else {
                 // Web platform or fallback - use fetch
-                console.log('[MediaManager] Using fetch for download:', safeFilename);
+                console.log('[MediaManager] Using fetch for video download:', safeFilename);
                 
                 const response = await fetch(mediaURL);
                 
@@ -309,9 +509,9 @@ class MobileMediaManager {
                 blob = await response.blob();
             }
             
-            // Write to filesystem (auto-converts Blob to base64 internally)
+            // Write to filesystem (stores as blob/binary)
             if (window.capacitorAPI && window.capacitorAPI.writeFile) {
-                console.log('[MediaManager] Saving media file:', safeFilename, '| Type:', isVideo ? 'VIDEO' : 'IMAGE');
+                console.log('[MediaManager] Saving video file:', safeFilename);
                 
                 // writeFile now returns {success, path, uri, directory}
                 const writeResult = await window.capacitorAPI.writeFile(filePath, blob);
@@ -345,7 +545,7 @@ class MobileMediaManager {
                 // Update cache index
                 this.cachedFiles.add(safeFilename);
                 
-                console.log('[MediaManager] ✓ Successfully downloaded and cached:', safeFilename);
+                console.log('[MediaManager] ✓ Successfully downloaded and cached VIDEO:', safeFilename);
                 
                 this.stats.successfulDownloads++;
                 
@@ -365,13 +565,13 @@ class MobileMediaManager {
             }
             
         } catch (error) {
-            console.error('MediaManager: Download error for', mediaURL, ':', error);
+            console.error('[MediaManager] Video download error for', mediaURL, ':', error);
             this.stats.failedDownloads++;
             
             // Show error notification
             if (window.errorNotification) {
                 window.errorNotification.error(
-                    'Media Download Failed',
+                    'Video Download Failed',
                     `Failed to download ${safeFilename}: ${error.message}`,
                     5000
                 );
@@ -409,9 +609,9 @@ class MobileMediaManager {
 
     /**
      * Get web-accessible URI for a cached media file
-     * This converts the filesystem path to a usable URL for img/video elements
-     * OPTIMIZED: Uses in-memory cache to avoid repeated conversions
-     * UPDATED: Prefers native URIs for both images and videos (no data URI conversion for large files)
+     * IMAGES: Returns base64 data URL (data:image/jpeg;base64,...)
+     * VIDEOS: Returns native URI converted for web access
+     * OPTIMIZED: Uses in-memory cache to avoid repeated file reads
      * FALLBACK: Returns object with both cached URI and original server URL for redundancy
      */
     async getMediaUri(filename, originalServerUrl = null) {
@@ -459,12 +659,61 @@ class MobileMediaManager {
             // Determine extension for handling
             const ext = safeFilename.split('.').pop().toLowerCase();
             const videoExts = ['mp4','webm','mkv','mov','avi','m4v'];
-            const imageExts = ['jpg','jpeg','png','gif','webp','bmp'];
+            const imageExts = ['jpg','jpeg','png','gif','webp','bmp','svg'];
             const isVideo = videoExts.includes(ext);
             const isImage = imageExts.includes(ext);
 
-            // UPDATED: Use native URI for BOTH images and videos on device (no data URI conversion)
-            if ((isVideo || isImage) && window.capacitorAPI && window.capacitorAPI.isNative) {
+            // NEW FLOW: Images use base64 data URLs, Videos use native URIs
+            if (isImage && window.capacitorAPI && window.capacitorAPI.readFile) {
+                // IMAGE HANDLING: Read as base64 and return data URL
+                console.log('[MediaManager] Loading IMAGE as base64:', safeFilename);
+                
+                try {
+                    const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
+                    
+                    if (!readResult || !readResult.data) {
+                        throw new Error('Failed to read image as base64');
+                    }
+                    
+                    // Build data URL with correct MIME type
+                    const mimeType = this.getMimeTypeFromExtension(ext);
+                    const dataUrl = `data:${mimeType};base64,${readResult.data}`;
+                    
+                    // Cache for future access
+                    this.uriCache.set(safeFilename, dataUrl);
+                    
+                    console.log(`[MediaManager] Returning base64 data URL for image:`, safeFilename, '| MIME:', mimeType);
+                    
+                    // Return object with fallback support if originalUrl provided
+                    if (originalServerUrl) {
+                        return {
+                            uri: dataUrl,
+                            fallbackUri: originalServerUrl,
+                            isCached: true,
+                            isBase64: true
+                        };
+                    }
+                    return dataUrl;
+                    
+                } catch (error) {
+                    console.error('[MediaManager] Failed to read image as base64:', safeFilename, error);
+                    
+                    // Fallback to server URL if available
+                    if (originalServerUrl) {
+                        return {
+                            uri: null,
+                            fallbackUri: originalServerUrl,
+                            isCached: false,
+                            useFallback: true,
+                            error: error.message
+                        };
+                    }
+                    return null;
+                }
+            }
+
+            // VIDEO HANDLING: Use native URI for web access
+            if (isVideo && window.capacitorAPI && window.capacitorAPI.isNative) {
                 let mediaUri = null;
 
                 try {
@@ -495,7 +744,7 @@ class MobileMediaManager {
 
                 if (mediaUri) {
                     this.uriCache.set(safeFilename, mediaUri);
-                    console.log(`[MediaManager] Returning native URI for ${isVideo ? 'video' : 'image'}:`, safeFilename, mediaUri);
+                    console.log(`[MediaManager] \u2713 Returning native URI for video:`, safeFilename);
                     
                     // Return object with fallback support if originalUrl provided
                     if (originalServerUrl) {
@@ -897,6 +1146,92 @@ class MobileMediaManager {
         console.log('[MediaManager] Clearing URI cache...');
         this.uriCache.clear();
     }
+    
+    /**
+     * Validate base64 image data by checking file format headers
+     * @private
+     * @param {string} base64 - Base64 encoded image data
+     * @param {string} ext - File extension (jpg, png, etc.)
+     * @returns {boolean} True if base64 appears valid for the image type
+     */
+    _validateImageBase64(base64, ext) {
+        if (!base64 || typeof base64 !== 'string' || base64.length < 10) {
+            return false;
+        }
+        
+        // Check for valid base64 characters
+        const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/;
+        if (!base64Pattern.test(base64)) {
+            console.error('[MediaManager] Invalid base64 characters detected');
+            return false;
+        }
+        
+        // Validate file format by checking magic bytes (decoded first few bytes)
+        const firstBytes = base64.substring(0, 24); // First ~18 bytes when decoded
+        
+        try {
+            // Decode first bytes to check file signature
+            const decoded = atob(firstBytes);
+            const bytes = new Uint8Array(decoded.split('').map(c => c.charCodeAt(0)));
+            
+            // PNG: starts with [137, 80, 78, 71] = 0x89504E47 = "‰PNG"
+            if ((ext === 'png') && bytes.length >= 4) {
+                if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) {
+                    console.log('[MediaManager] ✓ Valid PNG header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid PNG header. Expected: 89504E47, Got:', 
+                        Array.from(bytes.slice(0, 4)).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    return false;
+                }
+            }
+            
+            // JPEG: starts with [255, 216, 255] = 0xFFD8FF
+            if ((ext === 'jpg' || ext === 'jpeg') && bytes.length >= 3) {
+                if (bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF) {
+                    console.log('[MediaManager] ✓ Valid JPEG header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid JPEG header. Expected: FFD8FF, Got:', 
+                        Array.from(bytes.slice(0, 3)).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    return false;
+                }
+            }
+            
+            // GIF: starts with "GIF87a" or "GIF89a"
+            if ((ext === 'gif') && bytes.length >= 6) {
+                const gifHeader = String.fromCharCode(...bytes.slice(0, 6));
+                if (gifHeader === 'GIF87a' || gifHeader === 'GIF89a') {
+                    console.log('[MediaManager] ✓ Valid GIF header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid GIF header. Got:', gifHeader);
+                    return false;
+                }
+            }
+            
+            // WEBP: starts with "RIFF" at byte 0 and "WEBP" at byte 8
+            if ((ext === 'webp') && bytes.length >= 12) {
+                const riff = String.fromCharCode(...bytes.slice(0, 4));
+                const webp = String.fromCharCode(...bytes.slice(8, 12));
+                if (riff === 'RIFF' && webp === 'WEBP') {
+                    console.log('[MediaManager] ✓ Valid WEBP header detected');
+                    return true;
+                } else {
+                    console.error('[MediaManager] ✗ Invalid WEBP header');
+                    return false;
+                }
+            }
+            
+            // For other formats, just verify base64 is valid
+            console.log('[MediaManager] ⚠ Skipping header validation for extension:', ext);
+            return true;
+            
+        } catch (error) {
+            console.error('[MediaManager] Error validating base64 header:', error.message);
+            return false;
+        }
+    }
 
     // DEBUG helper: return a plain object of recorded native URIs from writeFile
     getFileUriMap() {
@@ -969,6 +1304,8 @@ class MobileMediaManager {
     
     /**
      * NEW: Force refresh URI for a specific file (useful after import/replacement)
+     * IMAGES: Re-read as base64 and create new data URL
+     * VIDEOS: Regenerate native URI
      * @param {string} filename - Filename to refresh
      * @returns {Promise<string|null>} Refreshed web URI or null
      */
@@ -982,9 +1319,28 @@ class MobileMediaManager {
         this.uriCache.delete(safeFilename);
         this.fileUriMap.delete(safeFilename);
         
-        // Try to regenerate native URI and web URI
+        // Determine if image or video
+        const ext = safeFilename.split('.').pop().toLowerCase();
+        const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'];
+        const isImage = imageExts.includes(ext);
+        
+        // Try to regenerate URI based on type
         try {
-            if (window.capacitorAPI && window.capacitorAPI.getUri) {
+            if (isImage && window.capacitorAPI && window.capacitorAPI.readFile) {
+                // IMAGE: Read as base64 and create data URL
+                console.log(`[MediaManager] Refreshing IMAGE URI: ${safeFilename}`);
+                const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
+                
+                if (readResult && readResult.data) {
+                    const mimeType = this.getMimeTypeFromExtension(ext);
+                    const dataUrl = `data:${mimeType};base64,${readResult.data}`;
+                    this.uriCache.set(safeFilename, dataUrl);
+                    console.log(`[MediaManager] ✓ Refreshed image data URL for: ${safeFilename}`);
+                    return dataUrl;
+                }
+            } else if (window.capacitorAPI && window.capacitorAPI.getUri) {
+                // VIDEO: Regenerate native URI
+                console.log(`[MediaManager] Refreshing VIDEO URI: ${safeFilename}`);
                 const uriRes = await window.capacitorAPI.getUri(filePath);
                 const nativeUri = (uriRes && uriRes.uri) ? uriRes.uri : uriRes;
                 
@@ -996,7 +1352,7 @@ class MobileMediaManager {
                         const webUri = window.capacitorAPI.convertFileSrc(nativeUri);
                         if (webUri) {
                             this.uriCache.set(safeFilename, webUri);
-                            console.log(`[MediaManager] ✓ Refreshed web URI: ${safeFilename}`);
+                            console.log(`[MediaManager] ✓ Refreshed video web URI for: ${safeFilename}`);
                             return webUri;
                         }
                     }
