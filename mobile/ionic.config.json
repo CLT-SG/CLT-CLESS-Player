@@ -1,0 +1,8 @@
+{
+  "name": "ecless-player-mobile",
+  "integrations": {
+    "capacitor": {}
+  },
+  "type": "custom",
+  "id": "biz.closedloop.ecless.player"
+}

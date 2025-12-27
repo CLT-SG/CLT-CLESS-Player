@@ -1,0 +1,33 @@
+{
+  "apps": [
+    {
+      "appId": "biz.closedloop.ecless.player",
+      "name": "eCLESS Player",
+      "integrations": {
+        "capacitor": {
+          "enabled": true
+        }
+      }
+    }
+  ],
+  "build": {
+    "android": {
+      "release": {
+        "script": "npm run build:mobile",
+        "gradleBuildType": "release"
+      },
+      "debug": {
+        "script": "npm run build:mobile",
+        "gradleBuildType": "debug"
+      }
+    }
+  },
+  "environments": {
+    "development": {
+      "name": "Development"
+    },
+    "production": {
+      "name": "Production"
+    }
+  }
+}

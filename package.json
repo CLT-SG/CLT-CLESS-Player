@@ -1,6 +1,6 @@
 {
     "name": "cless-player",
-    "version": "3.7.2",
+    "version": "3.7.3",
     "description": "CLESS Player",
     "main": "index.js",
     "license": "ISC",
@@ -9,7 +9,10 @@
         "win32": "electron-builder --win --ia32",
         "win64": "electron-builder --win --x64",
         "ubuntu32": "electron-builder --linux --ia32",
-        "ubuntu64": "electron-builder --linux --x64"
+        "ubuntu64": "electron-builder --linux --x64",
+        "build": "cd mobile && npm install && npm run build:mobile && npx cap sync android",
+        "build:mobile": "cd mobile && npm install && npm run build:mobile",
+        "install:mobile": "cd mobile && npm install"
     },
     "homepage": "www.closed-loop.biz",
     "author": {
