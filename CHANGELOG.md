@@ -1,73 +1,95 @@
 # Change Log
 
-## [3.7.1] - 2025-12-26
+## [3.7.2] - 2025-12-27
 
-### Fixed - Mobile Media File Encoding and CORS Issues
+### Fixed - Mobile Video Audio Overlap When Switching Layouts
 
-- **Base64 Encoding/Decoding Mismatch** - Fixed critical bug causing "Invalid base64 data" errors and image display failures
-  - Root cause: Writing base64 data with Encoding.UTF8 but reading with 'utf8' encoding caused data corruption
-  - Solution: Changed writeFile to use Encoding.Base64 and readFile to use 'base64' encoding for consistency
-  - Files: capacitor-core.js (writeFile method), mobile-media-manager.js (_performImageDownload method)
-  - Impact: All images now display correctly without base64 validation errors
+- **Video Audio Overlap** - Fixed critical bug where previous video audio continues playing after switching layouts
+  - Root cause: VideoJS players not properly disposed when switching layouts, DOM elements removed but players continue running
+  - Solution: Added disposeAllVideoPlayers() function called before layout switches and player array resets
+  - Files: slot-media.js (disposeAllVideoPlayers function), layoutxml.js (disposal calls in getLayoutXML and updatelayout)
+  - Impact: Clean layout transitions without audio overlap, matches desktop Electron behavior
 
-- **CORS Policy Blocks** - Fixed "Access-Control-Allow-Origin" errors blocking media downloads in mobile app
-  - Root cause: Using fetch() API which triggers CORS restrictions on cross-origin requests
-  - Solution: Replaced fetch() with CapacitorHttp.get/head for all HTTP requests in native apps
-  - Files: mobile-media-manager.js (_estimateFileSize), mobile-chunk-manager.js (_getRemoteFileSize, _downloadChunk)
-  - Impact: All media downloads succeed without CORS errors, chunked downloads work properly
+- **Slot-Level Video Cleanup** - Fixed audio overlap when switching between videos in same slot
+  - Root cause: New video player created without disposing previous player for same slot
+  - Solution: Added videoPlayersBySlot tracking and dispose previous player before creating new one
+  - Files: slot-media.js (appendMediaElement function)
+  - Impact: Clean media transitions within slots, no audio overlap between videos
 
-- **Bundle Rebuilding** - Rebuilt capacitor-core.bundle.js with encoding fixes
-  - Ran npm run build:mobile to regenerate all bundles with latest fixes
-  - Files: capacitor-core.bundle.js, datetime.bundle.js, browser-image-compression.bundle.js
-  - Impact: Mobile app now uses corrected encoding logic in production
+- **Memory Leak Prevention** - Added comprehensive cleanup to prevent video player resource leaks
+  - Clears all media timeouts during disposal
+  - Clears videoPlayersBySlot tracking object
+  - Comprehensive error handling for disposal failures
+  - Files: slot-media.js (disposeAllVideoPlayers function)
+  - Impact: Prevents memory accumulation over extended periods, stable long-term operation
 
 ### Technical Details
 
-**Encoding Fix:**
+**Layout Switching Fix:**
 ```javascript
-// Before (BROKEN - Line 232 capacitor-core.js):
-if (dataType === 'base64-string') {
-    writeParams.encoding = Encoding.UTF8;  // Wrong encoding!
+// Before (BROKEN - Line 95 layoutxml.js):
+if (isLoopLyt) {
+    videoJSPlayer = []  // Players not disposed!
 }
 
 // After (FIXED):
-if (dataType === 'base64-string') {
-    writeParams.encoding = Encoding.Base64;  // Correct encoding
+if (isLoopLyt) {
+    disposeAllVideoPlayers();  // Properly dispose all players
+    videoJSPlayer = []
 }
-
-// Before (BROKEN - Line 453 mobile-media-manager.js):
-const readResult = await window.capacitorAPI.readFile(filePath, 'utf8');
-
-// After (FIXED):
-const readResult = await window.capacitorAPI.readFile(filePath, 'base64');
 ```
 
-**CORS Fix:**
+**Slot-Level Cleanup:**
 ```javascript
-// Before (BROKEN - Line 653 mobile-media-manager.js):
-const response = await fetch(url, { method: 'HEAD' });
+// Before (BROKEN - appendMediaElement in slot-media.js):
+var videojsid = parseInt(slotid) + videoIdIncrease[slotid]
+// Old player continues running
 
 // After (FIXED):
-if (window.capacitorAPI?.isNative) {
-    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
-        url: url,
-        connectTimeout: 10000
-    });
+if (videoPlayersBySlot[slotid]) {
+    var oldPlayerId = videoPlayersBySlot[slotid];
+    if (videoJSPlayer[oldPlayerId]) {
+        videoJSPlayer[oldPlayerId].dispose();
+    }
+}
+videoPlayersBySlot[slotid] = videojsid;
+```
+
+**Disposal Function:**
+```javascript
+function disposeAllVideoPlayers() {
+    for (var key in videoJSPlayer) {
+        if (videoJSPlayer[key] && typeof videoJSPlayer[key].dispose === 'function') {
+            videoJSPlayer[key].dispose();
+        }
+    }
+    for (var timeoutKey in mediaTimeout) {
+        if (mediaTimeout[timeoutKey]) {
+            clearTimeout(mediaTimeout[timeoutKey]);
+        }
+    }
+    videoPlayersBySlot = {};
 }
 ```
+
+### Root Cause Analysis
+
+Issue was traced by comparing mobile (mobile/www/assets/js/) and desktop (src/assets/js/) implementations:
+- Desktop: Calls dispose() on all players before clearing array
+- Mobile: Only clears array without disposal, players continue running
+- Result: Background audio from previous layouts continues playing
+- User report: "I can hear the sound from previous video sound but the video is not there"
 
 ### Log Evidence
 
-**Before (with errors):**
+**After Fix:**
 ```
-[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ecless/media/cache/Departure_Icon.png
-[CapacitorAPI] Reading file: ecless/media/cache/Departure_Icon.png | Encoding: utf8
-[MediaManager] Base64 validation failed for: Departure_Icon.png
-[MediaManager] Image download error: Error: Invalid base64 data - possible corruption during write/read
-Access to fetch at 'https://cless4.closed-loop.biz/media/uploads/497/Departure_Icon.png' has been blocked by CORS policy
+[disposeAllVideoPlayers] Cleaning up all video players...
+[disposeAllVideoPlayers] Disposing player: 12345678
+[disposeAllVideoPlayers] Disposing player: 23456789
+[disposeAllVideoPlayers] Cleanup complete. Disposed: 2 Errors: 0
+[appendMediaElement] Disposing previous player for slot: 1 playerId: 12345678
 ```
-
-**After (fixed):**
 ```
 [CapacitorAPI] Writing pre-encoded base64 with Base64 encoding: ecless/media/cache/Departure_Icon.png
 [CapacitorAPI] Reading file: ecless/media/cache/Departure_Icon.png | Encoding: base64

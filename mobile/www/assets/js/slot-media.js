@@ -21,6 +21,59 @@ var mediaEl = new Array()
 var mediasrcList = new Array()
 var mediafilenameList = new Array()
 var videoIdIncrease = new Array()
+var videoPlayersBySlot = {} // Track which video player IDs belong to which slot
+
+/**
+ * CRITICAL FIX: Dispose all VideoJS players properly to prevent audio overlap
+ * when switching layouts. This function should be called before:
+ * - Clearing the videoJSPlayer array
+ * - Removing DOM elements containing video players
+ * - Switching to a new layout
+ */
+function disposeAllVideoPlayers() {
+    console.log('[disposeAllVideoPlayers] Cleaning up all video players...');
+    
+    var disposedCount = 0;
+    var errorCount = 0;
+    
+    // Iterate through all video players
+    for (var key in videoJSPlayer) {
+        if (videoJSPlayer.hasOwnProperty(key) && videoJSPlayer[key]) {
+            try {
+                // Check if player has dispose method
+                if (typeof videoJSPlayer[key].dispose === 'function') {
+                    console.log('[disposeAllVideoPlayers] Disposing player:', key);
+                    videoJSPlayer[key].dispose();
+                    disposedCount++;
+                } else {
+                    console.warn('[disposeAllVideoPlayers] Player', key, 'does not have dispose method');
+                }
+            } catch (error) {
+                console.error('[disposeAllVideoPlayers] Error disposing player', key, ':', error);
+                errorCount++;
+            }
+            
+            // Clear the reference
+            videoJSPlayer[key] = null;
+        }
+    }
+    
+    // Clear all media timeouts
+    for (var timeoutKey in mediaTimeout) {
+        if (mediaTimeout.hasOwnProperty(timeoutKey) && mediaTimeout[timeoutKey]) {
+            try {
+                clearTimeout(mediaTimeout[timeoutKey]);
+            } catch (error) {
+                console.error('[disposeAllVideoPlayers] Error clearing timeout', timeoutKey, ':', error);
+            }
+        }
+    }
+    
+    // Clear the slot-to-player tracking
+    videoPlayersBySlot = {};
+    
+    console.log('[disposeAllVideoPlayers] Cleanup complete. Disposed:', disposedCount, 'Errors:', errorCount);
+}
 
 /**
  * Sanitize media URLs for logging (truncate base64 data)
@@ -626,6 +679,25 @@ function changeMedia(slotid) {
 async function appendMediaElement(asset, previewele, slotid) {
     videoIdIncrease[slotid] = generateRandomNumber()
     var videojsid = parseInt(slotid) + videoIdIncrease[slotid]
+    
+    // CRITICAL FIX: Dispose previous video player for this slot before creating new one
+    // This prevents audio overlap when switching between videos in the same slot
+    if (videoPlayersBySlot[slotid]) {
+        var oldPlayerId = videoPlayersBySlot[slotid];
+        if (videoJSPlayer[oldPlayerId]) {
+            try {
+                console.log('[appendMediaElement] Disposing previous player for slot:', slotid, 'playerId:', oldPlayerId);
+                videoJSPlayer[oldPlayerId].dispose();
+                videoJSPlayer[oldPlayerId] = null;
+            } catch (error) {
+                console.warn('[appendMediaElement] Error disposing previous player:', error);
+            }
+        }
+    }
+    
+    // Track this new player for this slot
+    videoPlayersBySlot[slotid] = videojsid;
+    
     if (mediaTimeout[slotid]) { //clear mediaTimeout to reset
         clearTimeout(mediaTimeout[slotid])
     }

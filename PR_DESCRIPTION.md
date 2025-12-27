@@ -1,102 +1,108 @@
-## Fixed: Mobile Media File Encoding and CORS Issues
+## Fixed: Mobile Video Audio Overlap When Switching Layouts
 
-Fixes critical base64 encoding/decoding mismatch and CORS policy blocks preventing media files from loading in mobile CMS player.
+Fixes critical issue where previous video audio continues playing in background after switching to a new layout in mobile CMS player.
 
 ## Problems Fixed
 
-Mobile app had critical issues preventing media files from displaying:
-1. Base64 encoding mismatch - Writing with Base64 encoding but reading with UTF8 encoding caused data corruption
-2. Invalid base64 data errors - Images failed to load with "Invalid base64 data - possible corruption during write/read" errors
-3. CORS policy blocks - HTTP requests blocked by "No 'Access-Control-Allow-Origin' header is present" errors
-4. File size estimation failures - HEAD requests failed due to CORS restrictions
-5. Chunked downloads broken - Range requests failed with CORS errors
+Mobile app had audio overlap issue that did not occur in desktop Electron version:
+1. Video audio from previous layout continues playing after layout switch
+2. Multiple video audio tracks playing simultaneously from different layouts
+3. Memory leaks from undisposed VideoJS player instances
+4. No cleanup of video players when switching between media in same slot
+5. Media timeouts not cleared during layout transitions
 
-Evidence from logs:
-```
-[CapacitorAPI] Writing pre-encoded base64 as UTF8 string: ecless/media/cache/Departure_Icon.png
-[MediaManager] Base64 validation failed for: Departure_Icon.png
-[MediaManager] Image download error: Error: Invalid base64 data - possible corruption during write/read
-Access to fetch at 'https://cless4.closed-loop.biz/...' has been blocked by CORS policy
-```
+Evidence:
+- User reported hearing sound from previous video when switching layouts
+- Video DOM elements removed but VideoJS players continue running
+- Desktop version works correctly, mobile version has the issue
 
 ## Changes Made
 
-1. Fixed base64 encoding in capacitor-core.js writeFile - Changed from Encoding.UTF8 to Encoding.Base64 for base64-string data
-2. Fixed base64 decoding in mobile-media-manager.js _performImageDownload - Changed readFile from 'utf8' to 'base64' encoding
-3. Replaced fetch() with CapacitorHttp in mobile-media-manager.js _estimateFileSize method
-4. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _getRemoteFileSize method
-5. Replaced fetch() with CapacitorHttp in mobile-chunk-manager.js _downloadChunk method
-6. Rebuilt capacitor-core.bundle.js with encoding fixes
-7. Added CapacitorHttp HEAD request support for file size estimation
-8. Added CapacitorHttp Range request support for chunked downloads
-9. Maintained web fallback for non-native platforms
-10. Preserved backward compatibility with existing code
+1. Added disposeAllVideoPlayers() function to properly dispose all VideoJS player instances
+2. Added videoPlayersBySlot tracking object to map slot IDs to video player IDs
+3. Modified appendMediaElement() to dispose previous video player for slot before creating new one
+4. Added disposeAllVideoPlayers() call in getLayoutXML() before clearing videoJSPlayer array
+5. Added disposeAllVideoPlayers() call in updatelayout() before removing DOM elements
+6. Clear all media timeouts during player disposal to prevent dangling timers
+7. Clear videoPlayersBySlot tracking object during disposal
+8. Added comprehensive error handling for disposal failures
+9. Added debug logging for disposal activity
+10. Matches desktop Electron cleanup behavior
 
 ## Technical Implementation
 
-Base64 Encoding Fix:
+Video Player Disposal:
 ```javascript
-// Before (BROKEN):
-writeParams.encoding = Encoding.UTF8;  // Writing base64 as UTF8
-const readResult = await readFile(path, 'utf8');  // Reading as UTF8
+// Before (BROKEN - layoutxml.js line 95):
+if (isLoopLyt) {
+    videoJSPlayer = []  // Players not disposed, continue running
+}
 
 // After (FIXED):
-writeParams.encoding = Encoding.Base64;  // Writing base64 correctly
-const readResult = await readFile(path, 'base64');  // Reading as base64
+if (isLoopLyt) {
+    disposeAllVideoPlayers();  // Properly dispose all players
+    videoJSPlayer = []
+}
 ```
 
-CORS Fix:
+Slot-Level Tracking:
 ```javascript
-// Before (BROKEN):
-const response = await fetch(url, { method: 'HEAD' });
+// Before (BROKEN - appendMediaElement):
+var videojsid = parseInt(slotid) + videoIdIncrease[slotid]
+// Old player continues running when new player created
 
 // After (FIXED):
-if (window.capacitorAPI.isNative) {
-    const response = await window.capacitorAPI.plugins.CapacitorHttp.head({
-        url: url,
-        connectTimeout: 10000
-    });
+if (videoPlayersBySlot[slotid]) {
+    var oldPlayerId = videoPlayersBySlot[slotid];
+    if (videoJSPlayer[oldPlayerId]) {
+        videoJSPlayer[oldPlayerId].dispose();
+    }
 }
+videoPlayersBySlot[slotid] = videojsid;  // Track new player
 ```
 
 ## Files Changed Summary
 
 Modified Files:
-- mobile/www/assets/js/mobile/capacitor-core.js - Fixed base64 encoding from UTF8 to Base64 (10 lines)
-- mobile/www/assets/js/mobile/mobile-media-manager.js - Fixed read encoding, added CapacitorHttp for HEAD requests (60 lines)
-- mobile/www/assets/js/mobile/mobile-chunk-manager.js - Replaced fetch with CapacitorHttp for all HTTP requests (100 lines)
-- mobile/www/assets/js/mobile/capacitor-core.bundle.js - Rebuilt with encoding fixes
+- mobile/www/assets/js/slot-media.js - Added disposeAllVideoPlayers() and slot tracking (75 lines)
+- mobile/www/assets/js/layoutxml.js - Added disposal calls before layout switches (6 lines)
 
 ## Impact
 
 User Experience:
-- Images display correctly without "Invalid base64 data" errors
-- All media files download successfully without CORS blocks
-- Chunked downloads work properly for large files
+- No more audio from previous videos playing in background
+- Clean transitions between layouts
+- Prevents memory leaks from undisposed video players
 - No user intervention required
 - Matches Electron desktop app behavior
 
 Technical:
-- Proper base64 encoding/decoding throughout the pipeline
-- No more CORS policy blocks for native mobile apps
-- File size estimation works correctly
-- Chunked downloads complete successfully
+- Proper VideoJS player lifecycle management
+- Prevents resource leaks and memory accumulation
+- Clean disposal of all video resources on layout switch
+- Slot-level tracking prevents within-slot audio overlap
+- All media timeouts properly cleared
 - No breaking changes to existing functionality
-- All media types (images, videos) work correctly
 
 ## Testing
 
-Test image display:
-- Import or download images via CMS player
-- Verify images display without "Invalid base64 data" errors
-- Check console logs show "Writing pre-encoded base64 with Base64 encoding"
-- Check console logs show "Reading file: ... | Encoding: base64"
+Test layout switching:
+- Create layouts with multiple video files
+- Switch between layouts and verify no audio overlap
+- Check console logs show "[disposeAllVideoPlayers] Disposing player: X"
+- Verify no background audio from previous layouts
 
-Test CORS fixes:
-- Download media from remote server
-- Verify no "blocked by CORS policy" errors in console
-- Check logs show "Using CapacitorHttp for HEAD request"
-- Verify file size estimation succeeds
+Test slot media switching:
+- Create slot with multiple videos
+- Verify videos switch cleanly without audio overlap
+- Check logs show "[appendMediaElement] Disposing previous player for slot: X"
+- Verify proper cleanup between media items
+
+Test loop layouts:
+- Configure layout loop with videos
+- Verify each loop iteration starts fresh
+- Check logs show disposal before each layout change
+- Verify no memory leaks over extended periods
 
 Test chunked downloads:
 - Download large files (>50MB) via CMS player
