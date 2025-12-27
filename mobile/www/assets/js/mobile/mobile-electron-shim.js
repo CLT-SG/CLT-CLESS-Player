@@ -537,19 +537,62 @@ window.remote = {
                 console.log('setFullScreen:', flag);
             },
             /**
-             * setBounds - Mobile-compatible implementation
+             * setBounds - Mobile-compatible implementation with layout handler integration
              * On mobile, we cannot resize windows like Electron desktop.
-             * Instead, we ensure the viewport is properly configured and
-             * store the intended dimensions for layout scaling purposes.
+             * Instead, we integrate with mobileLayoutHandler to properly configure
+             * viewport scaling and layout dimensions.
+             * 
+             * CRITICAL FIX: This now calls mobileLayoutHandler.setLayoutBounds() to ensure
+             * proper viewport scaling is applied for non-autoscale layouts.
              * 
              * @param {Object} bounds - { x, y, width, height }
              */
             setBounds: (bounds) => {
                 console.log('[Mobile] setBounds called with:', bounds);
                 
-                // On mobile, we work with viewport dimensions
-                // Store the intended layout dimensions for scaling calculations
-                if (typeof bounds === 'object' && bounds !== null) {
+                if (typeof bounds !== 'object' || bounds === null) {
+                    console.error('[Mobile] setBounds: Invalid bounds object');
+                    return;
+                }
+                
+                // Detect autoscale mode
+                // If bounds match screen dimensions, this is autoscale mode
+                const isAutoscale = bounds.width >= window.screen.width || 
+                                   bounds.height >= window.screen.height ||
+                                   bounds.width >= window.innerWidth ||
+                                   bounds.height >= window.innerHeight;
+                
+                console.log('[Mobile] setBounds detected mode:', isAutoscale ? 'autoscale' : 'fixed layout');
+                console.log('[Mobile] Screen dimensions:', window.screen.width, 'x', window.screen.height);
+                console.log('[Mobile] Bounds dimensions:', bounds.width, 'x', bounds.height);
+                
+                // CRITICAL: Call mobileLayoutHandler to properly handle viewport scaling
+                if (window.mobileLayoutHandler && typeof window.mobileLayoutHandler.setLayoutBounds === 'function') {
+                    try {
+                        // Pass bounds and autoscale flag to layout handler
+                        // This will:
+                        // 1. Calculate optimal viewport scale for fixed layouts
+                        // 2. Update viewport meta tag with correct scale
+                        // 3. Apply dimensions to #main container
+                        // 4. Lock layout to prevent touch-triggered zoom
+                        window.mobileLayoutHandler.setLayoutBounds(bounds, isAutoscale);
+                        
+                        console.log('[Mobile] ✓ Layout handler integration successful');
+                        
+                    } catch (error) {
+                        console.error('[Mobile] Layout handler integration failed:', error);
+                        // Fall back to basic dimension storage
+                        window.layoutDimensions = {
+                            width: bounds.width || window.innerWidth,
+                            height: bounds.height || window.innerHeight,
+                            x: bounds.x || 0,
+                            y: bounds.y || 0
+                        };
+                    }
+                } else {
+                    console.warn('[Mobile] mobileLayoutHandler not available - falling back to basic dimensions');
+                    
+                    // Fallback: Store dimensions without layout handler integration
                     window.layoutDimensions = {
                         width: bounds.width || window.innerWidth,
                         height: bounds.height || window.innerHeight,
@@ -557,15 +600,9 @@ window.remote = {
                         y: bounds.y || 0
                     };
                     
-                    console.log('[Mobile] Layout dimensions stored:', window.layoutDimensions);
+                    console.log('[Mobile] Layout dimensions stored (fallback):', window.layoutDimensions);
                     
-                    // Emit event for any listeners that need to know about dimension changes
-                    window.dispatchEvent(new CustomEvent('layout-dimensions-changed', {
-                        detail: window.layoutDimensions
-                    }));
-                    
-                    // On mobile, always use fullscreen viewport
-                    // Ensure body and html are properly sized
+                    // Basic viewport setup for fallback
                     document.documentElement.style.width = '100%';
                     document.documentElement.style.height = '100%';
                     document.body.style.width = '100%';
@@ -574,6 +611,11 @@ window.remote = {
                     document.body.style.padding = '0';
                     document.body.style.overflow = 'hidden';
                 }
+                
+                // Emit event for backward compatibility
+                window.dispatchEvent(new CustomEvent('layout-dimensions-changed', {
+                    detail: window.layoutDimensions || bounds
+                }));
             },
             /**
              * getBounds - Return current viewport bounds

@@ -1,0 +1,31 @@
+# Electron-specific files and directories
+node_modules/
+build/
+cert/
+novnc/
+src/
+
+# Electron app files
+index.js
+cpanel.js
+getipaddress.js
+LazyModuleLoader.js
+MultiDisplayErrorHandler.js
+PerformanceMonitor.js
+preload.js
+SerialKeyValidator.js
+SystemInfoManager.js
+TimerManager.js
+
+# Documentation not needed for mobile builds
+docs/
+*.md
+!mobile/README.md
+!mobile/docs_mobile/**/*.md
+
+# Config files
+config-example.json
+
+# Build artifacts
+*.log
+.DS_Store

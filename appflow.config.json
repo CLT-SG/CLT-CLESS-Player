@@ -1,0 +1,23 @@
+{
+  "build": {
+    "buildDir": "mobile",
+    "android": {
+      "release": {
+        "script": "npm run build:mobile",
+        "gradleBuildType": "release"
+      },
+      "debug": {
+        "script": "npm run build:mobile",
+        "gradleBuildType": "debug"
+      }
+    },
+    "ios": {
+      "release": {
+        "script": "npm run build:mobile"
+      },
+      "debug": {
+        "script": "npm run build:mobile"
+      }
+    }
+  }
+}

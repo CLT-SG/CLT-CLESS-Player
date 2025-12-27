@@ -3,6 +3,7 @@
     {
       "appId": "biz.closedloop.ecless.player",
       "name": "eCLESS Player",
+      "webDir": "www",
       "integrations": {
         "capacitor": {
           "enabled": true
@@ -11,6 +12,7 @@
     }
   ],
   "build": {
+    "buildDir": "mobile",
     "android": {
       "release": {
         "script": "npm run build:mobile",
