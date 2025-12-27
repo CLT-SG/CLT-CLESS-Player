@@ -29,6 +29,10 @@ function updatelayout(result2) {
 
     //check if layout slot got update
     if (layoutnewupdate > layoutolddate) {
+        // CRITICAL FIX: Dispose all video players before removing DOM elements
+        // This prevents audio from previous videos continuing to play
+        disposeAllVideoPlayers();
+        
         $('.main-slot').not(".mslot-table").remove()
         log.warn('Player info : Layout content updated')
         getLayoutXML(result2)
@@ -93,6 +97,11 @@ function getLayoutXML(result2) {
     if (isLoopLyt) {
         // Do NOT reset pagerow here - it's managed by individual table renders
         // pagerow is an associative array indexed by table ID, not a simple array
+        
+        // CRITICAL FIX: Properly dispose all VideoJS players before clearing array
+        // This prevents audio from previous videos continuing to play in background
+        disposeAllVideoPlayers();
+        
         videoJSPlayer = []
     }
     //if layout cannot read go to offline page
