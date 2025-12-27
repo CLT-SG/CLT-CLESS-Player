@@ -1,6 +1,6 @@
 {
   "name": "ecless-player-mobile",
-  "version": "3.7.2",
+  "version": "3.7.3",
   "type": "module",
   "description": "eCLESS Player Mobile App - Android & iOS",
   "author": {
@@ -50,6 +50,7 @@
     "@babel/preset-env": "^7.28.5",
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^6.1.2",
+    "@ionic/cli": "^7.2.1",
     "@rollup/plugin-babel": "^6.1.0",
     "@rollup/plugin-commonjs": "^29.0.0",
     "@rollup/plugin-node-resolve": "^16.0.3",

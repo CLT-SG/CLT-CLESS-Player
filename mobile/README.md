@@ -4,6 +4,12 @@
 
 This guide explains how to build Android and iOS mobile applications from the eCLESS Player Electron project. The mobile version uses **Capacitor** to wrap the existing web frontend, providing native mobile APIs while preserving all functionality.
 
+## 🚀 Quick Links
+
+- **[Ionic Appflow Cloud Build Setup](docs_mobile/IONIC-APPFLOW-SETUP.md)** - CI/CD setup for automated builds
+- **[Local Development Setup](#prerequisites)** - Build locally on your machine
+- **[Build Instructions](#installation-steps)** - Step-by-step local build guide
+
 ## Architecture
 
 The mobile app provides **TWO main interfaces**:
@@ -72,7 +78,7 @@ ecless-player-electron/
      ```
      **Note**: Replace `/home/YOUR_USERNAME` with your actual home directory path.
      
-     **⚠️ Important**: The `local.properties` file contains machine-specific paths and should NOT be committed to version control. It's already included in `.gitignore`.
+     **Important**: The `local.properties` file contains machine-specific paths and should NOT be committed to version control. It's already included in `.gitignore`.
 
 3. **Java Development Kit (JDK 17)**
    ```bash
