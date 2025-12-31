@@ -137,6 +137,8 @@ function tableFunc(slotitem, index, slotattr) {
             "border-radius": cellTopRightRadius + "px " + cellTopLeftRadius + "px " + cellBottomLeftRadius + "px " + cellBottomRightRadius + "px",
             'width': columnWidth + "px",
             'height': bodyRowHeight + "px",
+            'max-height': bodyRowHeight + "px",
+            'line-height': bodyRowHeight + "px"
         })
     })
 }
@@ -331,18 +333,20 @@ function tableRecord(slotitem, index, table) {
                     //row table height
                     $('.slot-tbody-' + tableid).find('tr').css({
                         "white-space": "nowrap",
-                        "overflow": "hidden !important",
+                        "overflow": "hidden",
                         "text-overflow": "clip",
-                        "height": "100%",
-                        "max-height": bodyRowHeight + "px !important",
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px",
                         'line-height': bodyRowHeight + 'px'
                     })
                     //fit all elements size inside td
                     $('.slot-tbody-' + tableid).find('td').css({
                         "white-space": "nowrap",
-                        "overflow": "hidden !important",
+                        "overflow": "hidden",
                         "text-overflow": "clip",
-                        "vertical-align": tableStyleVAlign
+                        "vertical-align": tableStyleVAlign,
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px"
                     })
 
                     $('.slot-tbody-' + tableid).find('tr td *').css({
@@ -357,7 +361,18 @@ function tableRecord(slotitem, index, table) {
                     $('.imagecol-' + colRowIndex).css({
                         "white-space": "nowrap",
                         "width": "auto",
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px",
+                        "display": "inline-block",
+                        "vertical-align": tableStyleVAlign
+                    })
+                    
+                    // Constrain images to row height
+                    $('.imagecol-' + colRowIndex + ' img').css({
+                        "max-height": bodyRowHeight + "px",
                         "height": "auto",
+                        "width": "auto",
+                        "vertical-align": tableStyleVAlign
                     })
                 }
                 
@@ -488,6 +503,8 @@ function tableRecord(slotitem, index, table) {
                     'text-align': checkres1['textalign'],
                     "border-radius": checkres1['trradius'] + "px " + checkres1['tlradius'] + "px " + checkres1['blradius'] + "px " + checkres1['brradius'] + "px",
                     'height': bodyRowHeight + "px",
+                    'max-height': bodyRowHeight + "px",
+                    'line-height': bodyRowHeight + "px"
                 });
             });
         })
@@ -500,18 +517,20 @@ function tableRecord(slotitem, index, table) {
     //row table height
     $('.slot-tbody-' + tableid).find('tr').css({
         "white-space": "nowrap",
-        "overflow": "hidden !important",
+        "overflow": "hidden",
         "text-overflow": "clip",
-        "height": "100%",
-        "max-height": bodyRowHeight + "px !important",
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px",
         'line-height': bodyRowHeight + 'px'
     })
     //fit all elements size inside td
     $('.slot-tbody-' + tableid).find('td').css({
         "white-space": "nowrap",
-        "overflow": "hidden !important",
+        "overflow": "hidden",
         "text-overflow": "clip",
-        "vertical-align": tableStyleVAlign
+        "vertical-align": tableStyleVAlign,
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px"
     })
 
     $('.slot-tbody-' + tableid).find('tr td *').css({
