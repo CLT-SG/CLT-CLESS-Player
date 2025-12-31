@@ -1,5 +1,89 @@
 # Change Log
 
+## [3.7.6] - 2025-12-31
+
+### Fixed - Table Slot Image Column Vertical Alignment on Animation Switch
+
+- **Vertical Alignment Consistency** - Fixed image columns losing vertical alignment after switching to next image
+  - Root cause: Vertical alignment CSS applied before animated image replacement completed
+  - Applied styles in setTimeout callback after new image inserted in DOM
+  - Impact: Image columns maintain configured vertical alignment (middle, top, bottom) throughout entire animation cycle
+
+### Technical Details
+
+**Root Cause:**
+The vertical alignment styles were applied immediately after triggering the animation, but the actual DOM update with the new image happened inside a setTimeout callback. This meant the styles were applied to the old image element that was about to be removed, and the new image element never received the vertical alignment CSS.
+
+**Timing Issue:**
+```javascript
+// Before (BROKEN):
+if (animated transition) {
+    setTimeout(function() {
+        targetContainer.html(renderEl) // New image inserted here
+    }, duration)
+}
+// Styles applied here to old element (lines 356-387)
+$('.slot-tbody-' + tableid).find('td').css({
+    "vertical-align": tableStyleVAlign // Applied to wrong element!
+})
+```
+
+**Solution:**
+Extracted styling logic into reusable function and applied it after DOM updates:
+```javascript
+// After (FIXED):
+function applyVerticalAlignmentStyles() {
+    $('.slot-tbody-' + tableid).find('td').css({
+        "vertical-align": tableStyleVAlign
+    })
+    // ... other alignment styles
+}
+
+if (animated transition) {
+    setTimeout(function() {
+        targetContainer.html(renderEl)
+        applyVerticalAlignmentStyles() // Applied to NEW element
+    }, duration)
+} else {
+    targetContainer.html(renderEl)
+    applyVerticalAlignmentStyles() // Applied immediately
+}
+```
+
+### Files Modified
+
+- src/assets/js/slot-table.js - Fixed vertical alignment timing in appendColumnImage function (40 lines changed)
+
+### Impact
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| First image alignment | Correct | Correct (maintained) |
+| Second image alignment | Reset to top | Maintains configured alignment |
+| Subsequent images alignment | Always top | Maintains configured alignment |
+| valign="middle" behavior | Broken after first | Works throughout cycle |
+| valign="top" behavior | Eventually correct (default) | Correct throughout cycle |
+| valign="bottom" behavior | Broken after first | Works throughout cycle |
+
+### Compatibility
+
+- Works with desktop Electron app (src/ folder)
+- Works with mobile Android app (mobile/www/ folder uses same files)
+- No breaking changes to existing table functionality
+- Backward compatible with tables using or not using image animations
+- All vertical alignment settings (top, middle, bottom) now work correctly
+
+### Testing
+
+Verify vertical alignment consistency:
+- Create table with valign="middle" and image column with multiple images
+- Verify first image displays centered vertically
+- Wait for animation switch to second image
+- Confirm second image maintains center vertical alignment
+- Verify all subsequent images stay centered
+- Test with valign="top" and valign="bottom" settings
+- Confirm single images (no animation) maintain correct alignment
+
 ## [3.7.5] - 2025-12-31
 
 ### Fixed - Table Slot Fader and Image Animations with Comma-Separated Values
