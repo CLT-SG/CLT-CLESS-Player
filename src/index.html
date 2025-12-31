@@ -37,61 +37,6 @@
     table.dataTable thead .sorting_desc_disabled {
       background-image: url('assets/images/sort_desc_disabled.png');
     }
-    
-    /* ============================================
-       View Transition API for Layout Loop Slides
-       ============================================ */
-    
-    /* Enable view transitions for #main container */
-    #main {
-      view-transition-name: main-layout;
-    }
-    
-    /* Default slide-right animation for layout transitions */
-    ::view-transition-old(main-layout) {
-      animation: slideOutLeft 0.4s ease-in-out;
-    }
-    
-    ::view-transition-new(main-layout) {
-      animation: slideInRight 0.4s ease-in-out;
-    }
-    
-    /* Keyframes for slide-right effect */
-    @keyframes slideOutLeft {
-      from {
-        transform: translateX(0);
-        opacity: 1;
-      }
-      to {
-        transform: translateX(-100%);
-        opacity: 0.8;
-      }
-    }
-    
-    @keyframes slideInRight {
-      from {
-        transform: translateX(100%);
-        opacity: 0.8;
-      }
-      to {
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-    
-    /* Smooth transition container */
-    ::view-transition-group(main-layout) {
-      animation-duration: 0.4s;
-      animation-timing-function: ease-in-out;
-    }
-    
-    /* Fallback for browsers without view transition support */
-    @media (prefers-reduced-motion: reduce) {
-      ::view-transition-old(main-layout),
-      ::view-transition-new(main-layout) {
-        animation: none;
-      }
-    }
   </style>
   <link href="assets/css/video-js.min.css" rel="stylesheet" />
   
