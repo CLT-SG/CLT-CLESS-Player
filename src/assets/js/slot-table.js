@@ -326,6 +326,41 @@ function tableRecord(slotitem, index, table) {
                     renderEl = '<img src="" alt="Image not found" style="display:none;">'
                 }
                 
+                // Function to apply vertical alignment styles after content update
+                function applyVerticalAlignmentStyles() {
+                    //row table height
+                    $('.slot-tbody-' + tableid).find('tr').css({
+                        "white-space": "nowrap",
+                        "overflow": "hidden !important",
+                        "text-overflow": "clip",
+                        "height": "100%",
+                        "max-height": bodyRowHeight + "px !important",
+                        'line-height': bodyRowHeight + 'px'
+                    })
+                    //fit all elements size inside td
+                    $('.slot-tbody-' + tableid).find('td').css({
+                        "white-space": "nowrap",
+                        "overflow": "hidden !important",
+                        "text-overflow": "clip",
+                        "vertical-align": tableStyleVAlign
+                    })
+
+                    $('.slot-tbody-' + tableid).find('tr td *').css({
+                        "max-height": bodyRowHeight + "px !important",
+                        "white-space": "nowrap",
+                        "overflow": "hidden",
+                        "text-overflow": "clip",
+                        "vertical-align": tableStyleVAlign,
+                    })
+
+                    // Specifically target images inside the cells
+                    $('.imagecol-' + colRowIndex).css({
+                        "white-space": "nowrap",
+                        "width": "auto",
+                        "height": "auto",
+                    })
+                }
+                
                 // Check if this is an update (not first render) and multiple images exist
                 if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
                     // Apply scroll animation like fader text (scroll out old, scroll in new)
@@ -342,6 +377,9 @@ function tableRecord(slotitem, index, table) {
                         $newImage.addClass('fader-scroll-in')
                         $newImage.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms')
                         
+                        // Apply vertical alignment styles after new image is inserted
+                        applyVerticalAlignmentStyles()
+                        
                         // Remove animation class after it completes
                         setTimeout(function() {
                             targetContainer.find('img').removeClass('fader-scroll-in')
@@ -350,39 +388,9 @@ function tableRecord(slotitem, index, table) {
                 } else {
                     // First render - no animation
                     targetContainer.html(renderEl)
+                    // Apply vertical alignment styles after first render
+                    applyVerticalAlignmentStyles()
                 }
-
-                //row table height
-                $('.slot-tbody-' + tableid).find('tr').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "height": "100%",
-                    "max-height": bodyRowHeight + "px !important",
-                    'line-height': bodyRowHeight + 'px'
-                })
-                //fit all elements size inside td
-                $('.slot-tbody-' + tableid).find('td').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign
-                })
-
-                $('.slot-tbody-' + tableid).find('tr td *').css({
-                    "max-height": bodyRowHeight + "px !important",
-                    "white-space": "nowrap",
-                    "overflow": "hidden",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign,
-                })
-
-                // Specifically target images inside the cells
-                $('.imagecol-' + colRowIndex).css({
-                    "white-space": "nowrap",
-                    "width": "auto",
-                    "height": "auto",
-                })
 
                 // Only cycle to next if there are multiple images
                 if (colImageloop[cellKey].length > 1) {
