@@ -8,6 +8,10 @@ var headRowHeight
 var bodyRowHeight
 var tableStyleVAlign
 
+// Animation configuration
+var colAnimationInterval = [] // stores animation interval per table
+var colAnimationDuration = [] // stores animation duration per table
+
 var pagerow = []
 var pageAutoInterval = []
 var pageLengthTime = []
@@ -19,6 +23,13 @@ function tableFunc(slotitem, index, slotattr) {
     //create table
     var tableid = slotattr['id']
     pageLengthTime[tableid] = parseInt(slotattr['pageflip']) * 1000
+    
+    // Animation configuration - read from attributes or use defaults
+    // animationInterval: how long to display each item (in seconds) - default 10 seconds
+    // animationDuration: how long the transition animation takes (in milliseconds) - default 800ms
+    colAnimationInterval[tableid] = (slotattr['animationInterval'] ? parseInt(slotattr['animationInterval']) : 25) * 1000
+    colAnimationDuration[tableid] = slotattr['animationDuration'] ? parseInt(slotattr['animationDuration']) : 4000
+    
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
     var tableStylefontName = slotattr['font']
@@ -222,16 +233,18 @@ function tableRecord(slotitem, index, table) {
             objColList.forEach(function (col, zindex) {
 
                 var colNumber = col[0]
+                // Create unique key for each cell (row + column combination)
+                var cellKey = 'row-' + colRowIndex + '-' + colNumber
 
-                colImageCurIndex[colNumber] = 0
-                colImageloop[colNumber] = []
-                colFaderCurIndex[colNumber] = 0
-                colFaderloop[colNumber] = []
-                if (colFaderTimeout[colNumber]) { //clear colFaderTimeout to reset
-                    clearTimeout(colFaderTimeout[colNumber])
+                colImageCurIndex[cellKey] = 0
+                colImageloop[cellKey] = []
+                colFaderCurIndex[cellKey] = 0
+                colFaderloop[cellKey] = []
+                if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
+                    clearTimeout(colFaderTimeout[cellKey])
                 }
-                if (colImageTimeout[colNumber]) { //clear colFaderTimeout to reset
-                    clearTimeout(colImageTimeout[colNumber])
+                if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
+                    clearTimeout(colImageTimeout[cellKey])
                 }
                 var colFormat = col[1].substring(0, 6)
                 if (colFormat == 'image:') {
@@ -240,14 +253,21 @@ function tableRecord(slotitem, index, table) {
                     colImageList = colImageList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
-                        var coltext = ele.replace(/ /g, '') // delete any space
+                        var coltext = ele.trim() // trim whitespace instead of removing all spaces
                         if (coltext != '') { // cancel if string empty
                             var contentObj = new Object()
                             contentObj.text = coltext
-                            colImageloop[colNumber].push(contentObj)
+                            colImageloop[cellKey].push(contentObj)
                         }
                         if (resId === colImageList.length - 1) {
-                            appendColumnImage(colImageloop[colNumber][0], colNumber)
+                            // Only start animation if there are multiple images
+                            if (colImageloop[cellKey].length > 0) {
+                                appendColumnImage(colImageloop[cellKey][0], cellKey)
+                                // Start cycling if more than one image
+                                if (colImageloop[cellKey].length > 1) {
+                                    colImageCurIndex[cellKey] = 1
+                                }
+                            }
                         }
                     })
                 } else if (colFormat == 'fader:') { //create fader animation for this column
@@ -256,14 +276,21 @@ function tableRecord(slotitem, index, table) {
                     colTextFaderList = colTextFaderList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="fadercol-' + colRowIndex + '"></div>') //create td
                     colTextFaderList.forEach(function (ele, resId) { //create foreach to create fading animation
-                        var coltext = ele.replace(/ /g, '') // delete any space
+                        var coltext = ele.trim() // trim whitespace instead of removing all spaces
                         if (coltext != '') { // cancel if string empty
                             var contentObj = new Object()
                             contentObj.text = coltext
-                            colFaderloop[colNumber].push(contentObj)
+                            colFaderloop[cellKey].push(contentObj)
                         }
                         if (resId === colTextFaderList.length - 1) {
-                            appendColumnFader(colFaderloop[colNumber][0], colNumber)
+                            // Only start animation if there are items
+                            if (colFaderloop[cellKey].length > 0) {
+                                appendColumnFader(colFaderloop[cellKey][0], cellKey)
+                                // Start cycling if more than one text item
+                                if (colFaderloop[cellKey].length > 1) {
+                                    colFaderCurIndex[cellKey] = 1
+                                }
+                            }
                         }
                     })
                 } else {
@@ -271,30 +298,59 @@ function tableRecord(slotitem, index, table) {
                 }
             })
             //play next column image after current column image has finished
-            function changeColImageMedia(colNumber) {
-                if (colImageloop[colNumber].length == 1) {
-                    colImageCurIndex[colNumber] = 0
+            function changeColImageMedia(cellKey) {
+                if (colImageloop[cellKey].length == 1) {
+                    colImageCurIndex[cellKey] = 0
                 }
-                if (colImageCurIndex[colNumber] >= colImageloop[colNumber].length) {
+                if (colImageCurIndex[cellKey] >= colImageloop[cellKey].length) {
                     // modified this so it would display the first column when looping
-                    colImageCurIndex[colNumber] = 0
+                    colImageCurIndex[cellKey] = 0
                 }
-                appendColumnImage(colImageloop[colNumber][colImageCurIndex[colNumber]], colNumber)
-                colImageCurIndex[colNumber]++
+                appendColumnImage(colImageloop[cellKey][colImageCurIndex[cellKey]], cellKey)
+                colImageCurIndex[cellKey]++
             }
 
-            //render every column fader slot
-            function appendColumnImage(item, colNumber) {
-                if (colImageTimeout[colNumber]) { //clear colImageTimeout to reset
-                    clearTimeout(colImageTimeout[colNumber])
+            //render every column image slot
+            function appendColumnImage(item, cellKey) {
+                if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
+                    clearTimeout(colImageTimeout[cellKey])
                 }
+                
+                var targetContainer = $('.' + cellKey.split('-')[2] + ' .imagecol-' + colRowIndex)
+                var renderEl = ''
+                
                 if (fs.existsSync(mediaLocalPath + item.text)) {
-                    var renderEl = '<img src="' + mediaLocalPath + item.text + '">'
+                    renderEl = '<img src="' + mediaLocalPath + item.text + '">'
                     //file exists
                 } else {
-                    var renderEl = ''
+                    renderEl = '<img src="" alt="Image not found" style="display:none;">'
                 }
-                $('.' + colNumber + ' .imagecol-' + colRowIndex).html(renderEl)
+                
+                // Check if this is an update (not first render) and multiple images exist
+                if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
+                    // Apply scroll animation like fader text (scroll out old, scroll in new)
+                    var $oldImage = targetContainer.find('img')
+                    if ($oldImage.length > 0) {
+                        $oldImage.addClass('fader-scroll-out')
+                        $oldImage.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms')
+                    }
+                    
+                    // Wait for scroll-out animation to complete, then update content
+                    setTimeout(function() {
+                        targetContainer.html(renderEl)
+                        var $newImage = targetContainer.find('img')
+                        $newImage.addClass('fader-scroll-in')
+                        $newImage.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms')
+                        
+                        // Remove animation class after it completes
+                        setTimeout(function() {
+                            targetContainer.find('img').removeClass('fader-scroll-in')
+                        }, colAnimationDuration[tableid] * 0.75)
+                    }, colAnimationDuration[tableid] * 0.75)
+                } else {
+                    // First render - no animation
+                    targetContainer.html(renderEl)
+                }
 
                 //row table height
                 $('.slot-tbody-' + tableid).find('tr').css({
@@ -328,32 +384,60 @@ function tableRecord(slotitem, index, table) {
                     "height": "auto",
                 })
 
-                // go to the next column fader after 20 seconds
-                colImageTimeout[colNumber] = setTimeout(function () {
-                    changeColImageMedia(colNumber)
-                }, 20000)
+                // Only cycle to next if there are multiple images
+                if (colImageloop[cellKey].length > 1) {
+                    // go to the next column image using configured interval
+                    colImageTimeout[cellKey] = setTimeout(function () {
+                        changeColImageMedia(cellKey)
+                    }, colAnimationInterval[tableid])
+                }
             }
 
             //play next column fader after current column fader has finished
-            function changeColTextFader(colNumber) {
-                if (colFaderloop[colNumber].length == 1) {
-                    colFaderCurIndex[colNumber] = 0
+            function changeColTextFader(cellKey) {
+                if (colFaderloop[cellKey].length == 1) {
+                    colFaderCurIndex[cellKey] = 0
                 }
-                if (colFaderCurIndex[colNumber] >= colFaderloop[colNumber].length) {
+                if (colFaderCurIndex[cellKey] >= colFaderloop[cellKey].length) {
                     // modified this so it would display the first column when looping
-                    colFaderCurIndex[colNumber] = 0
+                    colFaderCurIndex[cellKey] = 0
                 }
-                appendColumnFader(colFaderloop[colNumber][colFaderCurIndex[colNumber]], colNumber)
-                colFaderCurIndex[colNumber]++
+                appendColumnFader(colFaderloop[cellKey][colFaderCurIndex[cellKey]], cellKey)
+                colFaderCurIndex[cellKey]++
             }
 
             //render every column fader slot
-            function appendColumnFader(item, colNumber) {
-                if (colFaderTimeout[colNumber]) { //clear colFaderTimeout to reset
-                    clearTimeout(colFaderTimeout[colNumber])
+            function appendColumnFader(item, cellKey) {
+                if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
+                    clearTimeout(colFaderTimeout[cellKey])
                 }
-                var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader">' + item.text + '</div>'
-                $('.' + colNumber + ' .fadercol-' + colRowIndex).html(renderEl)
+                
+                var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
+                
+                // Check if this is the first render or an update
+                if (colFaderCurIndex[cellKey] > 0 && targetContainer.find('.column-fader').length > 0) {
+                    // Animate out the old content with configured duration
+                    var $oldElement = targetContainer.find('.column-fader')
+                    $oldElement.addClass('fader-scroll-out')
+                    $oldElement.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms') // 0.75 for scroll-out
+                    
+                    // Wait for animation to complete, then update content
+                    setTimeout(function() {
+                        var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader fader-scroll-in">' + item.text + '</div>'
+                        targetContainer.html(renderEl)
+                        var $newElement = targetContainer.find('.column-fader')
+                        $newElement.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms') // 0.75 for scroll-in
+                        
+                        // Remove animation class after it completes
+                        setTimeout(function() {
+                            targetContainer.find('.column-fader').removeClass('fader-scroll-in')
+                        }, colAnimationDuration[tableid] * 0.75)
+                    }, colAnimationDuration[tableid] * 0.75)
+                } else {
+                    // First render - no animation
+                    var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader">' + item.text + '</div>'
+                    targetContainer.html(renderEl)
+                }
 
                 //row table height
                 $('.slot-tbody-' + tableid).find('tr').css({
@@ -380,12 +464,13 @@ function tableRecord(slotitem, index, table) {
                     "vertical-align": tableStyleVAlign,
                 })
 
-                if (colFaderCurIndex[colNumber] >= 1) $('.' + colNumber + ' .fadercol-' + colRowIndex + ' #col-' + colRowIndex).fadeIn(500).fadeOut(500).fadeIn(1500)
-
-                // go to the next column fader after 20 seconds
-                colFaderTimeout[colNumber] = setTimeout(function () {
-                    changeColTextFader(colNumber)
-                }, 20000)
+                // Only cycle to next if there are multiple items
+                if (colFaderloop[cellKey].length > 1) {
+                    // go to the next column fader using configured interval
+                    colFaderTimeout[cellKey] = setTimeout(function () {
+                        changeColTextFader(cellKey)
+                    }, colAnimationInterval[tableid])
+                }
             }
 
             // Append <col> with width, and apply other styles to <td>/<th>

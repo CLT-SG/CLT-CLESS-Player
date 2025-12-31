@@ -278,6 +278,7 @@ function getLayoutXML(result2) {
                     if (tableRecordList && !tableRecordList[0]['elements']) return
                     if (tableRecordList) {
                         tableRecordList.forEach(function (records, tindex) {
+                            console.log('[slot table record]', records)
                             tableRecord(records['elements'], slotid, records['attributes'])
                         })
                     }
