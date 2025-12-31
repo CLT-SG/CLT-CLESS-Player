@@ -1,5 +1,126 @@
 # Change Log
 
+## [3.7.7] - 2025-12-31
+
+### Fixed - Table Row Height Not Respecting bodyRowHeight Configuration
+
+- **Fixed Row Height Enforcement** - Fixed table rows not maintaining configured bodyRowHeight value
+  - Root cause: Rows using height 100 percent instead of explicit pixel values
+  - Impact: Table rows now consistently maintain fixed height across all content types
+
+- **Fixed Cell Height Constraints** - Added explicit height and max-height to all table cells
+  - Root cause: TD elements lacked height constraints allowing dynamic expansion
+  - Impact: Cells maintain bodyRowHeight preventing content overflow
+
+- **Fixed Image Container Height** - Added height limits to image column containers
+  - Root cause: Image containers had no height constraints causing row expansion
+  - Impact: Images scale to fit within bodyRowHeight maintaining uniform rows
+
+- **Fixed Invalid CSS Syntax** - Removed overflow hidden important declarations
+  - Root cause: Using important flag incompatible with jQuery CSS method
+  - Impact: Clean CSS syntax properly applied by jQuery
+
+### Technical Details
+
+**Root Causes:**
+The table rendering had multiple issues preventing bodyRowHeight enforcement:
+
+1. Percentage Height Problem:
+```javascript
+// Before (BROKEN):
+$('.slot-tbody-' + tableid).find('tr').css({
+    "height": "100%"  // Percentage doesn't work without explicit container
+})
+
+// After (FIXED):
+$('.slot-tbody-' + tableid).find('tr').css({
+    "height": bodyRowHeight + "px",  // Explicit pixel value
+    "max-height": bodyRowHeight + "px"
+})
+```
+
+2. Missing Cell Constraints:
+```javascript
+// Before (BROKEN):
+$('.slot-tbody-' + tableid).find('td').css({
+    "vertical-align": tableStyleVAlign
+    // No height constraints
+})
+
+// After (FIXED):
+$('.slot-tbody-' + tableid).find('td').css({
+    "vertical-align": tableStyleVAlign,
+    "height": bodyRowHeight + "px",
+    "max-height": bodyRowHeight + "px"
+})
+```
+
+3. Image Container Expansion:
+```javascript
+// Before (BROKEN):
+$('.imagecol-' + colRowIndex).css({
+    "width": "auto",
+    "height": "auto"  // Allows unlimited height
+})
+
+// After (FIXED):
+$('.imagecol-' + colRowIndex).css({
+    "height": bodyRowHeight + "px",
+    "max-height": bodyRowHeight + "px",
+    "display": "inline-block"
+})
+```
+
+**Solution:**
+Applied explicit height constraints throughout table rendering:
+- Column headers receive max-height and line-height
+- Table rows use explicit pixel height instead of percentage
+- All TD cells have height and max-height properties
+- Image containers constrained with inline-block display
+- Image elements limited with max-height and auto sizing
+
+### Files Modified
+
+- src/assets/js/slot-table.js - Fixed height enforcement (47 lines changed)
+  - tableFunc: Added header cell height constraints (lines 137-142)
+  - applyVerticalAlignmentStyles: Fixed row and cell heights (lines 334-377)
+  - tableRecord pagination: Fixed row and cell heights (lines 517-533)
+  - Column style application: Added height constraints (lines 503-507)
+
+### Impact
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| Row height behavior | Dynamic sizing | Fixed bodyRowHeight |
+| Header cell height | Variable | Matches bodyRowHeight |
+| Body row height | Uses height 100 percent | Explicit pixel value |
+| TD cell height | No constraints | Explicit height max-height |
+| Image container | Unlimited height | Constrained to bodyRowHeight |
+| Image element | Could expand rows | Scales within bodyRowHeight |
+| CSS syntax | Invalid important flags | Clean jQuery compatible |
+| Row consistency | Inconsistent heights | Uniform across all rows |
+
+### Compatibility
+
+- Works with desktop Electron app (src folder)
+- Works with mobile Android app (mobile www folder)
+- No breaking changes to existing table functionality
+- Backward compatible with all bodyRowHeight values
+- Compatible with all vertical alignment settings
+- Maintains existing table features (animations, pagination)
+
+### Testing
+
+Verify bodyRowHeight enforcement:
+- Create table with bodyrowHeight="68" in XML
+- Verify all rows render at exactly 68px height
+- Test with image columns containing large images
+- Confirm images scale to fit within 68px height
+- Test with fader columns and animated content
+- Verify row height remains fixed during animations
+- Test pagination across multiple pages
+- Confirm consistent height on all pages
+
 ## [3.7.6] - 2025-12-31
 
 ### Fixed - Table Slot Image Column Vertical Alignment on Animation Switch
