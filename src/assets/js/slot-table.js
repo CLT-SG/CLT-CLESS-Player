@@ -17,6 +17,10 @@ var pageAutoInterval = []
 var pageLengthTime = []
 var pageincrease = []
 var checkpage = []
+var tableTransition = [] // stores transition type per table (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+var tableFlipMode = [] // stores flip mode per table (1 = pagination, 2 = line)
+var tableHidePagination = [] // stores hide pagination flag per table (Y/N)
+var tableHideHeader = [] // stores hide header flag per table (Y/N)
 
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
@@ -29,6 +33,12 @@ function tableFunc(slotitem, index, slotattr) {
     // animationDuration: how long the transition animation takes (in milliseconds) - default 800ms
     colAnimationInterval[tableid] = (slotattr['animationInterval'] ? parseInt(slotattr['animationInterval']) : 25) * 1000
     colAnimationDuration[tableid] = slotattr['animationDuration'] ? parseInt(slotattr['animationDuration']) : 4000
+    
+    // Table pagination configuration
+    tableFlipMode[tableid] = slotattr['flipmode'] ? parseInt(slotattr['flipmode']) : 1 // 1 = pagination (default), 2 = line type
+    tableHidePagination[tableid] = slotattr['hidepagination'] || 'N' // Y = hide pagination numbers, N = show (default)
+    tableTransition[tableid] = slotattr['transition'] || 'none' // none (default), fade, slide-right, slide-left, scroll-up, scroll-down
+    tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N' // Y = hide header, N = show (default)
     
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
@@ -101,6 +111,11 @@ function tableFunc(slotitem, index, slotattr) {
     })
 
     $('.slot-thead-' + tableid).append('<tr class="first-row"></tr>')
+
+    // Hide header if hideheader = 'Y'
+    if (tableHideHeader[tableid] === 'Y') {
+        $('.slot-thead-' + tableid).hide()
+    }
 
     //head column
     slotitem[1]['elements'].forEach(function (column, cindex) {
@@ -685,6 +700,12 @@ function tableRecord(slotitem, index, table) {
         var pagination = $('#pagination-' + tableid);
         var totalRows = pagerow[tableid].length;  // Total number of rows
         var pageSize = parseInt(maxrows);
+        var flipMode = tableFlipMode[tableid] || 1
+
+        // Hide pagination display if hidepagination = 'Y'
+        if (tableHidePagination[tableid] === 'Y') {
+            $('#slot-' + tableid).find('.pagination-pages').hide()
+        }
 
         // Check if there's only one page of data
         if (totalRows <= pageSize) {
@@ -693,42 +714,148 @@ function tableRecord(slotitem, index, table) {
             $('#pagination-' + tableid).hide()
             $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
         } else {
-            pagination.pagination({
-                dataSource: pagerow[tableid],
-                pageSize: pageSize,
-                showPageNumbers: false,
-                showNavigator: false,
-                showPrevious: false,
-                showNext: false,
-                callback: function (data, pagi) {
-                    $('.slot-tbody-' + tableid).html(data);
-                }
-            });
-
-            // Change page element if got update
-            if (checkpage[tableid] == true) {
-                checkpage[tableid] = false;
-                pagination.pagination('go', 1);
-                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+            // Check flip mode
+            if (flipMode === 2) {
+                // Line type mode - scroll line by line
+                implementLineTypeMode(tableid, pagerow[tableid], pageSize)
             } else {
-                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-                pagination.pagination('go', pageincrease[tableid]);
+                // Pagination mode (default)
+                implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
             }
-
-            // Auto page flip
-            pageAutoInterval[tableid] = setInterval(function () {
-                pageincrease[tableid] += 1;
-                var totalpage = pagination.pagination('getTotalPage') || 1;
-                if (pageincrease[tableid] > totalpage) {
-                    pageincrease[tableid] = 1;
-                    pagination.pagination('go', 1);
-                } else {
-                    pagination.pagination('next');
-                }
-
-                // Refresh page
-                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-            }, pageLengthTime[tableid]);
         }
     }
+}
+
+/**
+ * Implement pagination mode (flipmode = 1) - flip page by page
+ */
+function implementPaginationMode(tableid, pagination, pageData, pageSize) {
+    // Get transition settings
+    var transitionType = tableTransition[tableid] || 'none'
+    var transitionDuration = 500 // milliseconds for transition animation
+    
+    pagination.pagination({
+        dataSource: pageData,
+        pageSize: pageSize,
+        showPageNumbers: false,
+        showNavigator: false,
+        showPrevious: false,
+        showNext: false,
+        callback: function (data, pagi) {
+            applyPageTransition(tableid, data, transitionType, transitionDuration)
+        }
+    });
+
+    // Change page element if got update
+    if (checkpage[tableid] == true) {
+        checkpage[tableid] = false;
+        pagination.pagination('go', 1);
+        $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+    } else {
+        $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+        pagination.pagination('go', pageincrease[tableid]);
+    }
+
+    // Auto page flip
+    pageAutoInterval[tableid] = setInterval(function () {
+        pageincrease[tableid] += 1;
+        var totalpage = pagination.pagination('getTotalPage') || 1;
+        if (pageincrease[tableid] > totalpage) {
+            pageincrease[tableid] = 1;
+            pagination.pagination('go', 1);
+        } else {
+            pagination.pagination('next');
+        }
+
+        // Refresh page
+        $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+    }, pageLengthTime[tableid]);
+}
+
+/**
+ * Implement line type mode (flipmode = 2) - scroll line by line
+ */
+function implementLineTypeMode(tableid, pageData, pageSize) {
+    var currentStartIndex = 0
+    var totalRows = pageData.length
+    
+    // Initial render - show first page
+    var initialData = pageData.slice(0, pageSize)
+    $('.slot-tbody-' + tableid).html(initialData)
+    
+    // Update pagination display
+    var totalPages = Math.ceil(totalRows / pageSize)
+    var currentPage = 1
+    $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + currentPage + '/' + totalPages + '</div>')
+    
+    // Auto scroll line by line
+    pageAutoInterval[tableid] = setInterval(function () {
+        currentStartIndex += 1
+        
+        // Loop back to beginning when reaching the end
+        if (currentStartIndex + pageSize > totalRows) {
+            currentStartIndex = 0
+        }
+        
+        // Get current window of rows
+        var currentData = pageData.slice(currentStartIndex, currentStartIndex + pageSize)
+        
+        // Calculate current page for display
+        currentPage = Math.floor(currentStartIndex / pageSize) + 1
+        
+        // Apply transition
+        var transitionType = tableTransition[tableid] || 'scroll-up'
+        applyPageTransition(tableid, currentData, transitionType, 500)
+        
+        // Update pagination display
+        $('#slot-' + tableid).find('.pagination-pages').html('<div>Line ' + (currentStartIndex + 1) + '-' + Math.min(currentStartIndex + pageSize, totalRows) + '/' + totalRows + '</div>')
+    }, pageLengthTime[tableid])
+}
+
+/**
+ * Apply transition animation when changing table pages
+ * @param {string} tableid - The table ID
+ * @param {Array} data - The new page data to display
+ * @param {string} transitionType - Type of transition (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+ * @param {number} duration - Duration of transition in milliseconds
+ */
+function applyPageTransition(tableid, data, transitionType, duration) {
+    var tbody = $('.slot-tbody-' + tableid)
+    
+    if (transitionType === 'none' || !tbody.children().length) {
+        // No transition or first render - instant change
+        tbody.html(data)
+        return
+    }
+    
+    // Map transition types to CSS classes
+    var transitionMap = {
+        'fade': { out: 'table-fade-out', in: 'table-fade-in' },
+        'slide-right': { out: 'table-slide-right-out', in: 'table-slide-right-in' },
+        'slide-left': { out: 'table-slide-left-out', in: 'table-slide-left-in' },
+        'scroll-up': { out: 'table-scroll-up-out', in: 'table-scroll-up-in' },
+        'scroll-down': { out: 'table-scroll-down-out', in: 'table-scroll-down-in' }
+    }
+    
+    var classes = transitionMap[transitionType]
+    if (!classes) {
+        // Invalid transition type - fallback to instant
+        tbody.html(data)
+        return
+    }
+    
+    // Apply out transition
+    tbody.addClass(classes.out)
+    
+    // After out animation completes, update content and apply in transition
+    setTimeout(function() {
+        tbody.removeClass(classes.out)
+        tbody.html(data)
+        tbody.addClass(classes.in)
+        
+        // Remove in transition class after animation completes
+        setTimeout(function() {
+            tbody.removeClass(classes.in)
+        }, duration)
+    }, duration)
 }
