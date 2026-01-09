@@ -1,5 +1,165 @@
 # Change Log
 
+## [3.9.0] - 2026-01-09
+
+### Added - Table Pagination Transitions with Line-by-Line Scrolling
+
+- **Pagination Transition Animations** - Added five professional transition types for smooth page changes
+  - transition attribute supports none, fade, slide-right, slide-left, scroll-up, scroll-down
+  - CSS keyframe animations with GPU acceleration for smooth performance
+  - Configurable transition duration with 500ms default
+  - Impact: Professional visual feedback during pagination eliminating jarring content switches
+
+- **Line-by-Line Scrolling Mode** - Added continuous scrolling through table data one row at a time
+  - flipmode attribute supports two modes: 1=page-by-page (default), 2=line-by-line
+  - Line mode shows row range format (Line 1-5/20) instead of page numbers
+  - Smooth scrolling with configurable transition animations
+  - Impact: Alternative viewing mode for continuous data flow presentation
+
+- **Pagination Display Controls** - Added configuration options for pagination indicators and headers
+  - hidepagination attribute (Y/N) to hide pagination page numbers
+  - hideheader attribute (Y/N) to hide table header row
+  - Reduces visual clutter for minimalist layouts
+  - Impact: Flexible table appearance configuration for various presentation needs
+
+- **Modular Transition System** - Refactored pagination rendering with reusable functions
+  - implementPaginationMode function handles page-by-page flipping
+  - implementLineTypeMode function handles line-by-line scrolling
+  - applyPageTransition function with unified animation handling
+  - Impact: Clean architecture supporting easy addition of future animation types
+
+### Technical Details
+
+**New Table Attributes:**
+```xml
+<table id="207" 
+       pageflip="5"
+       transition="scroll-up"
+       flipmode="2"
+       hidepagination="N"
+       hideheader="N">
+    <columns>...</columns>
+</table>
+```
+
+**Transition System:**
+```javascript
+// Animation configuration
+tableFlipMode[tableid] = slotattr['flipmode'] ? parseInt(slotattr['flipmode']) : 1
+tableHidePagination[tableid] = slotattr['hidepagination'] || 'N'
+tableTransition[tableid] = slotattr['transition'] || 'none'
+tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N'
+
+// Transition mapping
+var transitionMap = {
+    'fade': { out: 'table-fade-out', in: 'table-fade-in' },
+    'slide-right': { out: 'table-slide-right-out', in: 'table-slide-right-in' },
+    'slide-left': { out: 'table-slide-left-out', in: 'table-slide-left-in' },
+    'scroll-up': { out: 'table-scroll-up-out', in: 'table-scroll-up-in' },
+    'scroll-down': { out: 'table-scroll-down-out', in: 'table-scroll-down-in' }
+}
+```
+
+**CSS Animations:**
+```css
+@keyframes tableFadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes tableFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes tableScrollUpOut {
+    from { transform: translateY(0); opacity: 1; }
+    to { transform: translateY(-100%); opacity: 0; }
+}
+
+@keyframes tableScrollUpIn {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+```
+
+**Line Type Implementation:**
+```javascript
+function implementLineTypeMode(tableid, pageData, pageSize) {
+    var currentStartIndex = 0
+    
+    pageAutoInterval[tableid] = setInterval(function () {
+        currentStartIndex += 1
+        if (currentStartIndex + pageSize > totalRows) {
+            currentStartIndex = 0
+        }
+        
+        var currentData = pageData.slice(currentStartIndex, currentStartIndex + pageSize)
+        applyPageTransition(tableid, currentData, transitionType, 500)
+    }, pageLengthTime[tableid])
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/css/style.css - Added pagination transition animations (169 lines added)
+- src/assets/js/slot-table.js - Added transition system and line mode (154 lines added)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/css/style.css - Added pagination transition animations (169 lines added)
+- mobile/www/assets/js/slot-table.js - Added transition system and line mode (154 lines added)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Page transitions | Instant switch | 5 animation types |
+| Scrolling modes | Page-by-page only | Page-by-page + line-by-line |
+| Pagination display | Always visible | Configurable hide/show |
+| Header display | Always visible | Configurable hide/show |
+| Transition types | None | Fade, slide, scroll variants |
+| Animation control | Hardcoded | Configurable per table |
+| Visual feedback | None | Professional animations |
+| Viewing options | Static pages | Continuous scrolling option |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- All new attributes optional with sensible defaults
+- No breaking changes to existing functionality
+- CSS animations supported by all modern browsers
+- Gracefully degrades to instant transitions if CSS animations unavailable
+
+### Testing
+
+Verify pagination transitions:
+- Create table with transition="fade" and verify smooth fade animation
+- Test all five transition types: none, fade, slide-right, slide-left, scroll-up, scroll-down
+- Verify animations complete without flickering or visual glitches
+- Confirm transition duration matches configured value
+
+Verify line-by-line scrolling:
+- Create table with flipmode="2" attribute
+- Verify table scrolls one line at a time continuously
+- Confirm pagination shows "Line X-Y/Total" format
+- Test loop-back from last lines to first lines
+- Verify scroll-up transition works smoothly with line mode
+
+Verify display controls:
+- Set hidepagination="Y" and confirm pagination indicator hidden
+- Set hideheader="Y" and confirm table header row hidden
+- Combine controls with different transition types
+- Test with both flipmode values
+
+Verify compatibility:
+- Tables without new attributes use defaults (no transition, page mode, show all)
+- Existing tables render correctly without modifications
+- Multiple tables with different configurations coexist properly
+- Both desktop and mobile versions behave identically
+
 ## [3.8.1] - 2026-01-09
 
 ### Fixed - Table Transition Loop From Last to First Item

@@ -605,3 +605,168 @@ iframe {
     width: 100% !important;
     height: 100% !important;
 }
+
+/* ========================================
+   Table Pagination Transition Animations
+   ======================================== */
+
+/* Table tbody container for transitions */
+.slot-tbody-transition {
+    position: relative;
+}
+
+/* None transition - instant change with no animation */
+.table-transition-none {
+    transition: none;
+}
+
+/* Fade transition */
+@keyframes tableFadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+@keyframes tableFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.table-fade-out {
+    animation: tableFadeOut 0.4s ease-in-out forwards;
+}
+
+.table-fade-in {
+    animation: tableFadeIn 0.4s ease-in-out forwards;
+}
+
+/* Slide Right transition */
+@keyframes tableSlideRightOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes tableSlideRightIn {
+    from {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.table-slide-right-out {
+    animation: tableSlideRightOut 0.5s ease-in-out forwards;
+}
+
+.table-slide-right-in {
+    animation: tableSlideRightIn 0.5s ease-in-out forwards;
+}
+
+/* Slide Left transition */
+@keyframes tableSlideLeftOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes tableSlideLeftIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.table-slide-left-out {
+    animation: tableSlideLeftOut 0.5s ease-in-out forwards;
+}
+
+.table-slide-left-in {
+    animation: tableSlideLeftIn 0.5s ease-in-out forwards;
+}
+
+/* Scroll Up transition */
+@keyframes tableScrollUpOut {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes tableScrollUpIn {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.table-scroll-up-out {
+    animation: tableScrollUpOut 0.5s ease-in-out forwards;
+}
+
+.table-scroll-up-in {
+    animation: tableScrollUpIn 0.5s ease-in-out forwards;
+}
+
+/* Scroll Down transition */
+@keyframes tableScrollDownOut {
+    from {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes tableScrollDownIn {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.table-scroll-down-out {
+    animation: tableScrollDownOut 0.5s ease-in-out forwards;
+}
+
+.table-scroll-down-in {
+    animation: tableScrollDownIn 0.5s ease-in-out forwards;
+}
