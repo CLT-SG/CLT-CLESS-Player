@@ -172,10 +172,12 @@ function tableFunc(slotitem, index, slotattr) {
 var colImageTimeout = new Array()
 var colImageCurIndex = new Array()
 var colImageloop = new Array()
+var colImageFirstRender = new Array() // Track if column has rendered at least once
 //Fader column global settings
 var colFaderTimeout = new Array()
 var colFaderCurIndex = new Array()
 var colFaderloop = new Array()
+var colFaderFirstRender = new Array() // Track if column has rendered at least once
 // Per-column fader settings
 var colFaderSettings = new Array()
 // Per-column image settings
@@ -364,6 +366,10 @@ function tableRecord(slotitem, index, table) {
                     // modified this so it would display the first column when looping
                     colImageCurIndex[cellKey] = 0
                 }
+                // Mark that this column has been rendered before (not first render)
+                if (colImageFirstRender[cellKey] === undefined) {
+                    colImageFirstRender[cellKey] = true
+                }
                 appendColumnImage(colImageloop[cellKey][colImageCurIndex[cellKey]], cellKey)
                 colImageCurIndex[cellKey]++
             }
@@ -469,8 +475,10 @@ function tableRecord(slotitem, index, table) {
                 
                 var transitionClasses = transitionClassMap[transitionType] || transitionClassMap['scroll-up']
                 
-                // Check if this is an update (not first render) and multiple images exist
-                if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
+                // Check if this is NOT the first render and multiple images exist
+                // Use firstRender flag instead of index to ensure transitions work when looping from last to first
+                var isFirstRender = colImageFirstRender[cellKey] !== true
+                if (!isFirstRender && colImageloop[cellKey].length > 1) {
                     // Apply transition animation based on configured type
                     var $oldImage = targetContainer.find('img')
                     if ($oldImage.length > 0) {
@@ -498,6 +506,10 @@ function tableRecord(slotitem, index, table) {
                     targetContainer.html(renderEl)
                     // Apply image styles after first render
                     applyImageStyles()
+                    // Mark this as rendered
+                    if (isFirstRender) {
+                        colImageFirstRender[cellKey] = true
+                    }
                 }
 
                 // Only cycle to next if there are multiple images
@@ -517,6 +529,10 @@ function tableRecord(slotitem, index, table) {
                 if (colFaderCurIndex[cellKey] >= colFaderloop[cellKey].length) {
                     // modified this so it would display the first column when looping
                     colFaderCurIndex[cellKey] = 0
+                }
+                // Mark that this column has been rendered before (not first render)
+                if (colFaderFirstRender[cellKey] === undefined) {
+                    colFaderFirstRender[cellKey] = true
                 }
                 appendColumnFader(colFaderloop[cellKey][colFaderCurIndex[cellKey]], cellKey)
                 colFaderCurIndex[cellKey]++
@@ -539,8 +555,10 @@ function tableRecord(slotitem, index, table) {
                 
                 var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
                 
-                // Check if this is the first render or an update
-                if (colFaderCurIndex[cellKey] > 0 && targetContainer.find('.column-fader').length > 0) {
+                // Check if this is NOT the first render - use firstRender flag instead of index
+                // This ensures transitions work when looping from last to first
+                var isFirstRender = colFaderFirstRender[cellKey] !== true
+                if (!isFirstRender && targetContainer.find('.column-fader').length > 0) {
                     // Animate out the old content with configured duration
                     var $oldElement = targetContainer.find('.column-fader')
                     $oldElement.addClass('fader-scroll-out')
@@ -562,6 +580,10 @@ function tableRecord(slotitem, index, table) {
                     // First render - no animation
                     var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader">' + item.text + '</div>'
                     targetContainer.html(renderEl)
+                    // Mark this as rendered
+                    if (isFirstRender) {
+                        colFaderFirstRender[cellKey] = true
+                    }
                 }
 
                 //row table height
