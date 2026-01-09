@@ -1,5 +1,147 @@
 # Change Log
 
+## [3.9.1] - 2026-01-09
+
+### Added - Table Text Wrapping Configuration
+
+- **Text Wrapping Control** - Added wrap attribute to configure text wrapping behavior per table
+  - wrap attribute supports Y/N values for enabling/disabling text wrapping
+  - Y enables text wrapping with normal white-space and ellipsis text-overflow
+  - N clips text with nowrap white-space and clip text-overflow (default)
+  - Impact: Flexible text handling matching table presentation requirements
+
+### Fixed - Single Page Pagination Display
+
+- **Pagination Display for Single Page** - Fixed pagination indicator hiding when only one page exists
+  - Root cause: Logic hid pagination indicator when totalRows less than or equal to pageSize
+  - Fixed to always display pagination showing "Page 1/1" for single page tables
+  - Maintains hidepagination attribute functionality for explicit hiding
+  - Impact: Better user awareness of page count even for single page tables
+
+### Technical Details
+
+**Wrap Attribute Implementation:**
+```javascript
+// Global storage
+var tableWrap = [] // stores wrap text flag per table (Y/N)
+
+// Read from table attributes
+tableWrap[tableid] = slotattr['wrap'] || 'N' // Y = wrap text, N = clip text (default)
+
+// Apply dynamic CSS based on wrap setting
+var wrapStyle = tableWrap[tableid] === 'Y' ? 'normal' : 'nowrap'
+var textOverflow = tableWrap[tableid] === 'Y' ? 'ellipsis' : 'clip'
+
+// Apply to table rows
+$('.slot-tbody-' + tableid).find('tr').css({
+    "white-space": wrapStyle,
+    "overflow": "hidden",
+    "text-overflow": textOverflow,
+    "height": bodyRowHeight + "px",
+    "max-height": bodyRowHeight + "px",
+    'line-height': bodyRowHeight + 'px'
+})
+
+// Apply to table cells
+$('.slot-tbody-' + tableid).find('td').css({
+    "white-space": wrapStyle,
+    "overflow": "hidden",
+    "text-overflow": textOverflow,
+    "vertical-align": tableStyleVAlign,
+    "height": bodyRowHeight + "px",
+    "max-height": bodyRowHeight + "px"
+})
+
+// Apply to cell content elements
+$('.slot-tbody-' + tableid).find('tr td *').css({
+    "max-height": bodyRowHeight + "px !important",
+    "white-space": wrapStyle,
+    "overflow": "hidden",
+    "text-overflow": textOverflow,
+    "vertical-align": tableStyleVAlign,
+})
+```
+
+**Pagination Display Fix:**
+```javascript
+// Before (BROKEN):
+if (totalRows <= pageSize) {
+    pagination.hide();  // Hide pagination if only 1 page
+    $('#slot-' + tableid).find('.pagination-pages').hide()
+    $('#pagination-' + tableid).hide()
+    $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render without pagination
+} else {
+    // Use pagination modes
+}
+
+// After (FIXED):
+// Always use pagination even for single page (to show 1/1)
+if (flipMode === 2) {
+    implementLineTypeMode(tableid, pagerow[tableid], pageSize)
+} else {
+    implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
+}
+```
+
+**Table Configuration:**
+```xml
+<table id="207" 
+       pageflip="5"
+       wrap="Y"
+       flipmode="1"
+       hidepagination="N">
+    <columns>...</columns>
+</table>
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added wrap configuration and pagination fix (7 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added wrap configuration and pagination fix (6 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Text wrapping | Always clips | Configurable per table |
+| Text overflow | Always clip | Clip or ellipsis based on wrap |
+| Single page pagination | Hidden | Displays "Page 1/1" |
+| Pagination visibility | Auto-hide on 1 page | Consistent display |
+| Text handling | Fixed behavior | Flexible configuration |
+| User awareness | No page count on 1 page | Clear page indicator |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- New wrap attribute optional with sensible default (N)
+- No breaking changes to existing functionality
+- All existing table attributes continue to work as expected
+
+### Testing
+
+Verify text wrapping:
+- Create table with wrap="Y" and verify long text wraps within cells
+- Verify ellipsis appears when wrapped text exceeds cell height
+- Create table with wrap="N" and verify text clips without wrapping
+- Test with various bodyRowHeight values to confirm height constraints maintained
+
+Verify single page pagination:
+- Create table with data fitting in single page
+- Verify pagination displays "Page 1/1" instead of hiding
+- Test with flipmode="1" (page mode) and flipmode="2" (line mode)
+- Confirm hidepagination="Y" still hides indicator when explicitly set
+
+Verify compatibility:
+- Tables without wrap attribute use default clip behavior (N)
+- Existing tables render correctly without modifications
+- Multiple tables with different wrap configurations coexist properly
+- Both desktop and mobile versions behave identically
+
 ## [3.9.0] - 2026-01-09
 
 ### Added - Table Pagination Transitions with Line-by-Line Scrolling
