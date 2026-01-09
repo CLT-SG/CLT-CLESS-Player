@@ -313,7 +313,7 @@ body .window-controls-container .window-icon-bg .window-icon {
 .media-slot {
     width: 100%;
     height: 100%;
-    background-color: transparent;
+    background: transparent;
 }
 
 .date-slot,
@@ -355,4 +355,253 @@ iframe {
 
 .count-down {
     display: inline-block;
+}
+
+/* ======================================================
+   Table Slot Column Animations
+   ====================================================== */
+
+/* Container for animated column content */
+.fadercol-container,
+.imagecol-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Fader column: Scroll-up animation */
+.column-fader {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+/* Scroll-up animation for fader text transitions */
+@keyframes scrollUpOut {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes scrollUpIn {
+    0% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.fader-scroll-out {
+    animation: scrollUpOut 0.6s ease-in-out forwards;
+}
+
+.fader-scroll-in {
+    animation: scrollUpIn 0.6s ease-in-out forwards;
+}
+
+/* ======================================================
+   Image Column Transition Animations
+   ====================================================== */
+
+/* Fade Transition */
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.image-fade-out {
+    animation: fadeOut 0.6s ease-in-out forwards;
+}
+
+.image-fade-in {
+    animation: fadeIn 0.6s ease-in-out forwards;
+}
+
+/* Slide Right Transition */
+@keyframes slideRightOut {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes slideRightIn {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.image-slide-right-out {
+    animation: slideRightOut 0.6s ease-in-out forwards;
+}
+
+.image-slide-right-in {
+    animation: slideRightIn 0.6s ease-in-out forwards;
+}
+
+/* Slide Left Transition */
+@keyframes slideLeftOut {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes slideLeftIn {
+    0% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.image-slide-left-out {
+    animation: slideLeftOut 0.6s ease-in-out forwards;
+}
+
+.image-slide-left-in {
+    animation: slideLeftIn 0.6s ease-in-out forwards;
+}
+
+/* Scroll Up Transition (same as fader) */
+@keyframes imageScrollUpOut {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes imageScrollUpIn {
+    0% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.image-scroll-up-out {
+    animation: imageScrollUpOut 0.6s ease-in-out forwards;
+}
+
+.image-scroll-up-in {
+    animation: imageScrollUpIn 0.6s ease-in-out forwards;
+}
+
+/* Scroll Down Transition */
+@keyframes scrollDownOut {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes scrollDownIn {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.image-scroll-down-out {
+    animation: scrollDownOut 0.6s ease-in-out forwards;
+}
+
+.image-scroll-down-in {
+    animation: scrollDownIn 0.6s ease-in-out forwards;
+}
+
+/* Image column: Double blink animation (legacy) */
+@keyframes doubleBlink {
+    0% {
+        opacity: 1;
+    }
+    15% {
+        opacity: 0;
+    }
+    30% {
+        opacity: 1;
+    }
+    45% {
+        opacity: 0;
+    }
+    60% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.image-blink {
+    animation: doubleBlink 0.8s ease-in-out;
+}
+
+/* Ensure column content is properly positioned */
+.imagecol-container img,
+.fadercol-container .column-fader {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+/* Fill to column - image fills entire column space */
+.imagecol-fill {
+    object-fit: cover !important;
+    width: 100% !important;
+    height: 100% !important;
 }
