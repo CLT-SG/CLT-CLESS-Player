@@ -89,6 +89,7 @@ function tableFunc(slotitem, index, slotattr) {
     var tableid = slotattr['id']
     console.log('[tableFunc] Initializing table slot:', tableid, 'at index:', index);
     pageLengthTime[tableid] = parseInt(slotattr['pageflip']) * 1000
+    
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
     var tableStylefontName = slotattr['font']
@@ -174,35 +175,44 @@ function tableFunc(slotitem, index, slotattr) {
     slotitem[1]['elements'].forEach(function (column, cindex) {
         // Defensive check: Validate column structure
         if (!column) {
-            console.warn('[tableFunc] Column is undefined at index:', cindex, 'for table:', tableid);
-            return; // Skip this column
+            console.error('[tableFunc] Invalid column at index', cindex);
+            return;
         }
 
         if (!column['attributes']) {
-            console.warn('[tableFunc] Missing attributes in column at index:', cindex, 'for table:', tableid);
-            column['attributes'] = {}; // Default empty attributes
+            console.error('[tableFunc] Missing attributes for column at index', cindex);
+            return;
         }
 
         // Extract column text - handle both direct text property and nested elements[0].text
         var columnText = '';
         if (column['text']) {
-            // Text directly on the column item (new mobile XML parser behavior)
             columnText = column['text'];
         } else if (column['elements'] && column['elements'][0] && column['elements'][0]['text']) {
-            // Text nested in elements[0] (legacy behavior or different XML structure)
             columnText = column['elements'][0]['text'];
         } else {
-            console.warn('[tableFunc] Missing text in column at index:', cindex, 'for table:', tableid);
-            columnText = ''; // Use empty string as fallback
+            console.warn('[tableFunc] No text found for column at index', cindex);
         }
 
         var columnIndex = cindex + 1
-        var columnAlign = column['attributes']['align'] || 'c' // Default to center
-        var columnWidth = column['attributes']['width'] || 100 // Default width
+        var columnAlign = column['attributes']['align']
+        var columnWidth = column['attributes']['width'] || 100
         var cellTopRightRadius = column['attributes']['tlradius'] || 0
         var cellTopLeftRadius = column['attributes']['trradius'] || 0
         var cellBottomRightRadius = column['attributes']['blradius'] || 0
         var cellBottomLeftRadius = column['attributes']['brradius'] || 0
+        
+        // New column-level settings
+        var bgColorEnabled = column['attributes']['bgcolor_enabled'] || 'N'
+        var bgColor = column['attributes']['bgcolor'] || ''
+        var faderEnabled = column['attributes']['fader_enabled'] || 'N'
+        var faderSwitchingTime = column['attributes']['fader_switching_time'] || null
+        var faderSpeed = column['attributes']['fader_speed'] || null
+        var imageEnabled = column['attributes']['image_enabled'] || 'N'
+        var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
+        var imageSwitchingTime = column['attributes']['image_switching_time'] || null
+        var transitionSpeed = column['attributes']['transition_speed'] || null
+        var fillToColumn = column['attributes']['fill_to_column'] || 'N'
         if (columnAlign == 'c') {
             columnAlign = 'center'
         } else if (columnAlign == 'l') {
@@ -219,16 +229,34 @@ function tableFunc(slotitem, index, slotattr) {
         colSytleObj.blradius = cellBottomLeftRadius
         colSytleObj.brradius = cellBottomRightRadius
         colSytleObj.width = columnWidth
+        colSytleObj.bgColorEnabled = bgColorEnabled
+        colSytleObj.bgColor = bgColor
+        colSytleObj.faderEnabled = faderEnabled
+        colSytleObj.faderSwitchingTime = faderSwitchingTime
+        colSytleObj.faderSpeed = faderSpeed
+        colSytleObj.imageEnabled = imageEnabled
+        colSytleObj.imageTransition = imageTransition
+        colSytleObj.imageSwitchingTime = imageSwitchingTime
+        colSytleObj.transitionSpeed = transitionSpeed
+        colSytleObj.fillToColumn = fillToColumn
         columnStyle.push(colSytleObj)
         if (cindex == slotitem[1]['elements'].length - 1) {
 
         }
-        $('.col' + zeroPad(columnIndex, 2)).css({
+        // Apply header column styles (NO bgcolor - header uses headStyleBgColor)
+        $('.slot-thead-' + tableid + ' .col' + zeroPad(columnIndex, 2)).css({
             'text-align': columnAlign,
             "border-radius": cellTopLeftRadius + "px " + cellTopRightRadius + "px " + cellBottomRightRadius + "px " + cellBottomLeftRadius + "px",
             'width': columnWidth + "px",
             'height': bodyRowHeight + "px",
         })
+        
+        // Apply column background color if enabled
+        if (bgColorEnabled === 'Y' && bgColor) {
+            $('.col' + zeroPad(columnIndex, 2)).css({
+                'background-color': bgColor
+            })
+        }
     })
 }
 
@@ -240,6 +268,10 @@ var colImageloop = new Array()
 var colFaderTimeout = new Array()
 var colFaderCurIndex = new Array()
 var colFaderloop = new Array()
+// Per-column fader settings
+var colFaderSettings = new Array()
+// Per-column image settings
+var colImageSettings = new Array()
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -310,7 +342,7 @@ async function tableRecord(slotitem, index, table) {
         cleanupTableState(tableid);
 
         // Initialize page row array and pagination state
-        pagerow[tableid] = [] // set page row array with table id
+        pagerow[tableid] = []
         pageincrease[tableid] = 1
         checkpage[tableid] = true
 
@@ -318,16 +350,16 @@ async function tableRecord(slotitem, index, table) {
         
         // Mobile app - ensure media manager is initialized
         if (window.mediaManager && !window.mediaManager.initialized) {
-            console.log('[tableRecord] Waiting for media manager initialization...');
+            console.log('[tableRecord] Initializing media manager...');
             await window.mediaManager.initialize().catch(err => {
-                console.error('[tableRecord] Media manager init failed:', err);
+                console.error('[tableRecord] Media manager initialization failed:', err);
             });
         }
         console.log('[tableRecord] Using mobile media manager for table:', tableid);
 
         // VALIDATION: Check for empty or invalid data
         if (!slotitem || !Array.isArray(slotitem) || slotitem.length === 0) {
-            console.warn('[tableRecord] Invalid or empty slotitem data for table:', tableid);
+            console.error('[tableRecord] Invalid or empty slotitem data for table:', tableid);
             return;
         }
 
@@ -335,17 +367,15 @@ async function tableRecord(slotitem, index, table) {
         const seenRowSignatures = new Set();
         let duplicateDetected = false;
         slotitem.forEach((row, idx) => {
-            if (row && row.attributes) {
-                const signature = JSON.stringify(row.attributes);
-                if (seenRowSignatures.has(signature)) {
-                    console.warn('[tableRecord] Duplicate row detected at index', idx, ':', signature.substring(0, 100));
-                    duplicateDetected = true;
-                }
-                seenRowSignatures.add(signature);
+            const signature = JSON.stringify(row);
+            if (seenRowSignatures.has(signature)) {
+                console.warn('[tableRecord] ⚠️ Duplicate row detected at index', idx);
+                duplicateDetected = true;
             }
+            seenRowSignatures.add(signature);
         });
         if (duplicateDetected) {
-            console.warn('[tableRecord] ⚠️ SOURCE DATA contains duplicates - this may indicate upstream issue');
+            console.warn('[tableRecord] Source data contains duplicates - proceeding with caution');
         }
 
         console.log('[tableRecord] Rendering table records for table:', tableid, 'with', slotitem.length, 'unique rows');
@@ -355,8 +385,8 @@ async function tableRecord(slotitem, index, table) {
 
         // Verify removal was successful
         if ($('.slot-tbody-' + tableid).length > 0) {
-            console.error('[tableRecord] ⚠️ Failed to remove existing tbody, forcing empty');
-            $('.slot-tbody-' + tableid).empty().remove();
+            console.error('[tableRecord] ❌ Failed to remove existing tbody - DOM manipulation blocked');
+            return;
         }
 
         $('.slot-table-' + tableid).append('<tbody class="slot-tbody-' + tableid + '"></tbody>')
@@ -365,311 +395,222 @@ async function tableRecord(slotitem, index, table) {
         // Verify tbody is truly empty before rendering
         const tbodyRowCount = $('.slot-tbody-' + tableid).find('tr').length;
         if (tbodyRowCount > 0) {
-            console.error('[tableRecord] ⚠️ tbody not empty after creation! Found', tbodyRowCount, 'rows - clearing');
-            $('.slot-tbody-' + tableid).empty();
+            console.error('[tableRecord] ❌ tbody already contains', tbodyRowCount, 'rows - aborting to prevent duplicates');
+            return;
         }
         console.log('[tableRecord] tbody initialized - confirmed empty, ready for', slotitem.length, 'rows');
 
         // Append <col> with width, and apply other styles to <td>/<th>
-        columnStyle.forEach(function (checkres1, vindex) {
-            // Append the <col> with width only
-            $('.slot-table-' + tableid + ' .slot-colgroup-' + tableid).append('<col class="colgroup-' + checkres1['colid'] + '" style="width:' + checkres1['width'] + 'px;"></col>');
-        })
+    columnStyle.forEach(function (checkres1, vindex) {
+        // Append the <col> with width only
+        $('.slot-table-' + tableid + ' .slot-colgroup-' + tableid).append('<col class="colgroup-' + checkres1['colid'] + '" style="width:' + checkres1['width'] + 'px;"></col>');
+    })
 
-        //start to render table items
-        if (slotitem) {
-            // Use synchronous forEach like Electron version (NOT async for...of)
-            slotitem.forEach(function (row, xindex) {
-                var colRowIndex = xindex
-                var colList = row['attributes']
-                var objColList = Object.entries(colList)
-                var rowId = 'row-' + tableid + '-' + colRowIndex; // Unique row identifier
-                $('.slot-tbody-' + tableid).append('<tr data-row-id="' + rowId + '"> </tr>')
-                objColList.forEach(function (col, zindex) {
-                    zindex++
-                    $('.slot-table-' + tableid + ' tbody tr[data-row-id="' + rowId + '"]').append('<td nowrap class="col' + zeroPad(zindex, 2) + '"></td>')
-                })
+    //start to render table items
+    if (slotitem) {
+        slotitem.forEach(function (row, xindex) {
+            var colRowIndex = xindex
+            var colList = row['attributes']
+            var objColList = Object.entries(colList)
+            $('.slot-tbody-' + tableid).append('<tr> </tr>')
+            objColList.forEach(function (col, zindex) {
+                zindex++
+                $('.slot-table-' + tableid + ' tbody tr:last').append('<td nowrap class="col' + zeroPad(zindex, 2) + '"></td>')
+            })
+            objColList.forEach(function (col, zindex) {
 
-                // Process columns synchronously
-                objColList.forEach(function (col, zindex) {
+                var colNumber = col[0]
+                // Create unique key for each cell (row + column combination)
+                var cellKey = 'row-' + colRowIndex + '-' + colNumber
 
-                    var colNumber = col[0]
-                    const compositeKey = colRowIndex + '-' + colNumber; // CRITICAL: Unique key per row+column
-
-                    colImageCurIndex[compositeKey] = 0
-                    colImageloop[compositeKey] = []
-                    colFaderCurIndex[compositeKey] = 0
-                    colFaderloop[compositeKey] = []
-                    if (colFaderTimeout[compositeKey]) { //clear colFaderTimeout to reset
-                        clearTimeout(colFaderTimeout[compositeKey])
-                    }
-                    if (colImageTimeout[compositeKey]) { //clear colImageTimeout to reset
-                        clearTimeout(colImageTimeout[compositeKey])
-                    }
-                    var colFormat = col[1].substring(0, 6)
-                    if (colFormat == 'image:') {
-                        var n = col[1].lastIndexOf(':')
-                        var colImageList = col[1].substring(n + 1)
-                        colImageList = colImageList.split(',') // split and create array
-                        $('.slot-tbody-' + tableid + ' tr[data-row-id="' + rowId + '"] .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
-
-                        // Phase 1: Parse and categorize images
-                        const imagesToPreload = [];
-                        colImageList.forEach(function (ele, resId) {
-                            var coltext = ele.trim(); // trim whitespace
-                            if (coltext != '') { // cancel if string empty
-                                var contentObj = new Object()
-                                contentObj.text = coltext
-                                contentObj.isExternal = isExternalMediaUrl(coltext)
-                                colImageloop[compositeKey].push(contentObj)
-
-                                // Add to preload queue if local file
-                                if (!contentObj.isExternal && window.mediaManager) {
-                                    if (window.config && window.config.hostserver) {
-                                        const serverAdd = window.config.hostserver.split('/');
-                                        const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                        imagesToPreload.push({
-                                            url: baseUrl + '/res/' + coltext,
-                                            filename: coltext
-                                        });
-                                    }
-                                }
-                            }
-                        });
-
-                        // Phase 2: Batch preload local images (non-blocking)
-                        if (imagesToPreload.length > 0 && window.mediaManager) {
-                            // Fire and forget - don't await, preload in background
-                            window.mediaManager.preloadMediaBatch(imagesToPreload).catch(err => {
-                                console.warn('[tableRecord] Preload failed for column', colNumber, ':', err);
-                            });
-                        }
-
-                        // Phase 3: Display first image (synchronously)
-                        if (colImageloop[compositeKey].length > 0) {
-                            appendColumnImage(colImageloop[compositeKey][0], colNumber, colRowIndex);
-                        }
-                    } else if (colFormat == 'fader:') { //create fader animation for this column
-                        var n = col[1].indexOf(":") // remove first string before : symbol
-                        var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
-                        colTextFaderList = colTextFaderList.split(',') // split and create array
-                        $('.slot-tbody-' + tableid + ' tr[data-row-id="' + rowId + '"] .' + col[0]).html('<div class="fadercol-' + colRowIndex + '"></div>') //create td
-                        colTextFaderList.forEach(function (ele, resId) { //create foreach to create fading animation
-                            var coltext = ele.replace(/ /g, '') // delete any space
-                            if (coltext != '') { // cancel if string empty
-                                var contentObj = new Object()
-                                contentObj.text = coltext
-                                colFaderloop[compositeKey].push(contentObj)
-                            }
-                            if (resId === colTextFaderList.length - 1) {
-                                appendColumnFader(colFaderloop[compositeKey][0], colNumber, colRowIndex)
-                            }
-                        })
-                    } else {
-                        $('.slot-tbody-' + tableid + ' tr[data-row-id="' + rowId + '"] .' + col[0]).html(col[1])
-                    }
-                })
-                //play next column image after current column image has finished
-                function changeColImageMedia(colNumber, rowIndex) {
-                    const compositeKey = rowIndex + '-' + colNumber;
-
-                    // DEFENSIVE: Check if colImageloop exists
-                    if (!colImageloop[compositeKey] || !Array.isArray(colImageloop[compositeKey])) {
-                        console.error('[changeColImageMedia] colImageloop not initialized for key:', compositeKey);
-                        return;
-                    }
-
-                    if (colImageloop[compositeKey].length == 1) {
-                        colImageCurIndex[compositeKey] = 0
-                    }
-                    if (colImageCurIndex[compositeKey] >= colImageloop[compositeKey].length) {
-                        // modified this so it would display the first column when looping
-                        colImageCurIndex[compositeKey] = 0
-                    }
-                    appendColumnImage(colImageloop[compositeKey][colImageCurIndex[compositeKey]], colNumber, rowIndex)
-                    colImageCurIndex[compositeKey]++
+                colImageCurIndex[cellKey] = 0
+                colImageloop[cellKey] = []
+                colFaderCurIndex[cellKey] = 0
+                colFaderloop[cellKey] = []
+                if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
+                    clearTimeout(colFaderTimeout[cellKey])
                 }
-
-                //render every column image slot
-                async function appendColumnImage(item, colNumber, rowIndex) {
-                    const compositeKey = rowIndex + '-' + colNumber;
-                    if (colImageTimeout[compositeKey]) { //clear colImageTimeout to reset
-                        clearTimeout(colImageTimeout[compositeKey])
+                if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
+                    clearTimeout(colImageTimeout[cellKey])
+                }
+                
+                // Store per-column settings for this cell
+                // Find the column configuration from columnStyle
+                var columnIndex = zindex + 1
+                var colClass = 'col' + zeroPad(columnIndex, 2)
+                var columnConfig = columnStyle.find(function(style) {
+                    return style.colid === colClass
+                })
+                
+                if (columnConfig) {
+                    // Store fader settings for this cell
+                    colFaderSettings[cellKey] = {
+                        enabled: columnConfig.faderEnabled === 'Y',
+                        switchingTime: columnConfig.faderSwitchingTime ? parseInt(columnConfig.faderSwitchingTime) * 1000 : null,
+                        speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null
                     }
-
-                    var renderEl = '';
-                    var mediaFileName = item.text;
-                    const loaderId = `table-img-${tableid}-${compositeKey}-${Date.now()}`;
-
-                    console.log('[appendColumnImage] Processing media file:', mediaFileName, 'for column:', colNumber, 'rowIndex:', rowIndex, 'key:', compositeKey);
-
-                    // Show skeleton loader while loading
-                    const cellContainer = $('.' + colNumber + ' .imagecol-' + rowIndex)[0];
-                    if (window.mediaLoadingStates && cellContainer) {
-                        const loader = window.mediaLoadingStates.createImageLoader(cellContainer, loaderId);
-                        $(cellContainer).html(loader);
+                    
+                    // Store image settings for this cell
+                    colImageSettings[cellKey] = {
+                        enabled: columnConfig.imageEnabled === 'Y',
+                        transition: columnConfig.imageTransition || 'scroll-up',
+                        switchingTime: columnConfig.imageSwitchingTime ? parseInt(columnConfig.imageSwitchingTime) * 1000 : null,
+                        transitionSpeed: columnConfig.transitionSpeed ? parseInt(columnConfig.transitionSpeed) : null,
+                        fillToColumn: columnConfig.fillToColumn === 'Y'
                     }
-
-                    // Check if this is an external URL
-                    const isExternalUrl = isExternalMediaUrl(mediaFileName);
-
-                    try {
-                        if (isExternalUrl) {
-                            // External URL - use directly without caching
-                            console.log('[appendColumnImage] ✓ External URL detected:', mediaFileName);
+                }
+                
+                var colFormat = col[1].substring(0, 6)
+                if (colFormat == 'image:') {
+                    var n = col[1].lastIndexOf(':')
+                    var colImageList = col[1].substring(n + 1)
+                    colImageList = colImageList.split(',') // split and create array
+                    $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
+                    
+                    // MOBILE: Preload images using media manager if available
+                    var imagesToPreload = []
+                    
+                    colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
+                        var coltext = ele.trim() // trim whitespace instead of removing all spaces
+                        if (coltext != '') { // cancel if string empty
+                            var contentObj = new Object()
+                            contentObj.text = coltext
+                            contentObj.isExternal = isExternalMediaUrl(coltext)
+                            colImageloop[cellKey].push(contentObj)
                             
-                            // Create and load image with proper error handling
-                            const img = new Image();
-                            img.style.maxHeight = bodyRowHeight + 'px';
-                            img.style.width = 'auto';
-                            img.style.height = 'auto';
-                            img.crossOrigin = 'anonymous';
-                            
-                            img.onload = function() {
-                                console.log('External image loaded');
-                                if (window.mediaLoadingStates) {
-                                    window.mediaLoadingStates.removeLoader(loaderId, img);
-                                }
-                                $(cellContainer).html(img);
-                            };
-                            
-                            img.onerror = function() {
-                                console.error('[appendColumnImage] External image load error URL:', mediaFileName);
-                                if (window.mediaLoadingStates) {
-                                    window.mediaLoadingStates.showError(loaderId, 'Failed to load');
-                                }
-                            };
-                            
-                            img.src = mediaFileName;
-                            return; // Exit early for external URLs
-                            
-                        } else {
-                            // Local file - use media manager with fallback support
-                            let mediaUriResult = null;
-                            let serverUrl = null;
-                            
-                            // Build server URL for fallback
-                            if (window.config && window.config.hostserver) {
-                                const serverAdd = window.config.hostserver.split('/');
-                                const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                                serverUrl = baseUrl + '/res/' + mediaFileName;
-                            }
-                            
-                            if (window.mediaManager) {
-                                // Use smart URI getter with server URL as fallback
-                                mediaUriResult = await window.mediaManager.getMediaUriSmart(mediaFileName, false, serverUrl);
-
-                                if (!mediaUriResult || (typeof mediaUriResult === 'object' && !mediaUriResult.uri && !mediaUriResult.fallbackUri)) {
-                                    console.warn('[appendColumnImage] Failed to get media URI, trying direct download');
-                                    // Try downloading if not in cache
-                                    if (serverUrl) {
-                                        await window.mediaManager.downloadMedia(serverUrl, mediaFileName);
-                                        mediaUriResult = await window.mediaManager.getMediaUriSmart(mediaFileName, false, serverUrl);
-                                    }
-                                }
-                            } else {
-                                console.warn('[appendColumnImage] Media manager not available, using server URL fallback');
-                                mediaUriResult = serverUrl;
-                            }
-
-                            // Extract primary and fallback URIs
-                            let primaryUri = null;
-                            let fallbackUri = null;
-                            
-                            if (typeof mediaUriResult === 'object' && mediaUriResult !== null) {
-                                primaryUri = mediaUriResult.uri;
-                                fallbackUri = mediaUriResult.fallbackUri || serverUrl;
-                            } else {
-                                primaryUri = mediaUriResult;
-                                fallbackUri = serverUrl;
-                            }
-
-                            if (primaryUri || fallbackUri) {
-                                // Load image directly
-                                console.log('[appendColumnImage] Loading image directly for:', mediaFileName);
-                                
-                                const img = new Image();
-                                img.style.maxHeight = bodyRowHeight + 'px';
-                                img.style.width = 'auto';
-                                img.style.height = 'auto';
-                                
-                                img.onload = function() {
-                                    console.log('[appendColumnImage] Image loaded successfully:', mediaFileName);
-                                    if (window.mediaLoadingStates) {
-                                        window.mediaLoadingStates.removeLoader(loaderId, img);
-                                    }
-                                    $(cellContainer).html(img);
-                                };
-                                
-                                img.onerror = function() {
-                                    console.error('[appendColumnImage] Image load error for:', mediaFileName, 'src:', img.src);
-                                    
-                                    // Try fallback URL if available and not already tried
-                                    if (fallbackUri && img.src !== fallbackUri && !img.dataset.fallbackAttempted) {
-                                        console.log('[appendColumnImage] Attempting fallback URL:', fallbackUri);
-                                        img.dataset.fallbackAttempted = 'true';
-                                        img.src = fallbackUri;
-                                        return;
-                                    }
-                                    
-                                    // All attempts failed
-                                    console.error('[appendColumnImage] All loading attempts failed for:', mediaFileName);
-                                    if (window.mediaLoadingStates) {
-                                        window.mediaLoadingStates.showError(loaderId, 'Failed to load image');
-                                    }
-                                };
-                                
-                                img.src = primaryUri || fallbackUri;
-                            } else {
-                                throw new Error('[appendColumnImage] No media URI available');
+                            // Queue for preloading if not external
+                            if (!contentObj.isExternal && window.mediaManager) {
+                                imagesToPreload.push({
+                                    filename: coltext,
+                                    type: 'image',
+                                    slot: 'table-' + tableid
+                                })
                             }
                         }
-                    } catch (error) {
-                        console.error('[appendColumnImage] Media error:', error);
-                        
-                        if (window.mediaLoadingStates) {
-                            window.mediaLoadingStates.showError(loaderId, 'Error loading image');
-                        }
-                        
-                        // Fallback to direct URL as last resort
-                        if (!isExternalUrl && window.config && window.config.hostserver) {
-                            const serverAdd = window.config.hostserver.split('/');
-                            const baseUrl = serverAdd[0] + '//' + serverAdd[2];
-                            const fallbackUrl = baseUrl + '/res/' + mediaFileName;
+                        if (resId === colImageList.length - 1) {
+                            // Preload batch if available
+                            if (imagesToPreload.length > 0 && window.mediaManager) {
+                                console.log('[tableRecord] Preloading', imagesToPreload.length, 'images for cell:', cellKey);
+                                window.mediaManager.preloadMediaBatch(imagesToPreload).catch(err => {
+                                    console.error('[tableRecord] Image preload failed for cell:', cellKey, err);
+                                });
+                            }
                             
-                            const img = new Image();
-                            img.style.maxHeight = bodyRowHeight + 'px';
-                            img.style.width = 'auto';
-                            img.style.height = 'auto';
-                            img.crossOrigin = 'anonymous';
-                            
-                            img.onload = function() {
-                                if (window.mediaLoadingStates) {
-                                    window.mediaLoadingStates.removeLoader(loaderId, img);
+                            // Only start animation if there are multiple images
+                            if (colImageloop[cellKey].length > 0) {
+                                appendColumnImage(colImageloop[cellKey][0], cellKey)
+                                // Start cycling if more than one image
+                                if (colImageloop[cellKey].length > 1) {
+                                    colImageCurIndex[cellKey] = 1
                                 }
-                                $(cellContainer).html(img);
-                            };
-                            
-                            img.src = fallbackUrl;
-                            console.log('[appendColumnImage] Using direct URL after error:', fallbackUrl);
+                            }
                         }
-                    }
+                    })
+                } else if (colFormat == 'fader:') { //create fader animation for this column
+                    var n = col[1].indexOf(":") // remove first string before : symbol
+                    var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
+                    colTextFaderList = colTextFaderList.split(',') // split and create array
+                    $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="fadercol-' + colRowIndex + '"></div>') //create td
+                    colTextFaderList.forEach(function (ele, resId) { //create foreach to create fading animation
+                        var coltext = ele.trim() // trim whitespace instead of removing all spaces
+                        if (coltext != '') { // cancel if string empty
+                            var contentObj = new Object()
+                            contentObj.text = coltext
+                            colFaderloop[cellKey].push(contentObj)
+                        }
+                        if (resId === colTextFaderList.length - 1) {
+                            // Only start animation if there are items
+                            if (colFaderloop[cellKey].length > 0) {
+                                appendColumnFader(colFaderloop[cellKey][0], cellKey)
+                                // Start cycling if more than one text item
+                                if (colFaderloop[cellKey].length > 1) {
+                                    colFaderCurIndex[cellKey] = 1
+                                }
+                            }
+                        }
+                    })
+                } else {
+                    $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html(col[1])
+                }
+            })
+            //play next column image after current column image has finished
+            function changeColImageMedia(cellKey) {
+                if (colImageloop[cellKey].length == 1) {
+                    colImageCurIndex[cellKey] = 0
+                }
+                if (colImageCurIndex[cellKey] >= colImageloop[cellKey].length) {
+                    // modified this so it would display the first column when looping
+                    colImageCurIndex[cellKey] = 0
+                }
+                appendColumnImage(colImageloop[cellKey][colImageCurIndex[cellKey]], cellKey)
+                colImageCurIndex[cellKey]++
+            }
 
+            //render every column image slot
+            function appendColumnImage(item, cellKey) {
+                if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
+                    clearTimeout(colImageTimeout[cellKey])
+                }
+                
+                // Get per-column image settings or use defaults
+                var imageSettings = colImageSettings[cellKey] || {}
+                var transitionType = (imageSettings.enabled && imageSettings.transition) 
+                    ? imageSettings.transition 
+                    : 'scroll-up'
+                var transitionSpeed = (imageSettings.enabled && imageSettings.transitionSpeed) 
+                    ? imageSettings.transitionSpeed 
+                    : 800
+                var switchingTime = (imageSettings.enabled && imageSettings.switchingTime) 
+                    ? imageSettings.switchingTime 
+                    : 10000
+                var fillToColumn = imageSettings.fillToColumn || false
+                
+                var targetContainer = $('.' + cellKey.split('-')[2] + ' .imagecol-' + colRowIndex)
+                var mediaFileName = item.text
+                
+                // MOBILE: Check if URL is external or use media manager
+                const isExternalUrl = isExternalMediaUrl(mediaFileName);
+                var renderEl = ''
+                
+                if (isExternalUrl) {
+                    // External URL - use directly
+                    console.log('[appendColumnImage] Using external URL:', mediaFileName);
+                    renderEl = '<img src="' + mediaFileName + '">'
+                } else if (window.mediaManager) {
+                    // Mobile app - use media manager to get local path
+                    const localPath = window.mediaManager.getMediaPath(mediaFileName);
+                    if (localPath) {
+                        console.log('[appendColumnImage] Using local media:', localPath);
+                        renderEl = '<img src="' + localPath + '">'
+                    } else {
+                        console.warn('[appendColumnImage] Media not found:', mediaFileName);
+                        renderEl = '<img src="" alt="Image not found" style="display:none;">'
+                    }
+                } else {
+                    // Fallback - media manager not available
+                    console.warn('[appendColumnImage] Media manager not available, using filename directly');
+                    renderEl = '<img src="' + mediaFileName + '">'
+                }
+                
+                // Function to apply vertical alignment and sizing styles
+                function applyImageStyles() {
                     //row table height
                     $('.slot-tbody-' + tableid).find('tr').css({
                         "white-space": "nowrap",
-                        "overflow": "hidden !important",
+                        "overflow": "hidden",
                         "text-overflow": "clip",
-                        "height": "100%",
-                        "max-height": bodyRowHeight + "px !important",
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px",
                         'line-height': bodyRowHeight + 'px'
                     })
                     //fit all elements size inside td
                     $('.slot-tbody-' + tableid).find('td').css({
                         "white-space": "nowrap",
-                        "overflow": "hidden !important",
+                        "overflow": "hidden",
                         "text-overflow": "clip",
-                        "vertical-align": tableStyleVAlign
+                        "vertical-align": tableStyleVAlign,
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px"
                     })
 
                     $('.slot-tbody-' + tableid).find('tr td *').css({
@@ -681,258 +622,289 @@ async function tableRecord(slotitem, index, table) {
                     })
 
                     // Specifically target images inside the cells
-                    // FIXED: Added display flex and align-items to ensure vertical centering
-                    $('.imagecol-' + rowIndex).css({
+                    $('.imagecol-' + colRowIndex).css({
                         "white-space": "nowrap",
                         "width": "auto",
-                        "height": "100%",
-                        "display": "flex",
-                        "align-items": "center",
-                        "justify-content": "center"
-                    })
-
-                    // Apply blinking transition (3 times) for image changes (skip first render)
-                    // FIXED: Only apply blinking effect if there are multiple items to cycle through
-                    if (colImageCurIndex[compositeKey] >= 1 && colImageloop[compositeKey].length > 1) {
-                        $('.' + colNumber + ' .imagecol-' + rowIndex + ' img')
-                            .fadeOut(200).fadeIn(200)
-                            .fadeOut(200).fadeIn(200)
-                            .fadeOut(200).fadeIn(200);
-                    }
-
-                    // FIXED: Only set timeout for next image if there are multiple items
-                    // go to the next column image after 20 seconds
-                    if (colImageloop[compositeKey].length > 1) {
-                        colImageTimeout[compositeKey] = setTimeout(function () {
-                            changeColImageMedia(colNumber, rowIndex)
-                        }, 20000)
-                    }
-                }
-
-                //play next column fader after current column fader has finished
-                function changeColTextFader(colNumber, rowIndex) {
-                    const compositeKey = rowIndex + '-' + colNumber;
-
-                    // DEFENSIVE: Check if colFaderloop exists
-                    if (!colFaderloop[compositeKey] || !Array.isArray(colFaderloop[compositeKey])) {
-                        console.error('[changeColTextFader] colFaderloop not initialized for key:', compositeKey);
-                        return;
-                    }
-
-                    if (colFaderloop[compositeKey].length == 1) {
-                        colFaderCurIndex[compositeKey] = 0
-                    }
-                    if (colFaderCurIndex[compositeKey] >= colFaderloop[compositeKey].length) {
-                        // modified this so it would display the first column when looping
-                        colFaderCurIndex[compositeKey] = 0
-                    }
-                    appendColumnFader(colFaderloop[compositeKey][colFaderCurIndex[compositeKey]], colNumber, rowIndex)
-                    colFaderCurIndex[compositeKey]++
-                }
-
-                //render every column fader slot
-                function appendColumnFader(item, colNumber, rowIndex) {
-                    const compositeKey = rowIndex + '-' + colNumber;
-                    if (colFaderTimeout[compositeKey]) { //clear colFaderTimeout to reset
-                        clearTimeout(colFaderTimeout[compositeKey])
-                    }
-                    var renderEl = '<div id="col-' + rowIndex + '" class="column-fader">' + item.text + '</div>'
-                    $('.' + colNumber + ' .fadercol-' + rowIndex).html(renderEl)
-
-                    //row table height
-                    $('.slot-tbody-' + tableid).find('tr').css({
-                        "white-space": "nowrap",
-                        "overflow": "hidden !important",
-                        "text-overflow": "clip",
-                        "height": bodyRowHeight + "px !important",
-                        "max-height": bodyRowHeight + "px !important",
-                        'line-height': bodyRowHeight + 'px'
-                    })
-                    //fit all elements size inside td
-                    $('.slot-tbody-' + tableid).find('td').css({
-                        "white-space": "nowrap",
-                        "overflow": "hidden !important",
-                        "text-overflow": "clip",
+                        "height": bodyRowHeight + "px",
+                        "max-height": bodyRowHeight + "px",
+                        "display": "inline-block",
                         "vertical-align": tableStyleVAlign
                     })
-
-                    $('.slot-tbody-' + tableid).find('tr td *').css({
-                        "max-height": bodyRowHeight + "px !important",
-                        "white-space": "nowrap",
-                        "overflow": "hidden",
-                        "text-overflow": "clip",
-                        "vertical-align": tableStyleVAlign,
-                    })
-
-                    // FIXED: Only apply fading effect if there are multiple items to cycle through
-                    if (colFaderCurIndex[compositeKey] >= 1 && colFaderloop[compositeKey].length > 1) {
-                        $('.' + colNumber + ' .fadercol-' + rowIndex + ' #col-' + rowIndex).fadeIn(500).fadeOut(500).fadeIn(1500)
+                    
+                    // Apply image sizing based on fill_to_column setting
+                    if (fillToColumn) {
+                        // Fill entire column - ignore aspect ratio
+                        $('.imagecol-' + colRowIndex + ' img').css({
+                            "object-fit": "cover",
+                            "width": "100%",
+                            "height": bodyRowHeight + "px",
+                            "max-height": bodyRowHeight + "px",
+                            "vertical-align": tableStyleVAlign
+                        })
+                    } else {
+                        // Constrain to row height, maintain aspect ratio
+                        $('.imagecol-' + colRowIndex + ' img').css({
+                            "object-fit": "contain",
+                            "max-height": bodyRowHeight + "px",
+                            "height": "auto",
+                            "width": "auto",
+                            "vertical-align": tableStyleVAlign
+                        })
                     }
-
-                    // FIXED: Only set timeout for next fader if there are multiple items
-                    // go to the next column fader after 20 seconds
-                    if (colFaderloop[compositeKey].length > 1) {
-                        colFaderTimeout[compositeKey] = setTimeout(function () {
-                            changeColTextFader(colNumber, rowIndex)
-                        }, 20000)
-                    }
-                }
-
-                // Append <col> with width, and apply other styles to <td>/<th>
-                columnStyle.forEach(function (checkres1, vindex) {
-                    // Apply the styles to the corresponding <td> or <th>
-                    $(' .' + checkres1['colid']).css({
-                        'text-align': checkres1['textalign'],
-                        "border-radius": checkres1['tlradius'] + "px " + checkres1['trradius'] + "px " + checkres1['brradius'] + "px " + checkres1['blradius'] + "px",
-                        'height': bodyRowHeight + "px",
-                    });
-                });
-            }) // Close slotitem.forEach
-        }
-
-        //set style of row odd/even color and row height
-        $('.slot-tbody-' + tableid).find('tr:odd').css('background-color', headRowOddColor)
-        $('.slot-tbody-' + tableid).find('tr:even').css('background-color', headRowEvenColor)
-
-        //row table height
-        $('.slot-tbody-' + tableid).find('tr').css({
-            "white-space": "nowrap",
-            "overflow": "hidden !important",
-            "text-overflow": "clip",
-            "height": "100%",
-            "max-height": bodyRowHeight + "px !important",
-            'line-height': bodyRowHeight + 'px'
-        })
-        //fit all elements size inside td
-        $('.slot-tbody-' + tableid).find('td').css({
-            "white-space": "nowrap",
-            "overflow": "hidden !important",
-            "text-overflow": "clip",
-            "vertical-align": tableStyleVAlign
-        })
-
-        $('.slot-tbody-' + tableid).find('tr td *').css({
-            "max-height": bodyRowHeight + "px !important",
-            "white-space": "nowrap",
-            "overflow": "hidden",
-            "text-overflow": "clip",
-            "vertical-align": tableStyleVAlign,
-        })
-
-        // Store all data to pagerow object (synchronous like Electron version)
-        console.log('[tableRecord] Collecting rows for table:', tableid);
-        var foundRows = $('.slot-tbody-' + tableid).find('tr');
-        foundRows.each(function (i, row) {
-            return pagerow[tableid].push(row)
-        })
-        console.log('[tableRecord] ✓ Collected', pagerow[tableid].length, 'rows into pagerow array');
-
-    if (pagerow[tableid].length != 0) {
-            console.log('[tableRecord] Setting up pagination for table:', tableid, '- Total rows:', pagerow[tableid].length);
-            
-            // DEFENSIVE: Validate slot element exists
-            var slotElement = $('#slot-' + tableid);
-            if (slotElement.length === 0) {
-                console.error('[tableRecord] ⚠️ Slot element not found for table:', tableid);
-                return;
-            }
-
-            var slotHeight = slotElement.height();
-            if (!slotHeight || slotHeight <= 0) {
-                console.error('[tableRecord] ⚠️ Invalid slot height:', slotHeight);
-                return;
-            }
-            
-            var maxrows = parseInt(slotHeight) - parseInt(headRowHeight);
-            
-            // DEFENSIVE: Check if tbody exists and has computed line-height
-            var tbodyRows = $('.slot-tbody-' + tableid).find('tr');
-            if (tbodyRows.length === 0) {
-                console.error('[tableRecord] ⚠️ No tbody rows found after rendering');
-                return;
-            }
-            
-            var lineHeight = tbodyRows.css('line-height');
-            if (!lineHeight) {
-                console.error('[tableRecord] ⚠️ Could not get line-height from tbody rows');
-                return;
-            }
-            
-            maxrows = maxrows / parseInt(lineHeight);
-            maxrows = maxrows - 1;
-            console.log('[tableRecord] Calculated max rows per page:', maxrows, '- Slot height:', slotHeight, 'px');
-            
-            var pagination = $('#pagination-' + tableid);
-            
-            // Ensure pagination element is clean before initializing
-            if (pagination.data('pagination')) {
-                console.log('[tableRecord] Destroying existing pagination instance');
-                try {
-                    pagination.pagination('destroy');
-                } catch (e) {
-                    console.warn('[tableRecord] Error destroying pagination:', e);
-                }
-            }
-            pagination.empty();
-            
-            var totalRows = pagerow[tableid].length;  // Total number of rows
-            var pageSize = parseInt(maxrows);
-
-            // Check if there's only one page of data
-            if (totalRows <= pageSize) {
-                console.log('[tableRecord] Single page only - hiding pagination');
-                pagination.hide();  // Hide pagination if only 1 page
-                $('#slot-' + tableid).find('.pagination-pages').hide()
-                $('#pagination-' + tableid).hide()
-                $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
-            } else {
-                console.log('[tableRecord] Multiple pages detected - initializing pagination with pageSize:', pageSize);
-                pagination.pagination({
-                    dataSource: pagerow[tableid],
-                    pageSize: pageSize,
-                    showPageNumbers: false,
-                    showNavigator: false,
-                    showPrevious: false,
-                    showNext: false,
-                    callback: function (data, pagi) {
-                        $('.slot-tbody-' + tableid).html(data);
-                    }
-                });
-
-                // Change page element if got update
-                if (checkpage[tableid] == true) {
-                    checkpage[tableid] = false;
-                    pagination.pagination('go', 1);
-                    $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-                    console.log('[tableRecord] Pagination initialized - Page 1/' + pagination.pagination('getTotalPage'));
-                } else {
-                    $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-                    pagination.pagination('go', pageincrease[tableid]);
-                }
-
-                // Auto page flip - clear any existing interval first
-                if (pageAutoInterval[tableid]) {
-                    console.log('[tableRecord] Clearing existing pageAutoInterval before creating new one');
-                    clearInterval(pageAutoInterval[tableid]);
                 }
                 
-                pageAutoInterval[tableid] = setInterval(function () {
-                    pageincrease[tableid] += 1;
-                    var totalpage = pagination.pagination('getTotalPage') || 1;
-                    if (pageincrease[tableid] > totalpage) {
-                        pageincrease[tableid] = 1;
-                        pagination.pagination('go', 1);
-                    } else {
-                        pagination.pagination('next');
+                // Map transition types to CSS animation classes
+                var transitionClassMap = {
+                    'fade': { out: 'image-fade-out', in: 'image-fade-in' },
+                    'slide-right': { out: 'image-slide-right-out', in: 'image-slide-right-in' },
+                    'slide-left': { out: 'image-slide-left-out', in: 'image-slide-left-in' },
+                    'scroll-up': { out: 'image-scroll-up-out', in: 'image-scroll-up-in' },
+                    'scroll-down': { out: 'image-scroll-down-out', in: 'image-scroll-down-in' }
+                }
+                
+                var transitionClasses = transitionClassMap[transitionType] || transitionClassMap['scroll-up']
+                
+                // Check if this is an update (not first render) and multiple images exist
+                if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
+                    // Apply transition animation based on configured type
+                    var $oldImage = targetContainer.find('img')
+                    if ($oldImage.length > 0) {
+                        $oldImage.addClass(transitionClasses.out)
+                        $oldImage.css('animation-duration', transitionSpeed + 'ms')
                     }
+                    
+                    // Wait for transition-out animation to complete, then update content
+                    setTimeout(function() {
+                        targetContainer.html(renderEl)
+                        var $newImage = targetContainer.find('img')
+                        $newImage.addClass(transitionClasses.in)
+                        $newImage.css('animation-duration', transitionSpeed + 'ms')
+                        
+                        // Apply image styles after new image is inserted
+                        applyImageStyles()
+                        
+                        // Remove animation class after it completes
+                        setTimeout(function() {
+                            targetContainer.find('img').removeClass(transitionClasses.in)
+                        }, transitionSpeed)
+                    }, transitionSpeed)
+                } else {
+                    // First render - no animation
+                    targetContainer.html(renderEl)
+                    // Apply image styles after first render
+                    applyImageStyles()
+                }
 
-                    // Refresh page
-                    $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-                    console.log('[tableRecord] Auto page flip - Now showing page:', pageincrease[tableid] + '/' + totalpage);
-                }, pageLengthTime[tableid]);
-                console.log('[tableRecord] Auto page flip interval set to:', pageLengthTime[tableid], 'ms');
+                // Only cycle to next if there are multiple images
+                if (colImageloop[cellKey].length > 1) {
+                    // go to the next column image using per-column or global interval
+                    colImageTimeout[cellKey] = setTimeout(function () {
+                        changeColImageMedia(cellKey)
+                    }, switchingTime)
+                }
             }
+
+            //play next column fader after current column fader has finished
+            function changeColTextFader(cellKey) {
+                if (colFaderloop[cellKey].length == 1) {
+                    colFaderCurIndex[cellKey] = 0
+                }
+                if (colFaderCurIndex[cellKey] >= colFaderloop[cellKey].length) {
+                    // modified this so it would display the first column when looping
+                    colFaderCurIndex[cellKey] = 0
+                }
+                appendColumnFader(colFaderloop[cellKey][colFaderCurIndex[cellKey]], cellKey)
+                colFaderCurIndex[cellKey]++
+            }
+
+            //render every column fader slot
+            function appendColumnFader(item, cellKey) {
+                if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
+                    clearTimeout(colFaderTimeout[cellKey])
+                }
+                
+                // Get per-column fader settings or use global defaults
+                var faderSettings = colFaderSettings[cellKey] || {}
+                var animationDuration = (faderSettings.enabled && faderSettings.speed) 
+                    ? faderSettings.speed 
+                    : colAnimationDuration[tableid]
+                var animationInterval = (faderSettings.enabled && faderSettings.switchingTime) 
+                    ? faderSettings.switchingTime 
+                    : colAnimationInterval[tableid]
+                
+                var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
+                
+                // Check if this is the first render or an update
+                if (colFaderCurIndex[cellKey] > 0 && targetContainer.find('.column-fader').length > 0) {
+                    // Animate out the old content with configured duration
+                    var $oldElement = targetContainer.find('.column-fader')
+                    $oldElement.addClass('fader-scroll-out')
+                    $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-out
+                    
+                    // Wait for animation to complete, then update content
+                    setTimeout(function() {
+                        var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader fader-scroll-in">' + item.text + '</div>'
+                        targetContainer.html(renderEl)
+                        var $newElement = targetContainer.find('.column-fader')
+                        $newElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-in
+                        
+                        // Remove animation class after it completes
+                        setTimeout(function() {
+                            targetContainer.find('.column-fader').removeClass('fader-scroll-in')
+                        }, animationDuration * 0.75)
+                    }, animationDuration * 0.75)
+                } else {
+                    // First render - no animation
+                    var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader">' + item.text + '</div>'
+                    targetContainer.html(renderEl)
+                }
+
+                //row table height
+                $('.slot-tbody-' + tableid).find('tr').css({
+                    "white-space": "nowrap",
+                    "overflow": "hidden !important",
+                    "text-overflow": "clip",
+                    "height": bodyRowHeight + "px !important",
+                    "max-height": bodyRowHeight + "px !important",
+                    'line-height': bodyRowHeight + 'px'
+                })
+                //fit all elements size inside td
+                $('.slot-tbody-' + tableid).find('td').css({
+                    "white-space": "nowrap",
+                    "overflow": "hidden !important",
+                    "text-overflow": "clip",
+                    "vertical-align": tableStyleVAlign
+                })
+
+                $('.slot-tbody-' + tableid).find('tr td *').css({
+                    "max-height": bodyRowHeight + "px !important",
+                    "white-space": "nowrap",
+                    "overflow": "hidden",
+                    "text-overflow": "clip",
+                    "vertical-align": tableStyleVAlign,
+                })
+
+                // Only cycle to next if there are multiple items
+                if (colFaderloop[cellKey].length > 1) {
+                    // go to the next column fader using per-column or global interval
+                    colFaderTimeout[cellKey] = setTimeout(function () {
+                        changeColTextFader(cellKey)
+                    }, animationInterval)
+                }
+            }
+
+            // Append <col> with width, and apply other styles to <td> in tbody only
+            columnStyle.forEach(function (checkres1, vindex) {
+                // Apply the styles to the corresponding <td> in tbody (not header <th>)
+                var columnCellStyles = {
+                    'text-align': checkres1['textalign'],
+                    "border-radius": checkres1['trradius'] + "px " + checkres1['tlradius'] + "px " + checkres1['blradius'] + "px " + checkres1['brradius'] + "px",
+                    'height': bodyRowHeight + "px",
+                    'max-height': bodyRowHeight + "px",
+                    'line-height': bodyRowHeight + "px"
+                }
+                
+                // Apply column background color if enabled (only to tbody cells)
+                if (checkres1['bgColorEnabled'] === 'Y' && checkres1['bgColor']) {
+                    columnCellStyles['background-color'] = checkres1['bgColor']
+                }
+                
+                // Apply styles only to tbody cells, not header cells
+                $('.slot-tbody-' + tableid + ' .' + checkres1['colid']).css(columnCellStyles);
+            });
+        })
+    }
+
+    //set style of row odd/even color and row height
+    $('.slot-tbody-' + tableid).find('tr:odd').css('background-color', headRowOddColor)
+    $('.slot-tbody-' + tableid).find('tr:even').css('background-color', headRowEvenColor)
+
+    //row table height
+    $('.slot-tbody-' + tableid).find('tr').css({
+        "white-space": "nowrap",
+        "overflow": "hidden !important",
+        "text-overflow": "clip",
+        "height": "100%",
+        "max-height": bodyRowHeight + "px !important",
+        'line-height': bodyRowHeight + 'px'
+    })
+    //fit all elements size inside td
+    $('.slot-tbody-' + tableid).find('td').css({
+        "white-space": "nowrap",
+        "overflow": "hidden !important",
+        "text-overflow": "clip",
+        "vertical-align": tableStyleVAlign
+    })
+
+    $('.slot-tbody-' + tableid).find('tr td *').css({
+        "max-height": bodyRowHeight + "px !important",
+        "white-space": "nowrap",
+        "overflow": "hidden",
+        "text-overflow": "clip",
+        "vertical-align": tableStyleVAlign,
+    })
+
+    // Store all data to pagerow object (synchronous like Electron version)
+    console.log('[tableRecord] Collecting rows for table:', tableid);
+    var foundRows = $('.slot-tbody-' + tableid).find('tr');
+    foundRows.each(function (i, row) {
+        return pagerow[tableid].push(row)
+    })
+    console.log('[tableRecord] ✓ Collected', pagerow[tableid].length, 'rows into pagerow array');
+
+    if (pagerow[tableid].length != 0) {
+        var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight);
+        maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+        maxrows = maxrows - 1;
+        var pagination = $('#pagination-' + tableid);
+        var totalRows = pagerow[tableid].length;  // Total number of rows
+        var pageSize = parseInt(maxrows);
+
+        // Check if there's only one page of data
+        if (totalRows <= pageSize) {
+            pagination.hide();  // Hide pagination if only 1 page
+            $('#slot-' + tableid).find('.pagination-pages').hide()
+            $('#pagination-' + tableid).hide()
+            $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
+        } else {
+            pagination.pagination({
+                dataSource: pagerow[tableid],
+                pageSize: pageSize,
+                showPageNumbers: false,
+                showNavigator: false,
+                showPrevious: false,
+                showNext: false,
+                callback: function (data, pagi) {
+                    $('.slot-tbody-' + tableid).html(data);
+                }
+            });
+
+            // Change page element if got update
+            if (checkpage[tableid] == true) {
+                checkpage[tableid] = false;
+                pagination.pagination('go', 1);
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+            } else {
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+                pagination.pagination('go', pageincrease[tableid]);
+            }
+
+            // Auto page flip
+            pageAutoInterval[tableid] = setInterval(function () {
+                pageincrease[tableid] += 1;
+                var totalpage = pagination.pagination('getTotalPage') || 1;
+                if (pageincrease[tableid] > totalpage) {
+                    pageincrease[tableid] = 1;
+                    pagination.pagination('go', 1);
+                } else {
+                    pagination.pagination('next');
+                }
+
+                // Refresh page
+                $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
+            }, pageLengthTime[tableid]);
         }
+    }
 
     } catch (error) {
         console.error('[tableRecord] Error during table rendering:', error);

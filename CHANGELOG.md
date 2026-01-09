@@ -1,5 +1,148 @@
 # Change Log
 
+## [3.8.0] - 2026-01-09
+
+### Added - Table Slot Per-Column Enhancements
+
+- **Per-Column Background Colors** - Added ability to set individual background colors for each table column
+  - bgcolor_enabled attribute (Y/N) enables per-column background colors
+  - bgcolor attribute (#xxxxxx) specifies hex color for column cells
+  - Scoped to tbody cells only - header cells remain unaffected by column bgcolor settings
+  - Impact: Enhanced visual organization and data categorization in table displays
+
+- **Per-Column Fader Timing** - Added independent fader animation timing for each column
+  - fader_enabled attribute (Y/N) enables per-column fader settings
+  - fader_switching_time attribute (seconds) controls display duration per column
+  - fader_speed attribute (milliseconds) controls transition speed per column
+  - Impact: Flexible animation timing allowing different update rates per data type
+
+- **Per-Column Image Transitions** - Added five professional image transition types per column
+  - image_enabled attribute (Y/N) enables per-column image settings
+  - image_transition attribute supports: fade, slide-right, slide-left, scroll-up, scroll-down
+  - image_switching_time attribute (seconds) controls image display duration
+  - transition_speed attribute (milliseconds) controls transition animation speed
+  - fill_to_column attribute (Y/N) enables full column fill mode
+  - Impact: Professional image animations with precise per-column control
+
+- **Mobile Platform Support** - Enhanced mobile version with all desktop features plus mobile-specific optimizations
+  - External URL support for http/https image sources
+  - Media manager integration for efficient local file handling
+  - Batch image preloading for improved performance
+  - Rendering guard system preventing duplicate table rows
+  - Comprehensive cleanup functions preventing memory leaks
+  - Impact: Feature parity between desktop and mobile with mobile-optimized performance
+
+### Technical Details
+
+**New Column Attributes:**
+```xml
+<column align="c" width="200"
+        bgcolor_enabled="Y" bgcolor="#e3f2fd"
+        fader_enabled="Y" fader_switching_time="8" fader_speed="600"
+        image_enabled="Y" image_transition="fade"
+        image_switching_time="10" transition_speed="800"
+        fill_to_column="N">
+    Column Header
+</column>
+```
+
+**Data Flow:**
+```
+Layout XML → slotitem[1]['elements'] (columns)
+           → columnStyle array (per-column settings)
+           → colFaderSettings[cellKey] (per-cell fader config)
+           → colImageSettings[cellKey] (per-cell image config)
+           → Render with dynamic CSS classes
+```
+
+**Animation System:**
+```css
+/* Five transition types with in/out variants */
+.image-fade-out / .image-fade-in
+.image-slide-right-out / .image-slide-right-in
+.image-slide-left-out / .image-slide-left-in
+.image-scroll-up-out / .image-scroll-up-in
+.image-scroll-down-out / .image-scroll-down-in
+```
+
+**Mobile-Specific Features:**
+```javascript
+// External URL detection
+function isExternalMediaUrl(url) {
+    return url && (url.startsWith('http://') || url.startsWith('https://'));
+}
+
+// Media manager integration
+if (window.mediaManager) {
+    await window.mediaManager.initialize();
+    window.mediaManager.preloadMediaBatch(imagesToPreload);
+    const localPath = window.mediaManager.getMediaPath(filename);
+}
+
+// Rendering guard
+if (tableRendering[tableid]) {
+    console.warn('Table already rendering, skipping');
+    return;
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added column enhancement parsing and rendering (250 lines added)
+- src/assets/css/style.css - Added 5 transition animation keyframes (190 lines added)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added enhancements plus mobile optimizations (270 lines added)
+- mobile/www/assets/css/style.css - Added animation keyframes matching desktop (253 lines added)
+
+### New Documentation Files
+
+- docs/TABLE-COLUMN-ENHANCEMENTS.md - Comprehensive feature documentation (700+ lines)
+- docs/IMPLEMENTATION-SUMMARY.md - Technical implementation details (650+ lines)
+- TABLE-COLUMN-ENHANCEMENTS-README.md - Quick start guide (200+ lines)
+- MOBILE-ENHANCEMENTS-MERGE.md - Mobile merge details (300+ lines)
+- MOBILE-MERGE-COMPLETE.md - Mobile completion guide (250+ lines)
+- table-column-config-sample.json - Working configuration example
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Column backgrounds | Global only | Per-column colors |
+| Fader timing | Global fixed | Per-column configurable |
+| Image transitions | Single type | 5 types per column |
+| Image timing | Global only | Per-column control |
+| Image sizing | Fixed aspect | Fill-to-column option |
+| Mobile features | Basic | Full parity + optimizations |
+| External images | Desktop only | Mobile + desktop |
+| Memory management | Basic | Comprehensive cleanup |
+| Configuration | Limited | Fully flexible |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- All new attributes optional with sensible defaults
+- No breaking changes to existing functionality
+- CSS animations supported by all modern browsers
+- Media manager integration gracefully degrades if unavailable
+
+### Testing
+
+Verify column enhancements:
+- Create table with bgcolor_enabled="Y" on multiple columns
+- Verify each column displays configured background color
+- Test fader columns with different switching times per column
+- Create image columns with different transition types
+- Verify slide-right, slide-left, scroll-up, scroll-down, fade transitions
+- Test fill_to_column="Y" with various image aspect ratios
+- Test mobile app with external http/https image URLs
+- Verify media manager preloads images efficiently
+- Check multiple tables render without row duplication
+- Confirm memory cleanup prevents leaks on table updates
+
 ## [3.7.7] - 2025-12-31
 
 ### Fixed - Table Row Height Not Respecting bodyRowHeight Configuration

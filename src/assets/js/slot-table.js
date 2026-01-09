@@ -112,6 +112,20 @@ function tableFunc(slotitem, index, slotattr) {
         var cellTopLeftRadius = column['attributes']['trradius']
         var cellBottomRightRadius = column['attributes']['blradius']
         var cellBottomLeftRadius = column['attributes']['brradius']
+        
+        // New column-level settings
+        var bgColorEnabled = column['attributes']['bgcolor_enabled'] || 'N'
+        var bgColor = column['attributes']['bgcolor'] || ''
+        var faderEnabled = column['attributes']['fader_enabled'] || 'N'
+        var faderSwitchingTime = column['attributes']['fader_switching_time'] || null
+        var faderSpeed = column['attributes']['fader_speed'] || null
+        var imageEnabled = column['attributes']['image_enabled'] || 'N'
+        var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
+        var imageSwitchingTime = column['attributes']['image_switching_time'] || null
+        var transitionSpeed = column['attributes']['transition_speed'] || null
+        var fillToColumn = column['attributes']['fill_to_column'] || 'N'
+        
+        console.log()
         if (columnAlign == 'c') {
             columnAlign = 'center'
         } else if (columnAlign == 'l') {
@@ -128,11 +142,22 @@ function tableFunc(slotitem, index, slotattr) {
         colSytleObj.blradius = cellBottomLeftRadius
         colSytleObj.brradius = cellBottomRightRadius
         colSytleObj.width = columnWidth
+        colSytleObj.bgColorEnabled = bgColorEnabled
+        colSytleObj.bgColor = bgColor
+        colSytleObj.faderEnabled = faderEnabled
+        colSytleObj.faderSwitchingTime = faderSwitchingTime
+        colSytleObj.faderSpeed = faderSpeed
+        colSytleObj.imageEnabled = imageEnabled
+        colSytleObj.imageTransition = imageTransition
+        colSytleObj.imageSwitchingTime = imageSwitchingTime
+        colSytleObj.transitionSpeed = transitionSpeed
+        colSytleObj.fillToColumn = fillToColumn
         columnStyle.push(colSytleObj)
         if (cindex == slotitem[1]['elements'].length - 1) {
 
         }
-        $('.col' + zeroPad(columnIndex, 2)).css({
+        // Apply header column styles (NO bgcolor - header uses headStyleBgColor)
+        $('.slot-thead-' + tableid + ' .col' + zeroPad(columnIndex, 2)).css({
             'text-align': columnAlign,
             "border-radius": cellTopRightRadius + "px " + cellTopLeftRadius + "px " + cellBottomLeftRadius + "px " + cellBottomRightRadius + "px",
             'width': columnWidth + "px",
@@ -151,6 +176,10 @@ var colImageloop = new Array()
 var colFaderTimeout = new Array()
 var colFaderCurIndex = new Array()
 var colFaderloop = new Array()
+// Per-column fader settings
+var colFaderSettings = new Array()
+// Per-column image settings
+var colImageSettings = new Array()
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -248,6 +277,33 @@ function tableRecord(slotitem, index, table) {
                 if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
                     clearTimeout(colImageTimeout[cellKey])
                 }
+                
+                // Store per-column settings for this cell
+                // Find the column configuration from columnStyle
+                var columnIndex = zindex + 1
+                var colClass = 'col' + zeroPad(columnIndex, 2)
+                var columnConfig = columnStyle.find(function(style) {
+                    return style.colid === colClass
+                })
+                
+                if (columnConfig) {
+                    // Store fader settings for this cell
+                    colFaderSettings[cellKey] = {
+                        enabled: columnConfig.faderEnabled === 'Y',
+                        switchingTime: columnConfig.faderSwitchingTime ? parseInt(columnConfig.faderSwitchingTime) * 1000 : null,
+                        speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null
+                    }
+                    
+                    // Store image settings for this cell
+                    colImageSettings[cellKey] = {
+                        enabled: columnConfig.imageEnabled === 'Y',
+                        transition: columnConfig.imageTransition || 'scroll-up',
+                        switchingTime: columnConfig.imageSwitchingTime ? parseInt(columnConfig.imageSwitchingTime) * 1000 : null,
+                        transitionSpeed: columnConfig.transitionSpeed ? parseInt(columnConfig.transitionSpeed) : null,
+                        fillToColumn: columnConfig.fillToColumn === 'Y'
+                    }
+                }
+                
                 var colFormat = col[1].substring(0, 6)
                 if (colFormat == 'image:') {
                     var n = col[1].lastIndexOf(':')
@@ -318,6 +374,19 @@ function tableRecord(slotitem, index, table) {
                     clearTimeout(colImageTimeout[cellKey])
                 }
                 
+                // Get per-column image settings or use global defaults
+                var imageSettings = colImageSettings[cellKey] || {}
+                var transitionType = (imageSettings.enabled && imageSettings.transition) 
+                    ? imageSettings.transition 
+                    : 'scroll-up'
+                var transitionSpeed = (imageSettings.enabled && imageSettings.transitionSpeed) 
+                    ? imageSettings.transitionSpeed 
+                    : (colAnimationDuration[tableid] * 0.75)
+                var switchingTime = (imageSettings.enabled && imageSettings.switchingTime) 
+                    ? imageSettings.switchingTime 
+                    : colAnimationInterval[tableid]
+                var fillToColumn = imageSettings.fillToColumn || false
+                
                 var targetContainer = $('.' + cellKey.split('-')[2] + ' .imagecol-' + colRowIndex)
                 var renderEl = ''
                 
@@ -328,8 +397,8 @@ function tableRecord(slotitem, index, table) {
                     renderEl = '<img src="" alt="Image not found" style="display:none;">'
                 }
                 
-                // Function to apply vertical alignment styles after content update
-                function applyVerticalAlignmentStyles() {
+                // Function to apply vertical alignment and sizing styles
+                function applyImageStyles() {
                     //row table height
                     $('.slot-tbody-' + tableid).find('tr').css({
                         "white-space": "nowrap",
@@ -367,52 +436,76 @@ function tableRecord(slotitem, index, table) {
                         "vertical-align": tableStyleVAlign
                     })
                     
-                    // Constrain images to row height
-                    $('.imagecol-' + colRowIndex + ' img').css({
-                        "max-height": bodyRowHeight + "px",
-                        "height": "auto",
-                        "width": "auto",
-                        "vertical-align": tableStyleVAlign
-                    })
+                    // Apply image sizing based on fill_to_column setting
+                    if (fillToColumn) {
+                        // Fill entire column - ignore aspect ratio
+                        $('.imagecol-' + colRowIndex + ' img').css({
+                            "object-fit": "cover",
+                            "width": "100%",
+                            "height": bodyRowHeight + "px",
+                            "max-height": bodyRowHeight + "px",
+                            "vertical-align": tableStyleVAlign
+                        })
+                    } else {
+                        // Constrain to row height, maintain aspect ratio
+                        $('.imagecol-' + colRowIndex + ' img').css({
+                            "object-fit": "contain",
+                            "max-height": bodyRowHeight + "px",
+                            "height": "auto",
+                            "width": "auto",
+                            "vertical-align": tableStyleVAlign
+                        })
+                    }
                 }
+                
+                // Map transition types to CSS animation classes
+                var transitionClassMap = {
+                    'fade': { out: 'image-fade-out', in: 'image-fade-in' },
+                    'slide-right': { out: 'image-slide-right-out', in: 'image-slide-right-in' },
+                    'slide-left': { out: 'image-slide-left-out', in: 'image-slide-left-in' },
+                    'scroll-up': { out: 'image-scroll-up-out', in: 'image-scroll-up-in' },
+                    'scroll-down': { out: 'image-scroll-down-out', in: 'image-scroll-down-in' }
+                }
+                
+                var transitionClasses = transitionClassMap[transitionType] || transitionClassMap['scroll-up']
                 
                 // Check if this is an update (not first render) and multiple images exist
                 if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
-                    // Apply scroll animation like fader text (scroll out old, scroll in new)
+                    // Apply transition animation based on configured type
                     var $oldImage = targetContainer.find('img')
                     if ($oldImage.length > 0) {
-                        $oldImage.addClass('fader-scroll-out')
-                        $oldImage.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms')
+                        $oldImage.addClass(transitionClasses.out)
+                        $oldImage.css('animation-duration', transitionSpeed + 'ms')
                     }
                     
-                    // Wait for scroll-out animation to complete, then update content
+                    // Wait for transition-out animation to complete, then update content
                     setTimeout(function() {
                         targetContainer.html(renderEl)
                         var $newImage = targetContainer.find('img')
-                        $newImage.addClass('fader-scroll-in')
-                        $newImage.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms')
+                        $newImage.addClass(transitionClasses.in)
+                        $newImage.css('animation-duration', transitionSpeed + 'ms')
                         
-                        // Apply vertical alignment styles after new image is inserted
-                        applyVerticalAlignmentStyles()
+                        // Apply image styles after new image is inserted
+                        applyImageStyles()
                         
                         // Remove animation class after it completes
                         setTimeout(function() {
-                            targetContainer.find('img').removeClass('fader-scroll-in')
-                        }, colAnimationDuration[tableid] * 0.75)
-                    }, colAnimationDuration[tableid] * 0.75)
+                            targetContainer.find('img').removeClass(transitionClasses.in)
+                        }, transitionSpeed)
+                    }, transitionSpeed)
                 } else {
                     // First render - no animation
                     targetContainer.html(renderEl)
-                    // Apply vertical alignment styles after first render
-                    applyVerticalAlignmentStyles()
+                    // Apply image styles after first render
+                    applyImageStyles()
                 }
 
                 // Only cycle to next if there are multiple images
                 if (colImageloop[cellKey].length > 1) {
-                    // go to the next column image using configured interval
+                    // go to the next column image using per-column or global interval
                     colImageTimeout[cellKey] = setTimeout(function () {
                         changeColImageMedia(cellKey)
-                    }, colAnimationInterval[tableid])
+                    }, switchingTime)
                 }
             }
 
@@ -435,6 +528,15 @@ function tableRecord(slotitem, index, table) {
                     clearTimeout(colFaderTimeout[cellKey])
                 }
                 
+                // Get per-column fader settings or use global defaults
+                var faderSettings = colFaderSettings[cellKey] || {}
+                var animationDuration = (faderSettings.enabled && faderSettings.speed) 
+                    ? faderSettings.speed 
+                    : colAnimationDuration[tableid]
+                var animationInterval = (faderSettings.enabled && faderSettings.switchingTime) 
+                    ? faderSettings.switchingTime 
+                    : colAnimationInterval[tableid]
+                
                 var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
                 
                 // Check if this is the first render or an update
@@ -442,20 +544,20 @@ function tableRecord(slotitem, index, table) {
                     // Animate out the old content with configured duration
                     var $oldElement = targetContainer.find('.column-fader')
                     $oldElement.addClass('fader-scroll-out')
-                    $oldElement.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms') // 0.75 for scroll-out
+                    $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-out
                     
                     // Wait for animation to complete, then update content
                     setTimeout(function() {
                         var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader fader-scroll-in">' + item.text + '</div>'
                         targetContainer.html(renderEl)
                         var $newElement = targetContainer.find('.column-fader')
-                        $newElement.css('animation-duration', (colAnimationDuration[tableid] * 0.75) + 'ms') // 0.75 for scroll-in
+                        $newElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-in
                         
                         // Remove animation class after it completes
                         setTimeout(function() {
                             targetContainer.find('.column-fader').removeClass('fader-scroll-in')
-                        }, colAnimationDuration[tableid] * 0.75)
-                    }, colAnimationDuration[tableid] * 0.75)
+                        }, animationDuration * 0.75)
+                    }, animationDuration * 0.75)
                 } else {
                     // First render - no animation
                     var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader">' + item.text + '</div>'
@@ -489,23 +591,31 @@ function tableRecord(slotitem, index, table) {
 
                 // Only cycle to next if there are multiple items
                 if (colFaderloop[cellKey].length > 1) {
-                    // go to the next column fader using configured interval
+                    // go to the next column fader using per-column or global interval
                     colFaderTimeout[cellKey] = setTimeout(function () {
                         changeColTextFader(cellKey)
-                    }, colAnimationInterval[tableid])
+                    }, animationInterval)
                 }
             }
 
-            // Append <col> with width, and apply other styles to <td>/<th>
+            // Append <col> with width, and apply other styles to <td> in tbody only
             columnStyle.forEach(function (checkres1, vindex) {
-                // Apply the styles to the corresponding <td> or <th>
-                $(' .' + checkres1['colid']).css({
+                // Apply the styles to the corresponding <td> in tbody (not header <th>)
+                var columnCellStyles = {
                     'text-align': checkres1['textalign'],
                     "border-radius": checkres1['trradius'] + "px " + checkres1['tlradius'] + "px " + checkres1['blradius'] + "px " + checkres1['brradius'] + "px",
                     'height': bodyRowHeight + "px",
                     'max-height': bodyRowHeight + "px",
                     'line-height': bodyRowHeight + "px"
-                });
+                }
+                
+                // Apply column background color if enabled (only to tbody cells)
+                if (checkres1['bgColorEnabled'] === 'Y' && checkres1['bgColor']) {
+                    columnCellStyles['background-color'] = checkres1['bgColor']
+                }
+                
+                // Apply styles only to tbody cells, not header cells
+                $('.slot-tbody-' + tableid + ' .' + checkres1['colid']).css(columnCellStyles);
             });
         })
     }
