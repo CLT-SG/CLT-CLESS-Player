@@ -21,6 +21,7 @@ var tableTransition = [] // stores transition type per table (none, fade, slide-
 var tableFlipMode = [] // stores flip mode per table (1 = pagination, 2 = line)
 var tableHidePagination = [] // stores hide pagination flag per table (Y/N)
 var tableHideHeader = [] // stores hide header flag per table (Y/N)
+var tableWrap = [] // stores wrap text flag per table (Y/N)
 
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
@@ -39,6 +40,7 @@ function tableFunc(slotitem, index, slotattr) {
     tableHidePagination[tableid] = slotattr['hidepagination'] || 'N' // Y = hide pagination numbers, N = show (default)
     tableTransition[tableid] = slotattr['transition'] || 'none' // none (default), fade, slide-right, slide-left, scroll-up, scroll-down
     tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N' // Y = hide header, N = show (default)
+    tableWrap[tableid] = slotattr['wrap'] || 'N' // Y = wrap text, N = clip text (default)
     
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
@@ -662,19 +664,21 @@ function tableRecord(slotitem, index, table) {
     $('.slot-tbody-' + tableid).find('tr:even').css('background-color', headRowEvenColor)
 
     //row table height
+    var wrapStyle = tableWrap[tableid] === 'Y' ? 'normal' : 'nowrap'
+    var textOverflow = tableWrap[tableid] === 'Y' ? 'ellipsis' : 'clip'
     $('.slot-tbody-' + tableid).find('tr').css({
-        "white-space": "nowrap",
+        "white-space": wrapStyle,
         "overflow": "hidden",
-        "text-overflow": "clip",
+        "text-overflow": textOverflow,
         "height": bodyRowHeight + "px",
         "max-height": bodyRowHeight + "px",
         'line-height': bodyRowHeight + 'px'
     })
     //fit all elements size inside td
     $('.slot-tbody-' + tableid).find('td').css({
-        "white-space": "nowrap",
+        "white-space": wrapStyle,
         "overflow": "hidden",
-        "text-overflow": "clip",
+        "text-overflow": textOverflow,
         "vertical-align": tableStyleVAlign,
         "height": bodyRowHeight + "px",
         "max-height": bodyRowHeight + "px"
@@ -682,9 +686,9 @@ function tableRecord(slotitem, index, table) {
 
     $('.slot-tbody-' + tableid).find('tr td *').css({
         "max-height": bodyRowHeight + "px !important",
-        "white-space": "nowrap",
+        "white-space": wrapStyle,
         "overflow": "hidden",
-        "text-overflow": "clip",
+        "text-overflow": textOverflow,
         "vertical-align": tableStyleVAlign,
     })
 
@@ -707,21 +711,14 @@ function tableRecord(slotitem, index, table) {
             $('#slot-' + tableid).find('.pagination-pages').hide()
         }
 
-        // Check if there's only one page of data
-        if (totalRows <= pageSize) {
-            pagination.hide();  // Hide pagination if only 1 page
-            $('#slot-' + tableid).find('.pagination-pages').hide()
-            $('#pagination-' + tableid).hide()
-            $('.slot-tbody-' + tableid).html(pagerow[tableid]);  // Render the data without pagination
+        // Always use pagination even for single page (to show 1/1)
+        // Check flip mode
+        if (flipMode === 2) {
+            // Line type mode - scroll line by line
+            implementLineTypeMode(tableid, pagerow[tableid], pageSize)
         } else {
-            // Check flip mode
-            if (flipMode === 2) {
-                // Line type mode - scroll line by line
-                implementLineTypeMode(tableid, pagerow[tableid], pageSize)
-            } else {
-                // Pagination mode (default)
-                implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
-            }
+            // Pagination mode (default)
+            implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
         }
     }
 }
