@@ -1,5 +1,108 @@
 # Change Log
 
+## [3.9.2] - 2026-01-09
+
+### Fixed - Table Height Configuration
+
+- **Table Height Not Applied** - Fixed table height attribute not being applied to table CSS styling
+  - Root cause: tableStyleHeight variable read from slotattr height but never applied to table element
+  - Solution: Added height and max-height CSS properties to table using tableStyleHeight value
+  - Impact: Tables now respect configured height attribute for consistent dimensions
+
+- **Maxrows Calculation Using Wrong Height** - Fixed pagination calculation using dynamic slot height instead of configured table height
+  - Root cause: maxrows calculated from dynamic slot height ignoring table height attribute
+  - Solution: Changed calculation to use configured table height as primary source with fallback
+  - Impact: Accurate pagination row count based on actual configured table dimensions
+
+### Technical Details
+
+**Table Height CSS Application:**
+```javascript
+// tableStyleHeight read from attributes
+var tableStyleHeight = slotattr['height']
+
+// Applied to table CSS
+$('.slot-table-' + tableid).css({
+    "width": tableStyleWidth + 'px',
+    "height": tableStyleHeight + 'px',
+    "max-height": tableStyleHeight + 'px'
+})
+```
+
+**Maxrows Calculation Fix:**
+```javascript
+// Before (BROKEN):
+var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight);
+maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+maxrows = maxrows - 1;  // Arbitrary adjustment
+
+// After (FIXED):
+var configuredHeight = parseInt(table['height']) || parseInt($('#slot-' + tableid).height());
+var maxrows = configuredHeight - parseInt(headRowHeight);
+maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+maxrows = Math.floor(maxrows);  // Precise calculation
+```
+
+**Column Styles Preservation:**
+- Column attributes (alignment, colors, borders, background) applied independently to tbody cells
+- Height changes only affect table container not individual column formatting
+- Background colors, text alignment, border radius remain unaffected
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added height CSS and fixed maxrows calculation (2 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added height CSS and fixed maxrows calculation (2 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Height attribute | Read but not applied | Applied to table CSS |
+| Table dimensions | Dynamic only | Fixed pixel height supported |
+| Maxrows calculation | Dynamic slot height | Configured table height |
+| Pagination accuracy | Inconsistent | Based on actual height |
+| Column styles | Independent | Independent (maintained) |
+| Flipmode support | Both work | Both work (maintained) |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- Height attribute optional with automatic fallback to dynamic height
+- No breaking changes to existing functionality
+- All existing table attributes continue to work as expected
+- Works with both flipmode values (pagination and line scrolling)
+
+### Testing
+
+Verify table height configuration:
+- Create table with height attribute set to specific pixel value
+- Verify table renders at exact configured height
+- Test maxrows calculation produces correct page size
+- Confirm pagination works correctly with fixed height
+
+Verify flipmode compatibility:
+- Test flipmode 1 (pagination) with configured height
+- Test flipmode 2 (line scrolling) with configured height
+- Verify both modes respect height constraints
+- Confirm smooth transitions within fixed height
+
+Verify column styles preserved:
+- Configure table with column colors, alignment, borders
+- Verify all column attributes render correctly
+- Test background colors remain unaffected by height changes
+- Confirm text alignment and borders display properly
+
+Verify backward compatibility:
+- Tables without height attribute use dynamic slot height
+- Existing tables render correctly without modifications
+- Multiple tables with different configurations coexist properly
+- Both desktop and mobile versions behave identically
+
 ## [3.9.1] - 2026-01-09
 
 ### Added - Table Text Wrapping Configuration

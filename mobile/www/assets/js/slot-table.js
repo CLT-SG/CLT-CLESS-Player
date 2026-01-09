@@ -141,6 +141,8 @@ function tableFunc(slotitem, index, slotattr) {
         "border-collapse": "collapse",
         "border-spacing": tableStyleSpacing + 'px',
         "width": tableStyleWidth + 'px',
+        "height": tableStyleHeight + 'px',
+        "max-height": tableStyleHeight + 'px'
     })
 
     //head row
@@ -894,9 +896,11 @@ async function tableRecord(slotitem, index, table) {
     console.log('[tableRecord] ✓ Collected', pagerow[tableid].length, 'rows into pagerow array');
 
     if (pagerow[tableid].length != 0) {
-        var maxrows = parseInt($('#slot-' + tableid).height()) - parseInt(headRowHeight);
+        // Use configured table height for maxrows calculation
+        var configuredHeight = parseInt(table['height']) || parseInt($('#slot-' + tableid).height());
+        var maxrows = configuredHeight - parseInt(headRowHeight);
         maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
-        maxrows = maxrows - 1;
+        maxrows = Math.floor(maxrows);
         var pagination = $('#pagination-' + tableid);
         var totalRows = pagerow[tableid].length;  // Total number of rows
         var pageSize = parseInt(maxrows);
