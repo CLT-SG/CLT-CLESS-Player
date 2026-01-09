@@ -1,5 +1,92 @@
 # Change Log
 
+## [3.8.1] - 2026-01-09
+
+### Fixed - Table Transition Loop From Last to First Item
+
+- **Fixed Transition Loop Animation** - Fixed table fader and image columns not showing transition when cycling from last item to first
+  - Root cause: Condition checked colImageCurIndex greater than 0 which failed when index reset to 0 for loop-back
+  - Solution: Added first render tracking arrays to differentiate true first render from loop-back
+  - Impact: Smooth continuous transitions throughout entire animation cycle including loop-back
+
+### Technical Details
+
+**Root Cause:**
+The transition logic used current index to determine if animation should apply:
+```javascript
+// Before (BROKEN):
+if (colImageCurIndex[cellKey] > 0 && colImageloop[cellKey].length > 1) {
+    // Apply transition animation
+}
+```
+
+When cycling from last item to first, the index resets to 0, making the condition false and skipping the animation.
+
+**Solution:**
+Added dedicated tracking arrays and changed condition to check first render state:
+```javascript
+// Added tracking arrays
+var colImageFirstRender = new Array() // Track if column has rendered at least once
+var colFaderFirstRender = new Array() // Track if column has rendered at least once
+
+// Fixed condition
+var isFirstRender = colImageFirstRender[cellKey] !== true
+if (!isFirstRender && colImageloop[cellKey].length > 1) {
+    // Apply transition - works even when index is 0
+}
+```
+
+**Implementation:**
+Updated change functions to mark columns as rendered:
+```javascript
+function changeColImageMedia(cellKey) {
+    if (colImageCurIndex[cellKey] >= colImageloop[cellKey].length) {
+        colImageCurIndex[cellKey] = 0
+    }
+    // Mark that this column has been rendered before
+    if (colImageFirstRender[cellKey] === undefined) {
+        colImageFirstRender[cellKey] = true
+    }
+    appendColumnImage(colImageloop[cellKey][colImageCurIndex[cellKey]], cellKey)
+    colImageCurIndex[cellKey]++
+}
+```
+
+### Files Modified
+
+- src/assets/js/slot-table.js - Fixed transition loop for electron version (22 lines changed)
+- mobile/www/assets/js/slot-table.js - Fixed transition loop for mobile version (22 lines changed)
+
+### Impact
+
+| Aspect | Before | After |
+|--------|--------|-------|
+| First item display | No animation (correct) | No animation (maintained) |
+| Item 1 to 2 transition | Animated | Animated (maintained) |
+| Item 2 to 3 transition | Animated | Animated (maintained) |
+| Last to first transition | No animation (BROKEN) | Animated (FIXED) |
+| Animation consistency | Broken on loop | Continuous throughout cycle |
+
+### Compatibility
+
+- Works with desktop Electron app (src folder)
+- Works with mobile Android app (mobile www folder)
+- No breaking changes to existing table functionality
+- Backward compatible with all existing configurations
+- Maintains all transition types (fade, slide-right, slide-left, scroll-up, scroll-down)
+- Compatible with single-item columns (no animation needed)
+
+### Testing
+
+Verify transition loop fix:
+- Create table with fader column containing 3 or more comma-separated values
+- Verify animation from item 1 to 2, then 2 to 3
+- Verify animation from last item back to item 1 (previously broken, now fixed)
+- Create table with image column containing 3 or more images
+- Verify smooth image transitions including loop-back
+- Test with different transition types to confirm all work on loop-back
+- Verify multiple rows animate independently with proper loop transitions
+
 ## [3.8.0] - 2026-01-09
 
 ### Added - Table Slot Per-Column Enhancements
