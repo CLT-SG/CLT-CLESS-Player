@@ -234,17 +234,20 @@ function tableFunc(slotitem, index, slotattr) {
         var bgColor = column['attributes']['bgcolor'] || ''
         // Fader settings (for fader: format - original scroll effect)
         var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['fader_switching_time'] || null
-        var faderSpeed = column['attributes']['fader_speed'] || null
+        var faderSwitchingTime = column['attributes']['fader_switching_time'] || 10 // Default: 10 seconds
+        var faderSpeed = column['attributes']['fader_speed'] || 800 // Default: 800 ms
+        var faderDelay = column['attributes']['fader_delay'] || 0 // Default: 0 ms (starts immediately)
         // Text transition settings (for transition: format - multiple effects)
         var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
-        var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || null
-        var textTransitionSpeed = column['attributes']['text_transition_speed'] || null
+        var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
+        var textTransitionSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
         var textTransitionStyle = column['attributes']['text_transition_style'] || 'scroll-up'
+        var textTransitionDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         var imageEnabled = column['attributes']['image_enabled'] || 'N'
         var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
-        var imageSwitchingTime = column['attributes']['image_switching_time'] || null
-        var transitionSpeed = column['attributes']['transition_speed'] || null
+        var imageSwitchingTime = column['attributes']['image_switching_time'] || 10 // Default: 10 seconds
+        var imageTransitionSpeed = column['attributes']['image_transition_speed'] || 800 // Default: 800 ms
+        var imageTransitionDelay = column['attributes']['image_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         var fillToColumn = column['attributes']['fill_to_column'] || 'N'
         if (columnAlign == 'c') {
             columnAlign = 'center'
@@ -267,14 +270,17 @@ function tableFunc(slotitem, index, slotattr) {
         colSytleObj.faderEnabled = faderEnabled
         colSytleObj.faderSwitchingTime = faderSwitchingTime
         colSytleObj.faderSpeed = faderSpeed
+        colSytleObj.faderDelay = faderDelay
         colSytleObj.textTransitionEnabled = textTransitionEnabled
         colSytleObj.textTransitionSwitchingTime = textTransitionSwitchingTime
         colSytleObj.textTransitionSpeed = textTransitionSpeed
         colSytleObj.textTransitionStyle = textTransitionStyle
+        colSytleObj.textTransitionDelay = textTransitionDelay
         colSytleObj.imageEnabled = imageEnabled
         colSytleObj.imageTransition = imageTransition
         colSytleObj.imageSwitchingTime = imageSwitchingTime
-        colSytleObj.transitionSpeed = transitionSpeed
+        colSytleObj.imageTransitionSpeed = imageTransitionSpeed
+        colSytleObj.imageTransitionDelay = imageTransitionDelay
         colSytleObj.fillToColumn = fillToColumn
         columnStyle.push(colSytleObj)
         if (cindex == slotitem[1]['elements'].length - 1) {
@@ -498,7 +504,8 @@ async function tableRecord(slotitem, index, table) {
                     colFaderSettings[cellKey] = {
                         enabled: columnConfig.faderEnabled === 'Y',
                         switchingTime: columnConfig.faderSwitchingTime ? parseInt(columnConfig.faderSwitchingTime) * 1000 : null,
-                        speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null
+                        speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null,
+                        delay: columnConfig.faderDelay ? parseInt(columnConfig.faderDelay) : 0
                     }
                     
                     // Store text transition settings for this cell (transition: format)
@@ -506,7 +513,8 @@ async function tableRecord(slotitem, index, table) {
                         enabled: columnConfig.textTransitionEnabled === 'Y',
                         switchingTime: columnConfig.textTransitionSwitchingTime ? parseInt(columnConfig.textTransitionSwitchingTime) * 1000 : null,
                         speed: columnConfig.textTransitionSpeed ? parseInt(columnConfig.textTransitionSpeed) : null,
-                        style: columnConfig.textTransitionStyle || 'scroll-up'
+                        style: columnConfig.textTransitionStyle || 'scroll-up',
+                        delay: columnConfig.textTransitionDelay ? parseInt(columnConfig.textTransitionDelay) : 0
                     }
                     
                     // Store image settings for this cell
@@ -514,8 +522,9 @@ async function tableRecord(slotitem, index, table) {
                         enabled: columnConfig.imageEnabled === 'Y',
                         transition: columnConfig.imageTransition || 'scroll-up',
                         switchingTime: columnConfig.imageSwitchingTime ? parseInt(columnConfig.imageSwitchingTime) * 1000 : null,
-                        transitionSpeed: columnConfig.transitionSpeed ? parseInt(columnConfig.transitionSpeed) : null,
-                        fillToColumn: columnConfig.fillToColumn === 'Y'
+                        transitionSpeed: columnConfig.imageTransitionSpeed ? parseInt(columnConfig.imageTransitionSpeed) : null,
+                        fillToColumn: columnConfig.fillToColumn === 'Y',
+                        delay: columnConfig.imageTransitionDelay ? parseInt(columnConfig.imageTransitionDelay) : 0
                     }
                 }
                 
@@ -557,11 +566,18 @@ async function tableRecord(slotitem, index, table) {
                             
                             // Only start animation if there are multiple images
                             if (colImageloop[cellKey].length > 0) {
-                                appendColumnImage(colImageloop[cellKey][0], cellKey)
-                                // Start cycling if more than one image
-                                if (colImageloop[cellKey].length > 1) {
-                                    colImageCurIndex[cellKey] = 1
-                                }
+                                // Get delay from settings
+                                var imageSettings = colImageSettings[cellKey] || {}
+                                var imageDelay = imageSettings.delay || 0
+                                
+                                // Apply delay before first render
+                                setTimeout(function() {
+                                    appendColumnImage(colImageloop[cellKey][0], cellKey)
+                                    // Start cycling if more than one image
+                                    if (colImageloop[cellKey].length > 1) {
+                                        colImageCurIndex[cellKey] = 1
+                                    }
+                                }, imageDelay)
                             }
                         }
                     })
@@ -580,11 +596,18 @@ async function tableRecord(slotitem, index, table) {
                         if (resId === colTextFaderList.length - 1) {
                             // Only start animation if there are items
                             if (colFaderloop[cellKey].length > 0) {
-                                appendColumnFader(colFaderloop[cellKey][0], cellKey)
-                                // Start cycling if more than one text item
-                                if (colFaderloop[cellKey].length > 1) {
-                                    colFaderCurIndex[cellKey] = 1
-                                }
+                                // Get delay from settings
+                                var faderSettings = colFaderSettings[cellKey] || {}
+                                var faderDelay = faderSettings.delay || 0
+                                
+                                // Apply delay before first render
+                                setTimeout(function() {
+                                    appendColumnFader(colFaderloop[cellKey][0], cellKey)
+                                    // Start cycling if more than one text item
+                                    if (colFaderloop[cellKey].length > 1) {
+                                        colFaderCurIndex[cellKey] = 1
+                                    }
+                                }, faderDelay)
                             }
                         }
                     })
@@ -603,11 +626,18 @@ async function tableRecord(slotitem, index, table) {
                         if (resId === colTextTransitionList.length - 1) {
                             // Only start animation if there are items
                             if (colTextTransitionloop[cellKey].length > 0) {
-                                appendColumnTextTransition(colTextTransitionloop[cellKey][0], cellKey)
-                                // Start cycling if more than one text item
-                                if (colTextTransitionloop[cellKey].length > 1) {
-                                    colTextTransitionCurIndex[cellKey] = 1
-                                }
+                                // Get delay from settings
+                                var transitionSettings = colTextTransitionSettings[cellKey] || {}
+                                var textTransitionDelay = transitionSettings.delay || 0
+                                
+                                // Apply delay before first render
+                                setTimeout(function() {
+                                    appendColumnTextTransition(colTextTransitionloop[cellKey][0], cellKey)
+                                    // Start cycling if more than one text item
+                                    if (colTextTransitionloop[cellKey].length > 1) {
+                                        colTextTransitionCurIndex[cellKey] = 1
+                                    }
+                                }, textTransitionDelay)
                             }
                         }
                     })

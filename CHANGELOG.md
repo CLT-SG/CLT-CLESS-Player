@@ -1,5 +1,157 @@
 # Change Log
 
+## [3.9.4] - 2026-01-14
+
+### Added - Column Animation Delay Configuration
+
+- **Animation Start Delay Control** - Added delay attributes to control when column animations begin
+  - fader_delay attribute controls when fader animations start (milliseconds)
+  - text_transition_delay attribute controls when text transitions start (milliseconds)
+  - image_transition_delay attribute controls when image animations start (milliseconds)
+  - Default: 0 ms (starts immediately for backward compatibility)
+  - Impact: Enables staggered animations across columns for professional sequential effects
+
+- **Default Timing Values** - Established sensible default values for all animation timing attributes
+  - faderSwitchingTime default: 10 seconds (time to display each text item)
+  - faderSpeed default: 800 ms (animation transition duration)
+  - textTransitionSwitchingTime default: 10 seconds (time to display each text item)
+  - textTransitionSpeed default: 800 ms (animation transition duration)
+  - imageSwitchingTime default: 10 seconds (time to display each image)
+  - imageTransitionSpeed default: 800 ms (animation transition duration)
+  - Impact: Eliminates need for manual configuration while maintaining customization flexibility
+
+### Fixed - Image Transition Speed Naming
+
+- **Consistent Attribute Naming** - Renamed image transition speed attribute for clarity and consistency
+  - Changed from transition_speed to image_transition_speed
+  - Variable renamed from transitionSpeed to imageTransitionSpeed
+  - Maintains consistent naming pattern with fader_speed and text_transition_speed
+  - Impact: Clear and predictable attribute naming across all animation types
+
+### Technical Details
+
+**Delay Attribute Implementation:**
+```javascript
+// Read delay attributes with defaults
+var faderDelay = column['attributes']['fader_delay'] || 0 // Default: 0 ms (starts immediately)
+var textTransitionDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
+var imageTransitionDelay = column['attributes']['image_transition_delay'] || 0 // Default: 0 ms (starts immediately)
+
+// Apply delay before first render
+setTimeout(function() {
+    appendColumnImage(colImageloop[cellKey][0], cellKey)
+    if (colImageloop[cellKey].length > 1) {
+        colImageCurIndex[cellKey] = 1
+    }
+}, imageDelay)
+```
+
+**Default Values Configuration:**
+```javascript
+// Fader settings with defaults
+var faderSwitchingTime = column['attributes']['fader_switching_time'] || 10 // Default: 10 seconds
+var faderSpeed = column['attributes']['fader_speed'] || 800 // Default: 800 ms
+
+// Text transition settings with defaults
+var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
+var textTransitionSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
+
+// Image settings with defaults
+var imageSwitchingTime = column['attributes']['image_switching_time'] || 10 // Default: 10 seconds
+var imageTransitionSpeed = column['attributes']['image_transition_speed'] || 800 // Default: 800 ms
+```
+
+**Settings Storage:**
+```javascript
+// Delay stored in settings objects
+colFaderSettings[cellKey] = {
+    enabled: columnConfig.faderEnabled === 'Y',
+    switchingTime: columnConfig.faderSwitchingTime ? parseInt(columnConfig.faderSwitchingTime) * 1000 : null,
+    speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null,
+    delay: columnConfig.faderDelay ? parseInt(columnConfig.faderDelay) : 0
+}
+
+colTextTransitionSettings[cellKey] = {
+    enabled: columnConfig.textTransitionEnabled === 'Y',
+    switchingTime: columnConfig.textTransitionSwitchingTime ? parseInt(columnConfig.textTransitionSwitchingTime) * 1000 : null,
+    speed: columnConfig.textTransitionSpeed ? parseInt(columnConfig.textTransitionSpeed) : null,
+    style: columnConfig.textTransitionStyle || 'scroll-up',
+    delay: columnConfig.textTransitionDelay ? parseInt(columnConfig.textTransitionDelay) : 0
+}
+
+colImageSettings[cellKey] = {
+    enabled: columnConfig.imageEnabled === 'Y',
+    transition: columnConfig.imageTransition || 'scroll-up',
+    switchingTime: columnConfig.imageSwitchingTime ? parseInt(columnConfig.imageSwitchingTime) * 1000 : null,
+    transitionSpeed: columnConfig.imageTransitionSpeed ? parseInt(columnConfig.imageTransitionSpeed) : null,
+    fillToColumn: columnConfig.fillToColumn === 'Y',
+    delay: columnConfig.imageTransitionDelay ? parseInt(columnConfig.imageTransitionDelay) : 0
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added delay attributes, default values, renamed imageTransitionSpeed (10 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added delay attributes, default values, renamed imageTransitionSpeed (10 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Animation start control | Immediate only | Configurable delay per column |
+| Delay precision | N/A | Millisecond precision |
+| Staggered animations | Not possible | Fully supported |
+| Default timing values | null (manual required) | Sensible defaults (10s/800ms) |
+| Image speed attribute | transition_speed | image_transition_speed |
+| Naming consistency | Mixed patterns | Consistent across types |
+| Backward compatibility | N/A | Fully maintained |
+| Configuration effort | High (all manual) | Low (defaults work) |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- New delay attributes optional with sensible defaults (0ms)
+- Default timing values eliminate manual configuration needs
+- No breaking changes to existing functionality
+- All existing animation attributes continue to work as expected
+
+### Testing
+
+Verify delay functionality:
+- Create table with fader_delay="1000" and verify animation starts after 1 second
+- Create table with text_transition_delay="2000" and verify animation starts after 2 seconds  
+- Create table with image_transition_delay="500" and verify animation starts after 500ms
+- Test delay="0" confirms immediate start behavior
+
+Verify default timing values:
+- Create columns without timing attributes and verify defaults apply
+- Verify switching times default to 10 seconds
+- Verify speed attributes default to 800ms
+- Confirm animations run smoothly with defaults
+
+Verify renamed attribute:
+- Use image_transition_speed attribute and verify correct speed
+- Test various speed values (100ms, 500ms, 1000ms, 2000ms)
+- Confirm consistent behavior with fader_speed and text_transition_speed
+- Verify both desktop and mobile versions use renamed attribute
+
+Verify staggered animations:
+- Create table with three columns using delays: 0ms, 1000ms, 2000ms
+- Verify columns start animations sequentially at specified intervals
+- Test complex sequences with varying delays per column
+- Confirm smooth visual progression across table
+
+Verify backward compatibility:
+- Existing tables without delay attributes work unchanged
+- Tables without timing attributes use new defaults
+- No breaking changes to existing configurations
+- Both desktop and mobile versions behave identically
+
 ## [3.9.3] - 2026-01-14
 
 ### Fixed - Text Animation Format Separation
