@@ -152,9 +152,9 @@ function tableFunc(slotitem, index, slotattr) {
         var bgColor = column['attributes']['bgcolor'] || ''
         // Fader settings (for fader: format - original scroll effect)
         var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['fader_switching_time'] || 10 // Default: 10 seconds
-        var faderSpeed = column['attributes']['fader_speed'] || 800 // Default: 800 ms
-        var faderDelay = column['attributes']['fader_delay'] || 0 // Default: 0 ms (starts immediately)
+        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
+        var faderSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
+        var faderDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         // Text transition settings (for transition: format - multiple effects)
         var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
         var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds

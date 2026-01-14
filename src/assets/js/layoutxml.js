@@ -251,6 +251,9 @@ function getLayoutXML(result2) {
                 } //time slot 
                 else if (slot['name'] == 'time') {
                     timeFunc(slot, slotid)
+                } //datetime slot - Combined date and time
+                else if (slot['name'] == 'datetime') {
+                    datetimeFunc(slot, slotid)
                 } //html slot
                 else if (slot['name'] == 'html') {
                     htmlFunc(slotitem, slotid)

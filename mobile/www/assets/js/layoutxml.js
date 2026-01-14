@@ -410,6 +410,14 @@ function getLayoutXML(result2) {
                     } catch (error) {
                         console.error('[LayoutXML] Error in timeFunc for slot:', slotid, 'Error:', error.message, error.stack);
                     }
+                } //datetime slot - Combined date and time
+                else if (slot['name'] == 'datetime') {
+                    try {
+                        console.log('[LayoutXML] DATETIME slot detected - slotid:', slotid);
+                        datetimeFunc(slot, slotid)
+                    } catch (error) {
+                        console.error('[LayoutXML] Error in datetimeFunc for slot:', slotid, 'Error:', error.message, error.stack);
+                    }
                 } //html slot
                 else if (slot['name'] == 'html') {
                     try {
