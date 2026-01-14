@@ -889,34 +889,8 @@ function tableRecord(slotitem, index, table) {
     $('.slot-tbody-' + tableid).find('tr:odd').css('background-color', headRowOddColor)
     $('.slot-tbody-' + tableid).find('tr:even').css('background-color', headRowEvenColor)
 
-    //row table height
-    var wrapStyle = tableWrap[tableid] === 'Y' ? 'normal' : 'nowrap'
-    var textOverflow = tableWrap[tableid] === 'Y' ? 'ellipsis' : 'clip'
-    $('.slot-tbody-' + tableid).find('tr').css({
-        "white-space": wrapStyle,
-        "overflow": "hidden",
-        "text-overflow": textOverflow,
-        "height": bodyRowHeight + "px",
-        "max-height": bodyRowHeight + "px",
-        'line-height': bodyRowHeight + 'px'
-    })
-    //fit all elements size inside td
-    $('.slot-tbody-' + tableid).find('td').css({
-        "white-space": wrapStyle,
-        "overflow": "hidden",
-        "text-overflow": textOverflow,
-        "vertical-align": tableStyleVAlign,
-        "height": bodyRowHeight + "px",
-        "max-height": bodyRowHeight + "px"
-    })
-
-    $('.slot-tbody-' + tableid).find('tr td *').css({
-        "max-height": bodyRowHeight + "px !important",
-        "white-space": wrapStyle,
-        "overflow": "hidden",
-        "text-overflow": textOverflow,
-        "vertical-align": tableStyleVAlign,
-    })
+    // Apply row and element styles
+    applyTableRowStyles(tableid)
 
     //store all data to pagerow object
     $('.slot-tbody-' + tableid).find('tr').each(function (i, row) {
@@ -949,6 +923,45 @@ function tableRecord(slotitem, index, table) {
             implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
         }
     }
+}
+
+/**
+ * Apply row height and element styling to table body
+ * This function ensures consistent row heights and element sizing
+ * Called after initial render and after pagination content changes
+ * @param {string} tableid - The ID of the table to style
+ */
+function applyTableRowStyles(tableid) {
+    var wrapStyle = tableWrap[tableid] === 'Y' ? 'normal' : 'nowrap'
+    var textOverflow = tableWrap[tableid] === 'Y' ? 'ellipsis' : 'clip'
+    
+    //row table height
+    $('.slot-tbody-' + tableid).find('tr').css({
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px",
+        'line-height': bodyRowHeight + 'px'
+    })
+    
+    //fit all elements size inside td
+    $('.slot-tbody-' + tableid).find('td').css({
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "vertical-align": tableStyleVAlign,
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px"
+    })
+
+    $('.slot-tbody-' + tableid).find('tr td *').css({
+        "max-height": bodyRowHeight + "px !important",
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "vertical-align": tableStyleVAlign,
+    })
 }
 
 /**
@@ -1049,7 +1062,13 @@ function applyPageTransition(tableid, data, transitionType, duration) {
     
     if (transitionType === 'none' || !tbody.children().length) {
         // No transition or first render - instant change
+        // Use hidden state to apply styles before showing content
+        tbody.css('visibility', 'hidden')
         tbody.html(data)
+        applyTableRowStyles(tableid)
+        // Force reflow to ensure styles are applied
+        tbody[0].offsetHeight
+        tbody.css('visibility', 'visible')
         return
     }
     
@@ -1064,8 +1083,12 @@ function applyPageTransition(tableid, data, transitionType, duration) {
     
     var classes = transitionMap[transitionType]
     if (!classes) {
-        // Invalid transition type - fallback to instant
+        // Invalid transition type - fallback to instant with proper styling
+        tbody.css('visibility', 'hidden')
         tbody.html(data)
+        applyTableRowStyles(tableid)
+        tbody[0].offsetHeight
+        tbody.css('visibility', 'visible')
         return
     }
     
@@ -1075,7 +1098,19 @@ function applyPageTransition(tableid, data, transitionType, duration) {
     // After out animation completes, update content and apply in transition
     setTimeout(function() {
         tbody.removeClass(classes.out)
+        
+        // Hide tbody to prevent flickering while applying styles
+        tbody.css('visibility', 'hidden')
         tbody.html(data)
+        
+        // Apply styles before making content visible
+        applyTableRowStyles(tableid)
+        
+        // Force reflow to ensure all styles are applied before transition
+        tbody[0].offsetHeight
+        
+        // Make visible and start in transition
+        tbody.css('visibility', 'visible')
         tbody.addClass(classes.in)
         
         // Remove in transition class after animation completes
