@@ -135,9 +135,15 @@ function tableFunc(slotitem, index, slotattr) {
         // New column-level settings
         var bgColorEnabled = column['attributes']['bgcolor_enabled'] || 'N'
         var bgColor = column['attributes']['bgcolor'] || ''
+        // Fader settings (for fader: format - original scroll effect)
         var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['fader_switching_time'] || null
-        var faderSpeed = column['attributes']['fader_speed'] || null
+        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || null
+        var faderSpeed = column['attributes']['text_transition_speed'] || null
+        // Text transition settings (for transition: format - multiple effects)
+        var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
+        var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || null
+        var textTransitionSpeed = column['attributes']['text_transition_speed'] || null
+        var textTransitionStyle = column['attributes']['text_transition_style'] || 'scroll-up'
         var imageEnabled = column['attributes']['image_enabled'] || 'N'
         var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
         var imageSwitchingTime = column['attributes']['image_switching_time'] || null
@@ -166,6 +172,10 @@ function tableFunc(slotitem, index, slotattr) {
         colSytleObj.faderEnabled = faderEnabled
         colSytleObj.faderSwitchingTime = faderSwitchingTime
         colSytleObj.faderSpeed = faderSpeed
+        colSytleObj.textTransitionEnabled = textTransitionEnabled
+        colSytleObj.textTransitionSwitchingTime = textTransitionSwitchingTime
+        colSytleObj.textTransitionSpeed = textTransitionSpeed
+        colSytleObj.textTransitionStyle = textTransitionStyle
         colSytleObj.imageEnabled = imageEnabled
         colSytleObj.imageTransition = imageTransition
         colSytleObj.imageSwitchingTime = imageSwitchingTime
@@ -192,13 +202,20 @@ var colImageTimeout = new Array()
 var colImageCurIndex = new Array()
 var colImageloop = new Array()
 var colImageFirstRender = new Array() // Track if column has rendered at least once
-//Fader column global settings
+//Fader column global settings (for fader: format - original scroll effect)
 var colFaderTimeout = new Array()
 var colFaderCurIndex = new Array()
 var colFaderloop = new Array()
 var colFaderFirstRender = new Array() // Track if column has rendered at least once
 // Per-column fader settings
 var colFaderSettings = new Array()
+//Text Transition column global settings (for transition: format - multiple effects)
+var colTextTransitionTimeout = new Array()
+var colTextTransitionCurIndex = new Array()
+var colTextTransitionloop = new Array()
+var colTextTransitionFirstRender = new Array() // Track if column has rendered at least once
+// Per-column text transition settings
+var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
 
@@ -292,8 +309,13 @@ function tableRecord(slotitem, index, table) {
                 colImageloop[cellKey] = []
                 colFaderCurIndex[cellKey] = 0
                 colFaderloop[cellKey] = []
+                colTextTransitionCurIndex[cellKey] = 0
+                colTextTransitionloop[cellKey] = []
                 if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
                     clearTimeout(colFaderTimeout[cellKey])
+                }
+                if (colTextTransitionTimeout[cellKey]) { //clear colTextTransitionTimeout to reset
+                    clearTimeout(colTextTransitionTimeout[cellKey])
                 }
                 if (colImageTimeout[cellKey]) { //clear colImageTimeout to reset
                     clearTimeout(colImageTimeout[cellKey])
@@ -308,11 +330,19 @@ function tableRecord(slotitem, index, table) {
                 })
                 
                 if (columnConfig) {
-                    // Store fader settings for this cell
+                    // Store fader settings for this cell (fader: format)
                     colFaderSettings[cellKey] = {
                         enabled: columnConfig.faderEnabled === 'Y',
                         switchingTime: columnConfig.faderSwitchingTime ? parseInt(columnConfig.faderSwitchingTime) * 1000 : null,
                         speed: columnConfig.faderSpeed ? parseInt(columnConfig.faderSpeed) : null
+                    }
+                    
+                    // Store text transition settings for this cell (transition: format)
+                    colTextTransitionSettings[cellKey] = {
+                        enabled: columnConfig.textTransitionEnabled === 'Y',
+                        switchingTime: columnConfig.textTransitionSwitchingTime ? parseInt(columnConfig.textTransitionSwitchingTime) * 1000 : null,
+                        speed: columnConfig.textTransitionSpeed ? parseInt(columnConfig.textTransitionSpeed) : null,
+                        style: columnConfig.textTransitionStyle || 'scroll-up'
                     }
                     
                     // Store image settings for this cell
@@ -349,7 +379,7 @@ function tableRecord(slotitem, index, table) {
                             }
                         }
                     })
-                } else if (colFormat == 'fader:') { //create fader animation for this column
+                } else if (colFormat == 'fader:') { //create fader animation for this column (original scroll effect)
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
                     colTextFaderList = colTextFaderList.split(',') // split and create array
@@ -368,6 +398,29 @@ function tableRecord(slotitem, index, table) {
                                 // Start cycling if more than one text item
                                 if (colFaderloop[cellKey].length > 1) {
                                     colFaderCurIndex[cellKey] = 1
+                                }
+                            }
+                        }
+                    })
+                } else if (col[1].substring(0, 11) == 'transition:') { //create text transition animation for this column (new multi-style effects)
+                    var n = col[1].indexOf(":") // remove first string before : symbol
+                    var colTextTransitionList = col[1].slice(n + 1) // combine all text when have ,
+                    colTextTransitionList = colTextTransitionList.split(',') // split and create array
+                    $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>') //create td
+                    colTextTransitionList.forEach(function (ele, resId) { //create foreach to create transition animation
+                        var coltext = ele.trim() // trim whitespace instead of removing all spaces
+                        if (coltext != '') { // cancel if string empty
+                            var contentObj = new Object()
+                            contentObj.text = coltext
+                            colTextTransitionloop[cellKey].push(contentObj)
+                        }
+                        if (resId === colTextTransitionList.length - 1) {
+                            // Only start animation if there are items
+                            if (colTextTransitionloop[cellKey].length > 0) {
+                                appendColumnTextTransition(colTextTransitionloop[cellKey][0], cellKey)
+                                // Start cycling if more than one text item
+                                if (colTextTransitionloop[cellKey].length > 1) {
+                                    colTextTransitionCurIndex[cellKey] = 1
                                 }
                             }
                         }
@@ -540,7 +593,7 @@ function tableRecord(slotitem, index, table) {
                 }
             }
 
-            //play next column fader after current column fader has finished
+            //play next column fader after current column fader has finished (original fader: format)
             function changeColTextFader(cellKey) {
                 if (colFaderloop[cellKey].length == 1) {
                     colFaderCurIndex[cellKey] = 0
@@ -557,38 +610,37 @@ function tableRecord(slotitem, index, table) {
                 colFaderCurIndex[cellKey]++
             }
 
-            //render every column fader slot
+            //render every column fader slot (original fader: format with scroll effect)
             function appendColumnFader(item, cellKey) {
                 if (colFaderTimeout[cellKey]) { //clear colFaderTimeout to reset
                     clearTimeout(colFaderTimeout[cellKey])
                 }
                 
-                // Get per-column fader settings or use global defaults
+                // Get per-column fader settings or use defaults
                 var faderSettings = colFaderSettings[cellKey] || {}
                 var animationDuration = (faderSettings.enabled && faderSettings.speed) 
                     ? faderSettings.speed 
-                    : colAnimationDuration[tableid]
+                    : 4000
                 var animationInterval = (faderSettings.enabled && faderSettings.switchingTime) 
                     ? faderSettings.switchingTime 
-                    : colAnimationInterval[tableid]
+                    : 25000
                 
                 var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
                 
-                // Check if this is NOT the first render - use firstRender flag instead of index
-                // This ensures transitions work when looping from last to first
+                // Check if this is NOT the first render
                 var isFirstRender = colFaderFirstRender[cellKey] !== true
                 if (!isFirstRender && targetContainer.find('.column-fader').length > 0) {
-                    // Animate out the old content with configured duration
+                    // Animate out the old content with original fader scroll effect
                     var $oldElement = targetContainer.find('.column-fader')
                     $oldElement.addClass('fader-scroll-out')
-                    $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-out
+                    $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms')
                     
                     // Wait for animation to complete, then update content
                     setTimeout(function() {
                         var renderEl = '<div id="col-' + colRowIndex + '" class="column-fader fader-scroll-in">' + item.text + '</div>'
                         targetContainer.html(renderEl)
                         var $newElement = targetContainer.find('.column-fader')
-                        $newElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for scroll-in
+                        $newElement.css('animation-duration', (animationDuration * 0.75) + 'ms')
                         
                         // Remove animation class after it completes
                         setTimeout(function() {
@@ -632,9 +684,122 @@ function tableRecord(slotitem, index, table) {
 
                 // Only cycle to next if there are multiple items
                 if (colFaderloop[cellKey].length > 1) {
-                    // go to the next column fader using per-column or global interval
+                    // go to the next column fader
                     colFaderTimeout[cellKey] = setTimeout(function () {
                         changeColTextFader(cellKey)
+                    }, animationInterval)
+                }
+            }
+
+            //play next column text transition after current column text transition has finished (new transition: format)
+            function changeColTextTransition(cellKey) {
+                if (colTextTransitionloop[cellKey].length == 1) {
+                    colTextTransitionCurIndex[cellKey] = 0
+                }
+                if (colTextTransitionCurIndex[cellKey] >= colTextTransitionloop[cellKey].length) {
+                    // modified this so it would display the first column when looping
+                    colTextTransitionCurIndex[cellKey] = 0
+                }
+                // Mark that this column has been rendered before (not first render)
+                if (colTextTransitionFirstRender[cellKey] === undefined) {
+                    colTextTransitionFirstRender[cellKey] = true
+                }
+                appendColumnTextTransition(colTextTransitionloop[cellKey][colTextTransitionCurIndex[cellKey]], cellKey)
+                colTextTransitionCurIndex[cellKey]++
+            }
+
+            //render every column text transition slot
+            function appendColumnTextTransition(item, cellKey) {
+                if (colTextTransitionTimeout[cellKey]) { //clear colTextTransitionTimeout to reset
+                    clearTimeout(colTextTransitionTimeout[cellKey])
+                }
+                
+                // Get per-column text transition settings or use defaults
+                var transitionSettings = colTextTransitionSettings[cellKey] || {}
+                var animationDuration = (transitionSettings.enabled && transitionSettings.speed) 
+                    ? transitionSettings.speed 
+                    : 4000
+                var animationInterval = (transitionSettings.enabled && transitionSettings.switchingTime) 
+                    ? transitionSettings.switchingTime 
+                    : 25000
+                var transitionStyle = (transitionSettings.enabled && transitionSettings.style)
+                    ? transitionSettings.style
+                    : 'scroll-up'
+                
+                var targetContainer = $('.' + cellKey.split('-')[2] + ' .text-transition-col-' + colRowIndex)
+                
+                // Map transition styles to CSS animation classes (similar to image transitions)
+                var transitionClassMap = {
+                    'fade': { out: 'text-fade-out', in: 'text-fade-in' },
+                    'slide-right': { out: 'text-slide-right-out', in: 'text-slide-right-in' },
+                    'slide-left': { out: 'text-slide-left-out', in: 'text-slide-left-in' },
+                    'scroll-up': { out: 'text-scroll-up-out', in: 'text-scroll-up-in' },
+                    'scroll-down': { out: 'text-scroll-down-out', in: 'text-scroll-down-in' }
+                }
+                
+                var transitionClasses = transitionClassMap[transitionStyle] || transitionClassMap['scroll-up']
+                
+                // Check if this is NOT the first render - use firstRender flag instead of index
+                // This ensures transitions work when looping from last to first
+                var isFirstRender = colTextTransitionFirstRender[cellKey] !== true
+                if (!isFirstRender && targetContainer.find('.column-text-transition').length > 0) {
+                    // Animate out the old content with configured duration and style
+                    var $oldElement = targetContainer.find('.column-text-transition')
+                    $oldElement.addClass(transitionClasses.out)
+                    $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for transition-out
+                    
+                    // Wait for animation to complete, then update content
+                    setTimeout(function() {
+                        var renderEl = '<div id="col-' + colRowIndex + '" class="column-text-transition ' + transitionClasses.in + '">' + item.text + '</div>'
+                        targetContainer.html(renderEl)
+                        var $newElement = targetContainer.find('.column-text-transition')
+                        $newElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for transition-in
+                        
+                        // Remove animation class after it completes
+                        setTimeout(function() {
+                            targetContainer.find('.column-text-transition').removeClass(transitionClasses.in)
+                        }, animationDuration * 0.75)
+                    }, animationDuration * 0.75)
+                } else {
+                    // First render - no animation
+                    var renderEl = '<div id="col-' + colRowIndex + '" class="column-text-transition">' + item.text + '</div>'
+                    targetContainer.html(renderEl)
+                    // Mark this as rendered
+                    if (isFirstRender) {
+                        colTextTransitionFirstRender[cellKey] = true
+                    }
+                }
+
+                //row table height
+                $('.slot-tbody-' + tableid).find('tr').css({
+                    "white-space": "nowrap",
+                    "overflow": "hidden !important",
+                    "text-overflow": "clip",
+                    "height": bodyRowHeight + "px !important",
+                    "max-height": bodyRowHeight + "px !important",
+                    'line-height': bodyRowHeight + 'px'
+                })
+                //fit all elements size inside td
+                $('.slot-tbody-' + tableid).find('td').css({
+                    "white-space": "nowrap",
+                    "overflow": "hidden !important",
+                    "text-overflow": "clip",
+                    "vertical-align": tableStyleVAlign
+                })
+
+                $('.slot-tbody-' + tableid).find('tr td *').css({
+                    "max-height": bodyRowHeight + "px !important",
+                    "white-space": "nowrap",
+                    "overflow": "hidden",
+                    "text-overflow": "clip",
+                    "vertical-align": tableStyleVAlign,
+                })
+
+                // Only cycle to next if there are multiple items
+                if (colTextTransitionloop[cellKey].length > 1) {
+                    // go to the next column text transition using per-column or global interval
+                    colTextTransitionTimeout[cellKey] = setTimeout(function () {
+                        changeColTextTransition(cellKey)
                     }, animationInterval)
                 }
             }
