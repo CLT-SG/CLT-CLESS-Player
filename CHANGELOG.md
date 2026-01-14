@@ -1,5 +1,141 @@
 # Change Log
 
+## [3.9.6] - 2026-01-14
+
+### Fixed - Table Pagination Flickering During Transitions
+
+- **Row and Image Size Flickering** - Fixed visual flickering where rows and images momentarily become larger during pagination transitions
+  - Root cause: Styles applied after HTML content inserted into DOM creating brief moment of unstyled rendering
+  - Solution: Hide tbody, insert content, apply styles, force reflow, then make visible
+  - Impact: Smooth professional transitions without visual glitches or size fluctuations
+
+- **Pre-styling Implementation** - Implemented pre-styling approach to prevent layout shifts during page transitions
+  - Content hidden using visibility hidden before HTML insertion
+  - All row and image styles applied while content invisible to user
+  - Forced browser reflow using offsetHeight ensures synchronous style application
+  - Content made visible only after all styles fully rendered and applied
+  - Impact: Eliminates any moment where unstyled content visible during transitions
+
+### Technical Details
+
+**Pre-styling for No Transition Mode:**
+```javascript
+if (transitionType === 'none' || !tbody.children().length) {
+    // No transition or first render - instant change
+    // Use hidden state to apply styles before showing content
+    tbody.css('visibility', 'hidden')
+    tbody.html(data)
+    applyTableRowStyles(tableid)
+    // Force reflow to ensure styles are applied
+    tbody[0].offsetHeight
+    tbody.css('visibility', 'visible')
+    return
+}
+```
+
+**Pre-styling for Animated Transitions:**
+```javascript
+// After out animation completes, update content and apply in transition
+setTimeout(function() {
+    tbody.removeClass(classes.out)
+    
+    // Hide tbody to prevent flickering while applying styles
+    tbody.css('visibility', 'hidden')
+    tbody.html(data)
+    
+    // Apply styles before making content visible
+    applyTableRowStyles(tableid)
+    
+    // Force reflow to ensure all styles are applied before transition
+    tbody[0].offsetHeight
+    
+    // Make visible and start in transition
+    tbody.css('visibility', 'visible')
+    tbody.addClass(classes.in)
+    
+    // Remove in transition class after animation completes
+    setTimeout(function() {
+        tbody.removeClass(classes.in)
+    }, duration)
+}, duration)
+```
+
+**Key Implementation Points:**
+```javascript
+// visibility hidden preserves layout dimensions
+tbody.css('visibility', 'hidden')
+
+// offsetHeight forces synchronous style calculation
+tbody[0].offsetHeight
+
+// Make visible after all styles applied
+tbody.css('visibility', 'visible')
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Modified applyPageTransition function with pre-styling logic (1 edit)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Modified applyPageTransition function with pre-styling logic (1 edit)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Page transition rendering | Styles applied after DOM insertion | Styles applied before visibility |
+| Visual flickering | Rows/images momentarily larger | No flickering or size changes |
+| Style timing | Asynchronous after render | Synchronous before visibility |
+| Layout stability | Brief layout shift visible | Stable layout throughout |
+| Transition smoothness | Interrupted by size changes | Smooth professional transitions |
+| User experience | Unprofessional flickering | Clean seamless page changes |
+| Performance impact | None | None (minimal reflow overhead) |
+| Compatibility | All transitions | All transitions (maintained) |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- No breaking changes to existing table functionality
+- Compatible with all transition types (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Works with both flipmode values (pagination and line scrolling)
+- Maintains all existing table features and configurations
+- CSS visibility property supported by all modern browsers
+- No changes required to existing table definitions
+
+### Testing
+
+Verify no flickering in transitions:
+- Create table with pagination mode and various transition types
+- Change pages manually and automatically
+- Verify rows and images maintain consistent size throughout transitions
+- Confirm no momentary size increases or layout shifts visible
+
+Verify transition types:
+- Test transition none for instant page changes without flickering
+- Test fade transition for smooth opacity changes without size flickering
+- Test slide-right and slide-left for horizontal transitions without flickering
+- Test scroll-up and scroll-down for vertical transitions without flickering
+
+Verify content rendering:
+- Test tables with text content only
+- Test tables with image columns
+- Test tables with mixed content (text, images, animations)
+- Confirm all content types render without size fluctuations
+
+Verify cross-platform:
+- Test on desktop Electron app (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Verify identical smooth behavior on all platforms
+- Test with different screen sizes and resolutions
+
+Verify performance:
+- Monitor transition performance with large tables
+- Confirm no noticeable delay from forced reflow
+- Verify smooth animations at various durations
+- Test with multiple tables on same page
+
 ## [3.9.5] - 2026-01-14
 
 ### Added - Table Fixed Height Configuration
