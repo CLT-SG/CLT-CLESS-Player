@@ -1,5 +1,136 @@
 # Change Log
 
+## [3.9.5] - 2026-01-14
+
+### Added - Table Fixed Height Configuration
+
+- **Fixed Height Control** - Added fixedHeight attribute to control table height behavior
+  - fixedHeight="Y" maintains fixed height container mode (default for backward compatibility)
+  - fixedHeight="N" enables dynamic height mode where table grows with content
+  - Row heights remain fixed in both modes for consistent appearance
+  - Impact: Flexible table layouts supporting both fixed containers and dynamic growth
+
+- **Conditional CSS Logic** - Implemented dynamic CSS configuration based on height mode
+  - Fixed mode applies height and max-height CSS properties
+  - Dynamic mode sets height to auto and max-height to none
+  - Maintains all existing table styling and features
+  - Impact: Clean separation of height behavior without affecting other styles
+
+### Technical Details
+
+**Configuration Storage:**
+```javascript
+// Global array to store fixed height setting per table
+var tableFixedHeight = [] // stores fixed height flag per table (Y = fixed height, N = dynamic height with fixed row height)
+
+// Read from attributes with default value
+tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'Y' // Y = fixed height (default), N = dynamic height with fixed row height
+```
+
+**Conditional CSS Implementation:**
+```javascript
+// Build CSS object based on fixedHeight setting
+var tableCssConfig = {
+    "background-color": tableStyleBgColor,
+    "font-family": tableStylefontName,
+    "color": tableStylefontColor,
+    "font-size": tableStylefontSize + 'px',
+    "padding": "0",
+    "overflow": "hidden",
+    "table-layout": "fixed",
+    "border-collapse": "collapse",
+    "border-spacing": tableStyleSpacing + 'px',
+    "width": tableStyleWidth + 'px'
+}
+
+// Apply height constraints based on fixedHeight setting
+if (tableFixedHeight[tableid] === 'Y') {
+    // Fixed height mode - table has fixed height and max-height
+    tableCssConfig["height"] = tableStyleHeight + 'px'
+    tableCssConfig["max-height"] = tableStyleHeight + 'px'
+} else {
+    // Dynamic height mode - table grows with content, but rows have fixed height
+    tableCssConfig["height"] = "auto"
+    tableCssConfig["max-height"] = "none"
+}
+
+$('.slot-table-' + tableid).css(tableCssConfig)
+```
+
+**Applied to Multiple Functions:**
+```javascript
+// tableFunc() - Main table rendering function
+function tableFunc(slotitem, index, slotattr) {
+    tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'Y'
+    // ... conditional CSS logic applied
+}
+
+// tableNorecords() - No data state rendering function
+function tableNorecords(slotitem, slotid, slotattr) {
+    tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'Y'
+    // ... same conditional CSS logic applied
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added tableFixedHeight array and conditional height logic (4 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added tableFixedHeight array and conditional height logic (4 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Table height mode | Fixed only | Fixed or dynamic |
+| Height configuration | Always applied | Conditional based on fixedHeight |
+| Dynamic growth | Not supported | Supported with fixedHeight="N" |
+| Row height consistency | Fixed | Fixed in both modes |
+| Default behavior | Fixed height | Fixed height (backward compatible) |
+| Configuration required | height attribute | height + optional fixedHeight |
+| Backward compatibility | N/A | Fully maintained |
+| Layout flexibility | Limited | High flexibility |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing table configurations
+- Default fixedHeight="Y" maintains current behavior
+- New fixedHeight attribute optional and can be omitted
+- No breaking changes to existing functionality
+- Compatible with all table features (pagination, transitions, animations)
+- Works with both flipmode values (1 and 2)
+- Compatible with all transition types and table configurations
+
+### Testing
+
+Verify fixed height mode:
+- Create table with fixedHeight="Y" and verify fixed height container
+- Test with various height values (300px, 500px, 800px)
+- Confirm overflow behavior with content exceeding height
+- Verify pagination works correctly with fixed height
+
+Verify dynamic height mode:
+- Create table with fixedHeight="N" and verify dynamic growth
+- Test with varying row counts (5, 10, 20 rows)
+- Confirm table height adjusts based on content
+- Verify row heights remain fixed in dynamic mode
+
+Verify backward compatibility:
+- Tables without fixedHeight attribute use default Y value
+- Existing tables render unchanged without modifications
+- Both desktop and mobile versions behave identically
+- All existing table features work in both height modes
+
+Verify edge cases:
+- Test fixedHeight with tableNorecords (no data state)
+- Verify with different flipmode values (pagination and line scrolling)
+- Test with various transition types and animations
+- Confirm consistent behavior across all table configurations
+
 ## [3.9.4] - 2026-01-14
 
 ### Added - Column Animation Delay Configuration
