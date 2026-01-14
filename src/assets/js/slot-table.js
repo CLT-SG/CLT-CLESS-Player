@@ -23,6 +23,9 @@ var tableHidePagination = [] // stores hide pagination flag per table (Y/N)
 var tableHideHeader = [] // stores hide header flag per table (Y/N)
 var tableWrap = [] // stores wrap text flag per table (Y/N)
 var tableFixedHeight = [] // stores fixed height flag per table (Y = fixed height, N = dynamic height with fixed row height)
+var tableFlipmodeSwitchingTime = [] // stores flipmode switching time per table (in seconds) - time between page/line changes
+var tableFlipmodeSpeed = [] // stores flipmode transition speed per table (in milliseconds) - duration of transition animation
+var tableFlipmodeDelay = [] // stores flipmode delay per table (in milliseconds) - delay before starting transition
 
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
@@ -43,6 +46,14 @@ function tableFunc(slotitem, index, slotattr) {
     tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N' // Y = hide header, N = show (default)
     tableWrap[tableid] = slotattr['wrap'] || 'N' // Y = wrap text, N = clip text (default)
     tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'N' // Y = fixed height (default), N = dynamic height with fixed row height
+    
+    // Flipmode transition timing configuration
+    // flipmode_switching_time: time between page/line changes (in seconds) - uses pageflip as default
+    // flipmode_speed: duration of transition animation (in milliseconds) - default 500ms
+    // flipmode_delay: delay before starting transition (in milliseconds) - default 0ms
+    tableFlipmodeSwitchingTime[tableid] = slotattr['flipmode_switching_time'] ? parseInt(slotattr['flipmode_switching_time']) * 1000 : pageLengthTime[tableid]
+    tableFlipmodeSpeed[tableid] = slotattr['flipmode_speed'] ? parseInt(slotattr['flipmode_speed']) : 500
+    tableFlipmodeDelay[tableid] = slotattr['flipmode_delay'] ? parseInt(slotattr['flipmode_delay']) : 0
     
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
@@ -974,7 +985,9 @@ function applyTableRowStyles(tableid) {
 function implementPaginationMode(tableid, pagination, pageData, pageSize) {
     // Get transition settings
     var transitionType = tableTransition[tableid] || 'none'
-    var transitionDuration = 500 // milliseconds for transition animation
+    var transitionDuration = tableFlipmodeSpeed[tableid] || 500 // milliseconds for transition animation
+    var transitionDelay = tableFlipmodeDelay[tableid] || 0 // milliseconds for delay before transition
+    var switchingTime = tableFlipmodeSwitchingTime[tableid] || pageLengthTime[tableid] // milliseconds between page changes
     
     pagination.pagination({
         dataSource: pageData,
@@ -984,7 +997,14 @@ function implementPaginationMode(tableid, pagination, pageData, pageSize) {
         showPrevious: false,
         showNext: false,
         callback: function (data, pagi) {
-            applyPageTransition(tableid, data, transitionType, transitionDuration)
+            // Apply delay before starting transition if configured
+            if (transitionDelay > 0) {
+                setTimeout(function() {
+                    applyPageTransition(tableid, data, transitionType, transitionDuration)
+                }, transitionDelay)
+            } else {
+                applyPageTransition(tableid, data, transitionType, transitionDuration)
+            }
         }
     });
 
@@ -1011,7 +1031,7 @@ function implementPaginationMode(tableid, pagination, pageData, pageSize) {
 
         // Refresh page
         $('#slot-' + tableid).find('.pagination-pages').html('<div>Page ' + pageincrease[tableid] + '/' + pagination.pagination('getTotalPage') + '</div>');
-    }, pageLengthTime[tableid]);
+    }, switchingTime);
 }
 
 /**
@@ -1020,6 +1040,10 @@ function implementPaginationMode(tableid, pagination, pageData, pageSize) {
 function implementLineTypeMode(tableid, pageData, pageSize) {
     var currentStartIndex = 0
     var totalRows = pageData.length
+    var transitionType = tableTransition[tableid] || 'scroll-up'
+    var transitionDuration = tableFlipmodeSpeed[tableid] || 500 // milliseconds for transition animation
+    var transitionDelay = tableFlipmodeDelay[tableid] || 0 // milliseconds for delay before transition
+    var switchingTime = tableFlipmodeSwitchingTime[tableid] || pageLengthTime[tableid] // milliseconds between line changes
     
     // Initial render - show first page
     var initialData = pageData.slice(0, pageSize)
@@ -1045,13 +1069,18 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
         // Calculate current page for display
         currentPage = Math.floor(currentStartIndex / pageSize) + 1
         
-        // Apply transition
-        var transitionType = tableTransition[tableid] || 'scroll-up'
-        applyPageTransition(tableid, currentData, transitionType, 500)
+        // Apply transition with optional delay
+        if (transitionDelay > 0) {
+            setTimeout(function() {
+                applyPageTransition(tableid, currentData, transitionType, transitionDuration)
+            }, transitionDelay)
+        } else {
+            applyPageTransition(tableid, currentData, transitionType, transitionDuration)
+        }
         
         // Update pagination display
         $('#slot-' + tableid).find('.pagination-pages').html('<div>Line ' + (currentStartIndex + 1) + '-' + Math.min(currentStartIndex + pageSize, totalRows) + '/' + totalRows + '</div>')
-    }, pageLengthTime[tableid])
+    }, switchingTime)
 }
 
 /**

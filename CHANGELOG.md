@@ -1,5 +1,210 @@
 # Change Log
 
+## [3.9.9] - 2026-01-14
+
+### Added - Table Flipmode Transition Timing Configuration
+
+- **Flipmode Switching Time Parameter** - Added flipmode_switching_time parameter for independent control of page/line change intervals
+  - Accepts value in seconds (e.g., flipmode_switching_time="3" for 3 second intervals)
+  - Overrides pageflip setting when specified for pagination-specific timing
+  - Default: Uses pageflip value for backward compatibility
+  - Impact: Fine-grained control over how often pages or lines change
+
+- **Flipmode Animation Speed Parameter** - Added flipmode_speed parameter for transition animation duration control
+  - Accepts value in milliseconds (e.g., flipmode_speed="800" for 800ms transitions)
+  - Controls duration of fade, slide, and scroll animations
+  - Default: 500ms for smooth standard-speed transitions
+  - Impact: Faster or slower animations to match content type and preferences
+
+- **Flipmode Delay Parameter** - Added flipmode_delay parameter for pre-transition pause timing
+  - Accepts value in milliseconds (e.g., flipmode_delay="300" for 300ms pause)
+  - Adds configurable delay before transition animation starts
+  - Default: 0ms (immediate transition, no delay)
+  - Impact: Smoother visual flow with brief pause before content changes
+
+- **Consistent Timing Across Flip Modes** - Applied timing parameters to both pagination and line scroll modes
+  - flipmode 1 (pagination): Pages flip with custom timing
+  - flipmode 2 (line scroll): Lines scroll with custom timing
+  - All three parameters work identically in both modes
+  - Impact: Unified timing control regardless of flip mode selection
+
+### Technical Details
+
+**Global Arrays Declaration:**
+```javascript
+var tableFlipmodeSwitchingTime = [] // stores flipmode switching time per table (in seconds) - time between page/line changes
+var tableFlipmodeSpeed = []         // stores flipmode transition speed per table (in milliseconds) - duration of transition animation
+var tableFlipmodeDelay = []         // stores flipmode delay per table (in milliseconds) - delay before starting transition
+```
+
+**Parameter Parsing in tableFunc:**
+```javascript
+// Flipmode transition timing configuration
+// flipmode_switching_time: time between page/line changes (in seconds) - uses pageflip as default
+// flipmode_speed: duration of transition animation (in milliseconds) - default 500ms
+// flipmode_delay: delay before starting transition (in milliseconds) - default 0ms
+tableFlipmodeSwitchingTime[tableid] = slotattr['flipmode_switching_time'] ? parseInt(slotattr['flipmode_switching_time']) * 1000 : pageLengthTime[tableid]
+tableFlipmodeSpeed[tableid] = slotattr['flipmode_speed'] ? parseInt(slotattr['flipmode_speed']) : 500
+tableFlipmodeDelay[tableid] = slotattr['flipmode_delay'] ? parseInt(slotattr['flipmode_delay']) : 0
+```
+
+**Updated implementPaginationMode (Flipmode 1):**
+```javascript
+function implementPaginationMode(tableid, pagination, pageData, pageSize) {
+    // Get transition settings
+    var transitionType = tableTransition[tableid] || 'none'
+    var transitionDuration = tableFlipmodeSpeed[tableid] || 500
+    var transitionDelay = tableFlipmodeDelay[tableid] || 0
+    var switchingTime = tableFlipmodeSwitchingTime[tableid] || pageLengthTime[tableid]
+    
+    pagination.pagination({
+        // ... pagination config ...
+        callback: function (data, pagi) {
+            // Apply delay before starting transition if configured
+            if (transitionDelay > 0) {
+                setTimeout(function() {
+                    applyPageTransition(tableid, data, transitionType, transitionDuration)
+                }, transitionDelay)
+            } else {
+                applyPageTransition(tableid, data, transitionType, transitionDuration)
+            }
+        }
+    });
+    
+    // Auto page flip with custom switching time
+    pageAutoInterval[tableid] = setInterval(function () {
+        // ... page change logic ...
+    }, switchingTime);
+}
+```
+
+**Updated implementLineTypeMode (Flipmode 2):**
+```javascript
+function implementLineTypeMode(tableid, pageData, pageSize) {
+    var currentStartIndex = 0
+    var totalRows = pageData.length
+    var transitionType = tableTransition[tableid] || 'scroll-up'
+    var transitionDuration = tableFlipmodeSpeed[tableid] || 500
+    var transitionDelay = tableFlipmodeDelay[tableid] || 0
+    var switchingTime = tableFlipmodeSwitchingTime[tableid] || pageLengthTime[tableid]
+    
+    // ... initial render ...
+    
+    pageAutoInterval[tableid] = setInterval(function () {
+        // ... scroll logic ...
+        
+        // Apply transition with optional delay
+        if (transitionDelay > 0) {
+            setTimeout(function() {
+                applyPageTransition(tableid, currentData, transitionType, transitionDuration)
+            }, transitionDelay)
+        } else {
+            applyPageTransition(tableid, currentData, transitionType, transitionDuration)
+        }
+    }, switchingTime)
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Parameters stored in arrays indexed by table ID for multi-table support
+// Unit conversion: flipmode_switching_time (seconds) → milliseconds internally
+// Default values ensure backward compatibility
+// Delay applied conditionally with setTimeout only when > 0
+// All parameters passed to both pagination and line scroll implementations
+// applyPageTransition receives dynamic duration from tableFlipmodeSpeed
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added global arrays (3 variables), parameter parsing in tableFunc, updated implementPaginationMode and implementLineTypeMode with timing logic (5 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added global arrays (3 variables), parameter parsing in tableFunc, updated implementPaginationMode and implementLineTypeMode with timing logic (5 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Switching time control | Only pageflip parameter | Independent flipmode_switching_time |
+| Animation speed | Hardcoded 500ms | Configurable flipmode_speed |
+| Pre-transition delay | Not available | Optional flipmode_delay |
+| Timing customization | Limited to pageflip | Three independent parameters |
+| Flipmode 1 timing | Hardcoded values | Fully customizable |
+| Flipmode 2 timing | Hardcoded values | Fully customizable |
+| Default behavior | Fixed 500ms speed | Same (backward compatible) |
+| Multi-table support | Global timing | Per-table configuration |
+
+### Usage Examples
+
+Slow fade with delay:
+```xml
+<table id="myTable" pageflip="5" flipmode="1" transition="fade"
+       flipmode_switching_time="8" flipmode_speed="1200" flipmode_delay="300">
+```
+Result: Pages switch every 8 seconds, fade takes 1.2 seconds, 300ms pause before fade
+
+Fast scrolling:
+```xml
+<table id="newsTable" pageflip="3" flipmode="2" transition="scroll-up"
+       flipmode_switching_time="2" flipmode_speed="400">
+```
+Result: Lines scroll every 2 seconds, scroll animation takes 400ms, no delay
+
+Default behavior (backward compatible):
+```xml
+<table id="defaultTable" pageflip="10" flipmode="1" transition="slide-right">
+```
+Result: Uses pageflip (10s), default speed (500ms), no delay
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - all parameters optional with defaults
+- No breaking changes to existing table functionality
+- Works with both flipmode 1 (pagination) and flipmode 2 (line scroll)
+- Compatible with all transition types (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Maintains all existing table features and configuration options
+- No additional dependencies or requirements
+
+### Testing
+
+Verify parameter parsing:
+- Create table with flipmode_switching_time="3" and verify 3 second intervals
+- Create table with flipmode_speed="1000" and verify 1 second transitions
+- Create table with flipmode_delay="500" and verify 500ms pause before transitions
+
+Verify flipmode 1 (pagination):
+- Test various switching times (1, 5, 10 seconds)
+- Test various animation speeds (200, 500, 1500 milliseconds)
+- Test with and without delay
+- Verify smooth page transitions with custom timing
+
+Verify flipmode 2 (line scroll):
+- Test line scrolling with custom switching time
+- Test different scroll speeds (fast 200ms, slow 1000ms)
+- Test with delay to pause before scrolling
+- Verify consistent behavior with pagination mode
+
+Verify transition types:
+- Test fade with various speeds (300ms, 800ms, 1500ms)
+- Test slide transitions with custom speed
+- Test scroll transitions with custom speed
+- Verify all transitions respect flipmode_speed parameter
+
+Verify backward compatibility:
+- Create table without new parameters
+- Verify uses pageflip for switching time
+- Verify uses 500ms default for animation speed
+- Verify no delay applied (0ms default)
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor (Android, iOS)
+- Confirm timing accuracy across platforms
+
 ## [3.9.8] - 2026-01-14
 
 ### Fixed - Table "No Dataset to Show" Message Centering
