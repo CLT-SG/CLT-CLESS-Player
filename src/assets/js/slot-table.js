@@ -238,6 +238,8 @@ var colTextTransitionFirstRender = new Array() // Track if column has rendered a
 var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
+// Table pagination first render tracking
+var tablePaginationFirstRender = new Array() // Track if table pagination has rendered at least once
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -1059,6 +1061,13 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
  */
 function applyPageTransition(tableid, data, transitionType, duration) {
     var tbody = $('.slot-tbody-' + tableid)
+    
+    // Check if this is the first pagination render - if so, force no transition
+    var isFirstRender = tablePaginationFirstRender[tableid] !== true
+    if (isFirstRender) {
+        transitionType = 'none'
+        tablePaginationFirstRender[tableid] = true
+    }
     
     if (transitionType === 'none' || !tbody.children().length) {
         // No transition or first render - instant change
