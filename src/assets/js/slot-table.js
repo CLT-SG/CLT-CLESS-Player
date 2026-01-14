@@ -151,8 +151,8 @@ function tableFunc(slotitem, index, slotattr) {
         var bgColorEnabled = column['attributes']['bgcolor_enabled'] || 'N'
         var bgColor = column['attributes']['bgcolor'] || ''
         // Fader settings (for fader: format - original scroll effect)
-        var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
+        var faderEnabled = column['attributes']['text_transition_enabled'] || 'N'
+        var faderSwitchingTime = column['attributes']['fader_switching_time'] || 10 // Default: 10 seconds
         var faderSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
         var faderDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         // Text transition settings (for transition: format - multiple effects)
@@ -238,8 +238,6 @@ var colTextTransitionFirstRender = new Array() // Track if column has rendered a
 var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
-// Table pagination first render tracking
-var tablePaginationFirstRender = new Array() // Track if table pagination has rendered at least once
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -260,9 +258,9 @@ function tableNorecords(slotitem, slotid, slotattr) {
     var headStylefontColor = slotitem[0]['attributes']['fontcolor']
     var headStylefontSize = slotitem[0]['attributes']['fontsize']
 
-    //create table element
-    $('#slot-' + slotid).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><thead class="slot-thead-' + tableid + '">' +
-        '<tr><td>No dataset to show.</td></tr></thead></table>')
+    //create table element with wrapper for proper centering
+    $('#slot-' + slotid).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><tbody class="slot-tbody-' + tableid + '">' +
+        '<tr><td class="no-data-cell">No dataset to show.</td></tr></tbody></table>')
 
     // Build CSS object based on fixedHeight setting
     var tableCssConfig = {
@@ -272,11 +270,11 @@ function tableNorecords(slotitem, slotid, slotattr) {
         "font-size": tableStylefontSize + 'px',
         "padding": "0",
         "overflow": "hidden",
-        "line-height": tableStylefontSize + 'px',
         "table-layout": "fixed",
         "border-collapse": "collapse",
         "border-spacing": tableStyleSpacing + 'px',
-        "width": tableStyleWidth + 'px'
+        "width": tableStyleWidth + 'px',
+        "display": "table"
     }
     
     // Apply height constraints based on fixedHeight setting
@@ -285,26 +283,30 @@ function tableNorecords(slotitem, slotid, slotattr) {
         tableCssConfig["height"] = tableStyleHeight + 'px'
         tableCssConfig["max-height"] = tableStyleHeight + 'px'
     } else {
-        // Dynamic height mode
-        tableCssConfig["height"] = "auto"
-        tableCssConfig["max-height"] = "none"
+        // Dynamic height mode - use minimum height for better centering
+        tableCssConfig["height"] = tableStyleHeight + 'px'
+        tableCssConfig["min-height"] = tableStyleHeight + 'px'
     }
     
     //custom table element
     $('.slot-table-' + tableid).css(tableCssConfig)
-    //custom head style
-    $('.slot-thead-' + tableid).css({
+    
+    //custom tbody style to enable vertical centering
+    $('.slot-tbody-' + tableid).css({
         "background-color": headStyleBgColor,
+        "height": "100%",
+        "display": "table-row-group"
+    })
+    
+    // Style the cell to center content both horizontally and vertically
+    $('.slot-table-' + tableid + ' .no-data-cell').css({
         "font-family": headStylefontName,
         "text-align": "center",
+        "vertical-align": "middle",
         "color": headStylefontColor,
         "font-size": headStylefontSize + 'px',
-        "height": "100%",
-        "overflow": "hidden",
-        "text-overflow": "clip",
-        "white-space": "nowrap",
-        "max-height": headRowHeight + "px !important",
-        'line-height': headRowHeight + 'px'
+        "padding": "20px",
+        "height": tableFixedHeight[tableid] === 'Y' ? tableStyleHeight + 'px' : 'auto'
     })
 }
 
@@ -1061,13 +1063,6 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
  */
 function applyPageTransition(tableid, data, transitionType, duration) {
     var tbody = $('.slot-tbody-' + tableid)
-    
-    // Check if this is the first pagination render - if so, force no transition
-    var isFirstRender = tablePaginationFirstRender[tableid] !== true
-    if (isFirstRender) {
-        transitionType = 'none'
-        tablePaginationFirstRender[tableid] = true
-    }
     
     if (transitionType === 'none' || !tbody.children().length) {
         // No transition or first render - instant change

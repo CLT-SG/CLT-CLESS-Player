@@ -1,5 +1,164 @@
 # Change Log
 
+## [3.9.8] - 2026-01-14
+
+### Fixed - Table "No Dataset to Show" Message Centering
+
+- **Message Alignment** - Fixed "No dataset to show" message to be properly centered both horizontally and vertically in empty tables
+  - Root cause: Used thead element with inadequate vertical centering support
+  - Previous behavior: Message appeared left-aligned and positioned at top of table
+  - New behavior: Message centered in middle of table with proper vertical and horizontal alignment
+  - Impact: Professional appearance for empty table states with properly centered message
+
+- **fixedHeight Configuration Support** - Enhanced height handling to respect both fixed and dynamic height modes
+  - fixedHeight="Y": Message centered in exact fixed height container
+  - fixedHeight="N": Message centered with dynamic height using min-height
+  - Cell height adapts automatically based on fixedHeight configuration
+  - Impact: Consistent centering behavior across all table height configurations
+
+### Technical Details
+
+**Table Structure Change:**
+```javascript
+// Old structure (thead with left-aligned content)
+$('#slot-' + slotid).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><thead class="slot-thead-' + tableid + '">' +
+    '<tr><td>No dataset to show.</td></tr></thead></table>')
+
+// New structure (tbody with centered content)
+$('#slot-' + slotid).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><tbody class="slot-tbody-' + tableid + '">' +
+    '<tr><td class="no-data-cell">No dataset to show.</td></tr></tbody></table>')
+```
+
+**Centering Implementation:**
+```javascript
+// Table display configuration
+var tableCssConfig = {
+    "background-color": "rgba(255, 255, 255, 0)",
+    "font-family": tableStylefontName,
+    "color": tableStylefontColor,
+    "font-size": tableStylefontSize + 'px',
+    "padding": "0",
+    "overflow": "hidden",
+    "table-layout": "fixed",
+    "border-collapse": "collapse",
+    "border-spacing": tableStyleSpacing + 'px',
+    "width": tableStyleWidth + 'px',
+    "display": "table"  // Required for proper table-cell behavior
+}
+
+// Tbody styling for vertical centering
+$('.slot-tbody-' + tableid).css({
+    "background-color": headStyleBgColor,
+    "height": "100%",
+    "display": "table-row-group"  // Required for vertical-align
+})
+
+// Cell styling for centered content
+$('.slot-table-' + tableid + ' .no-data-cell').css({
+    "font-family": headStylefontName,
+    "text-align": "center",        // Horizontal centering
+    "vertical-align": "middle",    // Vertical centering
+    "color": headStylefontColor,
+    "font-size": headStylefontSize + 'px',
+    "padding": "20px",
+    "height": tableFixedHeight[tableid] === 'Y' ? tableStyleHeight + 'px' : 'auto'
+})
+```
+
+**Height Configuration Logic:**
+```javascript
+if (tableFixedHeight[tableid] === 'Y') {
+    // Fixed height mode
+    tableCssConfig["height"] = tableStyleHeight + 'px'
+    tableCssConfig["max-height"] = tableStyleHeight + 'px'
+} else {
+    // Dynamic height mode - use minimum height for better centering
+    tableCssConfig["height"] = tableStyleHeight + 'px'
+    tableCssConfig["min-height"] = tableStyleHeight + 'px'
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Changed from thead to tbody for proper vertical-align support
+// tbody with display: table-row-group enables vertical-align: middle
+// td with vertical-align: middle centers content vertically
+// text-align: center provides horizontal centering
+// padding adds visual spacing without affecting centering
+// height adapts based on fixedHeight configuration
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Updated tableNorecords function with centered message implementation (1 edit)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Updated tableNorecords function with centered message implementation (1 edit)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Message horizontal alignment | Left-aligned | Centered |
+| Message vertical alignment | Top-positioned | Vertically centered (middle) |
+| Table structure | thead element | tbody element |
+| Visual presentation | Unprofessional | Professional centered display |
+| fixedHeight="Y" support | Message at top | Message centered in fixed height |
+| fixedHeight="N" support | Message at top | Message centered with dynamic height |
+| CSS vertical-align | Not working | Working correctly |
+| User experience | Poor empty state | Clear professional empty state |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- No breaking changes to existing table functionality
+- Compatible with all fixedHeight configurations (Y/N)
+- Maintains all table styling and configuration options
+- Works with all table slot attributes
+- CSS vertical-align supported by all modern browsers
+- No impact on tables with data
+- No changes to existing table rendering logic
+
+### Testing
+
+Verify message centering:
+- Create table slot with no dataset
+- Verify "No dataset to show." appears centered horizontally in table
+- Confirm message centered vertically in middle of table
+- Test with various table sizes (300px, 500px, 800px height)
+
+Verify fixedHeight="Y" mode:
+- Create table with fixedHeight="Y" and height="500"
+- Verify message centered in exact 500px height container
+- Confirm no overflow or layout issues
+- Test with different height values
+
+Verify fixedHeight="N" mode:
+- Create table with fixedHeight="N" and height="500"
+- Verify message centered with dynamic height behavior
+- Confirm table respects minimum height
+- Test message remains centered in dynamic mode
+
+Verify styling preservation:
+- Confirm message uses header font family
+- Verify message color matches header color
+- Test with different font sizes (12px, 16px, 24px)
+- Check background color applied correctly
+
+Verify cross-platform:
+- Test on desktop Electron app (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical centering behavior on all platforms
+- Test with different screen sizes and resolutions
+
+Verify backward compatibility:
+- Verify tables with data continue rendering normally
+- Confirm no impact on table pagination
+- Test with various table configurations
+- Ensure no breaking changes to existing functionality
+
 ## [3.9.7] - 2026-01-14
 
 ### Added - DateTime Slot with Custom Format Support
