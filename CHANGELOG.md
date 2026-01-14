@@ -1,5 +1,133 @@
 # Change Log
 
+## [3.9.3] - 2026-01-14
+
+### Fixed - Text Animation Format Separation
+
+- **Separated fader: and transition: Formats** - Fixed text animation formats to work independently with distinct behaviors
+  - Root cause: Previous implementation merged both formats using same variables and fallback chains
+  - fader: format now uses original scroll-up animation effect for backward compatibility
+  - transition: format supports five transition styles (fade, slide-right, slide-left, scroll-up, scroll-down)
+  - Impact: Both formats work correctly without conflicts, older players maintain compatibility
+
+### Technical Details
+
+**Format Handler Separation:**
+```javascript
+// Fader format (original scroll effect)
+else if (colFormat == 'fader:') {
+    $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="fadercol-' + colRowIndex + '"></div>')
+    // Uses colFaderloop, colFaderCurIndex, appendColumnFader()
+}
+
+// Transition format (multiple styles)
+else if (col[1].substring(0, 11) == 'transition:') {
+    $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>')
+    // Uses colTextTransitionloop, colTextTransitionCurIndex, appendColumnTextTransition()
+}
+```
+
+**Independent Variable Sets:**
+```javascript
+// Fader variables (for fader: format)
+var colFaderTimeout = new Array()
+var colFaderCurIndex = new Array()
+var colFaderloop = new Array()
+var colFaderFirstRender = new Array()
+var colFaderSettings = new Array()
+
+// Text Transition variables (for transition: format)
+var colTextTransitionTimeout = new Array()
+var colTextTransitionCurIndex = new Array()
+var colTextTransitionloop = new Array()
+var colTextTransitionFirstRender = new Array()
+var colTextTransitionSettings = new Array()
+```
+
+**Separate Attribute Systems:**
+```javascript
+// Fader attributes (fader: format)
+var faderEnabled = column['attributes']['fader_enabled'] || 'N'
+var faderSwitchingTime = column['attributes']['fader_switching_time'] || null
+var faderSpeed = column['attributes']['fader_speed'] || null
+
+// Text transition attributes (transition: format)
+var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
+var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || null
+var textTransitionSpeed = column['attributes']['text_transition_speed'] || null
+var textTransitionStyle = column['attributes']['text_transition_style'] || 'scroll-up'
+```
+
+**Transition Style Support:**
+```javascript
+// Five transition styles with CSS animation classes
+var transitionClassMap = {
+    'fade': { out: 'text-fade-out', in: 'text-fade-in' },
+    'slide-right': { out: 'text-slide-right-out', in: 'text-slide-right-in' },
+    'slide-left': { out: 'text-slide-left-out', in: 'text-slide-left-in' },
+    'scroll-up': { out: 'text-scroll-up-out', in: 'text-scroll-up-in' },
+    'scroll-down': { out: 'text-scroll-down-out', in: 'text-scroll-down-in' }
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Separated formats, added independent variables (15 sections modified)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Separated formats, added independent variables (15 sections modified)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| fader: format | Merged with transition | Independent original scroll effect |
+| transition: format | Using fader fallbacks | Independent multi-style support |
+| Variable separation | Shared state | Completely independent |
+| Attribute handling | Fallback chains | Separate attribute sets |
+| CSS classes | Overlapping | Distinct class names |
+| Format coexistence | Conflicts possible | Both work simultaneously |
+| Backward compatibility | Partially broken | Fully maintained |
+| Transition styles | Single type | Five configurable styles |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Backward compatible with existing fader: format tables
+- New transition: format adds functionality without breaking changes
+- Both formats can coexist in same table on different columns
+- No breaking changes to existing functionality
+- All existing table attributes continue to work as expected
+- CSS animations supported by all modern browsers
+
+### Testing
+
+Verify fader format:
+- Create table column with fader:text1,text2,text3 format
+- Verify original scroll-up animation effect displays
+- Test with fader_enabled="Y" and custom timing attributes
+- Confirm animation cycles continuously without conflicts
+
+Verify transition format:
+- Create table column with transition:text1,text2,text3 format
+- Test all five transition styles: fade, slide-right, slide-left, scroll-up, scroll-down
+- Verify text_transition_style attribute controls animation type
+- Test with text_transition_enabled="Y" and custom timing
+
+Verify format coexistence:
+- Create table with both fader: and transition: columns
+- Verify each column animates independently
+- Test different timing settings per column
+- Confirm no interference between formats
+
+Verify backward compatibility:
+- Tables using fader: format work unchanged
+- Existing fader_* attributes function correctly
+- No breaking changes to older configurations
+- Both desktop and mobile versions behave identically
+
 ## [3.9.2] - 2026-01-09
 
 ### Fixed - Table Height Configuration
