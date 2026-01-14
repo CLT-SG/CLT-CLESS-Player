@@ -28,6 +28,7 @@ var tableFlipMode = [] // stores flip mode per table (1 = pagination, 2 = line)
 var tableHidePagination = [] // stores hide pagination flag per table (Y/N)
 var tableHideHeader = [] // stores hide header flag per table (Y/N)
 var tableWrap = [] // stores wrap text flag per table (Y/N)
+var tableFixedHeight = [] // stores fixed height flag per table (Y = fixed height, N = dynamic height with fixed row height)
 
 /**
  * Cleanup function to properly destroy table state before recreation
@@ -109,6 +110,7 @@ function tableFunc(slotitem, index, slotattr) {
     tableTransition[tableid] = slotattr['transition'] || 'none' // none (default), fade, slide-right, slide-left, scroll-up, scroll-down
     tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N' // Y = hide header, N = show (default)
     tableWrap[tableid] = slotattr['wrap'] || 'N' // Y = wrap text, N = clip text (default)
+    tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'Y' // Y = fixed height (default), N = dynamic height with fixed row height
     
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
@@ -138,7 +140,9 @@ function tableFunc(slotitem, index, slotattr) {
     $('#slot-' + index).append('<div id="pagination-' + tableid + '" class"pagination-js"></div>')
 
     tableStyleBgColor = hexToRgbA(tableStyleBgColor, tableStyleBgColorTransp)
-    $('.slot-table-' + tableid).css({
+    
+    // Build CSS object based on fixedHeight setting
+    var tableCssConfig = {
         "background-color": tableStyleBgColor,
         "font-family": tableStylefontName,
         "color": tableStylefontColor,
@@ -148,10 +152,21 @@ function tableFunc(slotitem, index, slotattr) {
         "table-layout": "fixed",
         "border-collapse": "collapse",
         "border-spacing": tableStyleSpacing + 'px',
-        "width": tableStyleWidth + 'px',
-        "height": tableStyleHeight + 'px',
-        "max-height": tableStyleHeight + 'px'
-    })
+        "width": tableStyleWidth + 'px'
+    }
+    
+    // Apply height constraints based on fixedHeight setting
+    if (tableFixedHeight[tableid] === 'Y') {
+        // Fixed height mode - table has fixed height and max-height
+        tableCssConfig["height"] = tableStyleHeight + 'px'
+        tableCssConfig["max-height"] = tableStyleHeight + 'px'
+    } else {
+        // Dynamic height mode - table grows with content, but rows have fixed height
+        tableCssConfig["height"] = "auto"
+        tableCssConfig["max-height"] = "none"
+    }
+    
+    $('.slot-table-' + tableid).css(tableCssConfig)
 
     //head row
     headRowEvenColor = hexToRgbA(slotitem[2]['attributes']['evencolor'], "Normal")
@@ -234,9 +249,9 @@ function tableFunc(slotitem, index, slotattr) {
         var bgColor = column['attributes']['bgcolor'] || ''
         // Fader settings (for fader: format - original scroll effect)
         var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['fader_switching_time'] || 10 // Default: 10 seconds
-        var faderSpeed = column['attributes']['fader_speed'] || 800 // Default: 800 ms
-        var faderDelay = column['attributes']['fader_delay'] || 0 // Default: 0 ms (starts immediately)
+        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
+        var faderSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
+        var faderDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         // Text transition settings (for transition: format - multiple effects)
         var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
         var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
@@ -330,6 +345,7 @@ function tableNorecords(slotitem, slotid, slotattr) {
     //create table
     var tableid = slotattr['id']
     pageLengthTime[tableid] = 9999 * 1000
+    tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'N' // Y = fixed height (default), N = dynamic height
     tableolddate = slotattr['update']
     tableStyleBgColor = slotattr['bgcolor']
     var tableStylefontName = slotattr['font']
@@ -347,8 +363,8 @@ function tableNorecords(slotitem, slotid, slotattr) {
     $('#slot-' + slotid).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><thead class="slot-thead-' + tableid + '">' +
         '<tr><td>No dataset to show.</td></tr></thead></table>')
 
-    //custom table element
-    $('.slot-table-' + tableid).css({
+    // Build CSS object based on fixedHeight setting
+    var tableCssConfig = {
         "background-color": "rgba(255, 255, 255, 0)",
         "font-family": tableStylefontName,
         "color": tableStylefontColor,
@@ -359,8 +375,22 @@ function tableNorecords(slotitem, slotid, slotattr) {
         "table-layout": "fixed",
         "border-collapse": "collapse",
         "border-spacing": tableStyleSpacing + 'px',
-        "width": tableStyleWidth + 'px',
-    })
+        "width": tableStyleWidth + 'px'
+    }
+    
+    // Apply height constraints based on fixedHeight setting
+    if (tableFixedHeight[tableid] === 'Y') {
+        // Fixed height mode
+        tableCssConfig["height"] = tableStyleHeight + 'px'
+        tableCssConfig["max-height"] = tableStyleHeight + 'px'
+    } else {
+        // Dynamic height mode
+        tableCssConfig["height"] = "auto"
+        tableCssConfig["max-height"] = "none"
+    }
+    
+    //custom table element
+    $('.slot-table-' + tableid).css(tableCssConfig)
     //custom head style
     $('.slot-thead-' + tableid).css({
         "background-color": headStyleBgColor,
