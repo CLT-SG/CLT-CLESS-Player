@@ -1,5 +1,204 @@
 # Change Log
 
+## [3.9.7] - 2026-01-14
+
+### Added - DateTime Slot with Custom Format Support
+
+- **New DateTime Slot Type** - Added datetime slot for combined date and time display with full format customization
+  - Combines date and time in single slot with flexible formatting
+  - Supports any custom format pattern through format attribute
+  - Root cause: No existing slot type for combined datetime display with custom formats
+  - Solution: Created datetimeFunc function accepting any format string passed to datetime.format()
+  - Impact: Users can display date and time together in any desired format combination
+
+- **Upgraded date-and-time Library** - Updated from v2.0.1 to v3.5.0 for ordinal format support
+  - Version 3.5.0 supports CommonJS require() for Electron compatibility
+  - Enables ordinal plugin for DDD format token (1st, 2nd, 3rd, 21st, 22nd, etc.)
+  - Root cause: Version 2.0.1 did not support ordinal format despite plugin being loaded
+  - Solution: Upgraded to v3.5.0 which has ordinal plugin support and CommonJS compatibility
+  - Impact: Ordinal day formats now work correctly with registered ordinal plugin
+
+- **Comprehensive Format Token Support** - Full datetime format customization with all standard tokens
+  - Year: YYYY (2026), YY (26)
+  - Month: MMMM (January), MMM (Jan), MM (01-12), M (1-12)
+  - Day: DD (01-31), D (1-31), DDD (1st, 2nd, 3rd), dddd (Thursday), ddd (Thu)
+  - Hour: HH (00-23), H (0-23), hh (01-12), h (1-12)
+  - Minute: mm (00-59), m (0-59)
+  - Second: ss (00-59), s (0-59)
+  - Meridiem: A (AM/PM), a (am/pm)
+  - Escape text: [text] for literal strings in format
+  - Impact: Complete flexibility in datetime format presentation
+
+### Technical Details
+
+**DateTime Function Implementation:**
+```javascript
+// Global tracking variable
+var datetimeInterval
+
+// Electron version
+function datetimeFunc(slotitem, index) {
+    const now = new Date()
+    var srcformat = slotitem['attributes']['format']
+    // Use the custom format directly - supports any datetime format pattern
+    var formattedOutput = datetime.format(now, srcformat)
+    var renderEl = '<div id="datetime-' + index + '" class="datetime-slot">' + formattedOutput + '</div>'
+    $('#slot-' + index).html(renderEl)
+    setTimeout(function () {
+        datetimeFunc(slotitem, index)
+    }, 1000)
+}
+
+// Mobile version with defensive checks
+function datetimeFunc(slotitem, index) {
+    if (!slotitem || !slotitem['attributes']) {
+        console.error('[datetimeFunc] Invalid slotitem for slot:', index);
+        return;
+    }
+    const now = new Date()
+    var srcformat = slotitem['attributes']['format']
+    var formattedOutput = datetime.format(now, srcformat)
+    var renderEl = '<div id="datetime-' + index + '" class="datetime-slot">' + formattedOutput + '</div>'
+    $('#slot-' + index).html(renderEl)
+    setTimeout(function () {
+        datetimeFunc(slotitem, index)
+    }, 1000)
+}
+```
+
+**Layout Handler Integration:**
+```javascript
+// Electron version - src/assets/js/layoutxml.js
+else if (slot['name'] == 'datetime') {
+    datetimeFunc(slot, slotid)
+}
+
+// Mobile version - mobile/www/assets/js/layoutxml.js
+else if (slot['name'] == 'datetime') {
+    try {
+        console.log('[LayoutXML] DATETIME slot detected - slotid:', slotid);
+        datetimeFunc(slot, slotid)
+    } catch (error) {
+        console.error('[LayoutXML] Error in datetimeFunc for slot:', slotid, 'Error:', error.message, error.stack);
+    }
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Custom format passed directly without preprocessing
+var formattedOutput = datetime.format(now, srcformat)
+
+// Supports any combination with custom separators
+format="YYYY-MM-DD HH:mm:ss"  // ISO format
+format="DD/MM/YYYY, HH:mm"    // European with comma
+format="MMMM DDD, YYYY [at] hh:mm A"  // Text with ordinal and escaped text
+
+// Auto-refresh every 1 second
+setTimeout(function () {
+    datetimeFunc(slotitem, index)
+}, 1000)
+
+// Dedicated CSS class for styling
+class="datetime-slot"
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-datetime.js - Added datetimeInterval variable and datetimeFunc function (1 edit)
+- src/assets/js/layoutxml.js - Added datetime slot handler case (1 edit)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-datetime.js - Added datetimeInterval variable and datetimeFunc with defensive checks (1 edit)
+- mobile/www/assets/js/layoutxml.js - Added datetime slot handler with error handling and logging (1 edit)
+
+**Dependencies:**
+- package.json - Upgraded date-and-time from v2.0.1 to v3.5.0 (1 edit)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Combined datetime display | Requires two slots | Single datetime slot |
+| Format customization | Predefined formats only | Any custom format |
+| Ordinal day format | Not supported | Supported with DDD token |
+| Custom separators | Limited options | Unlimited (commas, dashes, text) |
+| date-and-time version | v2.0.1 (no ordinal) | v3.5.0 (with ordinal) |
+| Format tokens | Basic set | Full comprehensive set |
+| Escaped text support | Not documented | Fully supported with [text] |
+| Mobile error handling | Basic | Enhanced with logging |
+
+### Format Examples
+
+| Format String | Output Example |
+|---------------|----------------|
+| YYYY-MM-DD HH:mm:ss | 2026-01-14 15:30:45 |
+| DD/MM/YYYY, HH:mm | 14/01/2026, 15:30 |
+| MM/DD/YYYY hh:mm A | 01/14/2026 03:30 PM |
+| MMMM DDD, YYYY | January 14th, 2026 |
+| dddd, MMMM D, YYYY [at] HH:mm | Tuesday, January 14, 2026 at 15:30 |
+| ddd, DD MMM YYYY HH:mm:ss | Tue, 14 Jan 2026 15:30:45 |
+| YYYY-MM-DD [at] hh:mm A | 2026-01-14 at 03:30 PM |
+| D/M/YY h:mm a | 14/1/26 3:30 pm |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- No breaking changes to existing slot functionality
+- Compatible with all layout features (autoscaling, positioning, transparency)
+- date-and-time v3.5.0 supports CommonJS require() for Electron
+- Ordinal plugin already loaded in preload.js and registered in index.html
+- All existing date and time slots maintain full compatibility
+- Works with layout autoscaling and window resizing
+- No additional dependencies or browser requirements
+
+### Testing
+
+Verify datetime slot rendering:
+- Create datetime slot with format="YYYY-MM-DD HH:mm:ss"
+- Verify displays current date and time in specified format
+- Confirm updates every second with accurate time
+- Test on both desktop and mobile platforms
+
+Verify format customization:
+- Test ISO format: YYYY-MM-DD HH:mm:ss
+- Test European format: DD/MM/YYYY, HH:mm
+- Test US format: MM/DD/YYYY hh:mm A
+- Test text format: dddd, MMMM DDD, YYYY [at] HH:mm
+- Test custom separators with various punctuation
+
+Verify ordinal format:
+- Create datetime slot with format="MMMM DDD, YYYY"
+- Verify displays ordinal day: January 14th, 2026
+- Test various days: 1st, 2nd, 3rd, 21st, 22nd, 23rd, 31st
+- Confirm ordinal plugin working after library upgrade
+
+Verify format tokens:
+- Test all year, month, day, hour, minute, second formats
+- Test meridiem formats (A/a for AM/PM)
+- Test day name formats (dddd/ddd for full/short names)
+- Confirm escaped text works with square brackets
+
+Verify slot integration:
+- Test datetime slot respects position and size attributes
+- Verify background color and transparency settings work
+- Test with layout autoscaling enabled and disabled
+- Confirm works in multi-slot layouts
+
+Verify cross-platform:
+- Test on desktop Electron app (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical behavior across platforms
+- Verify mobile error handling logs appropriately
+
+Verify backward compatibility:
+- Existing date slots continue working unchanged
+- Existing time slots unaffected by changes
+- Layouts without datetime slots render normally
+- No breaking changes to existing functionality
+
 ## [3.9.6] - 2026-01-14
 
 ### Fixed - Table Pagination Flickering During Transitions
