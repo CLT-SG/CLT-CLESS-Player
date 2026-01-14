@@ -1,5 +1,130 @@
 # Change Log
 
+## [3.9.7] - 2026-01-14
+
+### Fixed - Table Pagination First Render Transition
+
+- **Instant First Render** - Disabled transition effects on initial table pagination render for professional immediate appearance
+  - Root cause: Configured transitions (fade, slide, scroll) applied to first page load causing animation delays
+  - Solution: Added tablePaginationFirstRender tracking array to detect and disable transitions on first render
+  - Behavior: First pagination render displays instantly, subsequent page changes use configured transitions
+  - Impact: Professional immediate table display matching user expectations without entrance animations
+
+- **First Render Detection System** - Implemented per-table tracking to identify first pagination callback execution
+  - Added tablePaginationFirstRender array following existing column animation tracking patterns
+  - Checks undefined state to detect first render, sets true after first page displayed
+  - Forces transitionType to 'none' when first render detected in applyPageTransition
+  - Preserves all configured transition logic for subsequent page changes
+  - Impact: Clean separation between initial instant display and animated page transitions
+
+### Technical Details
+
+**First Render Tracking:**
+```javascript
+// Global tracking array for first render state per table
+var tablePaginationFirstRender = new Array() // Track if table pagination has rendered at least once
+```
+
+**First Render Detection Logic:**
+```javascript
+function applyPageTransition(tableid, data, transitionType, duration) {
+    var tbody = $('.slot-tbody-' + tableid)
+    
+    // Check if this is the first pagination render - if so, force no transition
+    var isFirstRender = tablePaginationFirstRender[tableid] !== true
+    if (isFirstRender) {
+        transitionType = 'none'
+        tablePaginationFirstRender[tableid] = true
+    }
+    
+    if (transitionType === 'none' || !tbody.children().length) {
+        // Instant change for no transition or first render
+        tbody.css('visibility', 'hidden')
+        tbody.html(data)
+        applyTableRowStyles(tableid)
+        tbody[0].offsetHeight
+        tbody.css('visibility', 'visible')
+        return
+    }
+    
+    // Animated transitions continue as normal for subsequent renders
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Undefined indicates first render not yet completed
+var isFirstRender = tablePaginationFirstRender[tableid] !== true
+
+// Force instant display on first render
+if (isFirstRender) {
+    transitionType = 'none'
+    tablePaginationFirstRender[tableid] = true
+}
+
+// Subsequent renders use configured transitions normally
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added tablePaginationFirstRender tracking array (line 242)
+- src/assets/js/slot-table.js - Added first render detection in applyPageTransition (lines 1065-1069)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added tablePaginationFirstRender tracking array (line 343)
+- mobile/www/assets/js/slot-table.js - Added first render detection in applyPageTransition (lines 1280-1284)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| First page display | Animated with configured transition | Instant without transition |
+| Transition timing | Applied to all page changes | Skipped for first render only |
+| Initial load experience | Animation delays content display | Immediate professional appearance |
+| Subsequent page changes | Configured transitions applied | Configured transitions applied (unchanged) |
+| User expectation match | Jarring animated entrance | Expected instant content display |
+| Perceived performance | Delayed by transition duration | Instant professional rendering |
+| Multi-table behavior | All tables animated on load | Each table instant independently |
+| Configuration required | None | None (automatic detection) |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- No breaking changes to existing table functionality
+- Compatible with all transition types (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Works with both flipmode values (pagination and line scrolling)
+- Maintains all existing table features and configurations
+- No changes required to existing table definitions
+- Automatic detection requires no additional attributes
+
+### Testing
+
+Verify instant first render:
+- Create table with transition configured (fade, slide, scroll)
+- Verify first page displays instantly without animation delay
+- Confirm no transition effects visible on initial table load
+- Test with various transition types and durations
+
+Verify subsequent transitions:
+- After first render verify next page uses configured transition
+- Test manual page changes and automatic page flipping
+- Confirm transitions work normally after first page displayed
+- Verify all transition types function correctly
+
+Verify multi-table independence:
+- Create multiple tables with different transitions
+- Verify each table first render instant independently
+- Confirm subsequent transitions per table configuration
+- Test with varying transition types across tables
+
+Verify cross-platform:
+- Test on desktop Electron app (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Verify identical behavior across both platforms
+- Test with different screen sizes and resolutions
+
 ## [3.9.6] - 2026-01-14
 
 ### Fixed - Table Pagination Flickering During Transitions
