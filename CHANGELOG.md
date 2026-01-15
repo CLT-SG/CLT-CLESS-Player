@@ -1,5 +1,271 @@
 # Change Log
 
+## [3.10.1] - 2026-01-15
+
+### Fixed - Table Column Animation Synchronization
+
+- **Row-Level Animation Synchronization** - Fixed table column animations to transition simultaneously within each row instead of independently
+  - Root cause: Each column used independent setTimeout without coordination with other columns
+  - Previous behavior: Staggered waterfall effect where columns changed at different times
+  - New behavior: All columns in same row transition at exactly the same moment
+  - Impact: Professional, unified visual experience with clean synchronized transitions
+
+- **Image Column Synchronization** - Updated image column animation timing to synchronize by row
+  - Added rowLastTransitionTime tracking object for row-level timing coordination
+  - Extract row identifier from cellKey to group columns by row
+  - Calculate synchronized delay based on row's last transition time
+  - All image columns in same row now transition together
+  - Impact: No more staggered image changes across columns
+
+- **Fader Column Synchronization** - Updated fader column animation timing to synchronize by row
+  - Uses same rowLastTransitionTime tracking for consistency
+  - Calculates adjusted delay to ensure synchronized scrolling
+  - All fader columns in same row scroll at same moment
+  - Maintains smooth scroll-out and scroll-in animations
+  - Impact: Unified fading effect across all fader columns in row
+
+- **Text Transition Column Synchronization** - Updated text transition animation timing to synchronize by row
+  - Applies to all transition types (fade, scroll-up, scroll-down, slide-left, slide-right)
+  - Uses rowLastTransitionTime for precise timing coordination
+  - All text transition columns in same row change together
+  - Works with mixed transition styles in same row
+  - Impact: Consistent visual timing for all text transitions
+
+### Improved - Variable Naming Consistency
+
+- **Renamed imageTransition to imageTransitionStyle** - Improved code maintainability with consistent variable naming
+  - Previous: imageTransition variable name inconsistent with textTransitionStyle
+  - Updated: imageTransitionStyle matches naming convention of other transition types
+  - Changed in variable declaration, object property assignment, and settings reference
+  - Impact: Easier to maintain and understand code structure
+
+### Technical Details
+
+**Row Synchronization Tracking:**
+```javascript
+// Global variable to track last transition time per row
+var rowLastTransitionTime = {} // Tracks the last transition time for each row to synchronize columns
+```
+
+**Synchronized Image Column Timing:**
+```javascript
+// Only cycle to next if there are multiple images
+if (colImageloop[cellKey].length > 1) {
+    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
+    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
+    
+    // Synchronize timing across all animated columns in the row
+    var currentTime = Date.now()
+    if (!rowLastTransitionTime[rowKey]) {
+        rowLastTransitionTime[rowKey] = currentTime
+    }
+    
+    // Calculate synchronized delay - all columns in row should transition at same time
+    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+    var adjustedDelay = Math.max(0, switchingTime - timeSinceLastTransition)
+    
+    // If this is the first column to reach transition time, update row time
+    if (adjustedDelay === 0 || timeSinceLastTransition >= switchingTime) {
+        rowLastTransitionTime[rowKey] = currentTime + switchingTime
+    }
+    
+    // go to the next column image using synchronized timing
+    colImageTimeout[cellKey] = setTimeout(function () {
+        changeColImageMedia(cellKey)
+    }, adjustedDelay)
+}
+```
+
+**Synchronized Fader Column Timing:**
+```javascript
+// Only cycle to next if there are multiple items
+if (colFaderloop[cellKey].length > 1) {
+    var rowKey = cellKey.split('-').slice(0, 2).join('-')
+    var currentTime = Date.now()
+    if (!rowLastTransitionTime[rowKey]) {
+        rowLastTransitionTime[rowKey] = currentTime
+    }
+    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
+    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
+        rowLastTransitionTime[rowKey] = currentTime + animationInterval
+    }
+    colFaderTimeout[cellKey] = setTimeout(function () {
+        changeColTextFader(cellKey)
+    }, adjustedDelay)
+}
+```
+
+**Synchronized Text Transition Column Timing:**
+```javascript
+// Only cycle to next if there are multiple items
+if (colTextTransitionloop[cellKey].length > 1) {
+    var rowKey = cellKey.split('-').slice(0, 2).join('-')
+    var currentTime = Date.now()
+    if (!rowLastTransitionTime[rowKey]) {
+        rowLastTransitionTime[rowKey] = currentTime
+    }
+    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
+    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
+        rowLastTransitionTime[rowKey] = currentTime + animationInterval
+    }
+    colTextTransitionTimeout[cellKey] = setTimeout(function () {
+        changeColTextTransition(cellKey)
+    }, adjustedDelay)
+}
+```
+
+**Variable Rename Implementation:**
+```javascript
+// Old variable name
+var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
+
+// New variable name (consistent with textTransitionStyle)
+var imageTransitionStyle = column['attributes']['image_transition'] || 'scroll-up'
+
+// Object property assignment
+colSytleObj.imageTransitionStyle = imageTransitionStyle
+
+// Settings reference
+colImageSettings[cellKey] = {
+    transition: columnConfig.imageTransitionStyle || 'scroll-up',
+    // ... other properties
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Row identifier extracted using split('-').slice(0, 2).join('-')
+// Format: "tableid-rowindex" for unique row tracking across all tables
+// Date.now() provides millisecond precision for accurate timing
+// Math.max(0, ...) ensures delay never becomes negative
+// adjustedDelay calculated to synchronize all columns to same transition moment
+// First column to reach trigger time updates rowLastTransitionTime for entire row
+// Subsequent columns calculate delay based on updated row timestamp
+// Works with different intervals per column type (images, faders, text)
+// No changes to animation rendering - only timing coordination
+// Minimal performance impact - simple timestamp comparisons and arithmetic
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added rowLastTransitionTime tracking, updated 3 animation timeout functions with synchronized timing logic, renamed imageTransition to imageTransitionStyle (8 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added rowLastTransitionTime tracking, updated 3 animation timeout functions with synchronized timing logic, renamed imageTransition to imageTransitionStyle (7 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Image column timing | Independent per column | Synchronized by row |
+| Fader column timing | Independent per column | Synchronized by row |
+| Text transition timing | Independent per column | Synchronized by row |
+| Visual effect | Staggered waterfall | Unified simultaneous |
+| Animation coordination | None | Row-level tracking |
+| Variable naming | imageTransition | imageTransitionStyle |
+| Code consistency | Inconsistent naming | Consistent convention |
+| Multiple rows | Each column independent | Each row synchronized |
+| Mixed column types | Uncoordinated | All types sync together |
+| User experience | Distracting changes | Professional appearance |
+
+### Usage Examples
+
+Synchronized image columns:
+```xml
+<table id="dashboard" pageflip="5">
+  <row>
+    <column width="200"><data>image:chart1.png,chart2.png</data></column>
+    <column width="200"><data>image:graph1.png,graph2.png</data></column>
+    <column width="200"><data>image:status1.png,status2.png</data></column>
+  </row>
+</table>
+```
+Result: All three image columns change at exactly the same moment every 5 seconds
+
+Mixed animation types synchronized:
+```xml
+<table id="mixed" pageflip="8">
+  <row>
+    <column text_transition="fade"><data>transition:A,B,C</data></column>
+    <column><data>fader:Message 1,Message 2,Message 3</data></column>
+    <column><data>image:icon1.png,icon2.png,icon3.png</data></column>
+  </row>
+</table>
+```
+Result: Text transition, fader, and image columns all change together
+
+Multiple rows with independent timing:
+```xml
+<table id="multirow" pageflip="5">
+  <row>
+    <column><data>transition:Row1-Col1-A,Row1-Col1-B</data></column>
+    <column><data>transition:Row1-Col2-A,Row1-Col2-B</data></column>
+  </row>
+  <row>
+    <column><data>transition:Row2-Col1-A,Row2-Col1-B</data></column>
+    <column><data>transition:Row2-Col2-A,Row2-Col2-B</data></column>
+  </row>
+</table>
+```
+Result: Columns in Row 1 sync together, columns in Row 2 sync independently
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - existing animations work identically
+- No breaking changes to table functionality or configurations
+- Compatible with all animation types (image, fader, text transition)
+- Works with all transition styles (fade, scroll-up, scroll-down, slide-left, slide-right)
+- Maintains support for per-column animation intervals
+- No additional dependencies required
+- No changes to animation rendering or CSS
+- Date.now() and string operations universally supported
+- Works with single or multiple rows
+- Compatible with dynamic table updates
+- No impact on table pagination or flipmode features
+
+### Testing
+
+Verify synchronized animations:
+- Create table with multiple image columns in same row and verify simultaneous transitions
+- Test with multiple fader columns and confirm synchronized scrolling
+- Test with multiple text transition columns and verify unified timing
+- Create table with mixed column types (image, fader, text) and confirm all sync together
+
+Verify row independence:
+- Create table with 3-5 rows, each with animated columns
+- Verify each row synchronizes independently
+- Confirm Row 1 timing doesn't affect Row 2
+- Test with different intervals per row
+
+Verify timing accuracy:
+- Verify columns transition within 50ms of each other
+- Test with various switching times (1s, 5s, 10s, 30s)
+- Confirm synchronized timing over extended periods (5+ minutes)
+- Test with rapid intervals (1 second) and long intervals (60+ seconds)
+
+Verify variable rename:
+- Confirm imageTransitionStyle used throughout code
+- Test image transitions still work correctly
+- Verify backward compatibility with existing configurations
+- Check colImageSettings uses imageTransitionStyle property
+
+Verify backward compatibility:
+- Create tables with single animated column per row
+- Verify animations work identically to before
+- Test tables with no animations
+- Confirm existing table configurations unaffected
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical synchronization behavior on all platforms
+- Test with different device performance levels
+
 ## [3.10.0] - 2026-01-15
 
 ### Fixed - Table Text Transition Animations
