@@ -271,7 +271,7 @@ function tableFunc(slotitem, index, slotattr) {
         var textTransitionDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         // Image transition settings (for transition: format - multiple effects)
         var imageEnabled = column['attributes']['image_enabled'] || 'N'
-        var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
+        var imageTransitionStyle = column['attributes']['image_transition'] || 'scroll-up'
         var imageSwitchingTime = column['attributes']['image_switching_time'] || 30 // Default: 10 seconds
         var imageTransitionSpeed = column['attributes']['image_transition_speed'] || 1000 // Default: 800 ms
         var imageTransitionDelay = column['attributes']['image_transition_delay'] || 0 // Default: 0 ms (starts immediately)
@@ -304,7 +304,7 @@ function tableFunc(slotitem, index, slotattr) {
         colSytleObj.textTransitionStyle = textTransitionStyle
         colSytleObj.textTransitionDelay = textTransitionDelay
         colSytleObj.imageEnabled = imageEnabled
-        colSytleObj.imageTransition = imageTransition
+        colSytleObj.imageTransitionStyle = imageTransitionStyle
         colSytleObj.imageSwitchingTime = imageSwitchingTime
         colSytleObj.imageTransitionSpeed = imageTransitionSpeed
         colSytleObj.imageTransitionDelay = imageTransitionDelay
@@ -351,6 +351,8 @@ var colTextTransitionFirstRender = new Array() // Track if column has rendered a
 var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
+// Row-level animation synchronization - to make all columns in a row transition together
+var rowLastTransitionTime = {} // Tracks the last transition time for each row to synchronize columns
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -566,7 +568,7 @@ async function tableRecord(slotitem, index, table) {
                     // Store image settings for this cell
                     colImageSettings[cellKey] = {
                         enabled: columnConfig.imageEnabled === 'Y',
-                        transition: columnConfig.imageTransition || 'scroll-up',
+                        transition: columnConfig.imageTransitionStyle || 'scroll-up',
                         switchingTime: columnConfig.imageSwitchingTime ? parseInt(columnConfig.imageSwitchingTime) * 1000 : null,
                         transitionSpeed: columnConfig.imageTransitionSpeed ? parseInt(columnConfig.imageTransitionSpeed) : null,
                         fillToColumn: columnConfig.fillToColumn === 'Y',
@@ -865,10 +867,28 @@ async function tableRecord(slotitem, index, table) {
 
                 // Only cycle to next if there are multiple images
                 if (colImageloop[cellKey].length > 1) {
-                    // go to the next column image using per-column or global interval
+                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
+                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
+                    
+                    // Synchronize timing across all animated columns in the row
+                    var currentTime = Date.now()
+                    if (!rowLastTransitionTime[rowKey]) {
+                        rowLastTransitionTime[rowKey] = currentTime
+                    }
+                    
+                    // Calculate synchronized delay - all columns in row should transition at same time
+                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+                    var adjustedDelay = Math.max(0, switchingTime - timeSinceLastTransition)
+                    
+                    // If this is the first column to reach transition time, update row time
+                    if (adjustedDelay === 0 || timeSinceLastTransition >= switchingTime) {
+                        rowLastTransitionTime[rowKey] = currentTime + switchingTime
+                    }
+                    
+                    // go to the next column image using synchronized timing
                     colImageTimeout[cellKey] = setTimeout(function () {
                         changeColImageMedia(cellKey)
-                    }, switchingTime)
+                    }, adjustedDelay)
                 }
             }
 
@@ -963,10 +983,28 @@ async function tableRecord(slotitem, index, table) {
 
                 // Only cycle to next if there are multiple items
                 if (colFaderloop[cellKey].length > 1) {
-                    // go to the next column fader
+                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
+                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
+                    
+                    // Synchronize timing across all animated columns in the row
+                    var currentTime = Date.now()
+                    if (!rowLastTransitionTime[rowKey]) {
+                        rowLastTransitionTime[rowKey] = currentTime
+                    }
+                    
+                    // Calculate synchronized delay - all columns in row should transition at same time
+                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
+                    
+                    // If this is the first column to reach transition time, update row time
+                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
+                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
+                    }
+                    
+                    // go to the next column fader using synchronized timing
                     colFaderTimeout[cellKey] = setTimeout(function () {
                         changeColTextFader(cellKey)
-                    }, animationInterval)
+                    }, adjustedDelay)
                 }
             }
 
@@ -1076,10 +1114,28 @@ async function tableRecord(slotitem, index, table) {
 
                 // Only cycle to next if there are multiple items
                 if (colTextTransitionloop[cellKey].length > 1) {
-                    // go to the next column text transition using per-column or global interval
+                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
+                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
+                    
+                    // Synchronize timing across all animated columns in the row
+                    var currentTime = Date.now()
+                    if (!rowLastTransitionTime[rowKey]) {
+                        rowLastTransitionTime[rowKey] = currentTime
+                    }
+                    
+                    // Calculate synchronized delay - all columns in row should transition at same time
+                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
+                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
+                    
+                    // If this is the first column to reach transition time, update row time
+                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
+                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
+                    }
+                    
+                    // go to the next column text transition using synchronized timing
                     colTextTransitionTimeout[cellKey] = setTimeout(function () {
                         changeColTextTransition(cellKey)
-                    }, animationInterval)
+                    }, adjustedDelay)
                 }
             }
 
