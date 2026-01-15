@@ -260,21 +260,22 @@ function tableFunc(slotitem, index, slotattr) {
         var bgColor = column['attributes']['bgcolor'] || ''
         // Fader settings (for fader: format - original scroll effect)
         var faderEnabled = column['attributes']['fader_enabled'] || 'N'
-        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
-        var faderSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
+        var faderSwitchingTime = column['attributes']['text_transition_switching_time'] || 30 // Default: 10 seconds
+        var faderSpeed = column['attributes']['text_transition_speed'] || 1000 // Default: 800 ms
         var faderDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
         // Text transition settings (for transition: format - multiple effects)
         var textTransitionEnabled = column['attributes']['text_transition_enabled'] || 'N'
-        var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 10 // Default: 10 seconds
-        var textTransitionSpeed = column['attributes']['text_transition_speed'] || 800 // Default: 800 ms
-        var textTransitionStyle = column['attributes']['text_transition_style'] || 'scroll-up'
+        var textTransitionStyle = column['attributes']['text_transition'] || 'scroll-up'
+        var textTransitionSwitchingTime = column['attributes']['text_transition_switching_time'] || 30 // Default: 10 seconds
+        var textTransitionSpeed = column['attributes']['text_transition_speed'] || 1000 // Default: 800 ms
         var textTransitionDelay = column['attributes']['text_transition_delay'] || 0 // Default: 0 ms (starts immediately)
+        // Image transition settings (for transition: format - multiple effects)
         var imageEnabled = column['attributes']['image_enabled'] || 'N'
         var imageTransition = column['attributes']['image_transition'] || 'scroll-up'
-        var imageSwitchingTime = column['attributes']['image_switching_time'] || 10 // Default: 10 seconds
-        var imageTransitionSpeed = column['attributes']['image_transition_speed'] || 800 // Default: 800 ms
+        var imageSwitchingTime = column['attributes']['image_switching_time'] || 30 // Default: 10 seconds
+        var imageTransitionSpeed = column['attributes']['image_transition_speed'] || 1000 // Default: 800 ms
         var imageTransitionDelay = column['attributes']['image_transition_delay'] || 0 // Default: 0 ms (starts immediately)
-        var fillToColumn = column['attributes']['fill_to_column'] || 'N'
+        var fillToColumn = column['attributes']['fill_to_column'] || 'Y'
         if (columnAlign == 'c') {
             columnAlign = 'center'
         } else if (columnAlign == 'l') {
