@@ -32,6 +32,8 @@ var tableFixedHeight = [] // stores fixed height flag per table (Y = fixed heigh
 var tableFlipmodeSwitchingTime = [] // stores flipmode switching time per table (in seconds) - time between page/line changes
 var tableFlipmodeSpeed = [] // stores flipmode transition speed per table (in milliseconds) - duration of transition animation
 var tableFlipmodeDelay = [] // stores flipmode delay per table (in milliseconds) - delay before starting transition
+var tableMaxRowsEnabled = [] // stores maxRowsEnabled flag per table (Y/N) - Y = use maxRowsLimit, N = calculate based on height
+var tableMaxRowsLimit = [] // stores maxRowsLimit per table - maximum number of rows per page when maxRowsEnabled = 'Y'
 
 /**
  * Cleanup function to properly destroy table state before recreation
@@ -114,6 +116,10 @@ function tableFunc(slotitem, index, slotattr) {
     tableHideHeader[tableid] = slotitem[0]['attributes']['hideheader'] || 'N' // Y = hide header, N = show (default)
     tableWrap[tableid] = slotattr['wrap'] || 'N' // Y = wrap text, N = clip text (default)
     tableFixedHeight[tableid] = slotattr['fixedHeight'] || 'Y' // Y = fixed height (default), N = dynamic height with fixed row height
+    
+    // Max rows configuration - control rows per page
+    tableMaxRowsEnabled[tableid] = slotitem[0]['attributes']['maxRowsEnabled'] || 'N' // Y = use fixed maxRowsLimit, N = calculate based on height (default)
+    tableMaxRowsLimit[tableid] = slotitem[0]['attributes']['maxRowsLimit'] ? parseInt(slotitem[0]['attributes']['maxRowsLimit']) : 10 // default 10 rows when enabled
     
     // Flipmode transition timing configuration
     // flipmode_switching_time: time between page/line changes (in seconds) - uses pageflip as default
@@ -1177,11 +1183,20 @@ async function tableRecord(slotitem, index, table) {
     console.log('[tableRecord] ✓ Collected', pagerow[tableid].length, 'rows into pagerow array');
 
     if (pagerow[tableid].length != 0) {
-        // Use configured table height for maxrows calculation
-        var configuredHeight = parseInt(table['height']) || parseInt($('#slot-' + tableid).height());
-        var maxrows = configuredHeight - parseInt(headRowHeight);
-        maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
-        maxrows = Math.floor(maxrows);
+        // Calculate page size based on maxRowsEnabled setting
+        var maxrows;
+        if (tableMaxRowsEnabled[tableid] === 'Y') {
+            // Use fixed maxRowsLimit
+            maxrows = tableMaxRowsLimit[tableid];
+            console.log('[tableRecord] Using fixed maxRowsLimit:', maxrows, 'rows per page for table:', tableid);
+        } else {
+            // Calculate based on available height and bodyRowHeight
+            var configuredHeight = parseInt(table['height']) || parseInt($('#slot-' + tableid).height());
+            maxrows = configuredHeight - parseInt(headRowHeight);
+            maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+            maxrows = Math.floor(maxrows);
+            console.log('[tableRecord] Calculated maxrows from height:', maxrows, 'rows per page for table:', tableid);
+        }
         var pagination = $('#pagination-' + tableid);
         var totalRows = pagerow[tableid].length;  // Total number of rows
         var pageSize = parseInt(maxrows);

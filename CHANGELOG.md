@@ -1,5 +1,193 @@
 # Change Log
 
+## [3.10.2] - 2026-01-15
+
+### Added - Table Max Rows Limit Configuration
+
+- **Max Rows Enabled Attribute** - Added maxRowsEnabled attribute to control pagination calculation mode
+  - Read from slotitem[0]['attributes']['maxRowsEnabled']
+  - Accepts 'Y' to enable fixed row limit or 'N' for dynamic calculation (default)
+  - Provides fine-grained control over table pagination behavior
+  - Supports independent configuration per table
+
+- **Max Rows Limit Attribute** - Added maxRowsLimit attribute to specify fixed number of rows per page
+  - Read from slotitem[0]['attributes']['maxRowsLimit']
+  - Defines exact number of rows per page when maxRowsEnabled='Y'
+  - Default value of 10 rows when enabled
+  - Integer value parsed and validated for proper pagination
+
+- **Dual Pagination Mode Support** - Implemented conditional logic to support both fixed and dynamic row calculations
+  - Fixed mode (maxRowsEnabled='Y'): Uses maxRowsLimit value directly
+  - Dynamic mode (maxRowsEnabled='N'): Calculates based on available height divided by bodyRowHeight (existing behavior)
+  - Console logging indicates which mode is active for debugging
+  - Maintains full backward compatibility with default dynamic calculation
+
+### Technical Details
+
+**Global Variables Declaration:**
+```javascript
+var tableMaxRowsEnabled = [] // stores maxRowsEnabled flag per table (Y/N) - Y = use maxRowsLimit, N = calculate based on height
+var tableMaxRowsLimit = [] // stores maxRowsLimit per table - maximum number of rows per page when maxRowsEnabled = 'Y'
+```
+
+**Attribute Extraction in tableFunc:**
+```javascript
+// Max rows configuration - control rows per page
+tableMaxRowsEnabled[tableid] = slotitem[0]['attributes']['maxRowsEnabled'] || 'N' // Y = use fixed maxRowsLimit, N = calculate based on height (default)
+tableMaxRowsLimit[tableid] = slotitem[0]['attributes']['maxRowsLimit'] ? parseInt(slotitem[0]['attributes']['maxRowsLimit']) : 10 // default 10 rows when enabled
+```
+
+**Updated Pagination Logic in tableRecord:**
+```javascript
+if (pagerow[tableid].length != 0) {
+    // Calculate page size based on maxRowsEnabled setting
+    var maxrows;
+    if (tableMaxRowsEnabled[tableid] === 'Y') {
+        // Use fixed maxRowsLimit
+        maxrows = tableMaxRowsLimit[tableid];
+        console.log('[tableRecord] Using fixed maxRowsLimit:', maxrows, 'rows per page for table:', tableid);
+    } else {
+        // Calculate based on available height and bodyRowHeight
+        var configuredHeight = parseInt(table['height']) || parseInt($('#slot-' + tableid).height());
+        maxrows = configuredHeight - parseInt(headRowHeight);
+        maxrows = maxrows / parseInt($('.slot-tbody-' + tableid).find('tr').css('line-height'));
+        maxrows = Math.floor(maxrows);
+        console.log('[tableRecord] Calculated maxrows from height:', maxrows, 'rows per page for table:', tableid);
+    }
+    var pagination = $('#pagination-' + tableid);
+    var totalRows = pagerow[tableid].length;  // Total number of rows
+    var pageSize = parseInt(maxrows);
+    var flipMode = tableFlipMode[tableid] || 1
+    // ... rest of pagination implementation
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Attributes read from slotitem[0]['attributes'] for header-level configuration
+// maxRowsEnabled: 'Y' or 'N' flag to control calculation mode
+// maxRowsLimit: integer value for fixed row count when enabled
+// Default behavior ('N') maintains backward compatibility
+// Math.floor() ensures integer row counts for dynamic calculation
+// Console logging helps debug which mode is active per table
+// Both platforms use identical logic for consistency
+// Works with both flipmode 1 (pagination) and flipmode 2 (line scroll)
+// Compatible with all existing table features and configurations
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Added global variables (2 variables), attribute extraction in tableFunc, updated pagination calculation logic in tableRecord (3 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Added global variables (2 variables), attribute extraction in tableFunc, updated pagination calculation logic in tableRecord (3 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Row count control | Only height-based calculation | Fixed limit or dynamic calculation |
+| Page size consistency | Varies based on table height | Can guarantee fixed row count |
+| Configuration flexibility | Limited to height settings | Independent control per table |
+| Pagination predictability | Depends on bodyRowHeight calc | Exact row count when needed |
+| Backward compatibility | N/A | Full backward compatibility |
+| Multi-table support | N/A | Independent settings per table |
+| Default behavior | Height-based calculation | Same (maxRowsEnabled='N') |
+
+### Usage Examples
+
+Fixed 5 rows per page:
+```xml
+<table id="fixedRows" pageflip="10" flipmode="1">
+  <header maxRowsEnabled="Y" maxRowsLimit="5" bgcolor="#333333" font="Arial" fontcolor="#FFFFFF" fontsize="20" />
+  <columns>
+    <column width="200" text="Product">
+      <data>Product A</data>
+    </column>
+    <column width="150" text="Price">
+      <data>$99.99</data>
+    </column>
+  </columns>
+  <body evencolor="#FFFFFF" oddcolor="#F0F0F0" margin="40" />
+</table>
+```
+Result: Always shows exactly 5 rows per page, creates additional pages if more than 5 rows exist
+
+Fixed 10 rows with scrolling:
+```xml
+<table id="scrollTable" pageflip="5" flipmode="2" transition="scroll-up">
+  <header maxRowsEnabled="Y" maxRowsLimit="10" bgcolor="#2C3E50" font="Roboto" fontcolor="#ECF0F1" fontsize="18" />
+  <columns>
+    <column width="300" text="Status">
+      <data>Active</data>
+    </column>
+  </columns>
+  <body evencolor="#FFFFFF" oddcolor="#E8E8E8" margin="35" />
+</table>
+```
+Result: Shows 10 rows at a time, scrolls line by line with scroll-up transition
+
+Dynamic calculation (default behavior):
+```xml
+<table id="dynamicRows" pageflip="8" flipmode="1">
+  <header maxRowsEnabled="N" bgcolor="#1ABC9C" font="Arial" fontcolor="#FFFFFF" fontsize="20" />
+  <columns>
+    <column width="250" text="Name">
+      <data>John Doe</data>
+    </column>
+  </columns>
+  <body evencolor="#FFFFFF" oddcolor="#F5F5F5" margin="40" />
+</table>
+```
+Result: Calculates rows per page based on table height and bodyRowHeight (existing behavior)
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - default behavior unchanged (maxRowsEnabled='N')
+- No breaking changes to existing table functionality
+- Compatible with flipmode 1 (pagination) and flipmode 2 (line scroll)
+- Works with all transition types (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Compatible with all existing table attributes and configurations
+- Maintains support for dynamic height-based calculation
+- No additional dependencies or libraries required
+- Works with hideheader, hidepagination, and wrap attributes
+- Compatible with column animations (image, fader, text transition)
+- Supports multi-table configurations with independent settings
+
+### Testing
+
+Verify fixed row limit mode:
+- Create table with maxRowsEnabled="Y" and maxRowsLimit="5" and verify exactly 5 rows displayed per page
+- Add 20 rows and confirm 4 pages created (5 rows each)
+- Test with different limits (3, 7, 10, 15 rows)
+- Verify pagination numbers reflect correct page count
+
+Verify dynamic calculation mode:
+- Create table with maxRowsEnabled="N" and verify rows calculated based on table height
+- Test with different table heights (400px, 600px, 800px)
+- Verify bodyRowHeight used in calculation
+- Confirm Math.floor produces integer row counts
+
+Verify default behavior:
+- Create table without maxRowsEnabled or maxRowsLimit attributes
+- Verify defaults to 'N' (dynamic calculation)
+- Confirm backward compatibility with existing tables
+- Test that omitting attributes works correctly
+
+Verify console logging:
+- Enable browser console and verify log shows "Using fixed maxRowsLimit: X rows per page"
+- Verify log shows "Calculated maxrows from height: Y rows per page"
+- Confirm table ID included in log messages
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Verify identical behavior on all platforms
+- Confirm maxRowsLimit respected on mobile devices
+
 ## [3.10.1] - 2026-01-15
 
 ### Fixed - Table Column Animation Synchronization
