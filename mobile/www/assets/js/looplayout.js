@@ -26,6 +26,11 @@ var isLoopLyt = isLoopLyt || false
 var pagerow = pagerow || []
 var videoJSPlayer = videoJSPlayer || []
 
+// Global variables for layout loop transition effects
+var loopTransitionStyle = 'none' // Options: none, fade, slide-right, slide-left, scroll-up, scroll-down
+var loopTransitionSpeed = 1000 // Default transition duration in milliseconds
+var loopTransitionDelay = 0 // Default start delay in milliseconds
+
 // Function to pause loopTimeout during content updates
 function pauseLoopTimeout(reason) {
   if (loopTimeout && !loopTimeoutPaused && isLoopLyt) {
@@ -152,6 +157,161 @@ function loopNextLayout() {
   loopXMLCurIndex++
 }
 
+/**
+ * Apply CSS-based transition effect to main container
+ * Supports: none, fade, slide-right, slide-left, scroll-up, scroll-down
+ */
+function applyLayoutTransition(callback) {
+  var mainElement = document.getElementById('main');
+  if (!mainElement) {
+    log.warn('Layout Transition: Main element not found, skipping transition');
+    if (callback) callback();
+    return;
+  }
+  
+  // Skip transition if style is 'none'
+  if (loopTransitionStyle === 'none') {
+    log.info('Layout Transition: Style is "none", applying changes immediately');
+    if (callback) callback();
+    return;
+  }
+  
+  log.info('Layout Transition: Applying', loopTransitionStyle, 'with speed', loopTransitionSpeed, 'ms and delay', loopTransitionDelay, 'ms');
+  
+  // Apply transition delay if specified
+  setTimeout(function() {
+    // Add transition-out class based on style
+    var transitionOutClass = 'loop-transition-out-' + loopTransitionStyle;
+    mainElement.style.transition = 'all ' + (loopTransitionSpeed / 1000) + 's ease-in-out';
+    mainElement.classList.add('loop-transition-container');
+    mainElement.classList.add(transitionOutClass);
+    
+    // Wait for transition-out to complete, then execute callback
+    setTimeout(function() {
+      // Execute the callback to change content
+      if (callback) callback();
+      
+      // Remove transition-out class and add transition-in class
+      mainElement.classList.remove(transitionOutClass);
+      var transitionInClass = 'loop-transition-in-' + loopTransitionStyle;
+      mainElement.classList.add(transitionInClass);
+      
+      // Remove transition-in class after animation completes
+      setTimeout(function() {
+        mainElement.classList.remove(transitionInClass);
+        mainElement.classList.remove('loop-transition-container');
+        mainElement.style.transition = '';
+        log.info('Layout Transition: Completed');
+      }, loopTransitionSpeed);
+      
+    }, loopTransitionSpeed);
+  }, loopTransitionDelay);
+}
+
+/**
+ * Inject CSS styles for layout transitions
+ * Called once on initialization
+ */
+function injectLayoutTransitionStyles() {
+  // Check if styles already injected
+  if (document.getElementById('loop-transition-styles')) {
+    return;
+  }
+  
+  var styleElement = document.createElement('style');
+  styleElement.id = 'loop-transition-styles';
+  styleElement.textContent = `
+    /* Loop Layout Transition Styles */
+    .loop-transition-container {
+      position: relative;
+    }
+    
+    /* Fade transition */
+    .loop-transition-out-fade {
+      opacity: 0;
+    }
+    .loop-transition-in-fade {
+      opacity: 0;
+      animation: fadeIn var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    /* Slide Right transition */
+    .loop-transition-out-slide-right {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    .loop-transition-in-slide-right {
+      transform: translateX(-100%);
+      opacity: 0;
+      animation: slideInFromLeft var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* Slide Left transition */
+    .loop-transition-out-slide-left {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    .loop-transition-in-slide-left {
+      transform: translateX(100%);
+      opacity: 0;
+      animation: slideInFromRight var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes slideInFromRight {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* Scroll Up transition */
+    .loop-transition-out-scroll-up {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    .loop-transition-in-scroll-up {
+      transform: translateY(100%);
+      opacity: 0;
+      animation: scrollInFromBottom var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes scrollInFromBottom {
+      from { transform: translateY(100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    /* Scroll Down transition */
+    .loop-transition-out-scroll-down {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+    .loop-transition-in-scroll-down {
+      transform: translateY(-100%);
+      opacity: 0;
+      animation: scrollInFromTop var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes scrollInFromTop {
+      from { transform: translateY(-100%); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  `;
+  document.head.appendChild(styleElement);
+  log.info('Layout Transition: Styles injected successfully');
+}
+
+// Inject transition styles when script loads
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectLayoutTransitionStyles);
+  } else {
+    injectLayoutTransitionStyles();
+  }
+}
+
 function playcurrentLayout(xmlData) {
   // Set loop layout flag since we're in loop mode
   isLoopLyt = true
@@ -192,19 +352,6 @@ function playcurrentLayout(xmlData) {
     pageLengthTime = [];
   }
   
-  // Use View Transition API for smooth layout switching
-  const supportsViewTransitions = 'startViewTransition' in document;
-  
-  if (supportsViewTransitions) {
-    // Modern browsers with View Transition API support
-    document.startViewTransition(() => {
-      $('#main').html(''); // Reset whole page html
-    });
-  } else {
-    // Fallback for browsers without support
-    $('#main').html('');
-  }
-  
   if (loopTimeout) { //clear loopTimeout to reset
     clearTimeout(loopTimeout)
     loopTimeout = null
@@ -227,8 +374,14 @@ function playcurrentLayout(xmlData) {
   var layoutDuration = parseInt(xmlData['attributes']['duration']) * 1000
   var layoutxml = JSON.parse(localStorage.getItem('layout-' + currentlytID))
   log.info('play loop xml : ok : layout-' + currentlytID)
-  getLayoutXML(layoutxml)
-  layoutLoopUpdateXML()
+  
+  // Apply transition effect when switching layouts
+  applyLayoutTransition(function() {
+    // Clear and load new layout content during transition
+    $('#main').html(''); // Reset whole page html
+    getLayoutXML(layoutxml);
+    layoutLoopUpdateXML();
+  });
   
   // Setup timeout tracking for pause/resume functionality
   loopTimeoutStartTime = Date.now();
@@ -281,6 +434,13 @@ async function layoutLoopUpdateXML() {
           
           if (result2['elements'][0]['elements'][0]['name'] == 'loop') {
             log.info('Layout Loop Update: Offline mode - Loop layout detected');
+            
+            // Extract transition attributes from loop configuration
+            var loopAttributes = result2['elements'][0]['elements'][0]['attributes'] || {};
+            loopTransitionStyle = loopAttributes['transition_style'] || 'none';
+            loopTransitionSpeed = parseInt(loopAttributes['transition_speed']) || 1000;
+            loopTransitionDelay = parseInt(loopAttributes['transition_delay']) || 0;
+            log.info('Layout Loop Update: Transition settings - Style:', loopTransitionStyle, 'Speed:', loopTransitionSpeed, 'ms, Delay:', loopTransitionDelay, 'ms');
             
             // Populate loopArr, layoutURLList, and layoutIDList for offline mode
             result2 = result2['elements'][0]['elements'][0]['elements'];
@@ -371,6 +531,13 @@ async function layoutLoopUpdateXML() {
           localStorage.setItem(dsid, JSON.stringify(result2)); // Store the dsData in local storage
 
           if (result2['elements'][0]['elements'][0]['name'] == 'loop') { // Check if it's a loop layout
+            // Extract transition attributes from loop configuration
+            var loopAttributes = result2['elements'][0]['elements'][0]['attributes'] || {};
+            loopTransitionStyle = loopAttributes['transition_style'] || 'none';
+            loopTransitionSpeed = parseInt(loopAttributes['transition_speed']) || 1000;
+            loopTransitionDelay = parseInt(loopAttributes['transition_delay']) || 0;
+            log.info('Layout Loop Update: Transition settings - Style:', loopTransitionStyle, 'Speed:', loopTransitionSpeed, 'ms, Delay:', loopTransitionDelay, 'ms');
+            
             result2 = result2['elements'][0]['elements'][0]['elements']; // Access the elements of the loop layout
 
             // Process each layout in the loop
@@ -446,6 +613,13 @@ async function layoutLoopUpdateXML() {
             var result2 = cachedDsData; // Use cached data
             
             if (result2['elements'][0]['elements'][0]['name'] == 'loop') { // Check if it's a loop layout
+              // Extract transition attributes from cached loop configuration
+              var loopAttributes = result2['elements'][0]['elements'][0]['attributes'] || {};
+              loopTransitionStyle = loopAttributes['transition_style'] || 'none';
+              loopTransitionSpeed = parseInt(loopAttributes['transition_speed']) || 1000;
+              loopTransitionDelay = parseInt(loopAttributes['transition_delay']) || 0;
+              log.info('Layout Loop Update: Cached transition settings - Style:', loopTransitionStyle, 'Speed:', loopTransitionSpeed, 'ms, Delay:', loopTransitionDelay, 'ms');
+              
               result2 = result2['elements'][0]['elements'][0]['elements']; // Access the elements of the loop layout
               
               // Populate loopArr, layoutURLList, and layoutIDList for error recovery

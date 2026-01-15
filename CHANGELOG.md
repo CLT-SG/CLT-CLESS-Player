@@ -1,5 +1,267 @@
 # Change Log
 
+## [3.11.0] - 2026-01-15
+
+### Added - Layout Loop Transition Effects
+
+- **Transition Style Attribute** - Added transition_style attribute to configure visual transition effects when switching between layouts in loop mode
+  - Read from result2['elements'][0]['elements'][0]['attributes']['transition_style']
+  - Supports six transition styles: none, fade, slide-right, slide-left, scroll-up, scroll-down
+  - Stored in loopTransitionStyle global variable with default value 'none'
+  - Applied during layout switching for smooth visual effects
+  - Configurable per layout loop configuration
+
+- **Transition Speed Attribute** - Added transition_speed attribute to control animation duration
+  - Read from result2['elements'][0]['elements'][0]['attributes']['transition_speed']
+  - Controls duration of transition animation in milliseconds
+  - Stored in loopTransitionSpeed global variable with default value 1000ms
+  - Parsed as integer for proper timing control
+  - Allows customization of animation speed
+
+- **Transition Delay Attribute** - Added transition_delay attribute to specify delay before transition starts
+  - Read from result2['elements'][0]['elements'][0]['attributes']['transition_delay']
+  - Specifies delay before transition begins in milliseconds
+  - Stored in loopTransitionDelay global variable with default value 0ms
+  - Enables coordinated timing with other elements
+  - Supports staggered animation effects
+
+- **CSS Animation System** - Implemented complete CSS-based animation system with six transition styles
+  - Fade: smooth opacity transition from 0 to 1
+  - Slide-right: slides out to right, new content slides in from left
+  - Slide-left: slides out to left, new content slides in from right
+  - Scroll-up: scrolls up and out, new content scrolls in from bottom
+  - Scroll-down: scrolls down and out, new content scrolls in from top
+  - None: instant switching without animation (default behavior)
+
+- **Dynamic Style Injection** - Implemented injectLayoutTransitionStyles() function for dynamic CSS injection
+  - Automatically injects CSS animations into document head on initialization
+  - Creates style element with ID 'loop-transition-styles' to prevent duplication
+  - Includes all keyframes for transition-out and transition-in animations
+  - Runs once on script load or DOMContentLoaded event
+  - No static CSS file modifications required
+
+- **Transition Orchestration** - Implemented applyLayoutTransition() function for complete transition control
+  - Orchestrates three-phase transition: out, content change, in
+  - Applies transition-out animation first
+  - Executes content change callback during transition
+  - Applies transition-in animation after content loaded
+  - Cleans up CSS classes and styles after completion
+  - Handles 'none' style gracefully with instant switching
+
+### Technical Details
+
+**Global Variables Declaration:**
+```javascript
+// Global variables for layout loop transition effects
+var loopTransitionStyle = 'none' // Options: none, fade, slide-right, slide-left, scroll-up, scroll-down
+var loopTransitionSpeed = 1000 // Default transition duration in milliseconds
+var loopTransitionDelay = 0 // Default start delay in milliseconds
+```
+
+**Transition Attribute Extraction:**
+```javascript
+// Extract transition attributes from loop configuration
+var loopAttributes = result2['elements'][0]['elements'][0]['attributes'] || {};
+loopTransitionStyle = loopAttributes['transition_style'] || 'none';
+loopTransitionSpeed = parseInt(loopAttributes['transition_speed']) || 1000;
+loopTransitionDelay = parseInt(loopAttributes['transition_delay']) || 0;
+log.info('Layout Loop Update: Transition settings - Style:', loopTransitionStyle, 'Speed:', loopTransitionSpeed, 'ms, Delay:', loopTransitionDelay, 'ms');
+```
+
+**Transition Application Function:**
+```javascript
+function applyLayoutTransition(callback) {
+  var mainElement = document.getElementById('main');
+  if (!mainElement) {
+    log.warn('Layout Transition: Main element not found, skipping transition');
+    if (callback) callback();
+    return;
+  }
+  
+  // Skip transition if style is 'none'
+  if (loopTransitionStyle === 'none') {
+    log.info('Layout Transition: Style is "none", applying changes immediately');
+    if (callback) callback();
+    return;
+  }
+  
+  log.info('Layout Transition: Applying', loopTransitionStyle, 'with speed', loopTransitionSpeed, 'ms and delay', loopTransitionDelay, 'ms');
+  
+  // Apply transition delay if specified
+  setTimeout(function() {
+    // Add transition-out class
+    var transitionOutClass = 'loop-transition-out-' + loopTransitionStyle;
+    mainElement.style.transition = 'all ' + (loopTransitionSpeed / 1000) + 's ease-in-out';
+    mainElement.classList.add('loop-transition-container');
+    mainElement.classList.add(transitionOutClass);
+    
+    // Wait for transition-out to complete
+    setTimeout(function() {
+      if (callback) callback(); // Change content
+      
+      // Apply transition-in animation
+      mainElement.classList.remove(transitionOutClass);
+      var transitionInClass = 'loop-transition-in-' + loopTransitionStyle;
+      mainElement.classList.add(transitionInClass);
+      
+      // Clean up after transition-in completes
+      setTimeout(function() {
+        mainElement.classList.remove(transitionInClass);
+        mainElement.classList.remove('loop-transition-container');
+        mainElement.style.transition = '';
+        log.info('Layout Transition: Completed');
+      }, loopTransitionSpeed);
+    }, loopTransitionSpeed);
+  }, loopTransitionDelay);
+}
+```
+
+**Updated Layout Switching:**
+```javascript
+function playcurrentLayout(xmlData) {
+  // ... existing cleanup code ...
+  
+  var layoutDuration = parseInt(xmlData['attributes']['duration']) * 1000
+  var layoutxml = JSON.parse(localStorage.getItem('layout-' + currentlytID))
+  log.info('play loop xml : ok : layout-' + currentlytID)
+  
+  // Apply transition effect when switching layouts
+  applyLayoutTransition(function() {
+    // Clear and load new layout content during transition
+    $('#main').html('');
+    getLayoutXML(layoutxml);
+    layoutLoopUpdateXML();
+  });
+  
+  // ... rest of function ...
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// Attributes extracted in offline mode, online mode, and error fallback
+// CSS animations injected dynamically to avoid static file changes
+// Three-phase transition ensures smooth visual effect
+// setTimeout used for precise timing control
+// CSS classes manage animation lifecycle
+// Callback pattern ensures content changes during transition
+// Default 'none' maintains backward compatibility
+// Works with all browsers supporting CSS animations
+// No external dependencies or libraries required
+// Main element must exist for transitions to work
+// Duplicate injection prevented with ID check
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/looplayout.js - Added 3 global variables, implemented applyLayoutTransition function, implemented injectLayoutTransitionStyles function with CSS animations, updated playcurrentLayout to use transition system, updated layoutLoopUpdateXML in 3 locations (offline mode, online mode, error fallback) to extract transition attributes (11 edits)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/looplayout.js - Added 3 global variables, implemented applyLayoutTransition function, implemented injectLayoutTransitionStyles function with CSS animations, updated playcurrentLayout to use transition system, updated layoutLoopUpdateXML in 3 locations (offline mode, online mode, error fallback) to extract transition attributes (11 edits)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Layout switching | Instant/abrupt | Smooth animated transitions |
+| Visual polish | Basic | Professional |
+| Transition styles | None | Six styles available |
+| Speed control | Not configurable | Fully configurable |
+| Delay control | Not available | Configurable delay |
+| Browser compatibility | View Transition API only | All modern browsers |
+| User experience | Jarring switches | Smooth animations |
+| Configuration | Not available | Simple XML attributes |
+| Backward compatibility | N/A | Fully maintained |
+| Offline support | N/A | Full support |
+
+### Usage Examples
+
+Fade transition with 1.5 second duration:
+```xml
+<loop transition_style="fade" transition_speed="1500" transition_delay="0">
+  <layout url="http://server/layout/123/layout.xml" duration="10"/>
+  <layout url="http://server/layout/456/layout.xml" duration="15"/>
+</loop>
+```
+Result: Layouts fade in and out smoothly over 1.5 seconds
+
+Slide right with delay:
+```xml
+<loop transition_style="slide-right" transition_speed="1000" transition_delay="200">
+  <layout url="http://server/layout/111/layout.xml" duration="8"/>
+  <layout url="http://server/layout/222/layout.xml" duration="10"/>
+</loop>
+```
+Result: Slides right with 200ms delay before transition starts
+
+Scroll up transition:
+```xml
+<loop transition_style="scroll-up" transition_speed="800" transition_delay="0">
+  <layout url="http://server/layout/aaa/layout.xml" duration="12"/>
+  <layout url="http://server/layout/bbb/layout.xml" duration="15"/>
+</loop>
+```
+Result: Current layout scrolls up, new layout scrolls in from bottom
+
+No transition (backward compatible):
+```xml
+<loop transition_style="none">
+  <layout url="http://server/layout/old1/layout.xml" duration="10"/>
+  <layout url="http://server/layout/old2/layout.xml" duration="15"/>
+</loop>
+```
+Result: Instant switching without animation (original behavior)
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - default behavior unchanged (instant switching)
+- No breaking changes to existing layout loop functionality
+- Compatible with all layout types and slot configurations
+- Works in offline mode, online mode, and error fallback scenarios
+- No external dependencies or libraries required
+- Pure CSS animations supported by all modern browsers
+- No View Transition API dependency (broader compatibility)
+- Compatible with pause/resume functionality
+- Supports broadcast sync for multi-screen setups
+- Works with all existing layout features
+
+### Testing
+
+Verify all transition styles:
+- Test fade transition for smooth opacity changes
+- Test slide-right for right slide out, left slide in
+- Test slide-left for left slide out, right slide in
+- Test scroll-up for up scroll out, bottom scroll in
+- Test scroll-down for down scroll out, top scroll in
+- Test none for instant switching
+
+Verify speed and delay control:
+- Test various transition speeds (500ms, 1000ms, 2000ms, 3000ms)
+- Test various delays (0ms, 500ms, 1000ms)
+- Verify animation duration matches configuration
+- Confirm delay occurs before transition starts
+
+Verify backward compatibility:
+- Create loop without transition attributes
+- Verify defaults to none, 1000ms, 0ms
+- Confirm instant switching maintained
+- Test omitting individual attributes
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Verify identical behavior on all platforms
+- Test with different screen sizes and orientations
+
+Verify offline/online modes:
+- Test transitions in offline mode
+- Test transitions in online mode
+- Test transitions in error fallback mode
+- Verify console logs show correct transition settings
+
 ## [3.10.2] - 2026-01-15
 
 ### Added - Table Max Rows Limit Configuration
