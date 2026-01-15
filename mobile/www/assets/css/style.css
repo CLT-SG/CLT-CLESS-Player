@@ -565,6 +565,188 @@ iframe {
     animation: scrollDownIn 0.6s ease-in-out forwards;
 }
 
+/* ======================================================
+   Text Transition Column Animations (transition: format)
+   ====================================================== */
+
+/* Text Fade Transition */
+@keyframes textFadeOut {
+    0% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0;
+    }
+}
+
+@keyframes textFadeIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+.text-fade-out {
+    animation: textFadeOut 0.6s ease-in-out forwards;
+}
+
+.text-fade-in {
+    animation: textFadeIn 0.6s ease-in-out forwards;
+}
+
+/* Text Slide Right Transition */
+@keyframes textSlideRightOut {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes textSlideRightIn {
+    0% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.text-slide-right-out {
+    animation: textSlideRightOut 0.6s ease-in-out forwards;
+}
+
+.text-slide-right-in {
+    animation: textSlideRightIn 0.6s ease-in-out forwards;
+}
+
+/* Text Slide Left Transition */
+@keyframes textSlideLeftOut {
+    0% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateX(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes textSlideLeftIn {
+    0% {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.text-slide-left-out {
+    animation: textSlideLeftOut 0.6s ease-in-out forwards;
+}
+
+.text-slide-left-in {
+    animation: textSlideLeftIn 0.6s ease-in-out forwards;
+}
+
+/* Text Scroll Up Transition */
+@keyframes textScrollUpOut {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+}
+
+@keyframes textScrollUpIn {
+    0% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.text-scroll-up-out {
+    animation: textScrollUpOut 0.6s ease-in-out forwards;
+}
+
+.text-scroll-up-in {
+    animation: textScrollUpIn 0.6s ease-in-out forwards;
+}
+
+/* Text Scroll Down Transition */
+@keyframes textScrollDownOut {
+    0% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes textScrollDownIn {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    100% {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+.text-scroll-down-out {
+    animation: textScrollDownOut 0.6s ease-in-out forwards;
+}
+
+.text-scroll-down-in {
+    animation: textScrollDownIn 0.6s ease-in-out forwards;
+}
+
+/* Text transition container and element positioning */
+.text-transition-col-0,
+.text-transition-col-1,
+.text-transition-col-2,
+.text-transition-col-3,
+.text-transition-col-4,
+.text-transition-col-5,
+.text-transition-col-6,
+.text-transition-col-7,
+.text-transition-col-8,
+.text-transition-col-9 {
+    display: inline-block;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.column-text-transition {
+    display: inline-block;
+    width: 100%;
+    height: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: clip;
+}
+
 /* Image column: Double blink animation (legacy) */
 @keyframes doubleBlink {
     0% {
