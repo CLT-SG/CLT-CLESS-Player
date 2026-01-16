@@ -160,6 +160,7 @@ function loopNextLayout() {
 /**
  * Apply CSS-based transition effect to main container
  * Supports: none, fade, slide-right, slide-left, scroll-up, scroll-down
+ * Uses complementary transitions: fade↔fade, slide-right↔slide-left, slide-left↔slide-right, scroll-up↔scroll-down, scroll-down↔scroll-up
  */
 function applyLayoutTransition(callback) {
   var mainElement = document.getElementById('main');
@@ -176,12 +177,24 @@ function applyLayoutTransition(callback) {
     return;
   }
   
-  log.info('Layout Transition: Applying', loopTransitionStyle, 'with speed', loopTransitionSpeed, 'ms and delay', loopTransitionDelay, 'ms');
+  // Map transition styles to their complementary incoming styles
+  var transitionPairs = {
+    'fade': 'fade',
+    'slide-right': 'slide-left',
+    'slide-left': 'slide-right',
+    'scroll-up': 'scroll-down',
+    'scroll-down': 'scroll-up'
+  };
+  
+  var outgoingStyle = loopTransitionStyle;
+  var incomingStyle = transitionPairs[loopTransitionStyle] || loopTransitionStyle;
+  
+  log.info('Layout Transition: Applying outgoing:', outgoingStyle, '-> incoming:', incomingStyle, 'with speed', loopTransitionSpeed, 'ms and delay', loopTransitionDelay, 'ms');
   
   // Apply transition delay if specified
   setTimeout(function() {
-    // Add transition-out class based on style
-    var transitionOutClass = 'loop-transition-out-' + loopTransitionStyle;
+    // Add transition-out class based on outgoing style
+    var transitionOutClass = 'loop-transition-out-' + outgoingStyle;
     mainElement.style.transition = 'all ' + (loopTransitionSpeed / 1000) + 's ease-in-out';
     mainElement.classList.add('loop-transition-container');
     mainElement.classList.add(transitionOutClass);
@@ -191,9 +204,9 @@ function applyLayoutTransition(callback) {
       // Execute the callback to change content
       if (callback) callback();
       
-      // Remove transition-out class and add transition-in class
+      // Remove transition-out class and add transition-in class with complementary style
       mainElement.classList.remove(transitionOutClass);
-      var transitionInClass = 'loop-transition-in-' + loopTransitionStyle;
+      var transitionInClass = 'loop-transition-in-' + incomingStyle;
       mainElement.classList.add(transitionInClass);
       
       // Remove transition-in class after animation completes
@@ -221,12 +234,12 @@ function injectLayoutTransitionStyles() {
   var styleElement = document.createElement('style');
   styleElement.id = 'loop-transition-styles';
   styleElement.textContent = `
-    /* Loop Layout Transition Styles */
+    /* Loop Layout Transition Styles - Complementary Pairing */
     .loop-transition-container {
       position: relative;
     }
     
-    /* Fade transition */
+    /* Fade transition (fade out -> fade in) */
     .loop-transition-out-fade {
       opacity: 0;
     }
@@ -239,27 +252,12 @@ function injectLayoutTransitionStyles() {
       to { opacity: 1; }
     }
     
-    /* Slide Right transition */
+    /* Slide Right (out right -> in from right) */
     .loop-transition-out-slide-right {
       transform: translateX(100%);
       opacity: 0;
     }
     .loop-transition-in-slide-right {
-      transform: translateX(-100%);
-      opacity: 0;
-      animation: slideInFromLeft var(--transition-speed, 1s) ease-in-out forwards;
-    }
-    @keyframes slideInFromLeft {
-      from { transform: translateX(-100%); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-    
-    /* Slide Left transition */
-    .loop-transition-out-slide-left {
-      transform: translateX(-100%);
-      opacity: 0;
-    }
-    .loop-transition-in-slide-left {
       transform: translateX(100%);
       opacity: 0;
       animation: slideInFromRight var(--transition-speed, 1s) ease-in-out forwards;
@@ -269,7 +267,22 @@ function injectLayoutTransitionStyles() {
       to { transform: translateX(0); opacity: 1; }
     }
     
-    /* Scroll Up transition */
+    /* Slide Left (out left -> in from left) */
+    .loop-transition-out-slide-left {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    .loop-transition-in-slide-left {
+      transform: translateX(-100%);
+      opacity: 0;
+      animation: slideInFromLeft var(--transition-speed, 1s) ease-in-out forwards;
+    }
+    @keyframes slideInFromLeft {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    /* Scroll Up (out up -> in from bottom) */
     .loop-transition-out-scroll-up {
       transform: translateY(-100%);
       opacity: 0;
@@ -284,7 +297,7 @@ function injectLayoutTransitionStyles() {
       to { transform: translateY(0); opacity: 1; }
     }
     
-    /* Scroll Down transition */
+    /* Scroll Down (out down -> in from top) */
     .loop-transition-out-scroll-down {
       transform: translateY(100%);
       opacity: 0;
