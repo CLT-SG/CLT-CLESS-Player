@@ -1,6 +1,6 @@
 {
     "name": "cless-player",
-    "version": "3.11.2",
+    "version": "3.11.3",
     "description": "CLESS Player",
     "main": "index.js",
     "license": "ISC",
@@ -34,7 +34,7 @@
         "electron-updater": "^6.6.2",
         "express": "^4.17.2",
         "express-csp-header": "^5.1.0",
-        "ip": "^1.1.5",
+        "ip": "^2.0.1",
         "is-reachable": "^5.2.1",
         "macaddress": "^0.5.2",
         "mkcert": "^1.5.0",
