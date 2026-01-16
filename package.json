@@ -1,6 +1,6 @@
 {
     "name": "cless-player",
-    "version": "3.10.3",
+    "version": "3.11.2",
     "description": "CLESS Player",
     "main": "index.js",
     "license": "ISC",

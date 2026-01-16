@@ -177,6 +177,13 @@ function applyLayoutTransition(callback) {
     return;
   }
   
+  // Skip transition for single-layout loops (no need to animate when there's only one layout)
+  if (loopArr.length <= 1) {
+    log.info('Layout Transition: Single layout loop detected (' + loopArr.length + ' layout), skipping transition but allowing XML updates');
+    if (callback) callback();
+    return;
+  }
+  
   // Map transition styles to their complementary incoming styles
   var transitionPairs = {
     'fade': 'fade',

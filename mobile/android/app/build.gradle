@@ -7,8 +7,8 @@ android {
         applicationId "biz.closedloop.ecless.player"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3103
-        versionName "3.10.3"
+        versionCode 3112
+        versionName "3.11.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
