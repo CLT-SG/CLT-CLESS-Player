@@ -1,5 +1,165 @@
 # Change Log
 
+## [3.11.2] - 2026-01-16
+
+### Improved - Layout Loop Transition Performance
+
+- **Single-Layout Loop Optimization** - Skip transition effects when loop contains only one layout
+  - Root cause: Transitions were applied even for single-layout loops where no switching occurs
+  - Previous behavior: Unnecessary animations executed for loops with one layout
+  - Expected behavior: Instant updates for single-layout loops, transitions only for multi-layout switching
+  - Implemented length check in applyLayoutTransition() before applying transitions
+  - Check if loopArr.length <= 1 to determine single or empty layout scenario
+  - Impact: Improved performance and user experience for single-layout loop configurations
+
+### Technical Details
+
+**Single-Layout Detection Logic:**
+```javascript
+function applyLayoutTransition(callback) {
+  var mainElement = document.getElementById('main');
+  if (!mainElement) {
+    log.warn('Layout Transition: Main element not found, skipping transition');
+    if (callback) callback();
+    return;
+  }
+  
+  // Skip transition if style is 'none'
+  if (loopTransitionStyle === 'none') {
+    log.info('Layout Transition: Style is "none", applying changes immediately');
+    if (callback) callback();
+    return;
+  }
+  
+  // Skip transition for single-layout loops (no need to animate when there's only one layout)
+  if (loopArr.length <= 1) {
+    log.info('Layout Transition: Single layout loop detected (' + loopArr.length + ' layout), skipping transition but allowing XML updates');
+    if (callback) callback();
+    return;
+  }
+  
+  // Map transition styles to their complementary incoming styles
+  var transitionPairs = {
+    'fade': 'fade',
+    'slide-right': 'slide-left',
+    'slide-left': 'slide-right',
+    'scroll-up': 'scroll-down',
+    'scroll-down': 'scroll-up'
+  };
+  
+  // ... rest of transition logic for multi-layout loops
+}
+```
+
+**Key Implementation Points:**
+```javascript
+// loopArr.length check determines if loop has multiple layouts
+// Length <= 1 means single layout or empty loop (no switching needed)
+// Callback still executed to allow XML updates and content refreshes
+// Transition logic only runs for multi-layout loops (length >= 2)
+// Informative logging shows layout count and reason for skipping
+// Check placed after 'none' style check for logical flow
+// Maintains all existing functionality for multi-layout scenarios
+// No performance overhead - simple length check before animations
+// Works with all transition styles and configurations
+// Compatible with complementary pairing and element preservation
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/looplayout.js - Added loopArr.length check in applyLayoutTransition() function after 'none' style check to skip transitions for single-layout loops (1 edit)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/looplayout.js - Added loopArr.length check in applyLayoutTransition() function after 'none' style check to skip transitions for single-layout loops (1 edit)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Single-layout loop behavior | Unnecessary transitions applied | Instant updates without animation |
+| Multi-layout loop behavior | Transitions applied | Transitions applied (unchanged) |
+| Performance for single layout | Transition overhead | Optimized instant updates |
+| XML updates for single layout | During transition animation | Immediate execution |
+| User experience | Unnecessary animation delay | Professional instant updates |
+| Logging | Generic transition info | Shows layout count and skip reason |
+| Code efficiency | Executed full transition logic | Early return for single layouts |
+| Transition applicability | All loops regardless of size | Only multi-layout loops |
+
+### Usage Examples
+
+Single-layout loop (instant updates):
+```xml
+<loop transition_style="fade" transition_speed="1000" transition_delay="0">
+  <layout url="http://server/layout/123/layout.xml" duration="10"/>
+</loop>
+```
+Result: Transition skipped, content updates instantly every 10 seconds, log shows "Single layout loop detected (1 layout), skipping transition but allowing XML updates"
+
+Multi-layout loop (transitions applied):
+```xml
+<loop transition_style="fade" transition_speed="1000" transition_delay="0">
+  <layout url="http://server/layout/123/layout.xml" duration="10"/>
+  <layout url="http://server/layout/456/layout.xml" duration="15"/>
+</loop>
+```
+Result: Full transition effects applied when switching between layouts, complementary pairing works as designed
+
+Empty loop (safe handling):
+```xml
+<loop transition_style="slide-right" transition_speed="1000" transition_delay="0">
+</loop>
+```
+Result: Safely handles edge case, skips transition, no errors
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - no breaking changes
+- Single-layout loops now more efficient
+- Multi-layout loops unchanged and work as before
+- Compatible with all transition styles
+- Works with complementary pairing implementation
+- Compatible with main element preservation
+- Works in offline mode, online mode, and error fallback scenarios
+- No additional dependencies required
+- Maintains all existing layout features and configurations
+
+### Testing
+
+Verify single-layout skip:
+- Create loop with only one layout and any transition_style
+- Verify console shows "Single layout loop detected (1 layout), skipping transition"
+- Confirm content updates instantly without animation
+- Test with different transition styles (fade, slide-right, etc.)
+- Verify XML updates continue to work normally
+
+Verify multi-layout transitions:
+- Create loop with 2+ layouts and any transition_style
+- Verify transitions applied normally between layouts
+- Confirm complementary pairing works correctly
+- Test all transition styles work as expected
+- Verify no regression in multi-layout behavior
+
+Verify edge cases:
+- Test empty loop (no layouts) and verify safe handling
+- Test loop with transition_style="none" and verify both checks work
+- Verify proper check order (none check before length check)
+- Test rapid switching between single and multi-layout loops
+
+Verify logging:
+- Check console for appropriate messages
+- Verify layout count shown in log message
+- Confirm logging helps debugging
+- Test logging on both desktop and mobile
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical behavior on all platforms
+- Verify performance improvement noticeable on all devices
+
 ## [3.11.1] - 2026-01-16
 
 ### Fixed - Layout Loop Transition Complementary Pairing
