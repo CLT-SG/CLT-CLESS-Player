@@ -114,11 +114,23 @@ function getLayoutXML(result2) {
     }
 
     //custom background
-    $('body *').not('.no-network').remove()
-    $('body').append('<div id="main"></div>')
+    // Check if #main exists (from loop transitions) - preserve it to maintain transition classes
+    var mainExists = $('#main').length > 0;
+    
+    if (mainExists && isLoopLyt) {
+        // In loop mode with existing #main, only clear contents and preserve element/classes
+        log.info('Layout XML: Preserving #main element for loop transition');
+        $('#main').empty(); // Clear contents but keep the element and classes
+    } else {
+        // First load or non-loop mode: remove and recreate #main
+        $('body *').not('.no-network').remove();
+        $('body').append('<div id="main"></div>');
+    }
+    
+    // Apply or update #main styles
     $('#main').css({
         "background-color": "black",
-    })
+    });
     $('#main').css({
         "background-color": lytbgcolor,
         "background-repeat": "no-repeat",
@@ -126,7 +138,7 @@ function getLayoutXML(result2) {
         "width": "100%",
         "height": "100%",
         "cursor": "none"
-    })
+    });
 
     if (lytbgscretch == 'Y') {
         $('#main').css({

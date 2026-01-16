@@ -133,12 +133,24 @@ function getLayoutXML(result2) {
     console.log('[LayoutXML] Media path:', mediapath);
 
     //custom background - CREATE #main FIRST before any dimension calculations
-    // IMPORTANT: Preserve mobile-nav, loading-overlay, and no-network elements
-    $('body > *').not('.no-network, #mobile-nav, #loading-overlay').remove()
-    $('body').append('<div id="main"></div>')
+    // Check if #main exists (from loop transitions) - preserve it to maintain transition classes
+    var mainExists = $('#main').length > 0;
+    
+    if (mainExists && isLoopLyt) {
+        // In loop mode with existing #main, only clear contents and preserve element/classes
+        log.info('Layout XML: Preserving #main element for loop transition');
+        $('#main').empty(); // Clear contents but keep the element and classes
+    } else {
+        // First load or non-loop mode: remove and recreate #main
+        // IMPORTANT: Preserve mobile-nav, loading-overlay, and no-network elements
+        $('body > *').not('.no-network, #mobile-nav, #loading-overlay').remove();
+        $('body').append('<div id="main"></div>');
+    }
+    
+    // Apply or update #main styles
     $('#main').css({
         "background-color": "transparent",
-    })
+    });
 
     //adjust window size
     // Check if we're on mobile or desktop
