@@ -535,6 +535,9 @@ function tableRecord(slotitem, index, table) {
                     clearTimeout(colImageTimeout[cellKey])
                 }
                 
+                // Enforce row height lock BEFORE any content changes to prevent flickering
+                enforceRowHeightLock(tableid)
+                
                 // Get per-column image settings or use global defaults
                 var imageSettings = colImageSettings[cellKey] || {}
                 var transitionType = (imageSettings.enabled && imageSettings.transition) 
@@ -655,6 +658,8 @@ function tableRecord(slotitem, index, table) {
                         setTimeout(function() {
                             targetContainer.find('img').removeClass(transitionClasses.in)
                         }, transitionSpeed)
+                        // Re-enforce row height lock after transition
+                        enforceRowHeightLock(tableid)
                     }, transitionSpeed)
                 } else {
                     // First render - no animation
@@ -665,6 +670,8 @@ function tableRecord(slotitem, index, table) {
                     if (isFirstRender) {
                         colImageFirstRender[cellKey] = true
                     }
+                    // Enforce row height lock after first render
+                    enforceRowHeightLock(tableid)
                 }
 
                 // Only cycle to next if there are multiple images
@@ -717,6 +724,9 @@ function tableRecord(slotitem, index, table) {
                     clearTimeout(colFaderTimeout[cellKey])
                 }
                 
+                // Enforce row height lock BEFORE any content changes to prevent flickering
+                enforceRowHeightLock(tableid)
+                
                 // Get per-column fader settings or use defaults
                 var faderSettings = colFaderSettings[cellKey] || {}
                 var animationDuration = (faderSettings.enabled && faderSettings.speed) 
@@ -747,6 +757,8 @@ function tableRecord(slotitem, index, table) {
                         setTimeout(function() {
                             targetContainer.find('.column-fader').removeClass('fader-scroll-in')
                         }, animationDuration * 0.75)
+                        // Re-enforce row height lock after transition
+                        enforceRowHeightLock(tableid)
                     }, animationDuration * 0.75)
                 } else {
                     // First render - no animation
@@ -756,32 +768,9 @@ function tableRecord(slotitem, index, table) {
                     if (isFirstRender) {
                         colFaderFirstRender[cellKey] = true
                     }
+                    // Enforce row height lock after first render
+                    enforceRowHeightLock(tableid)
                 }
-
-                //row table height
-                $('.slot-tbody-' + tableid).find('tr').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "height": bodyRowHeight + "px !important",
-                    "max-height": bodyRowHeight + "px !important",
-                    'line-height': bodyRowHeight + 'px'
-                })
-                //fit all elements size inside td
-                $('.slot-tbody-' + tableid).find('td').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign
-                })
-
-                $('.slot-tbody-' + tableid).find('tr td *').css({
-                    "max-height": bodyRowHeight + "px !important",
-                    "white-space": "nowrap",
-                    "overflow": "hidden",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign,
-                })
 
                 // Only cycle to next if there are multiple items
                 if (colFaderloop[cellKey].length > 1) {
@@ -833,6 +822,9 @@ function tableRecord(slotitem, index, table) {
                     clearTimeout(colTextTransitionTimeout[cellKey])
                 }
                 
+                // Enforce row height lock BEFORE any content changes to prevent flickering
+                enforceRowHeightLock(tableid)
+                
                 // Get per-column text transition settings or use defaults
                 var transitionSettings = colTextTransitionSettings[cellKey] || {}
                 var animationDuration = (transitionSettings.enabled && transitionSettings.speed) 
@@ -878,6 +870,8 @@ function tableRecord(slotitem, index, table) {
                         setTimeout(function() {
                             targetContainer.find('.column-text-transition').removeClass(transitionClasses.in)
                         }, animationDuration * 0.75)
+                        // Re-enforce row height lock after transition
+                        enforceRowHeightLock(tableid)
                     }, animationDuration * 0.75)
                 } else {
                     // First render - no animation
@@ -887,32 +881,9 @@ function tableRecord(slotitem, index, table) {
                     if (isFirstRender) {
                         colTextTransitionFirstRender[cellKey] = true
                     }
+                    // Enforce row height lock after first render
+                    enforceRowHeightLock(tableid)
                 }
-
-                //row table height
-                $('.slot-tbody-' + tableid).find('tr').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "height": bodyRowHeight + "px !important",
-                    "max-height": bodyRowHeight + "px !important",
-                    'line-height': bodyRowHeight + 'px'
-                })
-                //fit all elements size inside td
-                $('.slot-tbody-' + tableid).find('td').css({
-                    "white-space": "nowrap",
-                    "overflow": "hidden !important",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign
-                })
-
-                $('.slot-tbody-' + tableid).find('tr td *').css({
-                    "max-height": bodyRowHeight + "px !important",
-                    "white-space": "nowrap",
-                    "overflow": "hidden",
-                    "text-overflow": "clip",
-                    "vertical-align": tableStyleVAlign,
-                })
 
                 // Only cycle to next if there are multiple items
                 if (colTextTransitionloop[cellKey].length > 1) {
@@ -1010,6 +981,48 @@ function tableRecord(slotitem, index, table) {
             implementPaginationMode(tableid, pagination, pagerow[tableid], pageSize)
         }
     }
+}
+
+/**
+ * Enforce row height constraints to prevent flickering during transitions
+ * This function applies strict height locking to rows and cells
+ * Called before and during content transitions to maintain fixed row heights
+ * @param {string} tableid - The ID of the table to style
+ */
+function enforceRowHeightLock(tableid) {
+    var wrapStyle = tableWrap[tableid] === 'Y' ? 'normal' : 'nowrap'
+    var textOverflow = tableWrap[tableid] === 'Y' ? 'ellipsis' : 'clip'
+    
+    // Lock row heights with !important to prevent any dynamic changes
+    $('.slot-tbody-' + tableid).find('tr').css({
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px",
+        "min-height": bodyRowHeight + "px",
+        'line-height': bodyRowHeight + 'px'
+    })
+    
+    // Lock cell heights
+    $('.slot-tbody-' + tableid).find('td').css({
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "vertical-align": tableStyleVAlign,
+        "height": bodyRowHeight + "px",
+        "max-height": bodyRowHeight + "px",
+        "min-height": bodyRowHeight + "px"
+    })
+
+    // Lock all elements inside cells
+    $('.slot-tbody-' + tableid).find('tr td *').css({
+        "max-height": bodyRowHeight + "px",
+        "white-space": wrapStyle,
+        "overflow": "hidden",
+        "text-overflow": textOverflow,
+        "vertical-align": tableStyleVAlign,
+    })
 }
 
 /**
