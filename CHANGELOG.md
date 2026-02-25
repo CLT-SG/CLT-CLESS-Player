@@ -1,5 +1,147 @@
 # Change Log
 
+## [3.11.6] - 2026-02-25
+
+### Added - Silent Table Data Refresh on Pagination Loop
+
+- **Background Table Data Refresh on Full Pagination Cycle** - Added automatic background table data refresh when table pagination loops back to the first page (or line mode loops back to the start), keeping table content up-to-date without disrupting the display
+  - Problem: Table data only updated when the full layout refreshed via the serverRefresh timer in updatelayout(), which destroyed and rebuilt the entire table structure. This meant table data could be stale for the entire duration between layout refreshes, and when the refresh did happen, it caused a disruptive full table rebuild (DOM removal, tableFunc rebuild, tableRecord re-render)
+  - Problem: No mechanism existed to check for new table data from the server without triggering a full layout rebuild
+  - Problem: Users viewing a multi-page table had to wait for the serverRefresh timer before seeing any data updates
+  - Solution (Table Slot Registry): Added tableSlotRegistry and tableRefreshInProgress globals to layoutxml.js. During getLayoutXML() table slot processing, each table's slot configuration (slotid) is stored in the registry keyed by table ID, enabling silentTableDataRefresh() to locate the correct slot container for re-rendering
+  - Solution (Silent Refresh Function): Added silentTableDataRefresh(tableid) function to layoutxml.js. Fetches the latest ds.xml from the server via background AJAX request, parses XML response, finds the matching table slot by ID, and compares the table update timestamp against the stored tableolddate. If the timestamp is strictly newer, clears the pagination interval and cell animations, removes only the tbody and colgroup (preserving header and structure), re-renders table records via tableRecord(), and updates tableolddate. If data has not changed, does nothing
+  - Solution (Pagination Trigger): Added silentTableDataRefresh() call in implementPaginationMode() in slot-table.js when pageincrease exceeds totalpage and resets to page 1 (full pagination cycle complete). Uses typeof check to safely call silentTableDataRefresh only when available
+  - Solution (Line Mode Trigger): Added silentTableDataRefresh() call in implementLineTypeMode() in slot-table.js when currentStartIndex loops back to 0 (full line scroll cycle complete). Uses typeof check to safely call silentTableDataRefresh only when available
+  - Solution (Mobile Adaptations): Mobile version uses dataType 'xml' for AJAX and validates data.documentElement (mobile-http returns XMLDocument), mobile-specific XML parsing options (textKey: 'text', ignoreDeclaration: false, ignoreComment: true), resets tableRendering guard before calling async tableRecord(), uses cleanupTableState() for proper interval and animation cleanup, and processes only the first table record to match mobile single-record architecture
+  - Impact: Table data now refreshes automatically each time pagination completes a full cycle. No visible disruption during data refresh - table continues displaying while background fetch occurs. If data has changed, rows update seamlessly when pagination restarts from page 1. If data has not changed, nothing happens
+
+### Technical Details
+
+**Table Slot Registry - stores config during initial render:**
+```javascript
+var tableSlotRegistry = {} // Stores table slot configuration for silent data refresh
+var tableRefreshInProgress = {} // Guard to prevent concurrent refresh requests per table
+
+// In getLayoutXML() table slot processing:
+tableSlotRegistry[slot['attributes']['id']] = {
+    slotid: slotid
+}
+```
+
+**Silent Table Data Refresh - background update without disruption:**
+```javascript
+function silentTableDataRefresh(tableid) {
+    if (tableRefreshInProgress[tableid]) return
+    var tableConfig = tableSlotRegistry[tableid]
+    if (!tableConfig) return
+    tableRefreshInProgress[tableid] = true
+    $.ajax({
+        url: urlServer,
+        type: 'GET',
+        timeout: 5000,
+        success: function (data) {
+            var tablenewupdate = tableSlot['attributes']['update']
+            if (tablenewupdate > tableolddate) {
+                tableolddate = tablenewupdate
+                clearInterval(pageAutoInterval[tableid])
+                stopAllCellAnimations(tableid)
+                $('.slot-tbody-' + tableid).remove()
+                $('.slot-colgroup-' + tableid).remove()
+                tableRecord(records['elements'], tableConfig.slotid, records['attributes'])
+            }
+        }
+    })
+}
+```
+
+**Pagination Loop Trigger - fires on full cycle completion:**
+```javascript
+// In implementPaginationMode():
+if (pageincrease[tableid] > totalpage) {
+    pageincrease[tableid] = 1;
+    pagination.pagination('go', 1);
+    if (typeof silentTableDataRefresh === 'function') {
+        silentTableDataRefresh(tableid)
+    }
+}
+
+// In implementLineTypeMode():
+if (currentStartIndex + pageSize > totalRows) {
+    currentStartIndex = 0
+    if (typeof silentTableDataRefresh === 'function') {
+        silentTableDataRefresh(tableid)
+    }
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/layoutxml.js - Added tableSlotRegistry and tableRefreshInProgress globals, stored table slot config in getLayoutXML() table slot processing, added silentTableDataRefresh() function with AJAX fetch, XML parsing, timestamp comparison, and silent data row re-render
+- src/assets/js/slot-table.js - Added silentTableDataRefresh() call in implementPaginationMode() when pagination loops back to page 1, added silentTableDataRefresh() call in implementLineTypeMode() when line scroll loops back to start
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/layoutxml.js - Same as electron version with mobile-specific adaptations: dataType 'xml' for AJAX, XMLDocument validation, mobile XML parsing options, tableRendering guard reset, cleanupTableState() call, single-record processing
+- mobile/www/assets/js/slot-table.js - Same pagination and line mode hooks as electron version
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Table data freshness during pagination | Stale until serverRefresh timer | Refreshed every pagination cycle |
+| Data update mechanism | Full layout rebuild (disruptive) | Silent background AJAX fetch (non-disruptive) |
+| Visual disruption on data update | Full table teardown and rebuild | Only tbody/colgroup replaced, header preserved |
+| Concurrent refresh protection | N/A | Per-table concurrency guard prevents request storms |
+| Server data check frequency | Only on serverRefresh interval | Every full pagination/line cycle plus serverRefresh |
+| Single-page tables | No change needed | Unaffected (no pagination loop trigger) |
+| localStorage cache | Updated on serverRefresh only | Also updated on silent refresh success |
+| Error handling | N/A | Graceful degradation - table continues normally on fetch failure |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - no breaking changes
+- Works with all table configurations (fixedHeight, wrap, transitions, maxrows)
+- Compatible with all column formats (text, image:, fader:, transition:)
+- Compatible with flipmode 1 (page-by-page) and flipmode 2 (line-by-line)
+- Works with all page transition styles (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Works in online mode (offline mode does not trigger refresh since there is no server)
+- No additional dependencies or libraries required
+- Existing layout refresh mechanism in updatelayout() continues to work independently
+
+### Testing
+
+Verify silent data refresh on pagination loop:
+- Create table with multiple pages of data (e.g. 20 rows, 5 per page)
+- Let table paginate through all 4 pages and return to page 1
+- Update table data on the server while table is paginating
+- Verify new data appears when pagination loops back to page 1
+- Verify table header, styles, and structure are preserved after refresh
+
+Verify no-change scenario:
+- Create table with pagination and let it cycle through all pages
+- Do NOT change data on the server
+- Verify table continues displaying normally with no disruption
+
+Verify line type mode (flipmode 2):
+- Create table with flipmode 2 and enough rows to scroll
+- Let lines scroll through full cycle back to start
+- Update server data during scrolling and verify new data appears on loop
+
+Verify concurrency guard:
+- Create table with fast pageflip and many pages
+- Verify only one AJAX request fires per loop cycle (no request storms)
+
+Verify error handling:
+- Create table with pagination and disconnect server mid-cycle
+- Verify table continues displaying normally despite failed refresh
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical refresh behavior on all platforms
+
 ## [3.11.5] - 2026-02-25
 
 ### Fixed - Table Column Animation Desynchronization After Page/Line Cycle

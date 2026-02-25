@@ -1257,6 +1257,10 @@ function implementPaginationMode(tableid, pagination, pageData, pageSize) {
         if (pageincrease[tableid] > totalpage) {
             pageincrease[tableid] = 1;
             pagination.pagination('go', 1);
+            // Silent table data refresh when looping back to first page
+            if (typeof silentTableDataRefresh === 'function') {
+                silentTableDataRefresh(tableid)
+            }
         } else {
             pagination.pagination('next');
         }
@@ -1293,6 +1297,10 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
         // Loop back to beginning when reaching the end
         if (currentStartIndex + pageSize > totalRows) {
             currentStartIndex = 0
+            // Silent table data refresh when looping back to beginning
+            if (typeof silentTableDataRefresh === 'function') {
+                silentTableDataRefresh(tableid)
+            }
         }
         
         // Get current window of rows
