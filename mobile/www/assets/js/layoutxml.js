@@ -7,6 +7,8 @@ var layoutolddate
 var tableolddate
 var tablefirstrun = true
 var slotnameList = []
+var tableSlotRegistry = {} // Stores table slot configuration for silent data refresh
+var tableRefreshInProgress = {} // Guard to prevent concurrent refresh requests per table
 
 function updatelayout(result2) {
     var layoutnewupdate = result2['elements']['0']['attributes']['update']
@@ -452,6 +454,10 @@ function getLayoutXML(result2) {
                 } //table slot
                 else if (slot['name'] == 'table') {
                     try {
+                        // Store table slot config for silent data refresh on pagination loop
+                        tableSlotRegistry[slot['attributes']['id']] = {
+                            slotid: slotid
+                        }
                         if (tablefirstrun) {
                             var tableRecordList = result2['elements']['0']['elements']['1']['elements']
                             if (!tableRecordList[0]['elements']) {
@@ -497,6 +503,136 @@ function getLayoutXML(result2) {
             }
         })
     }
+}
+
+
+/**
+ * Silently refresh table data from server when pagination loops back to first page.
+ * Fetches latest XML, compares table update timestamp, and updates data rows if changed.
+ * This preserves the table structure (header, styles) and only refreshes data rows.
+ * Called automatically by pagination/line mode when looping back to the beginning.
+ * @param {string} tableid - The table ID to refresh
+ */
+function silentTableDataRefresh(tableid) {
+    // Guard: prevent concurrent refresh requests for the same table
+    if (tableRefreshInProgress[tableid]) return
+
+    var tableConfig = tableSlotRegistry[tableid]
+    if (!tableConfig) {
+        console.log('[Silent table refresh] No config found for table ' + tableid)
+        return
+    }
+
+    tableRefreshInProgress[tableid] = true
+    console.log('[Silent table refresh] Checking for updates on table ' + tableid)
+
+    var serverAdd = config.hostserver
+    var urlServer = serverAdd + '/' + dsid + '/ds.xml'
+    if (config.corsproxy == 'Y') {
+        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml')
+    }
+
+    $.ajax({
+        url: urlServer,
+        type: 'GET',
+        dataType: 'xml',
+        timeout: 5000,
+        success: function (data) {
+            try {
+                if (!data || !data.documentElement) {
+                    tableRefreshInProgress[tableid] = false
+                    return
+                }
+
+                var xmlText = new XMLSerializer().serializeToString(data)
+                var xml = '<?xml version="1.0" encoding="utf-8"?>' + xmlText
+                var result2 = convert.xml2json(xml, {
+                    compact: false,
+                    spaces: 4,
+                    trim: false,
+                    textKey: 'text',
+                    ignoreDeclaration: false,
+                    ignoreComment: true
+                })
+                result2 = JSON.parse(result2)
+
+                // Update localStorage cache
+                localStorage.setItem(dsid, JSON.stringify(result2))
+
+                // Find the table slot in the new data
+                var lytslotlist = result2['elements']['0']['elements']['0']['elements']['0']['elements']
+                if (!lytslotlist) {
+                    tableRefreshInProgress[tableid] = false
+                    return
+                }
+
+                var tableSlot = null
+                lytslotlist.forEach(function (slot) {
+                    if (slot['name'] == 'table' && slot['attributes']['id'] == tableid) {
+                        tableSlot = slot
+                    }
+                })
+
+                if (!tableSlot) {
+                    tableRefreshInProgress[tableid] = false
+                    return
+                }
+
+                var tablenewupdate = tableSlot['attributes']['update']
+
+                // Only refresh if data has actually changed (strictly newer timestamp)
+                if (tablenewupdate > tableolddate) {
+                    console.log('[Silent table refresh] Table ' + tableid + ' has new data (update: ' + tablenewupdate + ' > ' + tableolddate + ')')
+
+                    // Get new table records
+                    if (!result2['elements']['0']['elements']['1']) {
+                        tableRefreshInProgress[tableid] = false
+                        return
+                    }
+                    var tableRecordList = result2['elements']['0']['elements']['1']['elements']
+                    if (!tableRecordList || !tableRecordList[0] || !tableRecordList[0]['elements']) {
+                        tableRefreshInProgress[tableid] = false
+                        return
+                    }
+
+                    // Update stored timestamp
+                    tableolddate = tablenewupdate
+
+                    // Clean up existing table state (intervals, animations)
+                    if (typeof cleanupTableState === 'function') {
+                        cleanupTableState(tableid)
+                    }
+
+                    // Remove existing tbody and colgroup only (keep table header and structure intact)
+                    $('.slot-tbody-' + tableid).remove()
+                    $('.slot-colgroup-' + tableid).remove()
+
+                    // Reset rendering guard so tableRecord can proceed
+                    if (typeof tableRendering !== 'undefined') {
+                        tableRendering[tableid] = false
+                    }
+
+                    // Re-render table records silently (mobile: only process first record)
+                    if (tableRecordList[0] && tableRecordList[0]['elements']) {
+                        console.log('[Silent table refresh] Processing table record with ' + tableRecordList[0]['elements'].length + ' rows')
+                        tableRecord(tableRecordList[0]['elements'], tableConfig.slotid, tableRecordList[0]['attributes'])
+                    }
+
+                    console.log('[Silent table refresh] Table ' + tableid + ' data refreshed successfully')
+                } else {
+                    console.log('[Silent table refresh] Table ' + tableid + ' data unchanged')
+                }
+            } catch (e) {
+                console.warn('[Silent table refresh] Error: ' + e.message)
+            } finally {
+                tableRefreshInProgress[tableid] = false
+            }
+        },
+        error: function () {
+            console.warn('[Silent table refresh] Failed to fetch XML for table ' + tableid)
+            tableRefreshInProgress[tableid] = false
+        }
+    })
 }
 
 
