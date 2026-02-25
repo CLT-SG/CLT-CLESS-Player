@@ -287,35 +287,83 @@ return (async function () {
     })
 
     app.get('/api/replace-text', function (req, res) {
-        var electronID = io.sockets.sockets.get(userID['eCLESS'])
-        var slotname = req.query.slotname
-        var slottext = req.query.text
-        electronID.emit("replacetextslot", {
-            "slotname": slotname,
-            "slottext": slottext
-        })
-        res.end('sent')
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            var slotname = req.query.slotname
+            var slottext = req.query.text
+            electronID.emit("replacetextslot", {
+                "slotname": slotname,
+                "slottext": slottext
+            })
+            res.json({ status: 'success', message: 'Text replacement sent' })
+        } catch (error) {
+            log.error('API: Replace text error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
+        }
     })
 
     app.get('/api/replace-media', function (req, res) {
-        var electronID = io.sockets.sockets.get(userID['eCLESS'])
-        var slotname = req.query.slotname
-        var slotfilename = req.query.filename
-        electronID.emit("replacemediaslot", {
-            "slotname": slotname,
-            "slottext": slotfilename,
-            "resfolder": appdir + '/res',
-        })
-        res.end('sent')
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            var slotname = req.query.slotname
+            var slotfilename = req.query.filename
+            electronID.emit("replacemediaslot", {
+                "slotname": slotname,
+                "slottext": slotfilename,
+                "resfolder": appdir + '/res',
+            })
+            res.json({ status: 'success', message: 'Media replacement sent' })
+        } catch (error) {
+            log.error('API: Replace media error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
+        }
     })
 
     app.get('/api/update-layout', function (req, res) {
-        var electronID = io.sockets.sockets.get(userID['eCLESS'])
-        var layoutid = req.query.id
-        electronID.emit("updatelayout", {
-            "id": layoutid
-        })
-        res.end('success')
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            var layoutid = req.query.id
+            electronID.emit("updatelayout", {
+                "id": layoutid
+            })
+            res.json({ status: 'success', message: 'Layout update sent' })
+        } catch (error) {
+            log.error('API: Update layout error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
+        }
     })
 
     app.get('/api/refresh', function (req, res) {
@@ -441,29 +489,45 @@ return (async function () {
             
         } catch (error) {
             log.error('API: Restart app error:', error)
-            res.status(500).json({
-                status: 'error',
-                message: 'Internal server error: ' + error.message
-            })
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
         }
     })
 
     app.get('/api/reboot', function (req, res) {
-        res.end('rebooted')
-        shutdown.reboot({
-            force: true,
-            timerseconds: 0,
-            quitapp: true
-        })
+        try {
+            res.json({ status: 'success', message: 'System reboot initiated' })
+            shutdown.reboot({
+                force: true,
+                timerseconds: 0,
+                quitapp: true
+            })
+        } catch (error) {
+            log.error('API: Reboot error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({ status: 'error', message: error.message })
+            }
+        }
     })
 
     app.get('/api/shutdown', function (req, res) {
-        res.end('shutdown')
-        shutdown.shutdown({
-            force: true,
-            timerseconds: 0,
-            quitapp: true
-        })
+        try {
+            res.json({ status: 'success', message: 'System shutdown initiated' })
+            shutdown.shutdown({
+                force: true,
+                timerseconds: 0,
+                quitapp: true
+            })
+        } catch (error) {
+            log.error('API: Shutdown error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({ status: 'error', message: error.message })
+            }
+        }
     })
 
     // Data endpoints for dashboard
@@ -497,11 +561,28 @@ return (async function () {
                 })
             }
 
+            // Track whether this request has already been responded to
+            var responseSent = false
+
             // Request layout details from renderer process
             electronID.emit('get-layout-details', { timestamp: Date.now() })
             
             // Set up one-time listener for response
+            var responseHandler = function(layoutInfo) {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                clearTimeout(responseTimeout)
+                res.json({
+                    success: true,
+                    data: layoutInfo,
+                    timestamp: Date.now()
+                })
+            }
+
             var responseTimeout = setTimeout(() => {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                electronID.removeListener('layout-details-response', responseHandler)
                 res.status(504).json({
                     success: false,
                     error: 'Timeout waiting for layout details',
@@ -514,27 +595,22 @@ return (async function () {
                 })
             }, 5000)
 
-            electronID.once('layout-details-response', function(layoutInfo) {
-                clearTimeout(responseTimeout)
-                res.json({
-                    success: true,
-                    data: layoutInfo,
-                    timestamp: Date.now()
-                })
-            })
+            electronID.once('layout-details-response', responseHandler)
 
         } catch (error) {
             log.error('Error in /api/layout-details endpoint:', error)
-            res.status(500).json({
-                success: false,
-                error: 'Internal server error retrieving layout details',
-                data: {
-                    layouts: [],
-                    currentLayout: null,
-                    isLoop: false,
-                    totalSlots: 0
-                }
-            })
+            if (!res.headersSent) {
+                res.status(500).json({
+                    success: false,
+                    error: 'Internal server error retrieving layout details',
+                    data: {
+                        layouts: [],
+                        currentLayout: null,
+                        isLoop: false,
+                        totalSlots: 0
+                    }
+                })
+            }
         }
     })
 
@@ -818,6 +894,7 @@ return (async function () {
 
             // Capture screenshot of the main Electron window
             electronWindow.capturePage().then(nativeImage => {
+                if (res.headersSent) return
                 const dataURL = nativeImage.toDataURL()
                 const base64Data = dataURL.split(',')[1] // Remove the data:image/png;base64, prefix
                 
@@ -830,17 +907,21 @@ return (async function () {
                 })
             }).catch(error => {
                 log.error('Screenshot capture error:', error)
-                res.status(500).json({ 
-                    error: 'Failed to capture screenshot: ' + error.message,
-                    success: false 
-                })
+                if (!res.headersSent) {
+                    res.status(500).json({ 
+                        error: 'Failed to capture screenshot: ' + error.message,
+                        success: false 
+                    })
+                }
             })
         } catch (error) {
             log.error('Screenshot API error:', error)
-            res.status(500).json({ 
-                error: 'Internal server error: ' + error.message,
-                success: false 
-            })
+            if (!res.headersSent) {
+                res.status(500).json({ 
+                    error: 'Internal server error: ' + error.message,
+                    success: false 
+                })
+            }
         }
     })
 
@@ -1196,6 +1277,17 @@ return (async function () {
         } catch (error) {
             log.warn('Data usage reset error: ' + error)
             res.status(500).json({ error: 'Failed to reset data usage' })
+        }
+    })
+
+    // Global error handler middleware to catch unhandled errors and prevent ERR_HTTP_HEADERS_SENT
+    app.use(function(err, req, res, next) {
+        log.error('Express unhandled error:', err.message)
+        if (!res.headersSent) {
+            res.status(500).json({
+                status: 'error',
+                message: 'Internal server error: ' + err.message
+            })
         }
     })
 
