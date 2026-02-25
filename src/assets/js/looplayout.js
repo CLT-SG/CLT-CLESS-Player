@@ -384,6 +384,16 @@ function playcurrentLayout(xmlData) {
   applyLayoutTransition(function() {
     // Clear and load new layout content during transition
     $('#main').html(''); // Reset whole page html
+
+    // Reset background styles on #main to prevent stale background from previous layout
+    // This is critical for loop mode where #main is preserved for transition classes
+    $('#main').css({
+      "background-color": "",
+      "background-image": "",
+      "background-size": "",
+      "background-repeat": ""
+    });
+
     getLayoutXML(layoutxml);
     layoutLoopUpdateXML();
   });
