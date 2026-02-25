@@ -2198,6 +2198,228 @@ body {
     font-weight: 600;
 }
 
+/* ========================================
+   Volume Control Panel
+   ======================================== */
+.volume-control-panel {
+    padding: 0.75rem 0;
+}
+
+.volume-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Volume Toggle Mute Button */
+.modern-btn.btn-volume-toggle {
+    min-width: 140px;
+    justify-content: center;
+    transition: all 0.3s ease;
+    font-weight: 600;
+    font-size: 0.95rem;
+    padding: 0.65rem 1.25rem;
+    border-radius: var(--border-radius-sm);
+}
+
+.modern-btn.btn-volume-toggle.unmuted {
+    background: linear-gradient(135deg, var(--accent-color), #0284c7);
+    color: white;
+    box-shadow: 0 2px 8px rgba(14, 165, 233, 0.3);
+}
+
+.modern-btn.btn-volume-toggle.unmuted:hover {
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+}
+
+.modern-btn.btn-volume-toggle.muted {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+
+.modern-btn.btn-volume-toggle.muted:hover {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+/* Volume Status Badge */
+.volume-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.volume-status-badge.unmuted {
+    background: rgba(14, 165, 233, 0.1);
+    color: #0284c7;
+    border: 1px solid rgba(14, 165, 233, 0.25);
+}
+
+.volume-status-badge.muted {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.volume-status-badge.loading {
+    background: rgba(100, 116, 139, 0.1);
+    color: #64748b;
+    border: 1px solid rgba(100, 116, 139, 0.25);
+}
+
+/* Volume Slider Section */
+.volume-slider-group .form-label {
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.volume-display-value {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--accent-color);
+    min-width: 40px;
+    text-align: right;
+}
+
+.volume-display-value.muted {
+    color: var(--danger-color);
+}
+
+.volume-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.volume-icon-min,
+.volume-icon-max {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.volume-slider-wrapper {
+    position: relative;
+}
+
+/* Custom Volume Slider */
+.volume-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    background: linear-gradient(to right, #0ea5e9 0%, #0ea5e9 50%, #e2e8f0 50%, #e2e8f0 100%);
+}
+
+/* Track - WebKit (Chrome, Safari, Edge) */
+.volume-slider::-webkit-slider-runnable-track {
+    height: 8px;
+    border-radius: 4px;
+    background: transparent;
+}
+
+/* Track - Firefox */
+.volume-slider::-moz-range-track {
+    height: 8px;
+    border-radius: 4px;
+    background: #e2e8f0;
+    border: none;
+}
+
+.volume-slider::-moz-range-progress {
+    height: 8px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #0ea5e9, #0284c7);
+}
+
+/* Thumb - WebKit */
+.volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #0ea5e9;
+    box-shadow: 0 2px 6px rgba(14, 165, 233, 0.35);
+    cursor: pointer;
+    margin-top: -7px;
+    transition: all 0.2s ease;
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(14, 165, 233, 0.5);
+}
+
+.volume-slider::-webkit-slider-thumb:active {
+    transform: scale(1.05);
+    background: #0ea5e9;
+    border-color: #0284c7;
+}
+
+/* Thumb - Firefox */
+.volume-slider::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: white;
+    border: 3px solid #0ea5e9;
+    box-shadow: 0 2px 6px rgba(14, 165, 233, 0.35);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.volume-slider::-moz-range-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 3px 10px rgba(14, 165, 233, 0.5);
+}
+
+/* Muted state - gray slider */
+.volume-slider.muted {
+    background: #e2e8f0 !important;
+}
+
+.volume-slider.muted::-moz-range-progress {
+    background: #94a3b8;
+}
+
+.volume-slider.muted::-webkit-slider-thumb {
+    border-color: #94a3b8;
+    box-shadow: 0 2px 6px rgba(148, 163, 184, 0.35);
+}
+
+.volume-slider.muted::-moz-range-thumb {
+    border-color: #94a3b8;
+    box-shadow: 0 2px 6px rgba(148, 163, 184, 0.35);
+}
+
+/* Zero volume state - gray slider */
+.volume-slider.volume-zero {
+    background: #e2e8f0 !important;
+}
+
+.volume-slider.volume-zero::-webkit-slider-thumb {
+    border-color: #94a3b8;
+}
+
+.volume-slider.volume-zero::-moz-range-thumb {
+    border-color: #94a3b8;
+}
+
 /* Help Panel Responsive Design - Dark Theme */
 @media (max-width: 768px) {
     .api-endpoint-compact {
@@ -2234,5 +2456,9 @@ body {
         flex-direction: column;
         gap: 0.25rem;
         background: #0f172a;
+    }
+
+    .volume-toggle-row {
+        flex-wrap: wrap;
     }
 }

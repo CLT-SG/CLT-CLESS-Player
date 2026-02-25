@@ -1,5 +1,556 @@
 # Change Log
 
+## [3.12.5] - 2026-02-25
+
+### Added - Slot Management for All Slot Types and Fixed Slot Extraction Dropping Slots Without Name Attribute
+
+- **Missing Management Sections for Ticker, Scroller, Fader, Date, Time, DateTime Slots** - The control panel only had management sections for Text and Media slots, with no UI for viewing or replacing content in other slot types
+  - Problem: Users had no way to view or manage Ticker, Scroller, Fader, Date, Time, or DateTime slots from the control panel dashboard. Only Text and Media slots were accessible
+  - Solution: Added 6 new management sections to the control panel UI. Ticker, Scroller, and Fader sections include a slot dropdown and text replacement input with Replace button (reusing the replace-text API). Date, Time, and DateTime sections include view-only dropdowns showing slot format information. Each text-replaceable section includes an API Help toggle panel. Added corresponding frontend JavaScript handlers (init calls, API functions, socket request/response functions, button click handlers, socket event handlers, help toggle functions). Added backend datetime socket relay handlers (reqdatetimeslot and datetimeslot-list)
+  - Impact: All slot types are now accessible from the control panel, with text-replaceable slots supporting content updates and date/time slots providing format visibility
+
+- **Slot Summary and Details Missing Counts and Type-Specific Information for Special Slot Types** - Slot Summary only showed special slot type counts in detailed view mode and was missing datetime. Slot Details had no type-specific fields for any slot type beyond position and size
+  - Problem: The Slot Summary display was gated behind an `if (detailed)` condition, hiding ticker, scroller, fader, date, time, html, and table counts in compact view. DateTime was not included at all. Slot Details showed only generic information (name, type, position, size) with no type-specific attributes like speed, direction, format, or table configuration. Summary Statistics did not include counts for any special slot types
+  - Solution: Removed the `if (detailed)` gate from createSlotSummaryDisplay() so all special type counts show in both compact and detailed views. Added datetime to the specialTypes array. Added type-specific detail fields to createDetailedSlotsDisplay() for all 8 special slot types: Speed/Direction for ticker and scroller, Speed/Duration for fader, Format/Timezone for date, time, and datetime, Type for html, Columns/Rows/DataSource for table. Added all 8 special slot type counts (tickerSlots, scrollerSlots, faderSlots, dateSlots, timeSlots, datetimeSlots, htmlSlots, tableSlots) to createSummaryStatistics() and the layout-details socket response
+  - Impact: All slot types now display their counts in Slot Summary and show type-specific attributes in Slot Details, giving full visibility into layout composition
+
+- **Slots Without Name Attribute Silently Dropped from All Extraction Functions** - All 12 slot extraction functions required slot.attributes.name as a mandatory condition, causing slots without a name attribute (common for html and table slots) to be invisibly excluded
+  - Problem: Every slot extraction function (extractComprehensiveSlotData, extractAllSlotsFromLayoutData, extractTextSlotsFromLayoutData, extractMediaSlotsFromLayoutData, extractTickerSlotsFromLayoutData, extractScrollerSlotsFromLayoutData, extractFaderSlotsFromLayoutData, extractDateSlotsFromLayoutData, extractTimeSlotsFromLayoutData, extractHtmlSlotsFromLayoutData, extractTableSlotsFromLayoutData, and extractDetailedSlotInfo) checked for `slot.attributes && slot.attributes.id && slot.attributes.name` as the condition for processing a slot. The name attribute is user-defined and optional in the layout XML schema (layoutxml.js line 186 treats it as optional), but the extraction code treated it as mandatory. HTML and table slots commonly omit the name attribute, causing them to be silently skipped and never appear in the control panel despite being present in the layout
+  - Solution: Changed all 12 extraction conditions to only require `slot.attributes && slot.attributes.id` (name is no longer mandatory). Added a name fallback expression `(slot.name + '-' + slot.attributes.id)` in all 15 locations where slot.attributes.name was used as a value, generating a descriptive identifier like "html-123" or "table-456" when no name is defined. Added datetime to the supportedSlotTypes array in extractAllSlotsFromLayoutData
+  - Impact: All slots with a valid ID are now correctly extracted regardless of whether they have a name attribute. HTML and table slots that were previously invisible now appear in the control panel
+
+### Technical Details
+
+**New slot management UI sections (Ticker example):**
+```html
+<div class="card-header">
+    <div class="card-icon"><i class="bi bi-text-left"></i></div>
+    <h2 class="card-title">Ticker Management</h2>
+    <div class="card-actions">
+        <button class="modern-btn btn-secondary btn-sm" onclick="toggleTickerHelp()">API Help</button>
+    </div>
+</div>
+<div id="apiTicker" class="mb-3 loading">Loading ticker slots...</div>
+<select class="select-modern" id="replaceTickerList">...</select>
+<input type="text" id="replaceTickerInput" placeholder="Enter Ticker Text">
+<button class="modern-btn btnReplaceTicker">Replace</button>
+```
+
+**Socket chain for new slot types (datetime example):**
+```javascript
+// cpanel-enhanced.js (UI) -> cpanel.js (backend relay) -> socketio-cpanel.js (renderer)
+socket.emit('reqdatetimeslot', 'get datetime slot')    // UI requests
+socket.on('reqdatetimeslot') -> electronID.emit('getdatetimeslot')  // Backend forwards
+socket.on('getdatetimeslot') -> socket.emit('datetimeslot-list', slots)  // Renderer extracts & sends
+socket.on('datetimeslot-list') -> io.emit('cpanel-datetimeslot', msg)  // Backend relays to UI
+socket.on('cpanel-datetimeslot') -> populate dropdown  // UI displays
+```
+
+**Fixed extraction condition (before/after):**
+```javascript
+// BEFORE (broken - drops slots without name):
+if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+
+// AFTER (fixed - only requires id):
+if (slot.attributes && slot.attributes.id) {
+```
+
+**Name fallback for unnamed slots:**
+```javascript
+// BEFORE (undefined for unnamed slots):
+name: slot.attributes.name
+
+// AFTER (generates descriptive fallback):
+name: slot.attributes.name || (slot.name + '-' + slot.attributes.id)
+// Examples: "html-123", "table-456", "media-789"
+```
+
+**Slot Summary always shows all types:**
+```javascript
+// BEFORE (hidden in compact view):
+if (detailed) {
+    const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table']
+    ...
+}
+
+// AFTER (always visible, includes datetime):
+const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'datetime', 'html', 'table']
+specialTypes.forEach(type => { ... })
+```
+
+**Type-specific Slot Details (table example):**
+```javascript
+${slot.type === 'table' ? `
+    <div class="slot-detail-item">
+        <span class="detail-label">Columns:</span>
+        <span class="detail-value">${slot.tableColumns || 'N/A'}</span>
+    </div>
+    <div class="slot-detail-item">
+        <span class="detail-label">Rows:</span>
+        <span class="detail-value">${slot.tableRows || 'N/A'}</span>
+    </div>
+` : ''}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added datetime socket relay handlers (reqdatetimeslot -> getdatetimeslot, datetimeslot-list -> cpanel-datetimeslot)
+
+**Desktop (Electron):**
+- src/cpanel.html - Added 6 new management sections after Media Management: Ticker (with help panel, dropdown, input, replace button), Scroller (with help panel, dropdown, input, replace button), Fader (with help panel, dropdown, input, replace button), Date (view-only dropdown), Time (view-only dropdown), DateTime (view-only dropdown)
+- src/assets/js/cpanel/cpanel-enhanced.js - Added init calls for 6 new slot types in $(document).ready, added getAPITicker/Scroller/Fader/Date/Time/DateTime functions, added gettickerslot/getscrollerslot/getfaderslot/getdateslot/gettimeslot/getdatetimeslot socket request functions, added btnReplaceTicker/btnReplaceScroller/btnReplaceFader click handlers, added cpanel-tickerslot/cpanel-scrollerslot/cpanel-faderslot/cpanel-dateslot/cpanel-timeslot/cpanel-datetimeslot socket event handlers, added toggleTickerHelp/toggleScrollerHelp/toggleFaderHelp functions, removed if(detailed) gate from createSlotSummaryDisplay, added datetime to specialTypes, added type-specific detail fields for all 8 special slot types in createDetailedSlotsDisplay, added all 8 slot type counts to createSummaryStatistics
+- src/assets/js/socketio-cpanel.js - Added getdatetimeslot socket handler, added extractDateTimeSlotsFromLocalStorage and extractDateTimeSlotsFromLayoutData functions, added datetime:0 to slotSummary initialization, added case 'datetime' to slot categorization switch, added datetime handling to extractDetailedSlotInfo, added datetime to supportedSlotTypes array, added all 8 slot type counts to layout-details response (loop accumulation, single mode assignment, error fallback), fixed all 12 extraction conditions removing mandatory slot.attributes.name, added name fallback in all 15 name value locations
+
+**Mobile (Capacitor):**
+- mobile/www/dashboard.html - Synced with src/cpanel.html (identical slot management sections)
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+- mobile/www/assets/js/socketio-cpanel.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Ticker slot management | Not available | View, select, and replace ticker text |
+| Scroller slot management | Not available | View, select, and replace scroller text |
+| Fader slot management | Not available | View, select, and replace fader text |
+| Date slot management | Not available | View date slots with format info |
+| Time slot management | Not available | View time slots with format info |
+| DateTime slot management | Not available | View datetime slots with format info |
+| Slot Summary special types | Hidden in compact view, missing datetime | Always visible, includes all 8 types |
+| Slot Details type-specific info | Generic info only (name, type, position) | Type-specific attributes (speed, direction, format, timezone, columns, rows) |
+| Summary Statistics | Only text and media counts | All 10 slot type counts |
+| HTML slots without name attr | Silently dropped | Correctly extracted with fallback name |
+| Table slots without name attr | Silently dropped | Correctly extracted with fallback name |
+| DateTime slot extraction | Not supported | Full extraction and display support |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows 7, 8, 10, 11, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes to any API response format
+- Slots with name attributes continue to work identically
+- Slots without name attributes now get auto-generated names (e.g., "html-123")
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify new slot management sections:
+- Open the control panel dashboard
+- Verify Ticker, Scroller, Fader, Date, Time, DateTime sections appear below Media Management
+- Verify each section shows correct slot count after loading
+- For Ticker/Scroller/Fader: select a slot, enter text, click Replace, verify content updates on player
+
+Verify Slot Summary displays all types:
+- Open a layout with ticker, scroller, fader, date, time, datetime, html, table slots
+- Verify Slot Summary shows counts for all slot types present
+- Verify counts appear in both compact and detailed layout views
+
+Verify Slot Details type-specific information:
+- Expand Slot Details for a ticker slot, verify Speed and Direction fields appear
+- Expand Slot Details for a table slot, verify Columns and Rows fields appear
+- Expand Slot Details for a date slot, verify Format and Timezone fields appear
+
+Verify slots without name attribute are extracted:
+- Use a layout with HTML or table slots that have no name attribute
+- Verify they appear in the control panel with auto-generated names (e.g., "html-123")
+- Verify they appear in Slot Summary counts and Slot Details
+
+Verify datetime socket chain:
+- Use a layout with datetime slots
+- Verify datetime slots load in the DateTime Slot Management dropdown
+- Verify datetime slot count appears in Slot Summary and Summary Statistics
+
+Verify mobile sync:
+- Open dashboard in mobile Capacitor app
+- Verify all 6 new management sections appear and function identically to desktop
+
+## [3.12.4] - 2026-02-25
+
+### Fixed - Volume Control Not Working on Windows 10 (Mute/Unmute, Get/Set Volume)
+
+- **Volume Get/Set Broken on All Windows Versions** - Fixed getCurrentVolumeLevel() and setSystemVolumeLevel() which used the non-existent Microsoft.VisualBasic.Devices.Audio API, causing all volume get and set operations to fail silently on Windows 7, 8, 10, and 11
+  - Problem: getCurrentVolumeLevel() called `[Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume` which does not exist in any version of .NET -- the Audio class has no Info.MasterVolume property. setSystemVolumeLevel() called `.Volume = value` on the same non-existent API. Both commands always errored out, returning no volume data and failing to adjust volume
+  - Solution: Replaced both functions with proper Windows Core Audio COM API calls via IAudioEndpointVolume.GetMasterVolumeLevelScalar (for get) and IAudioEndpointVolume.SetMasterVolumeLevelScalar (for set), executed through PowerShell with the same COM type definition used across all volume functions
+  - Impact: Volume status now correctly reports the actual system volume level, and the volume slider now actually changes the system volume on all Windows versions
+
+- **Mute/Unmute Using Toggle Key Instead of Explicit API** - Fixed muteSystemVolume() and unmuteSystemVolume() which both used SendKeys([char]173) -- a keyboard mute toggle key -- instead of explicit mute/unmute commands
+  - Problem: Both mute and unmute functions sent the same VK_VOLUME_MUTE keypress (character code 173), which is a toggle. Calling unmute when already unmuted would mute the system instead. The keypress also required window focus and was unreliable in headless or background scenarios. On Windows 7, the WScript.Shell COM object sometimes failed with permission errors
+  - Solution: Replaced both functions with explicit IAudioEndpointVolume.SetMute($true, [guid]::Empty) for mute and IAudioEndpointVolume.SetMute($false, [guid]::Empty) for unmute. These are deterministic -- mute always mutes, unmute always unmutes, regardless of current state
+  - Impact: Mute and unmute buttons now work reliably on all Windows versions without requiring window focus or toggling behavior
+
+- **Mute Status Detection Broken Due to Shell Escaping and Incorrect COM Vtable** - Fixed getSystemMuteStatus() which used deeply nested shell escaping through cmd.exe and had an incorrect COM interface vtable definition
+  - Problem: The PowerShell script was passed through exec() which routes through cmd.exe, requiring multiple levels of quote escaping (\\\\\\") that broke on Windows 10 due to differences in cmd.exe quote parsing. Additionally, the IAudioEndpointVolume COM interface definition was missing 3 placeholder methods (slots 11-13: SetChannelVolumeLevelScalar, GetChannelVolumeLevel, GetChannelVolumeLevelScalar), causing SetMute and GetMute to be mapped to wrong vtable positions, producing incorrect results or crashes
+  - Solution: Replaced exec() with execFile('powershell.exe') using -EncodedCommand (Base64-encoded UTF-16LE script), completely bypassing cmd.exe shell escaping. Fixed the COM vtable by adding the 3 missing placeholder methods (int l(); int m(); int n();) between GetMasterVolumeLevelScalar and SetMute, ensuring correct vtable slot alignment
+  - Impact: Mute status is now correctly detected on Windows 7, 8, 10, and 11 without any shell escaping issues
+
+- **PowerShell Execution Reliability** - Added a shared runPowerShellAudioCommand() helper function and WINDOWS_AUDIO_PS_INIT constant to eliminate code duplication and ensure consistent, reliable PowerShell execution across all volume functions
+  - Problem: Each volume function had its own inline PowerShell command with different escaping approaches, making maintenance difficult and bugs inconsistent across functions
+  - Solution: Created runPowerShellAudioCommand(script) that uses execFile with -NoProfile, -NonInteractive, -ExecutionPolicy Bypass, and -EncodedCommand flags. Created WINDOWS_AUDIO_PS_INIT constant containing the shared COM type definition and device initialization code. All 5 volume functions now use this shared infrastructure
+  - Impact: Consistent behavior across all volume operations, 15-second timeout prevents hanging, no shell escaping issues, works on Windows 7 through 11
+
+- **Frontend Volume API Calls Missing Timeout and Retry Logic** - Added timeout and retry logic to all frontend volume AJAX calls to handle the slightly longer PowerShell COM initialization time on first call
+  - Problem: Frontend AJAX calls to /api/volume/get, /api/volume/mute, /api/volume/unmute, and /api/volume/set had no timeout configured. On Windows, the first PowerShell call takes longer due to COM type compilation, which could cause the request to appear hung. If the initial volume status fetch failed, the UI would permanently show "Status Unknown" with no recovery
+  - Solution: Added 20-second timeout to all volume AJAX calls. Added retry logic to getCurrentVolumeLevel() with up to 2 retries (3s delay, then 6s delay). Added post-action volume status refresh after mute/unmute to confirm actual system state. Improved error messages to distinguish between timeout and server errors
+  - Impact: Volume controls now gracefully handle slow first-time PowerShell initialization and recover from transient failures
+
+### Technical Details
+
+**Shared PowerShell execution helper (bypasses cmd.exe escaping):**
+```javascript
+function runPowerShellAudioCommand(script) {
+    return new Promise((resolve, reject) => {
+        const encoded = Buffer.from(script, 'utf16le').toString('base64')
+        execFile('powershell.exe', [
+            '-NoProfile', '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass',
+            '-EncodedCommand', encoded
+        ], { timeout: 15000 }, (error, stdout, stderr) => {
+            if (error) reject(new Error(error.message + (stderr ? ' | ' + stderr.trim() : '')))
+            else resolve(stdout.trim())
+        })
+    })
+}
+```
+
+**Windows Core Audio COM type definition with correct vtable alignment:**
+```javascript
+const WINDOWS_AUDIO_PS_INIT = [
+    'Add-Type -TypeDefinition @"',
+    'using System.Runtime.InteropServices;',
+    '[Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+    'interface IAudioEndpointVolume {',
+    '    int f(); int g(); int h(); int i();',                          // slots 0-3: QueryInterface, AddRef, Release, RegisterControlChangeNotify
+    '    int SetMasterVolumeLevelScalar(float fLevel, System.Guid pguidEventContext);',  // slot 4
+    '    int j();',                                                      // slot 5: SetMasterVolumeLevel
+    '    int GetMasterVolumeLevelScalar(out float pfLevel);',            // slot 6
+    '    int k(); int l(); int m(); int n();',                           // slots 7-10: GetMasterVolumeLevel, SetChannelVolumeLevel, etc.
+    '    int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, System.Guid pguidEventContext);',  // slot 11
+    '    int GetMute(out bool pbMute);',                                 // slot 12
+    '}',
+    // ... IMMDevice, IMMDeviceEnumerator, MMDeviceEnumeratorComObject
+].join('\\n')
+```
+
+**Volume get using proper COM API:**
+```javascript
+// Before (broken): 'powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume"'
+// After (working):
+const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+    '$vol = 0.0\n' +
+    '$aev.GetMasterVolumeLevelScalar([ref]$vol)\n' +
+    '[math]::Round($vol * 100)'
+runPowerShellAudioCommand(script).then(output => resolve(parseInt(output) || 0))
+```
+
+**Explicit mute/unmute (no more toggle key):**
+```javascript
+// Before (broken): exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"')
+// After - Mute:
+const script = WINDOWS_AUDIO_PS_INIT + '\n$aev.SetMute($true, [guid]::Empty)'
+// After - Unmute:
+const script = WINDOWS_AUDIO_PS_INIT + '\n$aev.SetMute($false, [guid]::Empty)'
+```
+
+**Frontend retry logic:**
+```javascript
+function getCurrentVolumeLevel(retryCount) {
+    retryCount = retryCount || 0
+    $.ajax({
+        url: '/api/volume/get',
+        timeout: 20000,
+        success: function (data) {
+            if (data.success) { /* update UI */ }
+            else if (retryCount < 2) {
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            }
+        },
+        error: function () {
+            if (retryCount < 2) {
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            } else {
+                $('#volumeStatusBadge').html('Status Unavailable')
+            }
+        }
+    })
+}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added execFile import, added runPowerShellAudioCommand() helper with -EncodedCommand execution, added WINDOWS_AUDIO_PS_INIT constant with correct COM vtable (13 slots), replaced getCurrentVolumeLevel() Windows block from broken Microsoft.VisualBasic to IAudioEndpointVolume.GetMasterVolumeLevelScalar, replaced getSystemMuteStatus() Windows block from broken shell-escaped exec() to execFile -EncodedCommand with IAudioEndpointVolume.GetMute, replaced setSystemVolumeLevel() Windows block from broken Microsoft.VisualBasic to IAudioEndpointVolume.SetMasterVolumeLevelScalar, replaced muteSystemVolume() Windows block from SendKeys toggle to IAudioEndpointVolume.SetMute($true), replaced unmuteSystemVolume() Windows block from SendKeys toggle to IAudioEndpointVolume.SetMute($false)
+
+**Desktop (Electron):**
+- src/assets/js/cpanel/cpanel-enhanced.js - Added 20-second timeout to all volume AJAX calls (setVolumeMute, setVolumeUnmute, setVolumeLevel, getCurrentVolumeLevel), added retry logic to getCurrentVolumeLevel() with up to 2 retries, added post-action volume status refresh after mute/unmute, improved error messages for timeout vs server errors
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Get volume on Windows | Always fails (non-existent API) | Works via IAudioEndpointVolume.GetMasterVolumeLevelScalar |
+| Set volume on Windows | Always fails (non-existent API) | Works via IAudioEndpointVolume.SetMasterVolumeLevelScalar |
+| Mute on Windows | SendKeys toggle (unreliable, needs focus) | Explicit SetMute($true) via COM API |
+| Unmute on Windows | SendKeys toggle (could mute instead) | Explicit SetMute($false) via COM API |
+| Mute status on Windows 10 | Fails due to cmd.exe escaping | Works via execFile -EncodedCommand |
+| Mute status COM vtable | Missing 3 slots (wrong method calls) | Correct 13-slot vtable alignment |
+| PowerShell execution | exec() through cmd.exe | execFile() direct, no shell escaping |
+| Windows 7 compatibility | Permission errors on WScript.Shell | Works via Core Audio COM API |
+| Frontend timeout | No timeout (could hang indefinitely) | 20-second timeout on all volume calls |
+| Frontend retry | No retry (one failure = permanent error) | Up to 2 retries with progressive delay |
+| Post-action sync | UI updated optimistically only | Refreshes actual system state after action |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows 7, 8, 10, 11, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes to API response format
+- Linux and macOS volume functions unchanged (already working correctly)
+- All Windows volume functions now use the same Core Audio COM API infrastructure
+- 15-second PowerShell timeout prevents hanging on systems without audio devices
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify volume get on Windows:
+- Open the control panel dashboard on a Windows 10 machine
+- Verify the volume slider loads with the actual system volume level
+- Verify the percentage display matches the system volume
+- Change volume via Windows volume mixer, reload dashboard, verify it updates
+
+Verify volume set on Windows:
+- Drag the volume slider to 75%, verify system volume changes to 75%
+- Drag the volume slider to 0%, verify system volume goes to 0%
+- Drag the volume slider to 100%, verify system volume goes to 100%
+
+Verify mute/unmute on Windows:
+- Click Mute button, verify system audio is actually muted (check Windows volume icon in taskbar)
+- Click Unmute button, verify system audio is actually unmuted
+- Click Unmute when already unmuted, verify it stays unmuted (not toggled to mute)
+- Click Mute when already muted, verify it stays muted (not toggled to unmute)
+
+Verify mute status detection on Windows:
+- Mute system audio via Windows taskbar, reload dashboard, verify badge shows "Audio Muted"
+- Unmute system audio via Windows taskbar, reload dashboard, verify badge shows "Audio Active"
+
+Verify retry logic:
+- Open dashboard, verify volume status loads even if first attempt is slow
+- Verify "Status Unavailable" only appears after all retries are exhausted
+
+Verify Windows 7 compatibility:
+- Open dashboard on Windows 7 machine, verify all volume controls work
+- No WScript.Shell or permission errors in console
+
+Verify Linux and macOS unaffected:
+- Open dashboard on Linux, verify volume controls still work via amixer
+- Open dashboard on macOS, verify volume controls still work via osascript
+
+## [3.12.3] - 2026-02-25
+
+### Improved - Volume Control UX with Unified Mute Toggle and Live Status
+
+- **Unified Mute/Unmute Toggle Button** - Merged the separate Mute and Unmute buttons into a single toggle button that shows the action (what clicking will do) rather than the current state, eliminating user confusion about which button to press
+  - Problem: Two separate buttons (Mute and Unmute) were displayed side by side, making it unclear whether the system was currently muted or unmuted. Users had to guess the current state before deciding which button to click
+  - Solution: Replaced the two buttons with a single toggle button (#volumeToggleMute) that displays "Mute" when audio is active (clicking will mute) and "Unmute" when audio is muted (clicking will unmute). Button color changes between blue (unmuted state, action: Mute) and red (muted state, action: Unmute)
+  - Solution: Added a status badge (#volumeStatusBadge) next to the toggle button that clearly shows the current audio state -- "Audio Active" with a green/blue indicator when unmuted, "Audio Muted" with a red indicator when muted
+  - Impact: Users can immediately see the current audio state from the badge and understand what the button will do from its label, eliminating all ambiguity
+
+- **Live Volume and Mute Status from System** - The volume slider and mute toggle now fetch the actual system volume level and mute state on page load, instead of defaulting to 50% unmuted
+  - Problem: The volume slider always started at 50% and the mute state always defaulted to unmuted, regardless of the actual system volume. If the system was muted or at a different volume level, the dashboard showed incorrect information
+  - Problem: The /api/volume/get endpoint only returned the volume percentage, not whether the system was muted
+  - Solution (Backend): Added getSystemMuteStatus() function to cpanel.js that queries the actual OS mute state -- Linux via amixer (checks [on]/[off]), macOS via osascript (output muted of volume settings), Windows via PowerShell COM API (IAudioEndpointVolume.GetMute). All platforms gracefully default to unmuted on error
+  - Solution (Backend): Enhanced /api/volume/get endpoint to return both volume and muted fields in the response JSON
+  - Solution (Frontend): getCurrentVolumeLevel() now reads both volume and muted from the API response. On page load, it sets the slider position, updates the percentage display, applies the correct slider fill color, and sets the toggle button and status badge to match the actual system state
+  - Solution (Frontend): Status badge shows "Checking..." with a loading spinner on initial page load until the API response arrives, then transitions to the actual state
+  - Impact: Dashboard always reflects the real system audio state on load. No more disconnect between what the dashboard shows and what the system is actually doing
+
+- **Custom Volume Slider with Blue Fill Indicator** - Replaced the default browser range input with a custom-styled volume slider that uses a blue gradient fill to indicate the current volume level
+  - Problem: The default browser range input had poor visual feedback -- the fill color was not intuitive and did not clearly communicate the current volume level. The slider appearance was inconsistent across browsers
+  - Solution: Added custom CSS for the volume slider with a blue (#0ea5e9) gradient fill from 0% to the current value, gray (#e2e8f0) for the remaining track. JavaScript dynamically updates the background gradient on every slider input event
+  - Solution: Custom thumb styling with white circle, blue border, hover scale effect, and drop shadow for a polished appearance. Cross-browser support via WebKit (:-webkit-slider-thumb, :-webkit-slider-runnable-track) and Firefox (:-moz-range-thumb, :-moz-range-progress) pseudo-elements
+  - Solution: When volume is 0 or system is muted, slider turns fully gray with gray thumb border. Volume percentage display text turns red when muted
+  - Solution: Dragging the slider to 0 automatically updates the mute toggle UI to muted state. Dragging above 0 when muted automatically updates to unmuted state
+  - Impact: Volume level is immediately visible from the slider fill color. Blue fill clearly communicates "audio is active at this level" while gray communicates "no audio"
+
+### Technical Details
+
+**Unified toggle button HTML structure:**
+```html
+<div class="volume-toggle-row">
+    <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
+        <i class="bi bi-volume-mute-fill"></i>
+        <span class="toggle-label">Mute</span>
+    </button>
+    <span class="volume-status-badge loading" id="volumeStatusBadge">
+        <i class="bi bi-arrow-clockwise spinning"></i> Checking...
+    </span>
+</div>
+```
+
+**Toggle click handler with state-based action:**
+```javascript
+window._isMuted = false;
+
+$('#volumeToggleMute').click(function() {
+    if ($(this).prop('disabled')) return;
+    if (window._isMuted) {
+        throttledAction('volumeToggleMute', function () { setVolumeUnmute() }, 1500);
+    } else {
+        throttledAction('volumeToggleMute', function () { setVolumeMute() }, 1500);
+    }
+})
+```
+
+**UI update function -- button shows action, badge shows state:**
+```javascript
+function updateMuteToggleUI(isMuted) {
+    if (isMuted) {
+        // Current state: MUTED -> Button action: "Unmute"
+        toggleBtn.removeClass('unmuted').addClass('muted')
+        toggleBtn.find('.toggle-label').text('Unmute')
+        statusBadge.html('<i class="bi bi-x-circle-fill"></i> Audio Muted')
+    } else {
+        // Current state: UNMUTED -> Button action: "Mute"
+        toggleBtn.removeClass('muted').addClass('unmuted')
+        toggleBtn.find('.toggle-label').text('Mute')
+        statusBadge.html('<i class="bi bi-check-circle-fill"></i> Audio Active')
+    }
+}
+```
+
+**Backend getSystemMuteStatus() -- cross-platform mute detection:**
+```javascript
+function getSystemMuteStatus() {
+    return new Promise((resolve, reject) => {
+        if (platform === 'linux') {
+            exec('amixer get Master | grep -o "\\[on\\]\\|\\[off\\]" | head -1', (error, stdout) => {
+                resolve(stdout.trim() === '[off]')
+            })
+        } else if (platform === 'darwin') {
+            exec('osascript -e "output muted of (get volume settings)"', (error, stdout) => {
+                resolve(stdout.trim().toLowerCase() === 'true')
+            })
+        } else if (platform === 'win32') {
+            // Uses PowerShell COM API (IAudioEndpointVolume.GetMute)
+        }
+    })
+}
+```
+
+**Enhanced /api/volume/get response:**
+```javascript
+app.get('/api/volume/get', async function (req, res) {
+    const volume = await getCurrentVolumeLevel()
+    const muted = await getSystemMuteStatus()
+    res.json({ success: true, volume: volume, muted: muted,
+        message: `Current volume: ${volume}%${muted ? ' (muted)' : ''}` })
+})
+```
+
+**Frontend initialization -- fetch real status on page load:**
+```javascript
+function getCurrentVolumeLevel() {
+    $.ajax({
+        url: '/api/volume/get',
+        success: function (data) {
+            if (data.success) {
+                $('#volumeSlider').val(data.volume)
+                $('#volumeDisplay').text(data.volume + '%')
+                updateVolumeSliderFill(data.volume)
+                window._isMuted = data.muted === true
+                updateMuteToggleUI(data.muted === true)
+            }
+        }
+    })
+}
+
+$(function() { getCurrentVolumeLevel() })
+```
+
+**Volume slider fill update:**
+```javascript
+function updateVolumeSliderFill(volume) {
+    if (volume === 0) {
+        slider.style.background = '#e2e8f0'
+    } else {
+        slider.style.background = `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${volume}%, #e2e8f0 ${volume}%, #e2e8f0 100%)`
+    }
+}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added getSystemMuteStatus() function with cross-platform mute detection (Linux amixer, macOS osascript, Windows PowerShell COM), enhanced /api/volume/get endpoint to return muted boolean field alongside volume percentage
+
+**Desktop (Electron):**
+- src/cpanel.html - Replaced separate Mute/Unmute buttons with unified toggle button (#volumeToggleMute) and status badge (#volumeStatusBadge), replaced default range input with custom volume slider structure (.volume-control-panel, .volume-slider-group, .volume-slider-row)
+- src/assets/css/cpanel.css - Added volume control panel styles (.volume-control-panel, .volume-toggle-row, .btn-volume-toggle with .unmuted/.muted states, .volume-status-badge with .unmuted/.muted/.loading states), added custom volume slider styles (.volume-slider with WebKit and Firefox pseudo-elements, .volume-zero and .muted states, thumb styling with hover/active effects)
+- src/assets/js/cpanel/cpanel-enhanced.js - Replaced separate #volumeMute/#volumeUnmute click handlers with unified #volumeToggleMute handler, added updateMuteToggleUI() function, added updateVolumeSliderFill() function, updated getCurrentVolumeLevel() to fetch and apply real volume and mute status on page load, updated setVolumeLevel() to sync slider fill and mute UI on drag
+
+**Mobile (Capacitor):**
+- mobile/www/dashboard.html - Synced with src/cpanel.html (identical volume control changes)
+- mobile/www/assets/css/cpanel.css - Synced with src version (identical changes)
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Mute/Unmute buttons | Two separate buttons, unclear which to press | Single toggle button showing the action to perform |
+| Current audio state visibility | No indication of mute state | Status badge shows "Audio Active" or "Audio Muted" |
+| Volume slider on page load | Always 50%, always unmuted | Fetches real system volume and mute state |
+| /api/volume/get response | Only volume percentage | Volume percentage and muted boolean |
+| Volume slider appearance | Default browser range input | Custom blue gradient fill with styled thumb |
+| Slider at 0% | No visual distinction | Gray fill, gray thumb, mute toggle syncs to muted |
+| Slider when muted | Same blue appearance | Gray fill and gray thumb indicate muted state |
+| Volume percentage text | Always default color | Turns red when muted |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes
+- /api/volume/get response adds new muted field but retains all existing fields
+- getSystemMuteStatus() gracefully defaults to false (unmuted) on any OS error
+- Custom slider styling includes both WebKit and Firefox pseudo-elements for cross-browser support
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify unified mute toggle:
+- Open the control panel dashboard
+- Verify status badge shows "Checking..." briefly then updates to actual state
+- When audio is active, verify button shows "Mute" and badge shows "Audio Active"
+- Click the Mute button, verify button changes to "Unmute" and badge changes to "Audio Muted"
+- Click the Unmute button, verify button changes back to "Mute" and badge changes back to "Audio Active"
+
+Verify live volume status on page load:
+- Set system volume to 75% and unmute using OS controls
+- Open the control panel dashboard
+- Verify slider is at 75%, display shows "75%", badge shows "Audio Active"
+- Mute system audio using OS controls, reload the page
+- Verify badge shows "Audio Muted", slider is gray, button shows "Unmute"
+
+Verify volume slider fill:
+- Drag slider from 0 to 100, verify blue fill grows from left to right
+- Set slider to 0, verify fill is fully gray and mute toggle shows muted state
+- Drag slider above 0, verify fill turns blue and mute toggle shows unmuted state
+- Mute audio via button, verify slider turns gray regardless of position
+
+Verify cross-platform mute detection:
+- On Linux: verify amixer mute state is correctly detected
+- On macOS: verify osascript mute state is correctly detected
+- On Windows: verify PowerShell COM API mute state is correctly detected
+
+Verify cross-platform UI:
+- Open control panel from desktop Electron app
+- Open control panel from mobile Capacitor app
+- Verify identical volume control behavior on both platforms
+
 ## [3.12.2] - 2026-02-25
 
 ### Fixed - ERR_HTTP_HEADERS_SENT on Control Panel Rapid Requests

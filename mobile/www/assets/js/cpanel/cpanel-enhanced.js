@@ -327,9 +327,21 @@ $(document).ready(function () {
     getAPILayout()
     getAPIText()  
     getAPIMedia()
+    getAPITicker()
+    getAPIScroller()
+    getAPIFader()
+    getAPIDate()
+    getAPITime()
+    getAPIDateTime()
     gettextslot()
     getmediaslot()
     getmediafiles()
+    gettickerslot()
+    getscrollerslot()
+    getfaderslot()
+    getdateslot()
+    gettimeslot()
+    getdatetimeslot()
     loadConfiguration()
     
     // Initialize modern dashboard features
@@ -756,6 +768,27 @@ function setupEventHandlers() {
         replacemediaslot(layoutid, textname, textReplace)
     })
 
+    $('.btnReplaceTicker').click(function () {
+        var layoutid = $('#replaceTickerList').find(":selected").attr('class')
+        var textname = $('#replaceTickerList').find(":selected").val()
+        var textReplace = $('#replaceTickerInput').val()
+        replacetextslot(layoutid, textname, textReplace)
+    })
+
+    $('.btnReplaceScroller').click(function () {
+        var layoutid = $('#replaceScrollerList').find(":selected").attr('class')
+        var textname = $('#replaceScrollerList').find(":selected").val()
+        var textReplace = $('#replaceScrollerInput').val()
+        replacetextslot(layoutid, textname, textReplace)
+    })
+
+    $('.btnReplaceFader').click(function () {
+        var layoutid = $('#replaceFaderList').find(":selected").attr('class')
+        var textname = $('#replaceFaderList').find(":selected").val()
+        var textReplace = $('#replaceFaderInput').val()
+        replacetextslot(layoutid, textname, textReplace)
+    })
+
     // New enhanced handlers
     // Screen toggle control with one-time click protection and throttling
     $('#screenOn').click(function() {
@@ -788,30 +821,27 @@ function setupEventHandlers() {
         }, 2000)) return;
     })
 
-    // Volume control handlers
-    $('#volumeMute').click(function() {
-        debug('Volume MUTE button clicked');
-        if ($(this).prop('disabled')) {
-            debug('Volume MUTE button is disabled, ignoring click');
-            return;
+    // Volume control handlers - Unified Mute/Unmute toggle
+    window._isMuted = false; // Track mute state
+    
+    $('#volumeToggleMute').click(function() {
+        if ($(this).prop('disabled')) return;
+        
+        if (window._isMuted) {
+            debug('Volume UNMUTE toggle clicked');
+            throttledAction('volumeToggleMute', function () { setVolumeUnmute() }, 1500);
+        } else {
+            debug('Volume MUTE toggle clicked');
+            throttledAction('volumeToggleMute', function () { setVolumeMute() }, 1500);
         }
-        throttledAction('volumeMute', function () { setVolumeMute() }, 1500)
-    })
-
-    $('#volumeUnmute').click(function() {
-        debug('Volume UNMUTE button clicked');
-        if ($(this).prop('disabled')) {
-            debug('Volume UNMUTE button is disabled, ignoring click');
-            return;
-        }
-        throttledAction('volumeUnmute', function () { setVolumeUnmute() }, 1500)
     })
 
     // Volume slider handler with debouncing
     let volumeTimeout;
     $('#volumeSlider').on('input', function() {
-        const volume = $(this).val();
+        const volume = parseInt($(this).val());
         $('#volumeDisplay').text(volume + '%');
+        updateVolumeSliderFill(volume);
         
         // Clear previous timeout
         clearTimeout(volumeTimeout);
@@ -1417,71 +1447,155 @@ function setScreenToggle(state) {
 
 // Volume control functions
 function setVolumeMute() {
-    const muteBtn = $('#volumeMute')
-    const unmuteBtn = $('#volumeUnmute')
+    const toggleBtn = $('#volumeToggleMute')
+    const statusBadge = $('#volumeStatusBadge')
     
-    muteBtn.addClass('loading').prop('disabled', true)
+    toggleBtn.addClass('loading').prop('disabled', true)
     
     $.ajax({
         type: 'get',
         url: '/api/volume/mute',
+        timeout: 20000,
         success: function (data) {
             debug('Volume mute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio muted')
-                muteBtn.removeClass('loading btn-warning').addClass('btn-secondary').prop('disabled', true)
-                unmuteBtn.removeClass('btn-secondary').addClass('btn-info').prop('disabled', false)
+                window._isMuted = true
+                updateMuteToggleUI(true)
                 if (window.showToast) showToast('System audio muted', 'info')
+                // Refresh volume status to confirm actual system state
+                setTimeout(function() { getCurrentVolumeLevel() }, 500)
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume mute failed:', status, error)
-            showAlert('danger', `Failed to mute audio: ${error}`)
-            muteBtn.removeClass('loading').prop('disabled', false)
+            var errorMsg = 'Failed to mute audio'
+            if (status === 'timeout') {
+                errorMsg = 'Mute request timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = 'Mute failed: ' + xhr.responseJSON.error
+            }
+            showAlert('danger', errorMsg)
         },
         complete: function () {
-            completeThrottledAction('volumeMute')
+            toggleBtn.removeClass('loading').prop('disabled', false)
+            completeThrottledAction('volumeToggleMute')
         }
     })
 }
 
 function setVolumeUnmute() {
-    const muteBtn = $('#volumeMute')
-    const unmuteBtn = $('#volumeUnmute')
+    const toggleBtn = $('#volumeToggleMute')
     
-    unmuteBtn.addClass('loading').prop('disabled', true)
+    toggleBtn.addClass('loading').prop('disabled', true)
     
     $.ajax({
         type: 'get',
         url: '/api/volume/unmute',
+        timeout: 20000,
         success: function (data) {
             debug('Volume unmute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio unmuted')
-                unmuteBtn.removeClass('loading btn-info').addClass('btn-secondary').prop('disabled', true)
-                muteBtn.removeClass('btn-secondary').addClass('btn-warning').prop('disabled', false)
+                window._isMuted = false
+                updateMuteToggleUI(false)
                 if (window.showToast) showToast('System audio unmuted', 'success')
+                // Refresh volume status to confirm actual system state
+                setTimeout(function() { getCurrentVolumeLevel() }, 500)
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume unmute failed:', status, error)
-            showAlert('danger', `Failed to unmute audio: ${error}`)
-            unmuteBtn.removeClass('loading').prop('disabled', false)
+            var errorMsg = 'Failed to unmute audio'
+            if (status === 'timeout') {
+                errorMsg = 'Unmute request timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = 'Unmute failed: ' + xhr.responseJSON.error
+            }
+            showAlert('danger', errorMsg)
         },
         complete: function () {
-            completeThrottledAction('volumeUnmute')
+            toggleBtn.removeClass('loading').prop('disabled', false)
+            completeThrottledAction('volumeToggleMute')
         }
     })
 }
 
+/**
+ * Updates the mute toggle button and status badge UI
+ * Button shows the ACTION (what clicking will do), badge shows CURRENT STATE
+ * @param {boolean} isMuted - Whether audio is currently muted
+ */
+function updateMuteToggleUI(isMuted) {
+    const toggleBtn = $('#volumeToggleMute')
+    const statusBadge = $('#volumeStatusBadge')
+    const slider = $('#volumeSlider')
+    const volumeDisplay = $('#volumeDisplay')
+    
+    // Remove loading state from badge
+    statusBadge.removeClass('loading')
+    
+    if (isMuted) {
+        // Current state: MUTED → Button action: "Unmute"
+        toggleBtn.removeClass('unmuted').addClass('muted')
+        toggleBtn.find('i').attr('class', 'bi bi-volume-up-fill')
+        toggleBtn.find('.toggle-label').text('Unmute')
+        statusBadge.removeClass('unmuted').addClass('muted')
+        statusBadge.html('<i class="bi bi-x-circle-fill"></i> Audio Muted')
+        slider.addClass('muted')
+        volumeDisplay.addClass('muted')
+    } else {
+        // Current state: UNMUTED → Button action: "Mute"
+        toggleBtn.removeClass('muted').addClass('unmuted')
+        toggleBtn.find('i').attr('class', 'bi bi-volume-mute-fill')
+        toggleBtn.find('.toggle-label').text('Mute')
+        statusBadge.removeClass('muted').addClass('unmuted')
+        statusBadge.html('<i class="bi bi-check-circle-fill"></i> Audio Active')
+        slider.removeClass('muted')
+        volumeDisplay.removeClass('muted')
+    }
+}
+
+/**
+ * Updates the volume slider fill color based on current value
+ * Blue gradient when volume > 0, gray when 0
+ * @param {number} volume - Volume level 0-100
+ */
+function updateVolumeSliderFill(volume) {
+    const slider = $('#volumeSlider')[0]
+    if (!slider) return
+    
+    const percentage = volume
+    const $slider = $(slider)
+    
+    if (volume === 0) {
+        $slider.addClass('volume-zero')
+        slider.style.background = '#e2e8f0'
+    } else {
+        $slider.removeClass('volume-zero')
+        slider.style.background = `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)`
+    }
+}
+
 function setVolumeLevel(volume) {
     $('#volumeDisplay').text(volume + '%')
+    updateVolumeSliderFill(volume)
+    
+    // If volume is set to 0 from slider, update mute UI accordingly
+    if (parseInt(volume) === 0 && !window._isMuted) {
+        window._isMuted = true
+        updateMuteToggleUI(true)
+    } else if (parseInt(volume) > 0 && window._isMuted) {
+        window._isMuted = false
+        updateMuteToggleUI(false)
+    }
     
     $.ajax({
         type: 'post',
         url: '/api/volume/set',
         contentType: 'application/json',
         data: JSON.stringify({ volume: volume }),
+        timeout: 20000,
         success: function (data) {
             debug('Volume level set success:', data)
             if (data.success) {
@@ -1495,18 +1609,59 @@ function setVolumeLevel(volume) {
     })
 }
 
-function getCurrentVolumeLevel() {
+/**
+ * Fetches actual volume level and mute status from the system and updates the UI accordingly
+ * Includes retry logic for reliability (PowerShell COM init may take time on first call)
+ * @param {number} [retryCount=0] - Current retry attempt (internal use)
+ */
+function getCurrentVolumeLevel(retryCount) {
+    retryCount = retryCount || 0
+    var maxRetries = 2
+    
     $.ajax({
         type: 'get',
         url: '/api/volume/get',
+        timeout: 20000,
         success: function (data) {
-            debug('Get volume request sent:', data)
+            debug('Get volume status:', data)
+            if (data.success) {
+                // Update volume slider and display
+                const volume = parseInt(data.volume) || 0
+                $('#volumeSlider').val(volume)
+                $('#volumeDisplay').text(volume + '%')
+                updateVolumeSliderFill(volume)
+                
+                // Update mute state from actual system status
+                const isMuted = data.muted === true
+                window._isMuted = isMuted
+                updateMuteToggleUI(isMuted)
+                
+                debug('Volume status synced: ' + volume + '% ' + (isMuted ? '(muted)' : '(active)'))
+            } else if (retryCount < maxRetries) {
+                debug('Volume status response not successful, retrying (' + (retryCount + 1) + '/' + maxRetries + ')...')
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            }
         },
         error: function (xhr, status, error) {
             console.error('Get volume failed:', status, error)
+            if (retryCount < maxRetries) {
+                debug('Volume status fetch failed, retrying in ' + (3 * (retryCount + 1)) + ' seconds...')
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            } else {
+                // Final attempt failed, show error state
+                $('#volumeStatusBadge').removeClass('loading').addClass('unmuted')
+                    .html('<i class="bi bi-exclamation-circle-fill"></i> Status Unavailable')
+                console.warn('Volume status unavailable after ' + maxRetries + ' retries')
+            }
         }
     })
 }
+
+// Initialize volume controls on page load
+$(function() {
+    // Fetch actual system volume and mute status
+    getCurrentVolumeLevel()
+})
 
 // Configuration management
 function saveConfiguration() {
@@ -2451,19 +2606,17 @@ function createSlotSummaryDisplay(slotSummary, detailed = false) {
                 </div>
     `
 
-    if (detailed) {
-        const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table']
-        specialTypes.forEach(type => {
-            if (slotSummary[type] && slotSummary[type] > 0) {
-                html += `
-                    <div class="slot-summary-item">
-                        <span class="slot-count">${slotSummary[type]}</span>
-                        <span class="slot-type">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
-                    </div>
-                `
-            }
-        })
-    }
+    const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'datetime', 'html', 'table']
+    specialTypes.forEach(type => {
+        if (slotSummary[type] && slotSummary[type] > 0) {
+            html += `
+                <div class="slot-summary-item">
+                    <span class="slot-count">${slotSummary[type]}</span>
+                    <span class="slot-type">${type.charAt(0).toUpperCase() + type.slice(1)}</span>
+                </div>
+            `
+        }
+    })
 
     html += `
             </div>
@@ -2511,6 +2664,94 @@ function createDetailedSlotsDisplay(slots) {
                         <span class="detail-value">${slot.position.width || '?'} × ${slot.position.height || '?'}</span>
                     </div>
                     ` : ''}
+                    ${slot.type === 'ticker' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Speed:</span>
+                        <span class="detail-value">${slot.tickerSpeed || 'Default'}</span>
+                    </div>
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Direction:</span>
+                        <span class="detail-value">${slot.tickerDirection || 'left'}</span>
+                    </div>
+                    ` : ''}
+                    ${slot.type === 'scroller' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Speed:</span>
+                        <span class="detail-value">${slot.scrollSpeed || 'Default'}</span>
+                    </div>
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Direction:</span>
+                        <span class="detail-value">${slot.scrollDirection || 'up'}</span>
+                    </div>
+                    ` : ''}
+                    ${slot.type === 'fader' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Speed:</span>
+                        <span class="detail-value">${slot.fadeSpeed || 'Default'}</span>
+                    </div>
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Duration:</span>
+                        <span class="detail-value">${slot.fadeDuration || 'Default'}</span>
+                    </div>
+                    ` : ''}
+                    ${slot.type === 'date' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Format:</span>
+                        <span class="detail-value">${slot.dateFormat || 'DD/MM/YYYY'}</span>
+                    </div>
+                    ${slot.timezone ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Timezone:</span>
+                        <span class="detail-value">${slot.timezone}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
+                    ${slot.type === 'time' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Format:</span>
+                        <span class="detail-value">${slot.timeFormat || 'HH:MM:SS'}</span>
+                    </div>
+                    ${slot.timezone ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Timezone:</span>
+                        <span class="detail-value">${slot.timezone}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
+                    ${slot.type === 'datetime' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Format:</span>
+                        <span class="detail-value">${slot.dateTimeFormat || 'YYYY-MM-DD HH:mm:ss'}</span>
+                    </div>
+                    ${slot.timezone ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Timezone:</span>
+                        <span class="detail-value">${slot.timezone}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
+                    ${slot.type === 'html' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value">HTML Content</span>
+                    </div>
+                    ` : ''}
+                    ${slot.type === 'table' ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Columns:</span>
+                        <span class="detail-value">${slot.tableColumns || 'N/A'}</span>
+                    </div>
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Rows:</span>
+                        <span class="detail-value">${slot.tableRows || 'N/A'}</span>
+                    </div>
+                    ${slot.dataSoource ? `
+                    <div class="slot-detail-item">
+                        <span class="detail-label">Data Source:</span>
+                        <span class="detail-value">${slot.dataSoource}</span>
+                    </div>
+                    ` : ''}
+                    ` : ''}
                 </div>
             </div>
         `
@@ -2548,6 +2789,54 @@ function createSummaryStatistics(layoutData) {
                     <div class="stat-value">${layoutData.mediaSlots || 0}</div>
                     <div class="stat-label">Media Slots</div>
                 </div>
+                ${layoutData.tickerSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.tickerSlots}</div>
+                    <div class="stat-label">Ticker Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.scrollerSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.scrollerSlots}</div>
+                    <div class="stat-label">Scroller Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.faderSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.faderSlots}</div>
+                    <div class="stat-label">Fader Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.dateSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.dateSlots}</div>
+                    <div class="stat-label">Date Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.timeSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.timeSlots}</div>
+                    <div class="stat-label">Time Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.datetimeSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.datetimeSlots}</div>
+                    <div class="stat-label">DateTime Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.htmlSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.htmlSlots}</div>
+                    <div class="stat-label">HTML Slots</div>
+                </div>
+                ` : ''}
+                ${layoutData.tableSlots ? `
+                <div class="summary-stat">
+                    <div class="stat-value">${layoutData.tableSlots}</div>
+                    <div class="stat-label">Table Slots</div>
+                </div>
+                ` : ''}
                 ${layoutData.isLoop ? `
                 <div class="summary-stat">
                     <div class="stat-value">${layoutData.layoutCount || 0}</div>
@@ -2897,6 +3186,78 @@ function getAPIMedia() {
         })
 }
 
+function getAPITicker() {
+    const $element = $('#apiTicker')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-text-left"></i>
+            <strong>Ticker slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
+function getAPIScroller() {
+    const $element = $('#apiScroller')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-text-paragraph"></i>
+            <strong>Scroller slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
+function getAPIFader() {
+    const $element = $('#apiFader')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-brightness-alt-high"></i>
+            <strong>Fader slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
+function getAPIDate() {
+    const $element = $('#apiDate')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-calendar-date"></i>
+            <strong>Date slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
+function getAPITime() {
+    const $element = $('#apiTime')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-clock"></i>
+            <strong>Time slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
+function getAPIDateTime() {
+    const $element = $('#apiDateTime')
+    $element.addClass('loading')
+    $element.html(`
+        <div class="alert-modern alert-info">
+            <i class="bi bi-calendar-event"></i>
+            <strong>DateTime slots will load from layout data</strong>
+        </div>
+    `)
+    $element.removeClass('loading')
+}
+
 function gettextslot() {
     console.log('=== CONTROL PANEL: Requesting text slots ===')
     socket.emit('reqtextslot', 'get text slot')
@@ -2910,6 +3271,36 @@ function getmediaslot() {
 function getmediafiles() {
     console.log('=== CONTROL PANEL: Requesting media files ===')
     socket.emit('reqmediafiles', 'get media files')
+}
+
+function gettickerslot() {
+    console.log('=== CONTROL PANEL: Requesting ticker slots ===')
+    socket.emit('reqtickerslot', 'get ticker slot')
+}
+
+function getscrollerslot() {
+    console.log('=== CONTROL PANEL: Requesting scroller slots ===')
+    socket.emit('reqscrollerslot', 'get scroller slot')
+}
+
+function getfaderslot() {
+    console.log('=== CONTROL PANEL: Requesting fader slots ===')
+    socket.emit('reqfaderslot', 'get fader slot')
+}
+
+function getdateslot() {
+    console.log('=== CONTROL PANEL: Requesting date slots ===')
+    socket.emit('reqdateslot', 'get date slot')
+}
+
+function gettimeslot() {
+    console.log('=== CONTROL PANEL: Requesting time slots ===')
+    socket.emit('reqtimeslot', 'get time slot')
+}
+
+function getdatetimeslot() {
+    console.log('=== CONTROL PANEL: Requesting datetime slots ===')
+    socket.emit('reqdatetimeslot', 'get datetime slot')
 }
 
 // Enhanced system monitoring functions
@@ -3043,6 +3434,168 @@ socket.on('cpanel-mediafiles', function (msg) {
             text: file
         }))
     })
+})
+
+// Ticker slot event handler
+socket.on('cpanel-tickerslot', function (msg) {
+    $('#replaceTickerList').empty()
+    $('#replaceTickerList').append($('<option>', {
+        value: '',
+        text: 'Open this to select ticker slot. [Layout Name - ID] Slot Name (Ticker) | Slot Text'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#replaceTickerList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | ${slot.text}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiTicker').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-text-left"></i>
+                <strong>${count} ticker slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
+})
+
+// Scroller slot event handler
+socket.on('cpanel-scrollerslot', function (msg) {
+    $('#replaceScrollerList').empty()
+    $('#replaceScrollerList').append($('<option>', {
+        value: '',
+        text: 'Open this to select scroller slot. [Layout Name - ID] Slot Name (Scroller) | Slot Text'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#replaceScrollerList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | ${slot.text}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiScroller').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-text-paragraph"></i>
+                <strong>${count} scroller slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
+})
+
+// Fader slot event handler
+socket.on('cpanel-faderslot', function (msg) {
+    $('#replaceFaderList').empty()
+    $('#replaceFaderList').append($('<option>', {
+        value: '',
+        text: 'Open this to select fader slot. [Layout Name - ID] Slot Name (Fader) | Slot Text'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#replaceFaderList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | ${slot.text}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiFader').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-brightness-alt-high"></i>
+                <strong>${count} fader slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
+})
+
+// Date slot event handler
+socket.on('cpanel-dateslot', function (msg) {
+    $('#dateSlotList').empty()
+    $('#dateSlotList').append($('<option>', {
+        value: '',
+        text: 'Open this to view date slots. [Layout Name - ID] Slot Name | Format'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#dateSlotList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | Format: ${slot.format}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiDate').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-calendar-date"></i>
+                <strong>${count} date slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
+})
+
+// Time slot event handler
+socket.on('cpanel-timeslot', function (msg) {
+    $('#timeSlotList').empty()
+    $('#timeSlotList').append($('<option>', {
+        value: '',
+        text: 'Open this to view time slots. [Layout Name - ID] Slot Name | Format'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#timeSlotList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | Format: ${slot.format}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiTime').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-clock"></i>
+                <strong>${count} time slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
+})
+
+// DateTime slot event handler
+socket.on('cpanel-datetimeslot', function (msg) {
+    $('#datetimeSlotList').empty()
+    $('#datetimeSlotList').append($('<option>', {
+        value: '',
+        text: 'Open this to view datetime slots. [Layout Name - ID] Slot Name | Format'
+    }))
+    
+    if (msg && Array.isArray(msg)) {
+        msg.forEach(function(slot) {
+            $('#datetimeSlotList').append($('<option>', {
+                value: slot.name,
+                text: `[${slot.layout} - ${slot.layoutid}] ${slot.name} (${slot.slottype}) | Format: ${slot.format}`,
+                class: slot.layoutid
+            }))
+        })
+        
+        var count = msg.length
+        $('#apiDateTime').html(`
+            <div class="alert-modern alert-success">
+                <i class="bi bi-calendar-event"></i>
+                <strong>${count} datetime slot${count !== 1 ? 's' : ''} available</strong>
+            </div>
+        `)
+    }
 })
 
 // Enhanced socket event handlers
@@ -3523,6 +4076,33 @@ function toggleTextHelp() {
 
 function toggleMediaHelp() {
     const helpPanel = document.getElementById('mediaManagementHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+function toggleTickerHelp() {
+    const helpPanel = document.getElementById('tickerManagementHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+function toggleScrollerHelp() {
+    const helpPanel = document.getElementById('scrollerManagementHelp')
+    if (helpPanel.style.display === 'none') {
+        helpPanel.style.display = 'block'
+    } else {
+        helpPanel.style.display = 'none'
+    }
+}
+
+function toggleFaderHelp() {
+    const helpPanel = document.getElementById('faderManagementHelp')
     if (helpPanel.style.display === 'none') {
         helpPanel.style.display = 'block'
     } else {

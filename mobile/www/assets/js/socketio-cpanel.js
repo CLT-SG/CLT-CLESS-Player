@@ -1772,6 +1772,7 @@ function extractComprehensiveSlotData(layoutData, layoutKey) {
             fader: 0,
             date: 0,
             time: 0,
+            datetime: 0,
             html: 0,
             table: 0,
             other: 0
@@ -1817,7 +1818,7 @@ function extractComprehensiveSlotData(layoutData, layoutKey) {
             console.log('=== COMPREHENSIVE SLOT EXTRACTION: Processing', slotsContainer.length, 'slots');
 
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                if (slot.attributes && slot.attributes.id) {
                     var slotInfo = extractDetailedSlotInfo(slot, layoutId, result.layoutInfo.name, index);
                     
                     if (slotInfo) {
@@ -1854,6 +1855,10 @@ function extractComprehensiveSlotData(layoutData, layoutKey) {
                                 result.specialSlots.push(slotInfo);
                                 result.slotSummary.time++;
                                 break;
+                            case 'datetime':
+                                result.specialSlots.push(slotInfo);
+                                result.slotSummary.datetime++;
+                                break;
                             case 'html':
                                 result.specialSlots.push(slotInfo);
                                 result.slotSummary.html++;
@@ -1885,7 +1890,7 @@ function extractDetailedSlotInfo(slot, layoutId, layoutName, index) {
     try {
         var slotInfo = {
             id: slot.attributes.id,
-            name: slot.attributes.name,
+            name: slot.attributes.name || (slot.name + '-' + slot.attributes.id),
             type: slot.name,
             layoutId: layoutId,
             layoutName: layoutName,
@@ -2001,6 +2006,11 @@ function extractDetailedSlotInfo(slot, layoutId, layoutName, index) {
             slotInfo.tableRows = slot.attributes.rows || '';
             slotInfo.dataSoource = slot.attributes.datasource || '';
             slotInfo.tableHeaders = slot.attributes.headers || 'Y';
+        } else if (slot.name === 'datetime') {
+            slotInfo.contentType = 'datetime';
+            // Extract datetime-specific attributes
+            slotInfo.dateTimeFormat = slot.attributes.format || slot.attributes.datetimeformat || 'YYYY-MM-DD HH:mm:ss';
+            slotInfo.timezone = slot.attributes.timezone || '';
         } else {
             slotInfo.contentType = slot.name;
         }
@@ -2070,12 +2080,12 @@ function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
             console.log('=== EXTRACT ALL SLOTS: Processing', slotsContainer.length, 'slots');
 
             // All possible slot types from layoutxml.js
-            var supportedSlotTypes = ['media', 'text', 'ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table'];
+            var supportedSlotTypes = ['media', 'text', 'ticker', 'scroller', 'fader', 'date', 'time', 'datetime', 'html', 'table'];
 
             slotsContainer.forEach(function (slot, index) {
                 console.log('=== EXTRACT ALL SLOTS: Processing slot', index, 'type:', slot.name);
 
-                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                if (slot.attributes && slot.attributes.id) {
                     // Check if it's a supported slot type
                     if (supportedSlotTypes.includes(slot.name)) {
                         slotCount++;
@@ -2132,7 +2142,7 @@ function extractAllSlotsFromLayoutData(layoutData, layoutKey) {
 
                         var slotObj = {
                             id: slot.attributes.id,
-                            name: slot.attributes.name,
+                            name: slot.attributes.name || (slot.name + '-' + slot.attributes.id),
                             type: slot.name,
                             content: slotContent || '',
                             layoutId: layoutId,
@@ -2224,7 +2234,7 @@ function extractTextSlotsFromLayoutData(layoutData, layoutKey) {
             slotsContainer.forEach(function (slot, index) {
                 console.log('=== EXTRACT LAYOUT DATA: Processing slot', index, 'type:', slot.name);
 
-                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                if (slot.attributes && slot.attributes.id) {
                     // Check if it's a text-type slot
                     if (slot.name === 'text' || slot.name === 'ticker' ||
                         slot.name === 'fader' || slot.name === 'scroller') {
@@ -2249,7 +2259,7 @@ function extractTextSlotsFromLayoutData(layoutData, layoutKey) {
                             layout: layoutName,
                             layoutid: layoutId,
                             id: slot.attributes.id,
-                            name: slot.attributes.name,
+                            name: slot.attributes.name || (slot.name + '-' + slot.attributes.id),
                             slottype: capitalizeFirstLetter(slot.name),
                             text: textContent
                         };
@@ -2535,6 +2545,25 @@ socket.on('gettimeslot', function (msg) {
         console.error('=== RENDERER PROCESS: Error getting time slots ===', error);
         // Send empty array on error
         socket.emit('timeslot-list', []);
+    }
+});
+
+//retrieve all datetime slots
+socket.on('getdatetimeslot', function (msg) {
+    console.log('=== RENDERER PROCESS: getdatetimeslot REQUEST RECEIVED ===');
+    console.log('=== RENDERER PROCESS: Message:', msg);
+
+    try {
+        var datetimeSlots = extractDateTimeSlotsFromLocalStorage();
+        console.log('=== RENDERER PROCESS: Found', datetimeSlots.length, 'datetime slots ===');
+
+        // Send the datetime slots back to the control panel
+        socket.emit('datetimeslot-list', datetimeSlots);
+        console.log('=== RENDERER PROCESS: Sent datetime slots to control panel ===');
+    } catch (error) {
+        console.error('=== RENDERER PROCESS: Error getting datetime slots ===', error);
+        // Send empty array on error
+        socket.emit('datetimeslot-list', []);
     }
 });
 
@@ -2948,7 +2977,7 @@ function extractMediaSlotsFromLayoutData(layoutData, layoutKey) {
             slotsContainer.forEach(function (slot, index) {
                 console.log('=== EXTRACT MEDIA LAYOUT DATA: Processing slot', index, 'type:', slot.name);
 
-                if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+                if (slot.attributes && slot.attributes.id) {
                     // Check if it's a media slot
                     if (slot.name === 'media') {
 
@@ -2982,7 +3011,7 @@ function extractMediaSlotsFromLayoutData(layoutData, layoutKey) {
                             layout: layoutName,
                             layoutid: layoutId,
                             id: slot.attributes.id,
-                            name: slot.attributes.name,
+                            name: slot.attributes.name || ('media-' + slot.attributes.id),
                             slottype: capitalizeFirstLetter(slot.name),
                             text: mediaContent || 'not-found'
                         };
@@ -3036,7 +3065,7 @@ function extractTickerSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'ticker') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'ticker') {
                     var tickerContent = '';
                     if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
                         slot.elements[0].elements[0].text) {
@@ -3048,7 +3077,7 @@ function extractTickerSlotsFromLayoutData(layoutData, layoutKey) {
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('ticker-' + slot.attributes.id),
                         slottype: 'Ticker',
                         text: tickerContent || 'no-content',
                         speed: slot.attributes.speed || slot.attributes.scrollspeed || '',
@@ -3091,7 +3120,7 @@ function extractScrollerSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'scroller') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'scroller') {
                     var scrollerContent = '';
                     if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
                         slot.elements[0].elements[0].text) {
@@ -3103,7 +3132,7 @@ function extractScrollerSlotsFromLayoutData(layoutData, layoutKey) {
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('scroller-' + slot.attributes.id),
                         slottype: 'Scroller',
                         text: scrollerContent || 'no-content',
                         speed: slot.attributes.speed || slot.attributes.scrollspeed || '',
@@ -3146,7 +3175,7 @@ function extractFaderSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'fader') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'fader') {
                     var faderContent = '';
                     if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
                         slot.elements[0].elements[0].text) {
@@ -3158,7 +3187,7 @@ function extractFaderSlotsFromLayoutData(layoutData, layoutKey) {
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('fader-' + slot.attributes.id),
                         slottype: 'Fader',
                         text: faderContent || 'no-content',
                         speed: slot.attributes.speed || slot.attributes.fadespeed || '',
@@ -3201,13 +3230,13 @@ function extractDateSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'date') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'date') {
                     var slotObj = {
                         myid: layoutId,
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('date-' + slot.attributes.id),
                         slottype: 'Date',
                         text: 'Current Date',
                         format: slot.attributes.format || slot.attributes.dateformat || 'DD/MM/YYYY',
@@ -3250,13 +3279,13 @@ function extractTimeSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'time') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'time') {
                     var slotObj = {
                         myid: layoutId,
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('time-' + slot.attributes.id),
                         slottype: 'Time',
                         text: 'Current Time',
                         format: slot.attributes.format || slot.attributes.timeformat || 'HH:MM:SS',
@@ -3273,6 +3302,88 @@ function extractTimeSlotsFromLayoutData(layoutData, layoutKey) {
     }
 
     return timeSlots;
+}
+
+// Function to extract datetime slots from localStorage
+function extractDateTimeSlotsFromLocalStorage() {
+    console.log('=== EXTRACT DATETIME SLOTS: Function started ===');
+    var datetimeSlots = [];
+
+    try {
+        var resultOffline = JSON.parse(localStorage.getItem(dsid));
+        if (!resultOffline) {
+            console.warn('=== EXTRACT DATETIME SLOTS: No data found in localStorage for DSID:', dsid);
+            return datetimeSlots;
+        }
+
+        var layoutType = resultOffline['elements'][0]['elements'][0]['name'];
+        if (layoutType == 'loop') {
+            resultOffline = resultOffline['elements'][0]['elements'][0]['elements'];
+            $.when.apply($, $.map(resultOffline, function (layoutxml, oindex) {
+                var layoutURL = layoutxml['attributes']['url'];
+                var layoutID = layoutURL.split('layout/')[1].slice(0, layoutURL.split('layout/')[1].lastIndexOf('/'));
+                var layoutData = JSON.parse(localStorage.getItem('layout-' + layoutID));
+                var slotsFromLayout = extractDateTimeSlotsFromLayoutData(layoutData, layoutID);
+                datetimeSlots = datetimeSlots.concat(slotsFromLayout);
+            }));
+        } else {
+            var slotsFromLayout = extractDateTimeSlotsFromLayoutData(resultOffline, dsid);
+            datetimeSlots = datetimeSlots.concat(slotsFromLayout);
+        }
+    } catch (error) {
+        console.error('=== EXTRACT DATETIME SLOTS: Error:', error);
+    }
+
+    return datetimeSlots;
+}
+
+// Function to extract datetime slots from layout data structure
+function extractDateTimeSlotsFromLayoutData(layoutData, layoutKey) {
+    console.log('=== EXTRACT DATETIME LAYOUT DATA: Processing layout key:', layoutKey, layoutData);
+    var datetimeSlots = [];
+
+    if (!layoutData || !layoutData.elements) {
+        console.warn('=== EXTRACT DATETIME LAYOUT DATA: Invalid layout data or missing elements for key:', layoutKey);
+        return datetimeSlots;
+    }
+
+    try {
+        var elements = layoutData.elements;
+        var layoutId = layoutKey.replace('layout-offline-', '').replace('layout-', '');
+        var layoutName = 'Layout ' + layoutId;
+
+        // Find slots container
+        var slotsContainer = null;
+        if (elements[0] && elements[0].elements && elements[0].elements[0] &&
+            elements[0].elements[0].elements && elements[0].elements[0].elements[0] &&
+            elements[0].elements[0].elements[0].elements) {
+            slotsContainer = elements[0].elements[0].elements[0].elements;
+        }
+
+        if (slotsContainer && Array.isArray(slotsContainer)) {
+            slotsContainer.forEach(function (slot, index) {
+                if (slot.attributes && slot.attributes.id && slot.name === 'datetime') {
+                    var slotObj = {
+                        myid: layoutId,
+                        layout: layoutName,
+                        layoutid: layoutId,
+                        id: slot.attributes.id,
+                        name: slot.attributes.name || ('datetime-' + slot.attributes.id),
+                        slottype: 'DateTime',
+                        text: 'Current DateTime',
+                        format: slot.attributes.format || 'YYYY-MM-DD HH:mm:ss',
+                        timezone: slot.attributes.timezone || ''
+                    };
+
+                    datetimeSlots.push(slotObj);
+                }
+            });
+        }
+    } catch (error) {
+        console.error('=== EXTRACT DATETIME LAYOUT DATA: Error extracting datetime slots from layout:', layoutKey, error);
+    }
+
+    return datetimeSlots;
 }
 
 // Function to extract HTML slots from layout data structure
@@ -3300,7 +3411,7 @@ function extractHtmlSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'html') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'html') {
                     var htmlContent = '';
                     if (slot.elements && slot.elements[0] && slot.elements[0].elements && slot.elements[0].elements[0] &&
                         slot.elements[0].elements[0].text) {
@@ -3312,7 +3423,7 @@ function extractHtmlSlotsFromLayoutData(layoutData, layoutKey) {
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('html-' + slot.attributes.id),
                         slottype: 'HTML',
                         text: htmlContent || 'no-content'
                     };
@@ -3353,13 +3464,13 @@ function extractTableSlotsFromLayoutData(layoutData, layoutKey) {
 
         if (slotsContainer && Array.isArray(slotsContainer)) {
             slotsContainer.forEach(function (slot, index) {
-                if (slot.attributes && slot.attributes.id && slot.attributes.name && slot.name === 'table') {
+                if (slot.attributes && slot.attributes.id && slot.name === 'table') {
                     var slotObj = {
                         myid: layoutId,
                         layout: layoutName,
                         layoutid: layoutId,
                         id: slot.attributes.id,
-                        name: slot.attributes.name,
+                        name: slot.attributes.name || ('table-' + slot.attributes.id),
                         slottype: 'Table',
                         text: 'Table Data',
                         columns: slot.attributes.columns || '',
@@ -3581,6 +3692,14 @@ socket.on('get-layout-details', function (request) {
             totalSlots: 0,
             textSlots: 0,
             mediaSlots: 0,
+            tickerSlots: 0,
+            scrollerSlots: 0,
+            faderSlots: 0,
+            dateSlots: 0,
+            timeSlots: 0,
+            datetimeSlots: 0,
+            htmlSlots: 0,
+            tableSlots: 0,
             timestamp: Date.now(),
             mode: layoutMode.isLoop ? 'loop' : 'single'
         };
@@ -3597,6 +3716,16 @@ socket.on('get-layout-details', function (request) {
                 response.totalSlots += layout.totalSlots || 0;
                 response.textSlots += layout.textSlotCount || 0;
                 response.mediaSlots += layout.mediaSlotCount || 0;
+                if (layout.slotSummary) {
+                    response.tickerSlots += layout.slotSummary.ticker || 0;
+                    response.scrollerSlots += layout.slotSummary.scroller || 0;
+                    response.faderSlots += layout.slotSummary.fader || 0;
+                    response.dateSlots += layout.slotSummary.date || 0;
+                    response.timeSlots += layout.slotSummary.time || 0;
+                    response.datetimeSlots += layout.slotSummary.datetime || 0;
+                    response.htmlSlots += layout.slotSummary.html || 0;
+                    response.tableSlots += layout.slotSummary.table || 0;
+                }
             });
 
             // Identify current layout if available
@@ -3620,6 +3749,16 @@ socket.on('get-layout-details', function (request) {
                 response.totalSlots = singleLayout.totalSlots || 0;
                 response.textSlots = singleLayout.textSlotCount || 0;
                 response.mediaSlots = singleLayout.mediaSlotCount || 0;
+                if (singleLayout.slotSummary) {
+                    response.tickerSlots = singleLayout.slotSummary.ticker || 0;
+                    response.scrollerSlots = singleLayout.slotSummary.scroller || 0;
+                    response.faderSlots = singleLayout.slotSummary.fader || 0;
+                    response.dateSlots = singleLayout.slotSummary.date || 0;
+                    response.timeSlots = singleLayout.slotSummary.time || 0;
+                    response.datetimeSlots = singleLayout.slotSummary.datetime || 0;
+                    response.htmlSlots = singleLayout.slotSummary.html || 0;
+                    response.tableSlots = singleLayout.slotSummary.table || 0;
+                }
             }
         }
 
@@ -3645,6 +3784,14 @@ socket.on('get-layout-details', function (request) {
             totalSlots: 0,
             textSlots: 0,
             mediaSlots: 0,
+            tickerSlots: 0,
+            scrollerSlots: 0,
+            faderSlots: 0,
+            dateSlots: 0,
+            timeSlots: 0,
+            datetimeSlots: 0,
+            htmlSlots: 0,
+            tableSlots: 0,
             timestamp: Date.now(),
             error: 'Failed to retrieve layout details: ' + error.message
         });

@@ -4,7 +4,7 @@ return (async function () {
     const path = require("path")
     const os = require('os')
     const fs = require("fs")
-    const { exec } = require('child_process')
+    const { exec, execFile } = require('child_process')
     const homedir = os.homedir()
     const appdir = path.normalize(homedir + '/clessapp')
     
@@ -1016,10 +1016,12 @@ return (async function () {
     app.get('/api/volume/get', async function (req, res) {
         try {
             const volume = await getCurrentVolumeLevel()
+            const muted = await getSystemMuteStatus()
             res.json({ 
                 success: true, 
                 volume: volume,
-                message: `Current volume: ${volume}%`
+                muted: muted,
+                message: `Current volume: ${volume}%${muted ? ' (muted)' : ''}`
             })
         } catch (error) {
             log.error('API volume get error:', error)
@@ -1297,7 +1299,73 @@ return (async function () {
     // ================================================
     // DIRECT VOLUME CONTROL FUNCTIONS
     // ================================================
-    
+
+    /**
+     * Execute a PowerShell script using execFile with -EncodedCommand
+     * Bypasses cmd.exe shell escaping - reliable across all Windows versions (7/8/10/11)
+     * @param {string} script - Raw PowerShell script to execute
+     * @returns {Promise<string>} stdout output trimmed
+     */
+    function runPowerShellAudioCommand(script) {
+        return new Promise((resolve, reject) => {
+            const encoded = Buffer.from(script, 'utf16le').toString('base64')
+            execFile('powershell.exe', [
+                '-NoProfile',
+                '-NonInteractive',
+                '-ExecutionPolicy', 'Bypass',
+                '-EncodedCommand', encoded
+            ], { timeout: 15000 }, (error, stdout, stderr) => {
+                if (error) {
+                    const errMsg = error.message + (stderr ? ' | ' + stderr.trim() : '')
+                    reject(new Error(errMsg))
+                    return
+                }
+                resolve(stdout.trim())
+            })
+        })
+    }
+
+    // PowerShell type definition for Windows Core Audio API (IAudioEndpointVolume)
+    // Uses proper COM vtable alignment - compatible with Windows 7, 8, 10, 11
+    const WINDOWS_AUDIO_PS_INIT = [
+        'Add-Type -TypeDefinition @"',
+        'using System.Runtime.InteropServices;',
+        '',
+        '[Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+        'interface IAudioEndpointVolume {',
+        '    int f(); int g(); int h(); int i();',
+        '    int SetMasterVolumeLevelScalar(float fLevel, System.Guid pguidEventContext);',
+        '    int j();',
+        '    int GetMasterVolumeLevelScalar(out float pfLevel);',
+        '    int k(); int l(); int m(); int n();',
+        '    int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, System.Guid pguidEventContext);',
+        '    int GetMute(out bool pbMute);',
+        '}',
+        '',
+        '[Guid("D666063F-1587-4E43-81F1-B948E807363F"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+        'interface IMMDevice {',
+        '    int Activate(ref System.Guid id, int clsCtx, int activationParams, out IAudioEndpointVolume aev);',
+        '}',
+        '',
+        '[Guid("A95664D2-9614-4F35-A746-DE8DB63617E6"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+        'interface IMMDeviceEnumerator {',
+        '    int f();',
+        '    int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint);',
+        '}',
+        '',
+        '[ComImport, Guid("MMDEVAPI.MMDeviceEnumerator")]',
+        'class MMDeviceEnumeratorComObject { }',
+        '"@',
+        '',
+        '$mmde = New-Object MMDeviceEnumeratorComObject',
+        '$enumerator = [IMMDeviceEnumerator]$mmde',
+        '$dev = $null',
+        '$enumerator.GetDefaultAudioEndpoint(0, 1, [ref]$dev)',
+        '$guid = [guid]"BCDE0395-E52F-467C-8E3D-C4579291692E"',
+        '$aev = $null',
+        '$dev.Activate([ref]$guid, 23, 0, [ref]$aev)',
+    ].join('\n')
+
     /**
      * Get current system volume level
      * Returns a Promise that resolves with volume percentage (0-100)
@@ -1307,22 +1375,25 @@ return (async function () {
             const platform = process.platform
             
             if (platform === 'win32') {
-                // Windows: Use PowerShell to get volume
-                const command = 'powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume"'
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        log.error('Error getting Windows volume:', error)
+                // Windows: Use Core Audio COM API via PowerShell (Win7/8/10/11)
+                const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+                    '$vol = 0.0\n' +
+                    '$aev.GetMasterVolumeLevelScalar([ref]$vol)\n' +
+                    '[math]::Round($vol * 100)'
+                runPowerShellAudioCommand(script)
+                    .then(function(output) {
+                        try {
+                            const volume = parseInt(output) || 0
+                            resolve(Math.max(0, Math.min(100, volume)))
+                        } catch (parseError) {
+                            log.error('Error parsing Windows volume:', parseError)
+                            reject(parseError)
+                        }
+                    })
+                    .catch(function(error) {
+                        log.error('Error getting Windows volume:', error.message)
                         reject(error)
-                        return
-                    }
-                    try {
-                        const volume = Math.round(parseFloat(stdout.trim()) * 100)
-                        resolve(volume)
-                    } catch (parseError) {
-                        log.error('Error parsing Windows volume:', parseError)
-                        reject(parseError)
-                    }
-                })
+                    })
             } else if (platform === 'linux') {
                 // Linux: Use amixer
                 exec('amixer get Master | grep -o "[0-9]*%" | head -1 | tr -d "%"', (error, stdout, stderr) => {
@@ -1362,6 +1433,71 @@ return (async function () {
     }
 
     /**
+     * Get current system mute status
+     * Returns a Promise that resolves with boolean (true = muted, false = unmuted)
+     */
+    function getSystemMuteStatus() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+
+            if (platform === 'win32') {
+                // Windows: Use Core Audio COM API via PowerShell (Win7/8/10/11)
+                const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+                    '$muted = $false\n' +
+                    '$aev.GetMute([ref]$muted)\n' +
+                    '$muted'
+                runPowerShellAudioCommand(script)
+                    .then(function(output) {
+                        try {
+                            resolve(output.toLowerCase() === 'true')
+                        } catch (parseError) {
+                            log.warn('Error parsing Windows mute status:', parseError)
+                            resolve(false)
+                        }
+                    })
+                    .catch(function(error) {
+                        log.warn('Error getting Windows mute status:', error.message)
+                        resolve(false) // Default to unmuted on error
+                    })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer to check mute status
+                exec('amixer get Master | grep -o "\\[on\\]\\|\\[off\\]" | head -1', (error, stdout, stderr) => {
+                    if (error) {
+                        log.warn('Error getting Linux mute status, defaulting to false:', error.message)
+                        resolve(false)
+                        return
+                    }
+                    try {
+                        const result = stdout.trim()
+                        resolve(result === '[off]')
+                    } catch (parseError) {
+                        log.warn('Error parsing Linux mute status:', parseError)
+                        resolve(false)
+                    }
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript to check mute status
+                exec('osascript -e "output muted of (get volume settings)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.warn('Error getting macOS mute status, defaulting to false:', error.message)
+                        resolve(false)
+                        return
+                    }
+                    try {
+                        const result = stdout.trim().toLowerCase()
+                        resolve(result === 'true')
+                    } catch (parseError) {
+                        log.warn('Error parsing macOS mute status:', parseError)
+                        resolve(false)
+                    }
+                })
+            } else {
+                resolve(false) // Default to unmuted for unsupported platforms
+            }
+        })
+    }
+
+    /**
      * Set system volume level
      * @param {number} volumePercent - Volume level (0-100)
      * @returns {Promise}
@@ -1374,17 +1510,19 @@ return (async function () {
             log.info(`Setting system volume to ${volume}%`)
             
             if (platform === 'win32') {
-                // Windows: Use PowerShell to set volume
-                const command = `powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Volume = ${volume / 100}"`
-                exec(command, (error, stdout, stderr) => {
-                    if (error) {
-                        log.error('Error setting Windows volume:', error)
+                // Windows: Use Core Audio COM API via PowerShell (Win7/8/10/11)
+                const scalar = (volume / 100).toFixed(4)
+                const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+                    '$aev.SetMasterVolumeLevelScalar(' + scalar + ', [guid]::Empty)'
+                runPowerShellAudioCommand(script)
+                    .then(function() {
+                        log.info('Windows volume set to ' + volume + '%')
+                        resolve({ success: true, volume: volume })
+                    })
+                    .catch(function(error) {
+                        log.error('Error setting Windows volume:', error.message)
                         reject(error)
-                        return
-                    }
-                    log.info(`Windows volume set to ${volume}%`)
-                    resolve({ success: true, volume: volume })
-                })
+                    })
             } else if (platform === 'linux') {
                 // Linux: Use amixer
                 exec(`amixer set Master ${volume}%`, (error, stdout, stderr) => {
@@ -1424,16 +1562,18 @@ return (async function () {
             log.info('Muting system volume')
             
             if (platform === 'win32') {
-                // Windows: Use nircmd or PowerShell
-                exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"', (error, stdout, stderr) => {
-                    if (error) {
-                        log.error('Error muting Windows volume:', error)
+                // Windows: Use Core Audio COM API - explicitly set mute to true
+                const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+                    '$aev.SetMute($true, [guid]::Empty)'
+                runPowerShellAudioCommand(script)
+                    .then(function() {
+                        log.info('Windows volume muted')
+                        resolve({ success: true, action: 'mute' })
+                    })
+                    .catch(function(error) {
+                        log.error('Error muting Windows volume:', error.message)
                         reject(error)
-                        return
-                    }
-                    log.info('Windows volume muted')
-                    resolve({ success: true, action: 'mute' })
-                })
+                    })
             } else if (platform === 'linux') {
                 // Linux: Use amixer
                 exec('amixer set Master mute', (error, stdout, stderr) => {
@@ -1473,16 +1613,18 @@ return (async function () {
             log.info('Unmuting system volume')
             
             if (platform === 'win32') {
-                // Windows: Use PowerShell
-                exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"', (error, stdout, stderr) => {
-                    if (error) {
-                        log.error('Error unmuting Windows volume:', error)
+                // Windows: Use Core Audio COM API - explicitly set mute to false
+                const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+                    '$aev.SetMute($false, [guid]::Empty)'
+                runPowerShellAudioCommand(script)
+                    .then(function() {
+                        log.info('Windows volume unmuted')
+                        resolve({ success: true, action: 'unmute' })
+                    })
+                    .catch(function(error) {
+                        log.error('Error unmuting Windows volume:', error.message)
                         reject(error)
-                        return
-                    }
-                    log.info('Windows volume unmuted')
-                    resolve({ success: true, action: 'unmute' })
-                })
+                    })
             } else if (platform === 'linux') {
                 // Linux: Use amixer
                 exec('amixer set Master unmute', (error, stdout, stderr) => {
@@ -2136,6 +2278,38 @@ return (async function () {
             } catch (err) {
                 console.log('=== CPANEL: Error in timeslot-list ===', err)
                 log.warn('cpanel timeslot-list: ' + err)
+                return err
+            }
+        })
+
+        //cpanel req for datetime slots
+        socket.on('reqdatetimeslot', (msg) => {
+            console.log('=== CPANEL: reqdatetimeslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getdatetimeslot to eCLESS ===')
+                    electronID.emit("getdatetimeslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqdatetimeslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqdatetimeslot ===', err)
+                log.warn('cpanel reqdatetimeslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('datetimeslot-list', (msg) => {
+            console.log('=== CPANEL: datetimeslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-datetimeslot', msg)
+                console.log('=== CPANEL: cpanel-datetimeslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in datetimeslot-list ===', err)
+                log.warn('cpanel datetimeslot-list: ' + err)
                 return err
             }
         })
