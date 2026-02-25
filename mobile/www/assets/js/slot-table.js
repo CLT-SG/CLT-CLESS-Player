@@ -76,6 +76,18 @@ function cleanupTableState(tableid) {
         }
     });
 
+    // Clear row-level animation controllers for this table
+    Object.keys(rowAnimationControllers).forEach(function(rowKey) {
+        if (rowKey.indexOf('_' + tableid + '_') !== -1) {
+            var controller = rowAnimationControllers[rowKey]
+            if (controller && controller.timer) {
+                clearInterval(controller.timer)
+                controller.timer = null
+            }
+            delete rowAnimationControllers[rowKey]
+        }
+    })
+
     // DO NOT reset pagerow here - it will be reset by tableRecord
     // pagerow[tableid] = [];  // REMOVED - let tableRecord handle this
 
@@ -357,8 +369,14 @@ var colTextTransitionFirstRender = new Array() // Track if column has rendered a
 var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
-// Row-level animation synchronization - to make all columns in a row transition together
-var rowLastTransitionTime = {} // Tracks the last transition time for each row to synchronize columns
+// Row-level synchronized animation controller
+// Uses a single setInterval per row to advance ALL animated columns simultaneously
+// This prevents index drift between columns caused by independent setTimeout chains
+var rowAnimationControllers = {} // rowKey -> { timer, columns: [{cellKey, type, changeFn}], switchingTime }
+// Track animated cellKeys per table for synchronized reset during page/line changes
+var tableCellAnimations = {} // tableid -> [{ cellKey, type }]
+// Store restarter functions for each animated cell (closures that can restart from index 0)
+var cellAnimationRestarters = {} // 'cellKey-type' -> function()
 
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
@@ -526,8 +544,10 @@ async function tableRecord(slotitem, index, table) {
             objColList.forEach(function (col, zindex) {
 
                 var colNumber = col[0]
-                // Create unique key for each cell (row + column combination)
-                var cellKey = 'row-' + colRowIndex + '-' + colNumber
+                // Create unique key for each cell (layoutId + tableId + rowIndex + colId)
+                // Uses currentlytID (global from looplayout.js) for layout identification
+                var layoutId = (typeof currentlytID !== 'undefined' && currentlytID) ? currentlytID : 'default'
+                var cellKey = layoutId + '_' + tableid + '_' + colRowIndex + '_' + colNumber
 
                 colImageCurIndex[cellKey] = 0
                 colImageloop[cellKey] = []
@@ -586,6 +606,7 @@ async function tableRecord(slotitem, index, table) {
                 if (colFormat == 'image:') {
                     var n = col[1].lastIndexOf(':')
                     var colImageList = col[1].substring(n + 1)
+                    //console.log('colImageList:', colImageList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colImageList = colImageList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     
@@ -612,7 +633,7 @@ async function tableRecord(slotitem, index, table) {
                         if (resId === colImageList.length - 1) {
                             // Preload batch if available
                             if (imagesToPreload.length > 0 && window.mediaManager) {
-                                console.log('[tableRecord] Preloading', imagesToPreload.length, 'images for cell:', cellKey);
+                                //console.log('[tableRecord] Preloading', imagesToPreload.length, 'images for cell:', cellKey);
                                 window.mediaManager.preloadMediaBatch(imagesToPreload).catch(err => {
                                     console.error('[tableRecord] Image preload failed for cell:', cellKey, err);
                                 });
@@ -635,6 +656,39 @@ async function tableRecord(slotitem, index, table) {
                             }
                         }
                     })
+                    
+                    // Register animation restarter for page-change synchronization (image)
+                    if (!tableCellAnimations[tableid]) tableCellAnimations[tableid] = []
+                    tableCellAnimations[tableid].push({ cellKey: cellKey, type: 'image' })
+                    cellAnimationRestarters[cellKey + '-image'] = function() {
+                        if (colImageTimeout[cellKey]) {
+                            clearTimeout(colImageTimeout[cellKey])
+                            colImageTimeout[cellKey] = null
+                        }
+                        colImageCurIndex[cellKey] = 0
+                        colImageFirstRender[cellKey] = undefined
+                        if (colImageloop[cellKey] && colImageloop[cellKey].length > 0) {
+                            appendColumnImage(colImageloop[cellKey][0], cellKey)
+                            if (colImageloop[cellKey].length > 1) {
+                                colImageCurIndex[cellKey] = 1
+                            }
+                        }
+                    }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyImg = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyImg]) {
+                        var imgSettings = colImageSettings[cellKey] || {}
+                        var imgSwitchingTime = (imgSettings.enabled && imgSettings.switchingTime) ? imgSettings.switchingTime : 10000
+                        rowAnimationControllers[rowKeyImg] = { timer: null, columns: [], switchingTime: imgSwitchingTime }
+                    }
+                    if (colImageloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyImg].columns.push({
+                            cellKey: cellKey,
+                            type: 'image',
+                            changeFn: changeColImageMedia
+                        })
+                    }
                 } else if (colFormat == 'fader:') { //create fader animation for this column (original scroll effect)
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
@@ -665,9 +719,43 @@ async function tableRecord(slotitem, index, table) {
                             }
                         }
                     })
+                    
+                    // Register animation restarter for page-change synchronization (fader)
+                    if (!tableCellAnimations[tableid]) tableCellAnimations[tableid] = []
+                    tableCellAnimations[tableid].push({ cellKey: cellKey, type: 'fader' })
+                    cellAnimationRestarters[cellKey + '-fader'] = function() {
+                        if (colFaderTimeout[cellKey]) {
+                            clearTimeout(colFaderTimeout[cellKey])
+                            colFaderTimeout[cellKey] = null
+                        }
+                        colFaderCurIndex[cellKey] = 0
+                        colFaderFirstRender[cellKey] = undefined
+                        if (colFaderloop[cellKey] && colFaderloop[cellKey].length > 0) {
+                            appendColumnFader(colFaderloop[cellKey][0], cellKey)
+                            if (colFaderloop[cellKey].length > 1) {
+                                colFaderCurIndex[cellKey] = 1
+                            }
+                        }
+                    }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyFdr = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyFdr]) {
+                        var fdrSettings = colFaderSettings[cellKey] || {}
+                        var fdrSwitchingTime = (fdrSettings.enabled && fdrSettings.switchingTime) ? fdrSettings.switchingTime : 25000
+                        rowAnimationControllers[rowKeyFdr] = { timer: null, columns: [], switchingTime: fdrSwitchingTime }
+                    }
+                    if (colFaderloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyFdr].columns.push({
+                            cellKey: cellKey,
+                            type: 'fader',
+                            changeFn: changeColTextFader
+                        })
+                    }
                 } else if (colFormat.substring(0, 11) == 'transition:') { //create text transition animation for this column (new multi-style effects)
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextTransitionList = col[1].slice(n + 1) // combine all text when have ,
+                    //console.log('colTextTransitionList:', colTextTransitionList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colTextTransitionList = colTextTransitionList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>') //create td
                     colTextTransitionList.forEach(function (ele, resId) { //create foreach to create transition animation
@@ -695,10 +783,57 @@ async function tableRecord(slotitem, index, table) {
                             }
                         }
                     })
+                    
+                    // Register animation restarter for page-change synchronization (text transition)
+                    if (!tableCellAnimations[tableid]) tableCellAnimations[tableid] = []
+                    tableCellAnimations[tableid].push({ cellKey: cellKey, type: 'textTransition' })
+                    cellAnimationRestarters[cellKey + '-textTransition'] = function() {
+                        if (colTextTransitionTimeout[cellKey]) {
+                            clearTimeout(colTextTransitionTimeout[cellKey])
+                            colTextTransitionTimeout[cellKey] = null
+                        }
+                        colTextTransitionCurIndex[cellKey] = 0
+                        colTextTransitionFirstRender[cellKey] = undefined
+                        if (colTextTransitionloop[cellKey] && colTextTransitionloop[cellKey].length > 0) {
+                            appendColumnTextTransition(colTextTransitionloop[cellKey][0], cellKey)
+                            if (colTextTransitionloop[cellKey].length > 1) {
+                                colTextTransitionCurIndex[cellKey] = 1
+                            }
+                        }
+                    }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyTxt = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyTxt]) {
+                        var txtSettings = colTextTransitionSettings[cellKey] || {}
+                        var txtSwitchingTime = (txtSettings.enabled && txtSettings.switchingTime) ? txtSettings.switchingTime : 25000
+                        rowAnimationControllers[rowKeyTxt] = { timer: null, columns: [], switchingTime: txtSwitchingTime }
+                    }
+                    if (colTextTransitionloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyTxt].columns.push({
+                            cellKey: cellKey,
+                            type: 'textTransition',
+                            changeFn: changeColTextTransition
+                        })
+                    }
                 } else {
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html(col[1])
                 }
             })
+            
+            // Start row-level synchronized animation controller for this row
+            // This single timer advances ALL animated columns in the row at the same time
+            // preventing index drift that occurred with independent per-column setTimeout chains
+            var rowLayoutId = (typeof currentlytID !== 'undefined' && currentlytID) ? currentlytID : 'default'
+            var rowKeyForTimer = rowLayoutId + '_' + tableid + '_' + colRowIndex
+            if (rowAnimationControllers[rowKeyForTimer] && rowAnimationControllers[rowKeyForTimer].columns.length > 0) {
+                var controller = rowAnimationControllers[rowKeyForTimer]
+                controller.timer = setInterval(function() {
+                    controller.columns.forEach(function(col) {
+                        col.changeFn(col.cellKey)
+                    })
+                }, controller.switchingTime)
+            }
             //play next column image after current column image has finished
             function changeColImageMedia(cellKey) {
                 if (colImageloop[cellKey].length == 1) {
@@ -738,13 +873,21 @@ async function tableRecord(slotitem, index, table) {
                     : 10000
                 var fillToColumn = imageSettings.fillToColumn || false
                 
-                var targetContainer = $('.' + cellKey.split('-')[2] + ' .imagecol-' + colRowIndex)
+                var targetContainer = $('.' + cellKey.split('_').pop() + ' .imagecol-' + colRowIndex)
+                
+                // Guard: Skip if target container is not in DOM (cell not on current page)
+                // Prevents animation index drift when row is off-screen during pagination
+                if (targetContainer.length === 0) {
+                    return
+                }
+                
                 var mediaFileName = item.text
                 
                 // MOBILE: Check if URL is external or use media manager
                 const isExternalUrl = isExternalMediaUrl(mediaFileName);
                 var renderEl = ''
-                
+                //console.log('Attempting to render image for cell:', cellKey, 'with media:', mediaFileName, 'isExternalUrl:', isExternalUrl);
+
                 if (isExternalUrl) {
                     // External URL - use directly
                     console.log('[appendColumnImage] Using external URL:', mediaFileName);
@@ -878,31 +1021,8 @@ async function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple images
-                if (colImageloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
-                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, switchingTime - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= switchingTime) {
-                        rowLastTransitionTime[rowKey] = currentTime + switchingTime
-                    }
-                    
-                    // go to the next column image using synchronized timing
-                    colImageTimeout[cellKey] = setTimeout(function () {
-                        changeColImageMedia(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             //play next column fader after current column fader has finished (original fader: format)
@@ -940,7 +1060,13 @@ async function tableRecord(slotitem, index, table) {
                     ? faderSettings.switchingTime 
                     : 25000
                 
-                var targetContainer = $('.' + cellKey.split('-')[2] + ' .fadercol-' + colRowIndex)
+                var targetContainer = $('.' + cellKey.split('_').pop() + ' .fadercol-' + colRowIndex)
+                
+                // Guard: Skip if target container is not in DOM (cell not on current page)
+                // Prevents animation index drift when row is off-screen during pagination
+                if (targetContainer.length === 0) {
+                    return
+                }
                 
                 // Check if this is NOT the first render
                 var isFirstRender = colFaderFirstRender[cellKey] !== true
@@ -976,31 +1102,8 @@ async function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple items
-                if (colFaderloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
-                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
-                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
-                    }
-                    
-                    // go to the next column fader using synchronized timing
-                    colFaderTimeout[cellKey] = setTimeout(function () {
-                        changeColTextFader(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             //play next column text transition after current column text transition has finished (new transition: format)
@@ -1041,7 +1144,13 @@ async function tableRecord(slotitem, index, table) {
                     ? transitionSettings.style
                     : 'scroll-up'
                 
-                var targetContainer = $('.' + cellKey.split('-')[2] + ' .text-transition-col-' + colRowIndex)
+                var targetContainer = $('.' + cellKey.split('_').pop() + ' .text-transition-col-' + colRowIndex)
+                
+                // Guard: Skip if target container is not in DOM (cell not on current page)
+                // Prevents animation index drift when row is off-screen during pagination
+                if (targetContainer.length === 0) {
+                    return
+                }
                 
                 // Map transition styles to CSS animation classes (similar to image transitions)
                 var transitionClassMap = {
@@ -1063,6 +1172,7 @@ async function tableRecord(slotitem, index, table) {
                     $oldElement.addClass(transitionClasses.out)
                     $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for transition-out
                     
+                    //console.log('Animating text transition for cell:', cellKey, 'item text', item.text, 'using style:', transitionStyle, 'with duration:', animationDuration)
                     // Wait for animation to complete, then update content
                     setTimeout(function() {
                         var renderEl = '<div id="col-' + colRowIndex + '" class="column-text-transition ' + transitionClasses.in + '">' + item.text + '</div>'
@@ -1089,31 +1199,8 @@ async function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple items
-                if (colTextTransitionloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "tableid-rowindex-colname")
-                    var rowKey = cellKey.split('-').slice(0, 2).join('-') // "tableid-rowindex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
-                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
-                    }
-                    
-                    // go to the next column text transition using synchronized timing
-                    colTextTransitionTimeout[cellKey] = setTimeout(function () {
-                        changeColTextTransition(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             // Append <col> with width, and apply other styles to <td> in tbody only
@@ -1281,6 +1368,79 @@ function applyTableRowStyles(tableid) {
 }
 
 /**
+ * Stop all cell-level animations (image, fader, text transition) for a table.
+ * Also stops row-level animation controllers to prevent index drift while cells are off-screen.
+ * Called before page/line content changes.
+ * @param {string} tableid - The ID of the table
+ */
+function stopAllCellAnimations(tableid) {
+    var cells = tableCellAnimations[tableid] || []
+    cells.forEach(function(cell) {
+        var key = cell.cellKey
+        if (colImageTimeout[key]) {
+            clearTimeout(colImageTimeout[key])
+            colImageTimeout[key] = null
+        }
+        if (colFaderTimeout[key]) {
+            clearTimeout(colFaderTimeout[key])
+            colFaderTimeout[key] = null
+        }
+        if (colTextTransitionTimeout[key]) {
+            clearTimeout(colTextTransitionTimeout[key])
+            colTextTransitionTimeout[key] = null
+        }
+    })
+    // Stop row-level animation controllers for this table
+    Object.keys(rowAnimationControllers).forEach(function(rowKey) {
+        if (rowKey.indexOf('_' + tableid + '_') !== -1) {
+            var controller = rowAnimationControllers[rowKey]
+            if (controller && controller.timer) {
+                clearInterval(controller.timer)
+                controller.timer = null
+            }
+        }
+    })
+}
+
+/**
+ * Restart cell-level animations from index 0 for cells currently visible in the DOM.
+ * Also restarts row-level animation controllers with synchronized timing.
+ * Called after page/line content changes to ensure animations start synchronized.
+ * Restarter functions are closures registered during initial render that capture the correct scope.
+ * @param {string} tableid - The ID of the table
+ */
+function restartVisibleCellAnimations(tableid) {
+    var cells = tableCellAnimations[tableid] || []
+    cells.forEach(function(cell) {
+        var restartKey = cell.cellKey + '-' + cell.type
+        var restarter = cellAnimationRestarters[restartKey]
+        if (restarter) {
+            restarter()
+        }
+    })
+    // Restart row-level animation controllers for this table
+    // Uses a single setInterval per row to advance ALL animated columns simultaneously
+    Object.keys(rowAnimationControllers).forEach(function(rowKey) {
+        if (rowKey.indexOf('_' + tableid + '_') !== -1) {
+            var controller = rowAnimationControllers[rowKey]
+            if (controller && controller.columns.length > 0) {
+                // Clear any existing timer (safety check)
+                if (controller.timer) {
+                    clearInterval(controller.timer)
+                    controller.timer = null
+                }
+                // Start new synchronized timer for the row
+                controller.timer = setInterval(function() {
+                    controller.columns.forEach(function(col) {
+                        col.changeFn(col.cellKey)
+                    })
+                }, controller.switchingTime)
+            }
+        }
+    })
+}
+
+/**
  * Implement pagination mode (flipmode = 1) - flip page by page
  */
 function implementPaginationMode(tableid, pagination, pageData, pageSize) {
@@ -1394,6 +1554,9 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
 function applyPageTransition(tableid, data, transitionType, duration) {
     var tbody = $('.slot-tbody-' + tableid)
     
+    // Stop all cell animations before page change to prevent index drift
+    stopAllCellAnimations(tableid)
+    
     if (transitionType === 'none' || !tbody.children().length) {
         // No transition or first render - instant change
         // Use hidden state to apply styles before showing content
@@ -1403,6 +1566,8 @@ function applyPageTransition(tableid, data, transitionType, duration) {
         // Force reflow to ensure styles are applied
         tbody[0].offsetHeight
         tbody.css('visibility', 'visible')
+        // Restart animations from index 0 for newly visible cells
+        restartVisibleCellAnimations(tableid)
         return
     }
     
@@ -1446,6 +1611,9 @@ function applyPageTransition(tableid, data, transitionType, duration) {
         // Make visible and start in transition
         tbody.css('visibility', 'visible')
         tbody.addClass(classes.in)
+        
+        // Restart animations from index 0 for newly visible cells
+        restartVisibleCellAnimations(tableid)
         
         // Remove in transition class after animation completes
         setTimeout(function() {

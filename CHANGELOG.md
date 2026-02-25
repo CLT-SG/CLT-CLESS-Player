@@ -1,5 +1,181 @@
 # Change Log
 
+## [3.11.5] - 2026-02-25
+
+### Fixed - Table Column Animation Desynchronization After Page/Line Cycle
+
+- **Column Animation Index Drift on Page Cycle** - Fixed image, fader, and text transition column animations with multiple items becoming desynchronized after table pages or lines cycle back to second loop or revert to first page/line
+  - Root cause: Animation timers (setTimeout) continued running for off-screen cells during pagination, incrementing indices and scheduling new timeouts even though target DOM elements were detached from the page. When page cycled back, animation indices had drifted from their expected positions
+  - Root cause: cellKey format ('row-rowIndex-colNumber') was not globally unique across layouts and tables, causing potential animation state collisions when multiple tables or layouts share overlapping row/column indices
+  - Solution (DOM Guards): Added visibility checks in appendColumnImage, appendColumnFader, and appendColumnTextTransition that skip execution when target container is not in DOM, preventing index drift for off-screen cells
+  - Solution (Restarter Registry): Added tableCellAnimations and cellAnimationRestarters tracking structures with closure-based restarter functions that reset each cell animation to index 0
+  - Solution (Page Transition Integration): Integrated stopAllCellAnimations (clears all timeouts and row sync timestamps) and restartVisibleCellAnimations (invokes registered restarters) into applyPageTransition for both instant and animated transition paths
+  - Solution (Unique cellKey): Changed cellKey format from 'row-rowIndex-colNumber' to 'layoutId_tableid_rowIndex_colNumber' using global currentlytID for layout identification with 'default' fallback
+  - Impact: All column animations now stay perfectly synchronized after any number of page/line cycles, and animation state is truly isolated across layouts and tables
+
+- **Row-Level Animation Controller Replacement** - Replaced broken rowLastTransitionTime per-column setTimeout synchronization with a single per-row setInterval controller (rowAnimationControllers)
+  - Root cause: The rowLastTransitionTime mechanism was mathematically broken - when the first column's setTimeout fired, adjustedDelay became 0 causing a double-cycle, then rowLastTransitionTime updated to a future value causing other columns to compute huge delays, resulting in progressive index drift between columns (e.g. CZ3048 text appearing with MH-tail.png instead of CZ-tail.png)
+  - Solution (Row Animation Controller): Replaced rowLastTransitionTime with rowAnimationControllers object - each row gets a single setInterval timer that advances ALL animated columns simultaneously, eliminating independent per-column setTimeout chains entirely
+  - Solution (Controller Structure): Each controller stores timer reference, registered columns array [{cellKey, type, changeFn}], and switchingTime - columns are registered during initial render for image, fader, and text transition types
+  - Solution (Controller Lifecycle): Controllers are stopped (clearInterval) in stopAllCellAnimations before page transitions, restarted (new setInterval) in restartVisibleCellAnimations after content swap, and cleaned up in mobile cleanupTableState during table recreation
+  - Solution (Timer Removal): Removed per-column setTimeout scheduling blocks from appendColumnImage, appendColumnFader, and appendColumnTextTransition - all timing is now centralized in the row controller
+  - Impact: All animated columns in a row now transition at exactly the same moment since they share one timer, completely eliminating the index drift that occurred with independent setTimeout chains
+
+### Technical Details
+
+**cellKey Construction - unique per layout, table, row, and column:**
+```javascript
+var colNumber = col[0]
+// Create unique key for each cell (layoutId + tableId + rowIndex + colId)
+// Uses currentlytID (global from looplayout.js) for layout identification
+var layoutId = (typeof currentlytID !== 'undefined' && currentlytID) ? currentlytID : 'default'
+var cellKey = layoutId + '_' + tableid + '_' + colRowIndex + '_' + colNumber
+```
+
+**DOM Visibility Guard in append functions:**
+```javascript
+function appendColumnImage(item, cellKey) {
+    // ...
+    var targetContainer = $('.' + cellKey.split('_').pop() + ' .imagecol-' + colRowIndex)
+    // Guard: Skip if target container is not in DOM (cell not on current page)
+    if (targetContainer.length === 0) {
+        return
+    }
+    // ... render logic
+}
+```
+
+**Animation Restarter Registry per cell:**
+```javascript
+if (!tableCellAnimations[tableid]) tableCellAnimations[tableid] = []
+tableCellAnimations[tableid].push({ cellKey: cellKey, type: 'image' })
+cellAnimationRestarters[cellKey + '-image'] = function() {
+    if (colImageTimeout[cellKey]) {
+        clearTimeout(colImageTimeout[cellKey])
+        colImageTimeout[cellKey] = null
+    }
+    colImageCurIndex[cellKey] = 0
+    colImageFirstRender[cellKey] = undefined
+    if (colImageloop[cellKey] && colImageloop[cellKey].length > 0) {
+        appendColumnImage(colImageloop[cellKey][0], cellKey)
+        if (colImageloop[cellKey].length > 1) {
+            colImageCurIndex[cellKey] = 1
+        }
+    }
+}
+```
+
+**Row-level Animation Controller - single setInterval per row:**
+```javascript
+// Row-level synchronized animation controller
+// Uses a single setInterval per row to advance ALL animated columns simultaneously
+// This prevents index drift between columns caused by independent setTimeout chains
+var rowAnimationControllers = {} // rowKey -> { timer, columns: [{cellKey, type, changeFn}], switchingTime }
+
+// Register each animated column with the row controller during initial render
+var rowKeyImg = layoutId + '_' + tableid + '_' + colRowIndex
+if (!rowAnimationControllers[rowKeyImg]) {
+    rowAnimationControllers[rowKeyImg] = { timer: null, columns: [], switchingTime: imgSwitchingTime }
+}
+if (colImageloop[cellKey].length > 1) {
+    rowAnimationControllers[rowKeyImg].columns.push({
+        cellKey: cellKey, type: 'image', changeFn: changeColImageMedia
+    })
+}
+
+// Start the row controller after all columns are registered
+if (rowAnimationControllers[rowKeyForTimer] && rowAnimationControllers[rowKeyForTimer].columns.length > 0) {
+    var controller = rowAnimationControllers[rowKeyForTimer]
+    controller.timer = setInterval(function() {
+        controller.columns.forEach(function(col) {
+            col.changeFn(col.cellKey) // Advances ALL columns at the same instant
+        })
+    }, controller.switchingTime)
+}
+```
+
+**Stop/Restart in Page Transition:**
+```javascript
+function applyPageTransition(tableid, data, transitionType, duration) {
+    var tbody = $('.slot-tbody-' + tableid)
+    // Stop all cell animations before page change to prevent index drift
+    stopAllCellAnimations(tableid)
+    // ... page content swap ...
+    // Restart animations from index 0 for newly visible cells
+    restartVisibleCellAnimations(tableid)
+}
+```
+
+**Row Key Extraction for synchronized timing:**
+```javascript
+// Extract row identifier from cellKey (format: "layoutId_tableid_rowIndex_colName")
+var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIndex"
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/slot-table.js - Replaced rowLastTransitionTime with rowAnimationControllers, added per-row setInterval controller that advances all animated columns simultaneously, registered image/fader/text-transition columns with row controller during render, removed per-column setTimeout scheduling from appendColumnImage/appendColumnFader/appendColumnTextTransition, updated stopAllCellAnimations to clearInterval row controllers, updated restartVisibleCellAnimations to restart row controller timers
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/slot-table.js - Same changes as desktop plus: added rowAnimationControllers cleanup in cleanupTableState for table recreation
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Column animations after page cycle | Desynchronized after second loop | Perfectly synchronized every cycle |
+| Off-screen cell timers during pagination | Continued running, causing index drift | Stopped via DOM visibility guard |
+| Animation restart on page return | Resumed from drifted index | Restarted from index 0 via restarter |
+| cellKey uniqueness | Per row+column only | Per layout+table+row+column |
+| Multi-table animation isolation | Possible state collisions | Fully isolated via unique cellKey |
+| Multi-layout animation isolation | Possible state collisions | Fully isolated via layoutId in cellKey |
+| Single-item columns | Unaffected | Unaffected |
+| Row-level sync across columns | Lost after page cycle via broken rowLastTransitionTime | Guaranteed via single per-row setInterval controller |
+| Animation timing mechanism | Independent per-column setTimeout chains | Single per-row setInterval advancing all columns together |
+| Timer cleanup on table recreation | Row sync timestamps deleted | Row controllers clearInterval'd and removed (mobile) |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - no breaking changes
+- Works with all column animation formats (image:, fader:, transition:)
+- Works with all page transition styles (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Compatible with flipmode 1 (page-by-page) and flipmode 2 (line-by-line)
+- Works with row synchronization features
+- Compatible with all animation timing settings (animationInterval, animationDuration, switchingTime)
+- Works in online mode, offline mode, and error fallback scenarios
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify animation synchronization after page cycling:
+- Create table with image: column containing 3+ images and pagination (flipmode 1)
+- Let table cycle through all pages and return to first page
+- Verify images restart from first item in correct order
+- Verify no index drift or out-of-order item display after 3+ full page cycles
+
+Verify fader and text transition synchronization:
+- Create table with fader: column containing 3+ text items
+- Create table with transition: column containing 3+ text items
+- Let table paginate through full cycle and verify items restart synchronized
+
+Verify line type mode (flipmode 2):
+- Create table with flipmode 2 and animated columns
+- Let lines scroll through full cycle and verify animations stay synchronized
+
+Verify multi-table and multi-layout isolation:
+- Create layout with 2+ tables each having animated columns
+- Verify each table's animations are independent and correctly keyed
+- Create loop with 2+ layouts containing tables with animated columns
+- Verify no cross-layout or cross-table animation state collisions
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical synchronized behavior on all platforms
+
 ## [3.11.4] - 2026-02-25
 
 ### Fixed - Layout Loop Background Not Updating After First Loop Cycle
