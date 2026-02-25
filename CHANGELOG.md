@@ -1,6 +1,151 @@
 # Change Log
 
-## [3.11.6] - 2026-02-25
+## [3.12.2] - 2026-02-25
+
+### Fixed - ERR_HTTP_HEADERS_SENT on Control Panel Rapid Requests
+
+- **Server-Side Double Response Prevention** - Fixed Express route handlers attempting to send multiple HTTP responses for a single request when control panel buttons were triggered rapidly, causing ERR_HTTP_HEADERS_SENT crash
+  - Problem: /api/layout-details had a race condition between the setTimeout timeout handler and the socket.once() response listener -- both could fire and call res.json() for the same request
+  - Problem: /api/replace-text, /api/replace-media, and /api/update-layout had no try/catch and no null-check on the eCLESS socket -- calling .emit() on undefined threw an unhandled error
+  - Problem: /api/restartapp, /api/screenshot, /api/reboot, /api/shutdown catch blocks could attempt to send an error response even when a success response had already been sent
+  - Problem: No global Express error-handling middleware existed to catch unhandled route errors
+  - Solution: Added responseSent flag and res.headersSent guards to /api/layout-details, eliminating the timeout/listener race condition. Added try/catch with socket null-checks returning 503 to unprotected endpoints. Added res.headersSent guards to all catch blocks across all API routes. Added global Express error-handling middleware as a safety net
+  - Impact: Server routes can no longer send duplicate HTTP responses regardless of timing or error conditions
+
+- **Client-Side Request Throttle Manager** - Added request throttling system to prevent rapid button clicks from firing multiple simultaneous AJAX requests to the same endpoint
+  - Problem: Button click handlers had no protection against rapid repeated clicks, allowing multiple in-flight requests to the same server endpoint simultaneously
+  - Problem: Multiple concurrent requests to the same endpoint compounded the server-side double-response issue
+  - Solution: Added throttledAction(key, fn, cooldownMs) function that blocks duplicate calls while a previous call for the same key is still in progress and enforces a minimum cooldown between consecutive calls. Added completeThrottledAction(key) called from AJAX complete callbacks. Applied to all control panel buttons with appropriate cooldowns: shutdown (3s), reboot (3s), refresh (2s), restartapp (5s), refreshLayout (2s), screenToggle (2s), volumeMute (1.5s), volumeUnmute (1.5s)
+  - Impact: Rapid clicks are silently ignored while a request is in-flight, eliminating the client-side trigger for the server error
+
+### Technical Details
+
+**Race condition fix in /api/layout-details:**
+```javascript
+var responseSent = false
+
+var responseHandler = function(layoutInfo) {
+    if (responseSent || res.headersSent) return
+    responseSent = true
+    clearTimeout(responseTimeout)
+    res.json({ success: true, data: layoutInfo, timestamp: Date.now() })
+}
+
+var responseTimeout = setTimeout(() => {
+    if (responseSent || res.headersSent) return
+    responseSent = true
+    electronID.removeListener('layout-details-response', responseHandler)
+    res.status(504).json({ success: false, error: 'Timeout waiting for layout details' })
+}, 5000)
+
+electronID.once('layout-details-response', responseHandler)
+```
+
+**res.headersSent guard pattern:**
+```javascript
+} catch (error) {
+    log.error('API error:', error)
+    if (!res.headersSent) {
+        res.status(500).json({ status: 'error', message: error.message })
+    }
+}
+```
+
+**Socket null-check pattern:**
+```javascript
+var electronID = io.sockets.sockets.get(userID['eCLESS'])
+if (!electronID) {
+    return res.status(503).json({ status: 'error', message: 'eCLESS renderer process not connected' })
+}
+```
+
+**Client-side Request Throttle Manager:**
+```javascript
+var _pendingRequests = {}
+
+function throttledAction(key, fn, cooldownMs) {
+    var state = _pendingRequests[key]
+    if (state && (state.inProgress || (Date.now() - state.lastCompleted) < cooldownMs)) {
+        return false
+    }
+    _pendingRequests[key] = { inProgress: true, lastCompleted: state ? state.lastCompleted : 0 }
+    fn()
+    return true
+}
+
+function completeThrottledAction(key) {
+    if (_pendingRequests[key]) {
+        _pendingRequests[key].inProgress = false
+        _pendingRequests[key].lastCompleted = Date.now()
+    }
+}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Fixed /api/layout-details race condition with responseSent flag and removeListener cleanup, added try/catch and socket null-checks to /api/replace-text /api/replace-media /api/update-layout, added res.headersSent guards to all catch blocks in /api/restartapp /api/screenshot /api/reboot /api/shutdown /api/layout-details, added global Express error-handling middleware, changed res.end() to res.json() for consistent JSON responses
+
+**Desktop (Electron):**
+- src/assets/js/cpanel/cpanel-enhanced.js - Added Request Throttle Manager (throttledAction, completeThrottledAction, _pendingRequests), wrapped all button click handlers with throttledAction and appropriate cooldown values, added completeThrottledAction calls to all AJAX complete callbacks
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Rapid button clicks | ERR_HTTP_HEADERS_SENT crash | Silently throttled, single request processed |
+| /api/layout-details timeout race | Both timeout and listener could send response | Only one response via responseSent flag |
+| /api/replace-text with no renderer | Unhandled crash on .emit(undefined) | 503 JSON response |
+| /api/replace-media with no renderer | Unhandled crash on .emit(undefined) | 503 JSON response |
+| /api/update-layout with no renderer | Unhandled crash on .emit(undefined) | 503 JSON response |
+| Catch block after response sent | Attempted duplicate response | Skipped via res.headersSent check |
+| Unhandled Express errors | No safety net | Global error middleware returns 500 |
+| /api/reboot and /api/shutdown response | res.end() plaintext | res.json() consistent format |
+| Client concurrent requests | Multiple in-flight to same endpoint | Blocked until previous completes |
+| Button cooldown after action | None | Configurable cooldown per action |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - no breaking changes
+- All API endpoints maintain the same response structure (upgraded from res.end() to res.json())
+- All button click behavior preserved -- only duplicate rapid clicks are blocked
+- Throttle cooldown values are conservative and do not interfere with normal usage
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify rapid button clicking:
+- Open the control panel dashboard
+- Rapidly click the Refresh button 5+ times in quick succession
+- Verify no ERR_HTTP_HEADERS_SENT error appears
+- Verify only one refresh request is processed
+- Verify button returns to normal state after completion
+
+Verify all throttled buttons:
+- Rapidly click each button (Shutdown, Reboot, Refresh, Restart App, Refresh Layout, Screen On/Off, Volume Mute/Unmute)
+- Verify no errors and only one request per action
+
+Verify disconnected renderer:
+- Stop the eCLESS renderer process
+- Call /api/replace-text, /api/replace-media, or /api/update-layout
+- Verify a proper 503 error response is returned instead of a crash
+
+Verify layout-details timeout:
+- Disconnect the renderer and call /api/layout-details
+- Verify timeout fires once after 5 seconds with a 504 response
+- Verify no duplicate response error
+
+Verify cross-platform:
+- Open control panel from desktop Electron app
+- Open control panel from mobile Capacitor app
+- Verify identical throttling behavior on both platforms
+
+## [3.12.1] - 2026-02-25
 
 ### Added - Silent Table Data Refresh on Pagination Loop
 

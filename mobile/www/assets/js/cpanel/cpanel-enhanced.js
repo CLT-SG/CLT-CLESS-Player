@@ -664,26 +664,77 @@ function setLayoutMonitoringInterval(seconds) {
     }
 }
 
+// ================================================
+// REQUEST THROTTLE MANAGER
+// Prevents ERR_HTTP_HEADERS_SENT by ensuring only one request
+// per endpoint is in-flight at a time, and debounces rapid clicks.
+// ================================================
+var _pendingRequests = {}
+
+/**
+ * Wraps an action so that rapid repeated calls are ignored while
+ * a previous call for the same key is still in progress.
+ * @param {string} key   - A unique identifier for the action (e.g. 'refresh')
+ * @param {Function} fn  - The function to execute (should return void)
+ * @param {number} [cooldownMs=1000] - Minimum ms between consecutive calls
+ * @returns {boolean} true if the action was executed, false if throttled
+ */
+function throttledAction(key, fn, cooldownMs) {
+    cooldownMs = cooldownMs || 1000
+    var now = Date.now()
+    var state = _pendingRequests[key]
+
+    // If a request is still in progress or within cooldown, ignore
+    if (state && (state.inProgress || (now - state.lastCompleted) < cooldownMs)) {
+        debug('Throttled action blocked for key:', key)
+        return false
+    }
+
+    // Mark as in-progress
+    _pendingRequests[key] = { inProgress: true, lastCompleted: state ? state.lastCompleted : 0 }
+
+    // Execute action
+    try {
+        fn()
+    } catch (err) {
+        console.error('throttledAction error for', key, err)
+    }
+
+    return true
+}
+
+/**
+ * Marks a throttled action as completed so future calls are allowed.
+ * Should be called from the AJAX success/error/complete callback.
+ * @param {string} key - The unique identifier used in throttledAction
+ */
+function completeThrottledAction(key) {
+    if (_pendingRequests[key]) {
+        _pendingRequests[key].inProgress = false
+        _pendingRequests[key].lastCompleted = Date.now()
+    }
+}
+
 function setupEventHandlers() {
-    // Original button handlers
+    // Original button handlers with request throttling to prevent ERR_HTTP_HEADERS_SENT
     $('#shutdown').click(function () {
-        shutdown()
+        throttledAction('shutdown', function () { shutdown() }, 3000)
     })
 
     $('#reboot').click(function () {
-        reboot()
+        throttledAction('reboot', function () { reboot() }, 3000)
     })
 
     $('#refresh').click(function () {
-        refresh()
+        throttledAction('refresh', function () { refresh() }, 2000)
     })
 
     $('#restartapp').click(function () {
-        restartapp()
+        throttledAction('restartapp', function () { restartapp() }, 5000)
     })
 
     $('#refreshLayout').click(function () {
-        refreshLayout()
+        throttledAction('refreshLayout', function () { refreshLayout() }, 2000)
     })
 
     $('.btnUpdateLyt').click(function () {
@@ -706,7 +757,7 @@ function setupEventHandlers() {
     })
 
     // New enhanced handlers
-    // Screen toggle control with one-time click protection
+    // Screen toggle control with one-time click protection and throttling
     $('#screenOn').click(function() {
         debug('Screen ON button clicked');
         // Check if button is already disabled to prevent multiple clicks
@@ -714,10 +765,12 @@ function setupEventHandlers() {
             debug('Screen ON button is disabled, ignoring click');
             return;
         }
-        // Disable both buttons immediately to prevent multiple clicks
-        $('#screenOn').prop('disabled', true).addClass('btn-loading');
-        $('#screenOff').prop('disabled', true);
-        setScreenToggle('on');
+        if (!throttledAction('screenToggle', function () {
+            // Disable both buttons immediately to prevent multiple clicks
+            $('#screenOn').prop('disabled', true).addClass('btn-loading');
+            $('#screenOff').prop('disabled', true);
+            setScreenToggle('on');
+        }, 2000)) return;
     })
 
     $('#screenOff').click(function() {
@@ -727,10 +780,12 @@ function setupEventHandlers() {
             debug('Screen OFF button is disabled, ignoring click');
             return;
         }
-        // Disable both buttons immediately to prevent multiple clicks
-        $('#screenOff').prop('disabled', true).addClass('btn-loading');
-        $('#screenOn').prop('disabled', true);
-        setScreenToggle('off');
+        if (!throttledAction('screenToggle', function () {
+            // Disable both buttons immediately to prevent multiple clicks
+            $('#screenOff').prop('disabled', true).addClass('btn-loading');
+            $('#screenOn').prop('disabled', true);
+            setScreenToggle('off');
+        }, 2000)) return;
     })
 
     // Volume control handlers
@@ -740,7 +795,7 @@ function setupEventHandlers() {
             debug('Volume MUTE button is disabled, ignoring click');
             return;
         }
-        setVolumeMute();
+        throttledAction('volumeMute', function () { setVolumeMute() }, 1500)
     })
 
     $('#volumeUnmute').click(function() {
@@ -749,7 +804,7 @@ function setupEventHandlers() {
             debug('Volume UNMUTE button is disabled, ignoring click');
             return;
         }
-        setVolumeUnmute();
+        throttledAction('volumeUnmute', function () { setVolumeUnmute() }, 1500)
     })
 
     // Volume slider handler with debouncing
@@ -1353,6 +1408,9 @@ function setScreenToggle(state) {
             // Re-enable both buttons on error
             screenOnBtn.prop('disabled', false).removeClass('loading')
             screenOffBtn.prop('disabled', false).removeClass('loading')
+        },
+        complete: function () {
+            completeThrottledAction('screenToggle')
         }
     })
 }
@@ -1380,6 +1438,9 @@ function setVolumeMute() {
             console.error('Volume mute failed:', status, error)
             showAlert('danger', `Failed to mute audio: ${error}`)
             muteBtn.removeClass('loading').prop('disabled', false)
+        },
+        complete: function () {
+            completeThrottledAction('volumeMute')
         }
     })
 }
@@ -1406,6 +1467,9 @@ function setVolumeUnmute() {
             console.error('Volume unmute failed:', status, error)
             showAlert('danger', `Failed to unmute audio: ${error}`)
             unmuteBtn.removeClass('loading').prop('disabled', false)
+        },
+        complete: function () {
+            completeThrottledAction('volumeUnmute')
         }
     })
 }
@@ -1783,6 +1847,9 @@ function shutdown() {
         url: '/api/shutdown',
         success: function (data) {
             showAlert('success', 'System shutdown initiated')
+        },
+        complete: function () {
+            completeThrottledAction('shutdown')
         }
     })
 }
@@ -1793,6 +1860,9 @@ function reboot() {
         url: '/api/reboot',
         success: function (data) {
             showAlert('success', 'System reboot initiated')
+        },
+        complete: function () {
+            completeThrottledAction('reboot')
         }
     })
 }
@@ -1839,6 +1909,9 @@ function refresh() {
             // Restore button state immediately on error
             refreshBtn.removeClass('loading').prop('disabled', false)
             refreshBtn.html(originalText)
+        },
+        complete: function () {
+            completeThrottledAction('refresh')
         }
     })
 }
@@ -1907,6 +1980,9 @@ function restartapp() {
             // Restore button state on error
             restartBtn.removeClass('loading').prop('disabled', false)
             restartBtn.html(originalText)
+        },
+        complete: function () {
+            completeThrottledAction('restartapp')
         }
     })
 }
@@ -2146,6 +2222,7 @@ function refreshLayout() {
             // Restore button state
             refreshLayoutBtn.removeClass('loading').prop('disabled', false)
             refreshLayoutBtn.html(originalText)
+            completeThrottledAction('refreshLayout')
         }
     })
 }
