@@ -13,6 +13,14 @@
   - Solution (Unique cellKey): Changed cellKey format from 'row-rowIndex-colNumber' to 'layoutId_tableid_rowIndex_colNumber' using global currentlytID for layout identification with 'default' fallback
   - Impact: All column animations now stay perfectly synchronized after any number of page/line cycles, and animation state is truly isolated across layouts and tables
 
+- **Row-Level Animation Controller Replacement** - Replaced broken rowLastTransitionTime per-column setTimeout synchronization with a single per-row setInterval controller (rowAnimationControllers)
+  - Root cause: The rowLastTransitionTime mechanism was mathematically broken - when the first column's setTimeout fired, adjustedDelay became 0 causing a double-cycle, then rowLastTransitionTime updated to a future value causing other columns to compute huge delays, resulting in progressive index drift between columns (e.g. CZ3048 text appearing with MH-tail.png instead of CZ-tail.png)
+  - Solution (Row Animation Controller): Replaced rowLastTransitionTime with rowAnimationControllers object - each row gets a single setInterval timer that advances ALL animated columns simultaneously, eliminating independent per-column setTimeout chains entirely
+  - Solution (Controller Structure): Each controller stores timer reference, registered columns array [{cellKey, type, changeFn}], and switchingTime - columns are registered during initial render for image, fader, and text transition types
+  - Solution (Controller Lifecycle): Controllers are stopped (clearInterval) in stopAllCellAnimations before page transitions, restarted (new setInterval) in restartVisibleCellAnimations after content swap, and cleaned up in mobile cleanupTableState during table recreation
+  - Solution (Timer Removal): Removed per-column setTimeout scheduling blocks from appendColumnImage, appendColumnFader, and appendColumnTextTransition - all timing is now centralized in the row controller
+  - Impact: All animated columns in a row now transition at exactly the same moment since they share one timer, completely eliminating the index drift that occurred with independent setTimeout chains
+
 ### Technical Details
 
 **cellKey Construction - unique per layout, table, row, and column:**
@@ -57,6 +65,35 @@ cellAnimationRestarters[cellKey + '-image'] = function() {
 }
 ```
 
+**Row-level Animation Controller - single setInterval per row:**
+```javascript
+// Row-level synchronized animation controller
+// Uses a single setInterval per row to advance ALL animated columns simultaneously
+// This prevents index drift between columns caused by independent setTimeout chains
+var rowAnimationControllers = {} // rowKey -> { timer, columns: [{cellKey, type, changeFn}], switchingTime }
+
+// Register each animated column with the row controller during initial render
+var rowKeyImg = layoutId + '_' + tableid + '_' + colRowIndex
+if (!rowAnimationControllers[rowKeyImg]) {
+    rowAnimationControllers[rowKeyImg] = { timer: null, columns: [], switchingTime: imgSwitchingTime }
+}
+if (colImageloop[cellKey].length > 1) {
+    rowAnimationControllers[rowKeyImg].columns.push({
+        cellKey: cellKey, type: 'image', changeFn: changeColImageMedia
+    })
+}
+
+// Start the row controller after all columns are registered
+if (rowAnimationControllers[rowKeyForTimer] && rowAnimationControllers[rowKeyForTimer].columns.length > 0) {
+    var controller = rowAnimationControllers[rowKeyForTimer]
+    controller.timer = setInterval(function() {
+        controller.columns.forEach(function(col) {
+            col.changeFn(col.cellKey) // Advances ALL columns at the same instant
+        })
+    }, controller.switchingTime)
+}
+```
+
 **Stop/Restart in Page Transition:**
 ```javascript
 function applyPageTransition(tableid, data, transitionType, duration) {
@@ -78,10 +115,10 @@ var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIn
 ### Files Modified
 
 **Desktop (Electron):**
-- src/assets/js/slot-table.js - Added tableCellAnimations and cellAnimationRestarters tracking objects, added DOM visibility guards in appendColumnImage/appendColumnFader/appendColumnTextTransition, added animation restarter closures for image/fader/text-transition during cell registration, added stopAllCellAnimations and restartVisibleCellAnimations helper functions, integrated stop/restart into applyPageTransition, changed cellKey format to layoutId_tableid_rowIndex_colNumber with currentlytID, updated all cellKey.split() references (154 insertions, 11 deletions)
+- src/assets/js/slot-table.js - Replaced rowLastTransitionTime with rowAnimationControllers, added per-row setInterval controller that advances all animated columns simultaneously, registered image/fader/text-transition columns with row controller during render, removed per-column setTimeout scheduling from appendColumnImage/appendColumnFader/appendColumnTextTransition, updated stopAllCellAnimations to clearInterval row controllers, updated restartVisibleCellAnimations to restart row controller timers
 
 **Mobile (Capacitor):**
-- mobile/www/assets/js/slot-table.js - Same changes as desktop: DOM visibility guards, animation restarter registry, stop/restart integration in page transitions, globally unique cellKey format with layoutId_tableid_rowIndex_colNumber (154 insertions, 11 deletions)
+- mobile/www/assets/js/slot-table.js - Same changes as desktop plus: added rowAnimationControllers cleanup in cleanupTableState for table recreation
 
 ### Impact
 
@@ -94,7 +131,9 @@ var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIn
 | Multi-table animation isolation | Possible state collisions | Fully isolated via unique cellKey |
 | Multi-layout animation isolation | Possible state collisions | Fully isolated via layoutId in cellKey |
 | Single-item columns | Unaffected | Unaffected |
-| Row-level sync across columns | Lost after page cycle | Reset fresh on each page change |
+| Row-level sync across columns | Lost after page cycle via broken rowLastTransitionTime | Guaranteed via single per-row setInterval controller |
+| Animation timing mechanism | Independent per-column setTimeout chains | Single per-row setInterval advancing all columns together |
+| Timer cleanup on table recreation | Row sync timestamps deleted | Row controllers clearInterval'd and removed (mobile) |
 
 ### Compatibility
 

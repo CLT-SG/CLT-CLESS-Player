@@ -256,8 +256,10 @@ var colTextTransitionFirstRender = new Array() // Track if column has rendered a
 var colTextTransitionSettings = new Array()
 // Per-column image settings
 var colImageSettings = new Array()
-// Row-level animation synchronization - to make all columns in a row transition together
-var rowLastTransitionTime = {} // Tracks the last transition time for each row to synchronize columns
+// Row-level synchronized animation controller
+// Uses a single setInterval per row to advance ALL animated columns simultaneously
+// This prevents index drift between columns caused by independent setTimeout chains
+var rowAnimationControllers = {} // rowKey -> { timer, columns: [{cellKey, type, changeFn}], switchingTime }
 // Track animated cellKeys per table for synchronized reset during page/line changes
 var tableCellAnimations = {} // tableid -> [{ cellKey, type }]
 // Store restarter functions for each animated cell (closures that can restart from index 0)
@@ -427,7 +429,7 @@ function tableRecord(slotitem, index, table) {
                 if (colFormat == 'image:') {
                     var n = col[1].lastIndexOf(':')
                     var colImageList = col[1].substring(n + 1)
-                    console.log('colImageList:', colImageList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
+                    //console.log('colImageList:', colImageList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colImageList = colImageList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
@@ -472,6 +474,21 @@ function tableRecord(slotitem, index, table) {
                                 colImageCurIndex[cellKey] = 1
                             }
                         }
+                    }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyImg = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyImg]) {
+                        var imgSettings = colImageSettings[cellKey] || {}
+                        var imgSwitchingTime = (imgSettings.enabled && imgSettings.switchingTime) ? imgSettings.switchingTime : colAnimationInterval[tableid]
+                        rowAnimationControllers[rowKeyImg] = { timer: null, columns: [], switchingTime: imgSwitchingTime }
+                    }
+                    if (colImageloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyImg].columns.push({
+                            cellKey: cellKey,
+                            type: 'image',
+                            changeFn: changeColImageMedia
+                        })
                     }
                 } else if (colFormat == 'fader:') { //create fader animation for this column (original scroll effect)
                     var n = col[1].indexOf(":") // remove first string before : symbol
@@ -521,10 +538,25 @@ function tableRecord(slotitem, index, table) {
                             }
                         }
                     }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyFdr = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyFdr]) {
+                        var fdrSettings = colFaderSettings[cellKey] || {}
+                        var fdrSwitchingTime = (fdrSettings.enabled && fdrSettings.switchingTime) ? fdrSettings.switchingTime : 25000
+                        rowAnimationControllers[rowKeyFdr] = { timer: null, columns: [], switchingTime: fdrSwitchingTime }
+                    }
+                    if (colFaderloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyFdr].columns.push({
+                            cellKey: cellKey,
+                            type: 'fader',
+                            changeFn: changeColTextFader
+                        })
+                    }
                 } else if (col[1].substring(0, 11) == 'transition:') { //create text transition animation for this column (new multi-style effects)
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextTransitionList = col[1].slice(n + 1) // combine all text when have ,
-                    console.log('colTextTransitionList:', colTextTransitionList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
+                    //console.log('colTextTransitionList:', colTextTransitionList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colTextTransitionList = colTextTransitionList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>') //create td
                     colTextTransitionList.forEach(function (ele, resId) { //create foreach to create transition animation
@@ -570,10 +602,39 @@ function tableRecord(slotitem, index, table) {
                             }
                         }
                     }
+                    
+                    // Register with row-level animation controller for synchronized transitions
+                    var rowKeyTxt = layoutId + '_' + tableid + '_' + colRowIndex
+                    if (!rowAnimationControllers[rowKeyTxt]) {
+                        var txtSettings = colTextTransitionSettings[cellKey] || {}
+                        var txtSwitchingTime = (txtSettings.enabled && txtSettings.switchingTime) ? txtSettings.switchingTime : 25000
+                        rowAnimationControllers[rowKeyTxt] = { timer: null, columns: [], switchingTime: txtSwitchingTime }
+                    }
+                    if (colTextTransitionloop[cellKey].length > 1) {
+                        rowAnimationControllers[rowKeyTxt].columns.push({
+                            cellKey: cellKey,
+                            type: 'textTransition',
+                            changeFn: changeColTextTransition
+                        })
+                    }
                 } else {
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html(col[1])
                 }
             })
+            
+            // Start row-level synchronized animation controller for this row
+            // This single timer advances ALL animated columns in the row at the same time
+            // preventing index drift that occurred with independent per-column setTimeout chains
+            var rowLayoutId = (typeof currentlytID !== 'undefined' && currentlytID) ? currentlytID : 'default'
+            var rowKeyForTimer = rowLayoutId + '_' + tableid + '_' + colRowIndex
+            if (rowAnimationControllers[rowKeyForTimer] && rowAnimationControllers[rowKeyForTimer].columns.length > 0) {
+                var controller = rowAnimationControllers[rowKeyForTimer]
+                controller.timer = setInterval(function() {
+                    controller.columns.forEach(function(col) {
+                        col.changeFn(col.cellKey)
+                    })
+                }, controller.switchingTime)
+            }
             //play next column image after current column image has finished
             function changeColImageMedia(cellKey) {
                 if (colImageloop[cellKey].length == 1) {
@@ -622,7 +683,7 @@ function tableRecord(slotitem, index, table) {
                 }
                 
                 var renderEl = ''
-                console.log('Attempting to render image for cellKey:', cellKey, ' with path:', mediaLocalPath + item.text)
+                //console.log('Attempting to render image for cellKey:', cellKey, ' with path:', mediaLocalPath + item.text)
                 if (fs.existsSync(mediaLocalPath + item.text)) {
                     renderEl = '<img src="' + mediaLocalPath + item.text + '">'
                     //file exists
@@ -743,31 +804,8 @@ function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple images
-                if (colImageloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "layoutId_tableid_rowIndex_colName")
-                    var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIndex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, switchingTime - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= switchingTime) {
-                        rowLastTransitionTime[rowKey] = currentTime + switchingTime
-                    }
-                    
-                    // go to the next column image using synchronized timing
-                    colImageTimeout[cellKey] = setTimeout(function () {
-                        changeColImageMedia(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             //play next column fader after current column fader has finished (original fader: format)
@@ -847,31 +885,8 @@ function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple items
-                if (colFaderloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "layoutId_tableid_rowIndex_colName")
-                    var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIndex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
-                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
-                    }
-                    
-                    // go to the next column fader using synchronized timing
-                    colFaderTimeout[cellKey] = setTimeout(function () {
-                        changeColTextFader(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             //play next column text transition after current column text transition has finished (new transition: format)
@@ -939,7 +954,7 @@ function tableRecord(slotitem, index, table) {
                     var $oldElement = targetContainer.find('.column-text-transition')
                     $oldElement.addClass(transitionClasses.out)
                     $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for transition-out
-                    console.log('Animating text transition for cell:', cellKey, 'item text', item.text, 'using style:', transitionStyle, 'with duration:', animationDuration)
+                    //console.log('Animating text transition for cell:', cellKey, 'item text', item.text, 'using style:', transitionStyle, 'with duration:', animationDuration)
                     
                     // Wait for animation to complete, then update content
                     setTimeout(function() {
@@ -967,31 +982,8 @@ function tableRecord(slotitem, index, table) {
                     enforceRowHeightLock(tableid)
                 }
 
-                // Only cycle to next if there are multiple items
-                if (colTextTransitionloop[cellKey].length > 1) {
-                    // Extract row identifier from cellKey (format: "layoutId_tableid_rowIndex_colName")
-                    var rowKey = cellKey.split('_').slice(0, 3).join('_') // "layoutId_tableid_rowIndex"
-                    
-                    // Synchronize timing across all animated columns in the row
-                    var currentTime = Date.now()
-                    if (!rowLastTransitionTime[rowKey]) {
-                        rowLastTransitionTime[rowKey] = currentTime
-                    }
-                    
-                    // Calculate synchronized delay - all columns in row should transition at same time
-                    var timeSinceLastTransition = currentTime - rowLastTransitionTime[rowKey]
-                    var adjustedDelay = Math.max(0, animationInterval - timeSinceLastTransition)
-                    
-                    // If this is the first column to reach transition time, update row time
-                    if (adjustedDelay === 0 || timeSinceLastTransition >= animationInterval) {
-                        rowLastTransitionTime[rowKey] = currentTime + animationInterval
-                    }
-                    
-                    // go to the next column text transition using synchronized timing
-                    colTextTransitionTimeout[cellKey] = setTimeout(function () {
-                        changeColTextTransition(cellKey)
-                    }, adjustedDelay)
-                }
+                // Timer scheduling is handled by the row-level animation controller (rowAnimationControllers)
+                // which uses a single setInterval per row to advance ALL columns simultaneously
             }
 
             // Append <col> with width, and apply other styles to <td> in tbody only
@@ -1148,7 +1140,8 @@ function applyTableRowStyles(tableid) {
 
 /**
  * Stop all cell-level animations (image, fader, text transition) for a table.
- * Called before page/line content changes to prevent index drift while cells are off-screen.
+ * Also stops row-level animation controllers to prevent index drift while cells are off-screen.
+ * Called before page/line content changes.
  * @param {string} tableid - The ID of the table
  */
 function stopAllCellAnimations(tableid) {
@@ -1168,14 +1161,21 @@ function stopAllCellAnimations(tableid) {
             colTextTransitionTimeout[key] = null
         }
     })
-    // Reset row synchronization timestamps so animations restart fresh
-    Object.keys(rowLastTransitionTime).forEach(function(key) {
-        delete rowLastTransitionTime[key]
+    // Stop row-level animation controllers for this table
+    Object.keys(rowAnimationControllers).forEach(function(rowKey) {
+        if (rowKey.indexOf('_' + tableid + '_') !== -1) {
+            var controller = rowAnimationControllers[rowKey]
+            if (controller && controller.timer) {
+                clearInterval(controller.timer)
+                controller.timer = null
+            }
+        }
     })
 }
 
 /**
  * Restart cell-level animations from index 0 for cells currently visible in the DOM.
+ * Also restarts row-level animation controllers with synchronized timing.
  * Called after page/line content changes to ensure animations start synchronized.
  * Restarter functions are closures registered during initial render that capture the correct scope.
  * @param {string} tableid - The ID of the table
@@ -1187,6 +1187,26 @@ function restartVisibleCellAnimations(tableid) {
         var restarter = cellAnimationRestarters[restartKey]
         if (restarter) {
             restarter()
+        }
+    })
+    // Restart row-level animation controllers for this table
+    // Uses a single setInterval per row to advance ALL animated columns simultaneously
+    Object.keys(rowAnimationControllers).forEach(function(rowKey) {
+        if (rowKey.indexOf('_' + tableid + '_') !== -1) {
+            var controller = rowAnimationControllers[rowKey]
+            if (controller && controller.columns.length > 0) {
+                // Clear any existing timer (safety check)
+                if (controller.timer) {
+                    clearInterval(controller.timer)
+                    controller.timer = null
+                }
+                // Start new synchronized timer for the row
+                controller.timer = setInterval(function() {
+                    controller.columns.forEach(function(col) {
+                        col.changeFn(col.cellKey)
+                    })
+                }, controller.switchingTime)
+            }
         }
     })
 }
