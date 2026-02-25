@@ -158,6 +158,12 @@ function getLayoutXML(result2) {
         $('#main').css({
             "background-image": 'url("' + serverAdd + mediapath + '/' + lytbgimage + '")'
         })
+    } else {
+        // Clear any previous background image when current layout has none
+        // This prevents stale background images from persisting across loop layouts
+        $('#main').css({
+            "background-image": "none"
+        })
     }
 
     if (lytslotlist && lytslotlist.length > 0) {

@@ -1,5 +1,104 @@
 # Change Log
 
+## [3.11.4] - 2026-02-25
+
+### Fixed - Layout Loop Background Not Updating After First Loop Cycle
+
+- **Background Color/Image Stale on Loop** - Fixed background color and background image not updating for the current layout after looping back to the first layout or transitioning to the second loop iteration
+  - Root cause: The #main element is preserved during loop transitions (to maintain transition classes via `$('#main').empty()`), but its inline background CSS properties (background-color, background-image, background-size, background-repeat) were never cleared between layout switches
+  - Root cause: layoutxml.js only set background-image when `lytbgimage != 'none'` but never cleared it when the new layout had no background image, causing stale images to persist
+  - Solution (Layer 1): Added background style reset in `playcurrentLayout()` transition callback in looplayout.js - clears all four background CSS properties on #main before calling `getLayoutXML()`
+  - Solution (Layer 2): Added explicit `background-image: none` in the else branch of the lytbgimage condition in layoutxml.js, ensuring stale background images are cleared regardless of code path
+  - Impact: Each layout in a loop now correctly displays its own background color and image without stale styles leaking from the previous layout
+
+### Technical Details
+
+**Background Reset in playcurrentLayout() - looplayout.js:**
+```javascript
+applyLayoutTransition(function() {
+    $('#main').html(''); // Reset whole page html
+
+    // Reset background styles on #main to prevent stale background from previous layout
+    // This is critical for loop mode where #main is preserved for transition classes
+    $('#main').css({
+      "background-color": "",
+      "background-image": "",
+      "background-size": "",
+      "background-repeat": ""
+    });
+
+    getLayoutXML(layoutxml);
+    layoutLoopUpdateXML();
+});
+```
+
+**Background Image Clearing in getLayoutXML() - layoutxml.js:**
+```javascript
+if (lytbgimage != 'none') {
+    var serverAdd = config.hostserver
+    serverAdd = serverAdd.split('/')
+    serverAdd = serverAdd[0] + '//' + serverAdd[2]
+    $('#main').css({
+        "background-image": 'url("' + serverAdd + mediapath + '/' + lytbgimage + '")'
+    })
+} else {
+    // Clear any previous background image when current layout has none
+    $('#main').css({
+        "background-image": "none"
+    })
+}
+```
+
+### Files Modified
+
+**Desktop (Electron):**
+- src/assets/js/looplayout.js - Added background CSS property reset (background-color, background-image, background-size, background-repeat) in playcurrentLayout() transition callback before getLayoutXML() call (1 edit)
+- src/assets/js/layoutxml.js - Added else branch to lytbgimage condition to explicitly set background-image to 'none' when layout has no background image (1 edit)
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/looplayout.js - Added background CSS property reset (background-color, background-image, background-size, background-repeat) in playcurrentLayout() transition callback before getLayoutXML() call (1 edit)
+- mobile/www/assets/js/layoutxml.js - Added else branch to lytbgimage condition to explicitly set background-image to 'none' when layout has no background image (1 edit)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Background color on loop cycle | Stale color from previous layout | Correct color per layout |
+| Background image on loop cycle | Stale image from previous layout | Correct image per layout |
+| Layout with no bg image after one with bg image | Previous image persisted | Correctly shows no image |
+| First layout on second loop | Wrong background displayed | Correct background displayed |
+| Non-loop mode | Unaffected | Unaffected |
+| First layout load | Unaffected | Unaffected |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible - no breaking changes
+- Works with all loop transition styles (none, fade, slide-right, slide-left, scroll-up, scroll-down)
+- Compatible with single-layout and multi-layout loops
+- Works in online mode, offline mode, and error fallback scenarios
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify layout loop background switching:
+- Create loop with Layout A (red background, no image) and Layout B (blue background, with image)
+- Verify Layout A shows red background on first play
+- Verify Layout B shows blue background with image when switching
+- Verify Layout A shows red background again on second loop (no stale blue or image)
+- Verify correct behavior across multiple full loop cycles
+
+Verify background image clearing:
+- Create loop with Layout A (has background image) and Layout B (no background image)
+- Verify Layout B does NOT show Layout A's background image
+- Verify Layout A shows its background image again on loop
+
+Verify cross-platform:
+- Test on desktop Electron (Windows, macOS, Linux)
+- Test on mobile Capacitor app (Android, iOS)
+- Confirm identical background behavior on all platforms
+
 ## [3.11.3] - 2026-01-16
 
 ### Fixed - Table Row Height Flickering During Column Transitions
