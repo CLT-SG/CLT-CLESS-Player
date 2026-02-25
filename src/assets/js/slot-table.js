@@ -427,6 +427,7 @@ function tableRecord(slotitem, index, table) {
                 if (colFormat == 'image:') {
                     var n = col[1].lastIndexOf(':')
                     var colImageList = col[1].substring(n + 1)
+                    console.log('colImageList:', colImageList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colImageList = colImageList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     colImageList.forEach(function (ele, resId) { //create foreach to create fading animation
@@ -523,6 +524,7 @@ function tableRecord(slotitem, index, table) {
                 } else if (col[1].substring(0, 11) == 'transition:') { //create text transition animation for this column (new multi-style effects)
                     var n = col[1].indexOf(":") // remove first string before : symbol
                     var colTextTransitionList = col[1].slice(n + 1) // combine all text when have ,
+                    console.log('colTextTransitionList:', colTextTransitionList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
                     colTextTransitionList = colTextTransitionList.split(',') // split and create array
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>') //create td
                     colTextTransitionList.forEach(function (ele, resId) { //create foreach to create transition animation
@@ -620,7 +622,7 @@ function tableRecord(slotitem, index, table) {
                 }
                 
                 var renderEl = ''
-                
+                console.log('Attempting to render image for cellKey:', cellKey, ' with path:', mediaLocalPath + item.text)
                 if (fs.existsSync(mediaLocalPath + item.text)) {
                     renderEl = '<img src="' + mediaLocalPath + item.text + '">'
                     //file exists
@@ -937,6 +939,7 @@ function tableRecord(slotitem, index, table) {
                     var $oldElement = targetContainer.find('.column-text-transition')
                     $oldElement.addClass(transitionClasses.out)
                     $oldElement.css('animation-duration', (animationDuration * 0.75) + 'ms') // 0.75 for transition-out
+                    console.log('Animating text transition for cell:', cellKey, 'item text', item.text, 'using style:', transitionStyle, 'with duration:', animationDuration)
                     
                     // Wait for animation to complete, then update content
                     setTimeout(function() {
