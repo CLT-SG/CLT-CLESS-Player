@@ -1016,10 +1016,12 @@ return (async function () {
     app.get('/api/volume/get', async function (req, res) {
         try {
             const volume = await getCurrentVolumeLevel()
+            const muted = await getSystemMuteStatus()
             res.json({ 
                 success: true, 
                 volume: volume,
-                message: `Current volume: ${volume}%`
+                muted: muted,
+                message: `Current volume: ${volume}%${muted ? ' (muted)' : ''}`
             })
         } catch (error) {
             log.error('API volume get error:', error)
@@ -1357,6 +1359,69 @@ return (async function () {
                 })
             } else {
                 reject(new Error('Unsupported platform for volume control'))
+            }
+        })
+    }
+
+    /**
+     * Get current system mute status
+     * Returns a Promise that resolves with boolean (true = muted, false = unmuted)
+     */
+    function getSystemMuteStatus() {
+        return new Promise((resolve, reject) => {
+            const platform = process.platform
+
+            if (platform === 'win32') {
+                // Windows: Use PowerShell to check mute status
+                const command = 'powershell "Add-Type -TypeDefinition \\"using System.Runtime.InteropServices; [Guid(\\\\\\"BCDE0395-E52F-467C-8E3D-C4579291692E\\\\\\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface IAudioEndpointVolume { int f(); int g(); int h(); int i(); int SetMasterVolumeLevelScalar(float fLevel, System.Guid pguidEventContext); int j(); int GetMasterVolumeLevelScalar(out float pfLevel); int k(); int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, System.Guid pguidEventContext); int GetMute(out bool pbMute); } [Guid(\\\\\\"D666063F-1587-4E43-81F1-B948E807363F\\\\\\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface IMMDevice { int Activate(ref System.Guid id, int clsCtx, int activationParams, out IAudioEndpointVolume aev); } [Guid(\\\\\\"A95664D2-9614-4F35-A746-DE8DB63617E6\\\\\\"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)] interface IMMDeviceEnumerator { int f(); int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice endpoint); } [ComImport, Guid(\\\\\\"MMDEVAPI.MMDeviceEnumerator\\\\\\")] class MMDeviceEnumeratorComObject { }\\" -ErrorAction Stop; $mmde = New-Object MMDeviceEnumeratorComObject; $enumerator = [IMMDeviceEnumerator]$mmde; $dev = $null; $enumerator.GetDefaultAudioEndpoint(0, 1, [ref]$dev); $guid = [guid]\\\\\\"BCDE0395-E52F-467C-8E3D-C4579291692E\\\\\\"; $aev = $null; $dev.Activate([ref]$guid, 23, 0, [ref]$aev); $muted = $false; $aev.GetMute([ref]$muted); $muted"'
+                exec(command, (error, stdout, stderr) => {
+                    if (error) {
+                        log.warn('Error getting Windows mute status, defaulting to false:', error.message)
+                        resolve(false) // Default to unmuted on error
+                        return
+                    }
+                    try {
+                        const result = stdout.trim().toLowerCase()
+                        resolve(result === 'true')
+                    } catch (parseError) {
+                        log.warn('Error parsing Windows mute status:', parseError)
+                        resolve(false)
+                    }
+                })
+            } else if (platform === 'linux') {
+                // Linux: Use amixer to check mute status
+                exec('amixer get Master | grep -o "\\[on\\]\\|\\[off\\]" | head -1', (error, stdout, stderr) => {
+                    if (error) {
+                        log.warn('Error getting Linux mute status, defaulting to false:', error.message)
+                        resolve(false)
+                        return
+                    }
+                    try {
+                        const result = stdout.trim()
+                        resolve(result === '[off]')
+                    } catch (parseError) {
+                        log.warn('Error parsing Linux mute status:', parseError)
+                        resolve(false)
+                    }
+                })
+            } else if (platform === 'darwin') {
+                // macOS: Use osascript to check mute status
+                exec('osascript -e "output muted of (get volume settings)"', (error, stdout, stderr) => {
+                    if (error) {
+                        log.warn('Error getting macOS mute status, defaulting to false:', error.message)
+                        resolve(false)
+                        return
+                    }
+                    try {
+                        const result = stdout.trim().toLowerCase()
+                        resolve(result === 'true')
+                    } catch (parseError) {
+                        log.warn('Error parsing macOS mute status:', parseError)
+                        resolve(false)
+                    }
+                })
+            } else {
+                resolve(false) // Default to unmuted for unsupported platforms
             }
         })
     }

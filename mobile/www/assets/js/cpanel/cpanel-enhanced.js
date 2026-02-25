@@ -788,30 +788,27 @@ function setupEventHandlers() {
         }, 2000)) return;
     })
 
-    // Volume control handlers
-    $('#volumeMute').click(function() {
-        debug('Volume MUTE button clicked');
-        if ($(this).prop('disabled')) {
-            debug('Volume MUTE button is disabled, ignoring click');
-            return;
+    // Volume control handlers - Unified Mute/Unmute toggle
+    window._isMuted = false; // Track mute state
+    
+    $('#volumeToggleMute').click(function() {
+        if ($(this).prop('disabled')) return;
+        
+        if (window._isMuted) {
+            debug('Volume UNMUTE toggle clicked');
+            throttledAction('volumeToggleMute', function () { setVolumeUnmute() }, 1500);
+        } else {
+            debug('Volume MUTE toggle clicked');
+            throttledAction('volumeToggleMute', function () { setVolumeMute() }, 1500);
         }
-        throttledAction('volumeMute', function () { setVolumeMute() }, 1500)
-    })
-
-    $('#volumeUnmute').click(function() {
-        debug('Volume UNMUTE button clicked');
-        if ($(this).prop('disabled')) {
-            debug('Volume UNMUTE button is disabled, ignoring click');
-            return;
-        }
-        throttledAction('volumeUnmute', function () { setVolumeUnmute() }, 1500)
     })
 
     // Volume slider handler with debouncing
     let volumeTimeout;
     $('#volumeSlider').on('input', function() {
-        const volume = $(this).val();
+        const volume = parseInt($(this).val());
         $('#volumeDisplay').text(volume + '%');
+        updateVolumeSliderFill(volume);
         
         // Clear previous timeout
         clearTimeout(volumeTimeout);
@@ -1417,10 +1414,10 @@ function setScreenToggle(state) {
 
 // Volume control functions
 function setVolumeMute() {
-    const muteBtn = $('#volumeMute')
-    const unmuteBtn = $('#volumeUnmute')
+    const toggleBtn = $('#volumeToggleMute')
+    const statusBadge = $('#volumeStatusBadge')
     
-    muteBtn.addClass('loading').prop('disabled', true)
+    toggleBtn.addClass('loading').prop('disabled', true)
     
     $.ajax({
         type: 'get',
@@ -1429,27 +1426,26 @@ function setVolumeMute() {
             debug('Volume mute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio muted')
-                muteBtn.removeClass('loading btn-warning').addClass('btn-secondary').prop('disabled', true)
-                unmuteBtn.removeClass('btn-secondary').addClass('btn-info').prop('disabled', false)
+                window._isMuted = true
+                updateMuteToggleUI(true)
                 if (window.showToast) showToast('System audio muted', 'info')
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume mute failed:', status, error)
             showAlert('danger', `Failed to mute audio: ${error}`)
-            muteBtn.removeClass('loading').prop('disabled', false)
         },
         complete: function () {
-            completeThrottledAction('volumeMute')
+            toggleBtn.removeClass('loading').prop('disabled', false)
+            completeThrottledAction('volumeToggleMute')
         }
     })
 }
 
 function setVolumeUnmute() {
-    const muteBtn = $('#volumeMute')
-    const unmuteBtn = $('#volumeUnmute')
+    const toggleBtn = $('#volumeToggleMute')
     
-    unmuteBtn.addClass('loading').prop('disabled', true)
+    toggleBtn.addClass('loading').prop('disabled', true)
     
     $.ajax({
         type: 'get',
@@ -1458,24 +1454,90 @@ function setVolumeUnmute() {
             debug('Volume unmute success:', data)
             if (data.success) {
                 showAlert('success', 'Audio unmuted')
-                unmuteBtn.removeClass('loading btn-info').addClass('btn-secondary').prop('disabled', true)
-                muteBtn.removeClass('btn-secondary').addClass('btn-warning').prop('disabled', false)
+                window._isMuted = false
+                updateMuteToggleUI(false)
                 if (window.showToast) showToast('System audio unmuted', 'success')
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume unmute failed:', status, error)
             showAlert('danger', `Failed to unmute audio: ${error}`)
-            unmuteBtn.removeClass('loading').prop('disabled', false)
         },
         complete: function () {
-            completeThrottledAction('volumeUnmute')
+            toggleBtn.removeClass('loading').prop('disabled', false)
+            completeThrottledAction('volumeToggleMute')
         }
     })
 }
 
+/**
+ * Updates the mute toggle button and status badge UI
+ * Button shows the ACTION (what clicking will do), badge shows CURRENT STATE
+ * @param {boolean} isMuted - Whether audio is currently muted
+ */
+function updateMuteToggleUI(isMuted) {
+    const toggleBtn = $('#volumeToggleMute')
+    const statusBadge = $('#volumeStatusBadge')
+    const slider = $('#volumeSlider')
+    const volumeDisplay = $('#volumeDisplay')
+    
+    // Remove loading state from badge
+    statusBadge.removeClass('loading')
+    
+    if (isMuted) {
+        // Current state: MUTED → Button action: "Unmute"
+        toggleBtn.removeClass('unmuted').addClass('muted')
+        toggleBtn.find('i').attr('class', 'bi bi-volume-up-fill')
+        toggleBtn.find('.toggle-label').text('Unmute')
+        statusBadge.removeClass('unmuted').addClass('muted')
+        statusBadge.html('<i class="bi bi-x-circle-fill"></i> Audio Muted')
+        slider.addClass('muted')
+        volumeDisplay.addClass('muted')
+    } else {
+        // Current state: UNMUTED → Button action: "Mute"
+        toggleBtn.removeClass('muted').addClass('unmuted')
+        toggleBtn.find('i').attr('class', 'bi bi-volume-mute-fill')
+        toggleBtn.find('.toggle-label').text('Mute')
+        statusBadge.removeClass('muted').addClass('unmuted')
+        statusBadge.html('<i class="bi bi-check-circle-fill"></i> Audio Active')
+        slider.removeClass('muted')
+        volumeDisplay.removeClass('muted')
+    }
+}
+
+/**
+ * Updates the volume slider fill color based on current value
+ * Blue gradient when volume > 0, gray when 0
+ * @param {number} volume - Volume level 0-100
+ */
+function updateVolumeSliderFill(volume) {
+    const slider = $('#volumeSlider')[0]
+    if (!slider) return
+    
+    const percentage = volume
+    const $slider = $(slider)
+    
+    if (volume === 0) {
+        $slider.addClass('volume-zero')
+        slider.style.background = '#e2e8f0'
+    } else {
+        $slider.removeClass('volume-zero')
+        slider.style.background = `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${percentage}%, #e2e8f0 ${percentage}%, #e2e8f0 100%)`
+    }
+}
+
 function setVolumeLevel(volume) {
     $('#volumeDisplay').text(volume + '%')
+    updateVolumeSliderFill(volume)
+    
+    // If volume is set to 0 from slider, update mute UI accordingly
+    if (parseInt(volume) === 0 && !window._isMuted) {
+        window._isMuted = true
+        updateMuteToggleUI(true)
+    } else if (parseInt(volume) > 0 && window._isMuted) {
+        window._isMuted = false
+        updateMuteToggleUI(false)
+    }
     
     $.ajax({
         type: 'post',
@@ -1495,18 +1557,44 @@ function setVolumeLevel(volume) {
     })
 }
 
+/**
+ * Fetches actual volume level and mute status from the system and updates the UI accordingly
+ */
 function getCurrentVolumeLevel() {
     $.ajax({
         type: 'get',
         url: '/api/volume/get',
         success: function (data) {
-            debug('Get volume request sent:', data)
+            debug('Get volume status:', data)
+            if (data.success) {
+                // Update volume slider and display
+                const volume = parseInt(data.volume) || 0
+                $('#volumeSlider').val(volume)
+                $('#volumeDisplay').text(volume + '%')
+                updateVolumeSliderFill(volume)
+                
+                // Update mute state from actual system status
+                const isMuted = data.muted === true
+                window._isMuted = isMuted
+                updateMuteToggleUI(isMuted)
+                
+                debug(`Volume status synced: ${volume}% ${isMuted ? '(muted)' : '(active)'}`)
+            }
         },
         error: function (xhr, status, error) {
             console.error('Get volume failed:', status, error)
+            // On error, still remove loading state from badge
+            $('#volumeStatusBadge').removeClass('loading').addClass('unmuted')
+                .html('<i class="bi bi-exclamation-circle-fill"></i> Status Unknown')
         }
     })
 }
+
+// Initialize volume controls on page load
+$(function() {
+    // Fetch actual system volume and mute status
+    getCurrentVolumeLevel()
+})
 
 // Configuration management
 function saveConfiguration() {

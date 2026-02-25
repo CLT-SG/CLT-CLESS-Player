@@ -105,26 +105,29 @@
                     </div>
                     <h2 class="card-title">Volume Control</h2>
                 </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-warning" id="volumeMute">
-                        <i class="bi bi-volume-mute-fill"></i>
-                        Mute
-                    </button>
-                    <button type="button" class="modern-btn btn-info" id="volumeUnmute">
-                        <i class="bi bi-volume-up-fill"></i>
-                        Unmute
-                    </button>
-                </div>
-                <div class="mt-3">
-                    <label class="form-label d-flex justify-content-between">
-                        <span><i class="bi bi-volume-down"></i> Volume Level</span>
-                        <span id="volumeDisplay">50%</span>
-                    </label>
-                    <div class="d-flex align-items-center gap-2">
-                        <i class="bi bi-volume-off"></i>
-                        <input type="range" class="form-range flex-grow-1" id="volumeSlider" min="0" max="100"
-                            value="50" step="1">
-                        <i class="bi bi-volume-up"></i>
+                <div class="volume-control-panel">
+                    <div class="volume-toggle-row">
+                        <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
+                            <i class="bi bi-volume-mute-fill"></i>
+                            <span class="toggle-label">Mute</span>
+                        </button>
+                        <span class="volume-status-badge loading" id="volumeStatusBadge">
+                            <i class="bi bi-arrow-clockwise spinning"></i> Checking...
+                        </span>
+                    </div>
+                    <div class="volume-slider-group mt-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span><i class="bi bi-volume-down"></i> Volume Level</span>
+                            <span class="volume-display-value" id="volumeDisplay">50%</span>
+                        </label>
+                        <div class="volume-slider-row">
+                            <i class="bi bi-volume-off volume-icon-min"></i>
+                            <div class="volume-slider-wrapper flex-grow-1">
+                                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100"
+                                    value="50" step="1">
+                            </div>
+                            <i class="bi bi-volume-up volume-icon-max"></i>
+                        </div>
                     </div>
                 </div>
             </div>

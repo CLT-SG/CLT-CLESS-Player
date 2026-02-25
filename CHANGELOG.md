@@ -1,5 +1,208 @@
 # Change Log
 
+## [3.12.3] - 2026-02-25
+
+### Improved - Volume Control UX with Unified Mute Toggle and Live Status
+
+- **Unified Mute/Unmute Toggle Button** - Merged the separate Mute and Unmute buttons into a single toggle button that shows the action (what clicking will do) rather than the current state, eliminating user confusion about which button to press
+  - Problem: Two separate buttons (Mute and Unmute) were displayed side by side, making it unclear whether the system was currently muted or unmuted. Users had to guess the current state before deciding which button to click
+  - Solution: Replaced the two buttons with a single toggle button (#volumeToggleMute) that displays "Mute" when audio is active (clicking will mute) and "Unmute" when audio is muted (clicking will unmute). Button color changes between blue (unmuted state, action: Mute) and red (muted state, action: Unmute)
+  - Solution: Added a status badge (#volumeStatusBadge) next to the toggle button that clearly shows the current audio state -- "Audio Active" with a green/blue indicator when unmuted, "Audio Muted" with a red indicator when muted
+  - Impact: Users can immediately see the current audio state from the badge and understand what the button will do from its label, eliminating all ambiguity
+
+- **Live Volume and Mute Status from System** - The volume slider and mute toggle now fetch the actual system volume level and mute state on page load, instead of defaulting to 50% unmuted
+  - Problem: The volume slider always started at 50% and the mute state always defaulted to unmuted, regardless of the actual system volume. If the system was muted or at a different volume level, the dashboard showed incorrect information
+  - Problem: The /api/volume/get endpoint only returned the volume percentage, not whether the system was muted
+  - Solution (Backend): Added getSystemMuteStatus() function to cpanel.js that queries the actual OS mute state -- Linux via amixer (checks [on]/[off]), macOS via osascript (output muted of volume settings), Windows via PowerShell COM API (IAudioEndpointVolume.GetMute). All platforms gracefully default to unmuted on error
+  - Solution (Backend): Enhanced /api/volume/get endpoint to return both volume and muted fields in the response JSON
+  - Solution (Frontend): getCurrentVolumeLevel() now reads both volume and muted from the API response. On page load, it sets the slider position, updates the percentage display, applies the correct slider fill color, and sets the toggle button and status badge to match the actual system state
+  - Solution (Frontend): Status badge shows "Checking..." with a loading spinner on initial page load until the API response arrives, then transitions to the actual state
+  - Impact: Dashboard always reflects the real system audio state on load. No more disconnect between what the dashboard shows and what the system is actually doing
+
+- **Custom Volume Slider with Blue Fill Indicator** - Replaced the default browser range input with a custom-styled volume slider that uses a blue gradient fill to indicate the current volume level
+  - Problem: The default browser range input had poor visual feedback -- the fill color was not intuitive and did not clearly communicate the current volume level. The slider appearance was inconsistent across browsers
+  - Solution: Added custom CSS for the volume slider with a blue (#0ea5e9) gradient fill from 0% to the current value, gray (#e2e8f0) for the remaining track. JavaScript dynamically updates the background gradient on every slider input event
+  - Solution: Custom thumb styling with white circle, blue border, hover scale effect, and drop shadow for a polished appearance. Cross-browser support via WebKit (:-webkit-slider-thumb, :-webkit-slider-runnable-track) and Firefox (:-moz-range-thumb, :-moz-range-progress) pseudo-elements
+  - Solution: When volume is 0 or system is muted, slider turns fully gray with gray thumb border. Volume percentage display text turns red when muted
+  - Solution: Dragging the slider to 0 automatically updates the mute toggle UI to muted state. Dragging above 0 when muted automatically updates to unmuted state
+  - Impact: Volume level is immediately visible from the slider fill color. Blue fill clearly communicates "audio is active at this level" while gray communicates "no audio"
+
+### Technical Details
+
+**Unified toggle button HTML structure:**
+```html
+<div class="volume-toggle-row">
+    <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
+        <i class="bi bi-volume-mute-fill"></i>
+        <span class="toggle-label">Mute</span>
+    </button>
+    <span class="volume-status-badge loading" id="volumeStatusBadge">
+        <i class="bi bi-arrow-clockwise spinning"></i> Checking...
+    </span>
+</div>
+```
+
+**Toggle click handler with state-based action:**
+```javascript
+window._isMuted = false;
+
+$('#volumeToggleMute').click(function() {
+    if ($(this).prop('disabled')) return;
+    if (window._isMuted) {
+        throttledAction('volumeToggleMute', function () { setVolumeUnmute() }, 1500);
+    } else {
+        throttledAction('volumeToggleMute', function () { setVolumeMute() }, 1500);
+    }
+})
+```
+
+**UI update function -- button shows action, badge shows state:**
+```javascript
+function updateMuteToggleUI(isMuted) {
+    if (isMuted) {
+        // Current state: MUTED -> Button action: "Unmute"
+        toggleBtn.removeClass('unmuted').addClass('muted')
+        toggleBtn.find('.toggle-label').text('Unmute')
+        statusBadge.html('<i class="bi bi-x-circle-fill"></i> Audio Muted')
+    } else {
+        // Current state: UNMUTED -> Button action: "Mute"
+        toggleBtn.removeClass('muted').addClass('unmuted')
+        toggleBtn.find('.toggle-label').text('Mute')
+        statusBadge.html('<i class="bi bi-check-circle-fill"></i> Audio Active')
+    }
+}
+```
+
+**Backend getSystemMuteStatus() -- cross-platform mute detection:**
+```javascript
+function getSystemMuteStatus() {
+    return new Promise((resolve, reject) => {
+        if (platform === 'linux') {
+            exec('amixer get Master | grep -o "\\[on\\]\\|\\[off\\]" | head -1', (error, stdout) => {
+                resolve(stdout.trim() === '[off]')
+            })
+        } else if (platform === 'darwin') {
+            exec('osascript -e "output muted of (get volume settings)"', (error, stdout) => {
+                resolve(stdout.trim().toLowerCase() === 'true')
+            })
+        } else if (platform === 'win32') {
+            // Uses PowerShell COM API (IAudioEndpointVolume.GetMute)
+        }
+    })
+}
+```
+
+**Enhanced /api/volume/get response:**
+```javascript
+app.get('/api/volume/get', async function (req, res) {
+    const volume = await getCurrentVolumeLevel()
+    const muted = await getSystemMuteStatus()
+    res.json({ success: true, volume: volume, muted: muted,
+        message: `Current volume: ${volume}%${muted ? ' (muted)' : ''}` })
+})
+```
+
+**Frontend initialization -- fetch real status on page load:**
+```javascript
+function getCurrentVolumeLevel() {
+    $.ajax({
+        url: '/api/volume/get',
+        success: function (data) {
+            if (data.success) {
+                $('#volumeSlider').val(data.volume)
+                $('#volumeDisplay').text(data.volume + '%')
+                updateVolumeSliderFill(data.volume)
+                window._isMuted = data.muted === true
+                updateMuteToggleUI(data.muted === true)
+            }
+        }
+    })
+}
+
+$(function() { getCurrentVolumeLevel() })
+```
+
+**Volume slider fill update:**
+```javascript
+function updateVolumeSliderFill(volume) {
+    if (volume === 0) {
+        slider.style.background = '#e2e8f0'
+    } else {
+        slider.style.background = `linear-gradient(to right, #0ea5e9 0%, #0ea5e9 ${volume}%, #e2e8f0 ${volume}%, #e2e8f0 100%)`
+    }
+}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added getSystemMuteStatus() function with cross-platform mute detection (Linux amixer, macOS osascript, Windows PowerShell COM), enhanced /api/volume/get endpoint to return muted boolean field alongside volume percentage
+
+**Desktop (Electron):**
+- src/cpanel.html - Replaced separate Mute/Unmute buttons with unified toggle button (#volumeToggleMute) and status badge (#volumeStatusBadge), replaced default range input with custom volume slider structure (.volume-control-panel, .volume-slider-group, .volume-slider-row)
+- src/assets/css/cpanel.css - Added volume control panel styles (.volume-control-panel, .volume-toggle-row, .btn-volume-toggle with .unmuted/.muted states, .volume-status-badge with .unmuted/.muted/.loading states), added custom volume slider styles (.volume-slider with WebKit and Firefox pseudo-elements, .volume-zero and .muted states, thumb styling with hover/active effects)
+- src/assets/js/cpanel/cpanel-enhanced.js - Replaced separate #volumeMute/#volumeUnmute click handlers with unified #volumeToggleMute handler, added updateMuteToggleUI() function, added updateVolumeSliderFill() function, updated getCurrentVolumeLevel() to fetch and apply real volume and mute status on page load, updated setVolumeLevel() to sync slider fill and mute UI on drag
+
+**Mobile (Capacitor):**
+- mobile/www/dashboard.html - Synced with src/cpanel.html (identical volume control changes)
+- mobile/www/assets/css/cpanel.css - Synced with src version (identical changes)
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Mute/Unmute buttons | Two separate buttons, unclear which to press | Single toggle button showing the action to perform |
+| Current audio state visibility | No indication of mute state | Status badge shows "Audio Active" or "Audio Muted" |
+| Volume slider on page load | Always 50%, always unmuted | Fetches real system volume and mute state |
+| /api/volume/get response | Only volume percentage | Volume percentage and muted boolean |
+| Volume slider appearance | Default browser range input | Custom blue gradient fill with styled thumb |
+| Slider at 0% | No visual distinction | Gray fill, gray thumb, mute toggle syncs to muted |
+| Slider when muted | Same blue appearance | Gray fill and gray thumb indicate muted state |
+| Volume percentage text | Always default color | Turns red when muted |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes
+- /api/volume/get response adds new muted field but retains all existing fields
+- getSystemMuteStatus() gracefully defaults to false (unmuted) on any OS error
+- Custom slider styling includes both WebKit and Firefox pseudo-elements for cross-browser support
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify unified mute toggle:
+- Open the control panel dashboard
+- Verify status badge shows "Checking..." briefly then updates to actual state
+- When audio is active, verify button shows "Mute" and badge shows "Audio Active"
+- Click the Mute button, verify button changes to "Unmute" and badge changes to "Audio Muted"
+- Click the Unmute button, verify button changes back to "Mute" and badge changes back to "Audio Active"
+
+Verify live volume status on page load:
+- Set system volume to 75% and unmute using OS controls
+- Open the control panel dashboard
+- Verify slider is at 75%, display shows "75%", badge shows "Audio Active"
+- Mute system audio using OS controls, reload the page
+- Verify badge shows "Audio Muted", slider is gray, button shows "Unmute"
+
+Verify volume slider fill:
+- Drag slider from 0 to 100, verify blue fill grows from left to right
+- Set slider to 0, verify fill is fully gray and mute toggle shows muted state
+- Drag slider above 0, verify fill turns blue and mute toggle shows unmuted state
+- Mute audio via button, verify slider turns gray regardless of position
+
+Verify cross-platform mute detection:
+- On Linux: verify amixer mute state is correctly detected
+- On macOS: verify osascript mute state is correctly detected
+- On Windows: verify PowerShell COM API mute state is correctly detected
+
+Verify cross-platform UI:
+- Open control panel from desktop Electron app
+- Open control panel from mobile Capacitor app
+- Verify identical volume control behavior on both platforms
+
 ## [3.12.2] - 2026-02-25
 
 ### Fixed - ERR_HTTP_HEADERS_SENT on Control Panel Rapid Requests
