@@ -1,5 +1,188 @@
 # Change Log
 
+## [3.12.4] - 2026-02-25
+
+### Fixed - Volume Control Not Working on Windows 10 (Mute/Unmute, Get/Set Volume)
+
+- **Volume Get/Set Broken on All Windows Versions** - Fixed getCurrentVolumeLevel() and setSystemVolumeLevel() which used the non-existent Microsoft.VisualBasic.Devices.Audio API, causing all volume get and set operations to fail silently on Windows 7, 8, 10, and 11
+  - Problem: getCurrentVolumeLevel() called `[Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume` which does not exist in any version of .NET -- the Audio class has no Info.MasterVolume property. setSystemVolumeLevel() called `.Volume = value` on the same non-existent API. Both commands always errored out, returning no volume data and failing to adjust volume
+  - Solution: Replaced both functions with proper Windows Core Audio COM API calls via IAudioEndpointVolume.GetMasterVolumeLevelScalar (for get) and IAudioEndpointVolume.SetMasterVolumeLevelScalar (for set), executed through PowerShell with the same COM type definition used across all volume functions
+  - Impact: Volume status now correctly reports the actual system volume level, and the volume slider now actually changes the system volume on all Windows versions
+
+- **Mute/Unmute Using Toggle Key Instead of Explicit API** - Fixed muteSystemVolume() and unmuteSystemVolume() which both used SendKeys([char]173) -- a keyboard mute toggle key -- instead of explicit mute/unmute commands
+  - Problem: Both mute and unmute functions sent the same VK_VOLUME_MUTE keypress (character code 173), which is a toggle. Calling unmute when already unmuted would mute the system instead. The keypress also required window focus and was unreliable in headless or background scenarios. On Windows 7, the WScript.Shell COM object sometimes failed with permission errors
+  - Solution: Replaced both functions with explicit IAudioEndpointVolume.SetMute($true, [guid]::Empty) for mute and IAudioEndpointVolume.SetMute($false, [guid]::Empty) for unmute. These are deterministic -- mute always mutes, unmute always unmutes, regardless of current state
+  - Impact: Mute and unmute buttons now work reliably on all Windows versions without requiring window focus or toggling behavior
+
+- **Mute Status Detection Broken Due to Shell Escaping and Incorrect COM Vtable** - Fixed getSystemMuteStatus() which used deeply nested shell escaping through cmd.exe and had an incorrect COM interface vtable definition
+  - Problem: The PowerShell script was passed through exec() which routes through cmd.exe, requiring multiple levels of quote escaping (\\\\\\") that broke on Windows 10 due to differences in cmd.exe quote parsing. Additionally, the IAudioEndpointVolume COM interface definition was missing 3 placeholder methods (slots 11-13: SetChannelVolumeLevelScalar, GetChannelVolumeLevel, GetChannelVolumeLevelScalar), causing SetMute and GetMute to be mapped to wrong vtable positions, producing incorrect results or crashes
+  - Solution: Replaced exec() with execFile('powershell.exe') using -EncodedCommand (Base64-encoded UTF-16LE script), completely bypassing cmd.exe shell escaping. Fixed the COM vtable by adding the 3 missing placeholder methods (int l(); int m(); int n();) between GetMasterVolumeLevelScalar and SetMute, ensuring correct vtable slot alignment
+  - Impact: Mute status is now correctly detected on Windows 7, 8, 10, and 11 without any shell escaping issues
+
+- **PowerShell Execution Reliability** - Added a shared runPowerShellAudioCommand() helper function and WINDOWS_AUDIO_PS_INIT constant to eliminate code duplication and ensure consistent, reliable PowerShell execution across all volume functions
+  - Problem: Each volume function had its own inline PowerShell command with different escaping approaches, making maintenance difficult and bugs inconsistent across functions
+  - Solution: Created runPowerShellAudioCommand(script) that uses execFile with -NoProfile, -NonInteractive, -ExecutionPolicy Bypass, and -EncodedCommand flags. Created WINDOWS_AUDIO_PS_INIT constant containing the shared COM type definition and device initialization code. All 5 volume functions now use this shared infrastructure
+  - Impact: Consistent behavior across all volume operations, 15-second timeout prevents hanging, no shell escaping issues, works on Windows 7 through 11
+
+- **Frontend Volume API Calls Missing Timeout and Retry Logic** - Added timeout and retry logic to all frontend volume AJAX calls to handle the slightly longer PowerShell COM initialization time on first call
+  - Problem: Frontend AJAX calls to /api/volume/get, /api/volume/mute, /api/volume/unmute, and /api/volume/set had no timeout configured. On Windows, the first PowerShell call takes longer due to COM type compilation, which could cause the request to appear hung. If the initial volume status fetch failed, the UI would permanently show "Status Unknown" with no recovery
+  - Solution: Added 20-second timeout to all volume AJAX calls. Added retry logic to getCurrentVolumeLevel() with up to 2 retries (3s delay, then 6s delay). Added post-action volume status refresh after mute/unmute to confirm actual system state. Improved error messages to distinguish between timeout and server errors
+  - Impact: Volume controls now gracefully handle slow first-time PowerShell initialization and recover from transient failures
+
+### Technical Details
+
+**Shared PowerShell execution helper (bypasses cmd.exe escaping):**
+```javascript
+function runPowerShellAudioCommand(script) {
+    return new Promise((resolve, reject) => {
+        const encoded = Buffer.from(script, 'utf16le').toString('base64')
+        execFile('powershell.exe', [
+            '-NoProfile', '-NonInteractive',
+            '-ExecutionPolicy', 'Bypass',
+            '-EncodedCommand', encoded
+        ], { timeout: 15000 }, (error, stdout, stderr) => {
+            if (error) reject(new Error(error.message + (stderr ? ' | ' + stderr.trim() : '')))
+            else resolve(stdout.trim())
+        })
+    })
+}
+```
+
+**Windows Core Audio COM type definition with correct vtable alignment:**
+```javascript
+const WINDOWS_AUDIO_PS_INIT = [
+    'Add-Type -TypeDefinition @"',
+    'using System.Runtime.InteropServices;',
+    '[Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]',
+    'interface IAudioEndpointVolume {',
+    '    int f(); int g(); int h(); int i();',                          // slots 0-3: QueryInterface, AddRef, Release, RegisterControlChangeNotify
+    '    int SetMasterVolumeLevelScalar(float fLevel, System.Guid pguidEventContext);',  // slot 4
+    '    int j();',                                                      // slot 5: SetMasterVolumeLevel
+    '    int GetMasterVolumeLevelScalar(out float pfLevel);',            // slot 6
+    '    int k(); int l(); int m(); int n();',                           // slots 7-10: GetMasterVolumeLevel, SetChannelVolumeLevel, etc.
+    '    int SetMute([MarshalAs(UnmanagedType.Bool)] bool bMute, System.Guid pguidEventContext);',  // slot 11
+    '    int GetMute(out bool pbMute);',                                 // slot 12
+    '}',
+    // ... IMMDevice, IMMDeviceEnumerator, MMDeviceEnumeratorComObject
+].join('\\n')
+```
+
+**Volume get using proper COM API:**
+```javascript
+// Before (broken): 'powershell "Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.Devices.Audio]::new().Info.MasterVolume"'
+// After (working):
+const script = WINDOWS_AUDIO_PS_INIT + '\n' +
+    '$vol = 0.0\n' +
+    '$aev.GetMasterVolumeLevelScalar([ref]$vol)\n' +
+    '[math]::Round($vol * 100)'
+runPowerShellAudioCommand(script).then(output => resolve(parseInt(output) || 0))
+```
+
+**Explicit mute/unmute (no more toggle key):**
+```javascript
+// Before (broken): exec('powershell "(New-Object -comObject WScript.Shell).SendKeys([char]173)"')
+// After - Mute:
+const script = WINDOWS_AUDIO_PS_INIT + '\n$aev.SetMute($true, [guid]::Empty)'
+// After - Unmute:
+const script = WINDOWS_AUDIO_PS_INIT + '\n$aev.SetMute($false, [guid]::Empty)'
+```
+
+**Frontend retry logic:**
+```javascript
+function getCurrentVolumeLevel(retryCount) {
+    retryCount = retryCount || 0
+    $.ajax({
+        url: '/api/volume/get',
+        timeout: 20000,
+        success: function (data) {
+            if (data.success) { /* update UI */ }
+            else if (retryCount < 2) {
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            }
+        },
+        error: function () {
+            if (retryCount < 2) {
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            } else {
+                $('#volumeStatusBadge').html('Status Unavailable')
+            }
+        }
+    })
+}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added execFile import, added runPowerShellAudioCommand() helper with -EncodedCommand execution, added WINDOWS_AUDIO_PS_INIT constant with correct COM vtable (13 slots), replaced getCurrentVolumeLevel() Windows block from broken Microsoft.VisualBasic to IAudioEndpointVolume.GetMasterVolumeLevelScalar, replaced getSystemMuteStatus() Windows block from broken shell-escaped exec() to execFile -EncodedCommand with IAudioEndpointVolume.GetMute, replaced setSystemVolumeLevel() Windows block from broken Microsoft.VisualBasic to IAudioEndpointVolume.SetMasterVolumeLevelScalar, replaced muteSystemVolume() Windows block from SendKeys toggle to IAudioEndpointVolume.SetMute($true), replaced unmuteSystemVolume() Windows block from SendKeys toggle to IAudioEndpointVolume.SetMute($false)
+
+**Desktop (Electron):**
+- src/assets/js/cpanel/cpanel-enhanced.js - Added 20-second timeout to all volume AJAX calls (setVolumeMute, setVolumeUnmute, setVolumeLevel, getCurrentVolumeLevel), added retry logic to getCurrentVolumeLevel() with up to 2 retries, added post-action volume status refresh after mute/unmute, improved error messages for timeout vs server errors
+
+**Mobile (Capacitor):**
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Get volume on Windows | Always fails (non-existent API) | Works via IAudioEndpointVolume.GetMasterVolumeLevelScalar |
+| Set volume on Windows | Always fails (non-existent API) | Works via IAudioEndpointVolume.SetMasterVolumeLevelScalar |
+| Mute on Windows | SendKeys toggle (unreliable, needs focus) | Explicit SetMute($true) via COM API |
+| Unmute on Windows | SendKeys toggle (could mute instead) | Explicit SetMute($false) via COM API |
+| Mute status on Windows 10 | Fails due to cmd.exe escaping | Works via execFile -EncodedCommand |
+| Mute status COM vtable | Missing 3 slots (wrong method calls) | Correct 13-slot vtable alignment |
+| PowerShell execution | exec() through cmd.exe | execFile() direct, no shell escaping |
+| Windows 7 compatibility | Permission errors on WScript.Shell | Works via Core Audio COM API |
+| Frontend timeout | No timeout (could hang indefinitely) | 20-second timeout on all volume calls |
+| Frontend retry | No retry (one failure = permanent error) | Up to 2 retries with progressive delay |
+| Post-action sync | UI updated optimistically only | Refreshes actual system state after action |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows 7, 8, 10, 11, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes to API response format
+- Linux and macOS volume functions unchanged (already working correctly)
+- All Windows volume functions now use the same Core Audio COM API infrastructure
+- 15-second PowerShell timeout prevents hanging on systems without audio devices
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify volume get on Windows:
+- Open the control panel dashboard on a Windows 10 machine
+- Verify the volume slider loads with the actual system volume level
+- Verify the percentage display matches the system volume
+- Change volume via Windows volume mixer, reload dashboard, verify it updates
+
+Verify volume set on Windows:
+- Drag the volume slider to 75%, verify system volume changes to 75%
+- Drag the volume slider to 0%, verify system volume goes to 0%
+- Drag the volume slider to 100%, verify system volume goes to 100%
+
+Verify mute/unmute on Windows:
+- Click Mute button, verify system audio is actually muted (check Windows volume icon in taskbar)
+- Click Unmute button, verify system audio is actually unmuted
+- Click Unmute when already unmuted, verify it stays unmuted (not toggled to mute)
+- Click Mute when already muted, verify it stays muted (not toggled to unmute)
+
+Verify mute status detection on Windows:
+- Mute system audio via Windows taskbar, reload dashboard, verify badge shows "Audio Muted"
+- Unmute system audio via Windows taskbar, reload dashboard, verify badge shows "Audio Active"
+
+Verify retry logic:
+- Open dashboard, verify volume status loads even if first attempt is slow
+- Verify "Status Unavailable" only appears after all retries are exhausted
+
+Verify Windows 7 compatibility:
+- Open dashboard on Windows 7 machine, verify all volume controls work
+- No WScript.Shell or permission errors in console
+
+Verify Linux and macOS unaffected:
+- Open dashboard on Linux, verify volume controls still work via amixer
+- Open dashboard on macOS, verify volume controls still work via osascript
+
 ## [3.12.3] - 2026-02-25
 
 ### Improved - Volume Control UX with Unified Mute Toggle and Live Status

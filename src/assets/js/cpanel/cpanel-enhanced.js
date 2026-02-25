@@ -1422,6 +1422,7 @@ function setVolumeMute() {
     $.ajax({
         type: 'get',
         url: '/api/volume/mute',
+        timeout: 20000,
         success: function (data) {
             debug('Volume mute success:', data)
             if (data.success) {
@@ -1429,11 +1430,19 @@ function setVolumeMute() {
                 window._isMuted = true
                 updateMuteToggleUI(true)
                 if (window.showToast) showToast('System audio muted', 'info')
+                // Refresh volume status to confirm actual system state
+                setTimeout(function() { getCurrentVolumeLevel() }, 500)
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume mute failed:', status, error)
-            showAlert('danger', `Failed to mute audio: ${error}`)
+            var errorMsg = 'Failed to mute audio'
+            if (status === 'timeout') {
+                errorMsg = 'Mute request timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = 'Mute failed: ' + xhr.responseJSON.error
+            }
+            showAlert('danger', errorMsg)
         },
         complete: function () {
             toggleBtn.removeClass('loading').prop('disabled', false)
@@ -1450,6 +1459,7 @@ function setVolumeUnmute() {
     $.ajax({
         type: 'get',
         url: '/api/volume/unmute',
+        timeout: 20000,
         success: function (data) {
             debug('Volume unmute success:', data)
             if (data.success) {
@@ -1457,11 +1467,19 @@ function setVolumeUnmute() {
                 window._isMuted = false
                 updateMuteToggleUI(false)
                 if (window.showToast) showToast('System audio unmuted', 'success')
+                // Refresh volume status to confirm actual system state
+                setTimeout(function() { getCurrentVolumeLevel() }, 500)
             }
         },
         error: function (xhr, status, error) {
             console.error('Volume unmute failed:', status, error)
-            showAlert('danger', `Failed to unmute audio: ${error}`)
+            var errorMsg = 'Failed to unmute audio'
+            if (status === 'timeout') {
+                errorMsg = 'Unmute request timed out - please try again'
+            } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                errorMsg = 'Unmute failed: ' + xhr.responseJSON.error
+            }
+            showAlert('danger', errorMsg)
         },
         complete: function () {
             toggleBtn.removeClass('loading').prop('disabled', false)
@@ -1544,6 +1562,7 @@ function setVolumeLevel(volume) {
         url: '/api/volume/set',
         contentType: 'application/json',
         data: JSON.stringify({ volume: volume }),
+        timeout: 20000,
         success: function (data) {
             debug('Volume level set success:', data)
             if (data.success) {
@@ -1559,11 +1578,17 @@ function setVolumeLevel(volume) {
 
 /**
  * Fetches actual volume level and mute status from the system and updates the UI accordingly
+ * Includes retry logic for reliability (PowerShell COM init may take time on first call)
+ * @param {number} [retryCount=0] - Current retry attempt (internal use)
  */
-function getCurrentVolumeLevel() {
+function getCurrentVolumeLevel(retryCount) {
+    retryCount = retryCount || 0
+    var maxRetries = 2
+    
     $.ajax({
         type: 'get',
         url: '/api/volume/get',
+        timeout: 20000,
         success: function (data) {
             debug('Get volume status:', data)
             if (data.success) {
@@ -1578,14 +1603,23 @@ function getCurrentVolumeLevel() {
                 window._isMuted = isMuted
                 updateMuteToggleUI(isMuted)
                 
-                debug(`Volume status synced: ${volume}% ${isMuted ? '(muted)' : '(active)'}`)
+                debug('Volume status synced: ' + volume + '% ' + (isMuted ? '(muted)' : '(active)'))
+            } else if (retryCount < maxRetries) {
+                debug('Volume status response not successful, retrying (' + (retryCount + 1) + '/' + maxRetries + ')...')
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
             }
         },
         error: function (xhr, status, error) {
             console.error('Get volume failed:', status, error)
-            // On error, still remove loading state from badge
-            $('#volumeStatusBadge').removeClass('loading').addClass('unmuted')
-                .html('<i class="bi bi-exclamation-circle-fill"></i> Status Unknown')
+            if (retryCount < maxRetries) {
+                debug('Volume status fetch failed, retrying in ' + (3 * (retryCount + 1)) + ' seconds...')
+                setTimeout(function() { getCurrentVolumeLevel(retryCount + 1) }, 3000 * (retryCount + 1))
+            } else {
+                // Final attempt failed, show error state
+                $('#volumeStatusBadge').removeClass('loading').addClass('unmuted')
+                    .html('<i class="bi bi-exclamation-circle-fill"></i> Status Unavailable')
+                console.warn('Volume status unavailable after ' + maxRetries + ' retries')
+            }
         }
     })
 }
