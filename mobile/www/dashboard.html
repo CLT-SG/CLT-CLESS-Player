@@ -516,6 +516,231 @@
                         Replace
                     </button>
                 </div>
+
+                <!-- Ticker Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-text-left"></i>
+                    </div>
+                    <h2 class="card-title">Ticker Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleTickerHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Ticker Management Help Panel -->
+                <div id="tickerManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Ticker Text Replacement API</h4>
+                        <p>Update text content in ticker slots (horizontal scrolling text):</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Note:</strong> Ticker slots use the same replace-text API. The text will scroll horizontally in the configured direction and speed.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiTicker" class="mb-3 loading">Loading ticker slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceTickerList"
+                            title="Select a ticker slot to update. Shows [Layout Name - ID] Slot Name (Ticker) | Current Text"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select ticker slot - [Layout Name - ID] Slot Name (Ticker) | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="replaceTickerInput" class="form-control" 
+                           placeholder="Enter Ticker Text" 
+                           value=""
+                           title="Enter the new ticker text content"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top">
+                    <button type="button" class="modern-btn btnReplaceTicker"
+                            title="Replace text in the selected ticker slot"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+
+                <!-- Scroller Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-text-paragraph"></i>
+                    </div>
+                    <h2 class="card-title">Scroller Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleScrollerHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Scroller Management Help Panel -->
+                <div id="scrollerManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Scroller Text Replacement API</h4>
+                        <p>Update text content in scroller slots (vertical scrolling text):</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Note:</strong> Scroller slots use the same replace-text API. The text will scroll vertically in the configured direction.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiScroller" class="mb-3 loading">Loading scroller slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceScrollerList"
+                            title="Select a scroller slot to update. Shows [Layout Name - ID] Slot Name (Scroller) | Current Text"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select scroller slot - [Layout Name - ID] Slot Name (Scroller) | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="replaceScrollerInput" class="form-control" 
+                           placeholder="Enter Scroller Text" 
+                           value=""
+                           title="Enter the new scroller text content"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top">
+                    <button type="button" class="modern-btn btnReplaceScroller"
+                            title="Replace text in the selected scroller slot"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+
+                <!-- Fader Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-brightness-alt-high"></i>
+                    </div>
+                    <h2 class="card-title">Fader Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleFaderHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Fader Management Help Panel -->
+                <div id="faderManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Fader Text Replacement API</h4>
+                        <p>Update text content in fader slots (fade-in/fade-out text):</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Note:</strong> Fader slots use the same replace-text API. The text will fade in and out at the configured speed.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiFader" class="mb-3 loading">Loading fader slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceFaderList"
+                            title="Select a fader slot to update. Shows [Layout Name - ID] Slot Name (Fader) | Current Text"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select fader slot - [Layout Name - ID] Slot Name (Fader) | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="replaceFaderInput" class="form-control" 
+                           placeholder="Enter Fader Text" 
+                           value=""
+                           title="Enter the new fader text content"
+                           data-bs-toggle="tooltip" 
+                           data-bs-placement="top">
+                    <button type="button" class="modern-btn btnReplaceFader"
+                            title="Replace text in the selected fader slot"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+
+                <!-- Date Slot Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-calendar-date"></i>
+                    </div>
+                    <h2 class="card-title">Date Slot Management</h2>
+                </div>
+                
+                <div id="apiDate" class="mb-3 loading">Loading date slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="dateSlotList"
+                            title="View date slots in current layout. Shows [Layout Name - ID] Slot Name | Format"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select date slot - [Layout Name - ID] Slot Name | Format</option>
+                    </select>
+                </div>
+
+                <!-- Time Slot Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-clock"></i>
+                    </div>
+                    <h2 class="card-title">Time Slot Management</h2>
+                </div>
+                
+                <div id="apiTime" class="mb-3 loading">Loading time slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="timeSlotList"
+                            title="View time slots in current layout. Shows [Layout Name - ID] Slot Name | Format"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select time slot - [Layout Name - ID] Slot Name | Format</option>
+                    </select>
+                </div>
+
+                <!-- DateTime Slot Management Section -->
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-calendar-event"></i>
+                    </div>
+                    <h2 class="card-title">DateTime Slot Management</h2>
+                </div>
+                
+                <div id="apiDateTime" class="mb-3 loading">Loading datetime slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="datetimeSlotList"
+                            title="View datetime slots in current layout. Shows [Layout Name - ID] Slot Name | Format"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select datetime slot - [Layout Name - ID] Slot Name | Format</option>
+                    </select>
+                </div>
             </div>
 
             <!-- API Documentation Section -->

@@ -2282,6 +2282,38 @@ return (async function () {
             }
         })
 
+        //cpanel req for datetime slots
+        socket.on('reqdatetimeslot', (msg) => {
+            console.log('=== CPANEL: reqdatetimeslot received ===')
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    console.log('=== CPANEL: Forwarding getdatetimeslot to eCLESS ===')
+                    electronID.emit("getdatetimeslot", "hi eCLESS")
+                } else {
+                    console.log('=== CPANEL: eCLESS client not connected ===')
+                    log.warn('eCLESS client not connected for reqdatetimeslot')
+                }
+            } catch (err) {
+                console.log('=== CPANEL: Error in reqdatetimeslot ===', err)
+                log.warn('cpanel reqdatetimeslot: ' + err)
+                return err
+            }
+        })
+
+        socket.on('datetimeslot-list', (msg) => {
+            console.log('=== CPANEL: datetimeslot-list received ===')
+            console.log('Data:', msg ? (Array.isArray(msg) ? msg.length + ' slots' : 'single slot') : 'no data')
+            try {
+                io.emit('cpanel-datetimeslot', msg)
+                console.log('=== CPANEL: cpanel-datetimeslot emitted to all clients ===')
+            } catch (err) {
+                console.log('=== CPANEL: Error in datetimeslot-list ===', err)
+                log.warn('cpanel datetimeslot-list: ' + err)
+                return err
+            }
+        })
+
         //cpanel req for html slots
         socket.on('reqhtmlslot', (msg) => {
             console.log('=== CPANEL: reqhtmlslot received ===')

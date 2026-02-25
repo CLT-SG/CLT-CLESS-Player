@@ -1,5 +1,170 @@
 # Change Log
 
+## [3.12.5] - 2026-02-25
+
+### Added - Slot Management for All Slot Types and Fixed Slot Extraction Dropping Slots Without Name Attribute
+
+- **Missing Management Sections for Ticker, Scroller, Fader, Date, Time, DateTime Slots** - The control panel only had management sections for Text and Media slots, with no UI for viewing or replacing content in other slot types
+  - Problem: Users had no way to view or manage Ticker, Scroller, Fader, Date, Time, or DateTime slots from the control panel dashboard. Only Text and Media slots were accessible
+  - Solution: Added 6 new management sections to the control panel UI. Ticker, Scroller, and Fader sections include a slot dropdown and text replacement input with Replace button (reusing the replace-text API). Date, Time, and DateTime sections include view-only dropdowns showing slot format information. Each text-replaceable section includes an API Help toggle panel. Added corresponding frontend JavaScript handlers (init calls, API functions, socket request/response functions, button click handlers, socket event handlers, help toggle functions). Added backend datetime socket relay handlers (reqdatetimeslot and datetimeslot-list)
+  - Impact: All slot types are now accessible from the control panel, with text-replaceable slots supporting content updates and date/time slots providing format visibility
+
+- **Slot Summary and Details Missing Counts and Type-Specific Information for Special Slot Types** - Slot Summary only showed special slot type counts in detailed view mode and was missing datetime. Slot Details had no type-specific fields for any slot type beyond position and size
+  - Problem: The Slot Summary display was gated behind an `if (detailed)` condition, hiding ticker, scroller, fader, date, time, html, and table counts in compact view. DateTime was not included at all. Slot Details showed only generic information (name, type, position, size) with no type-specific attributes like speed, direction, format, or table configuration. Summary Statistics did not include counts for any special slot types
+  - Solution: Removed the `if (detailed)` gate from createSlotSummaryDisplay() so all special type counts show in both compact and detailed views. Added datetime to the specialTypes array. Added type-specific detail fields to createDetailedSlotsDisplay() for all 8 special slot types: Speed/Direction for ticker and scroller, Speed/Duration for fader, Format/Timezone for date, time, and datetime, Type for html, Columns/Rows/DataSource for table. Added all 8 special slot type counts (tickerSlots, scrollerSlots, faderSlots, dateSlots, timeSlots, datetimeSlots, htmlSlots, tableSlots) to createSummaryStatistics() and the layout-details socket response
+  - Impact: All slot types now display their counts in Slot Summary and show type-specific attributes in Slot Details, giving full visibility into layout composition
+
+- **Slots Without Name Attribute Silently Dropped from All Extraction Functions** - All 12 slot extraction functions required slot.attributes.name as a mandatory condition, causing slots without a name attribute (common for html and table slots) to be invisibly excluded
+  - Problem: Every slot extraction function (extractComprehensiveSlotData, extractAllSlotsFromLayoutData, extractTextSlotsFromLayoutData, extractMediaSlotsFromLayoutData, extractTickerSlotsFromLayoutData, extractScrollerSlotsFromLayoutData, extractFaderSlotsFromLayoutData, extractDateSlotsFromLayoutData, extractTimeSlotsFromLayoutData, extractHtmlSlotsFromLayoutData, extractTableSlotsFromLayoutData, and extractDetailedSlotInfo) checked for `slot.attributes && slot.attributes.id && slot.attributes.name` as the condition for processing a slot. The name attribute is user-defined and optional in the layout XML schema (layoutxml.js line 186 treats it as optional), but the extraction code treated it as mandatory. HTML and table slots commonly omit the name attribute, causing them to be silently skipped and never appear in the control panel despite being present in the layout
+  - Solution: Changed all 12 extraction conditions to only require `slot.attributes && slot.attributes.id` (name is no longer mandatory). Added a name fallback expression `(slot.name + '-' + slot.attributes.id)` in all 15 locations where slot.attributes.name was used as a value, generating a descriptive identifier like "html-123" or "table-456" when no name is defined. Added datetime to the supportedSlotTypes array in extractAllSlotsFromLayoutData
+  - Impact: All slots with a valid ID are now correctly extracted regardless of whether they have a name attribute. HTML and table slots that were previously invisible now appear in the control panel
+
+### Technical Details
+
+**New slot management UI sections (Ticker example):**
+```html
+<div class="card-header">
+    <div class="card-icon"><i class="bi bi-text-left"></i></div>
+    <h2 class="card-title">Ticker Management</h2>
+    <div class="card-actions">
+        <button class="modern-btn btn-secondary btn-sm" onclick="toggleTickerHelp()">API Help</button>
+    </div>
+</div>
+<div id="apiTicker" class="mb-3 loading">Loading ticker slots...</div>
+<select class="select-modern" id="replaceTickerList">...</select>
+<input type="text" id="replaceTickerInput" placeholder="Enter Ticker Text">
+<button class="modern-btn btnReplaceTicker">Replace</button>
+```
+
+**Socket chain for new slot types (datetime example):**
+```javascript
+// cpanel-enhanced.js (UI) -> cpanel.js (backend relay) -> socketio-cpanel.js (renderer)
+socket.emit('reqdatetimeslot', 'get datetime slot')    // UI requests
+socket.on('reqdatetimeslot') -> electronID.emit('getdatetimeslot')  // Backend forwards
+socket.on('getdatetimeslot') -> socket.emit('datetimeslot-list', slots)  // Renderer extracts & sends
+socket.on('datetimeslot-list') -> io.emit('cpanel-datetimeslot', msg)  // Backend relays to UI
+socket.on('cpanel-datetimeslot') -> populate dropdown  // UI displays
+```
+
+**Fixed extraction condition (before/after):**
+```javascript
+// BEFORE (broken - drops slots without name):
+if (slot.attributes && slot.attributes.id && slot.attributes.name) {
+
+// AFTER (fixed - only requires id):
+if (slot.attributes && slot.attributes.id) {
+```
+
+**Name fallback for unnamed slots:**
+```javascript
+// BEFORE (undefined for unnamed slots):
+name: slot.attributes.name
+
+// AFTER (generates descriptive fallback):
+name: slot.attributes.name || (slot.name + '-' + slot.attributes.id)
+// Examples: "html-123", "table-456", "media-789"
+```
+
+**Slot Summary always shows all types:**
+```javascript
+// BEFORE (hidden in compact view):
+if (detailed) {
+    const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'html', 'table']
+    ...
+}
+
+// AFTER (always visible, includes datetime):
+const specialTypes = ['ticker', 'scroller', 'fader', 'date', 'time', 'datetime', 'html', 'table']
+specialTypes.forEach(type => { ... })
+```
+
+**Type-specific Slot Details (table example):**
+```javascript
+${slot.type === 'table' ? `
+    <div class="slot-detail-item">
+        <span class="detail-label">Columns:</span>
+        <span class="detail-value">${slot.tableColumns || 'N/A'}</span>
+    </div>
+    <div class="slot-detail-item">
+        <span class="detail-label">Rows:</span>
+        <span class="detail-value">${slot.tableRows || 'N/A'}</span>
+    </div>
+` : ''}
+```
+
+### Files Modified
+
+**Server (Node.js/Express):**
+- cpanel.js - Added datetime socket relay handlers (reqdatetimeslot -> getdatetimeslot, datetimeslot-list -> cpanel-datetimeslot)
+
+**Desktop (Electron):**
+- src/cpanel.html - Added 6 new management sections after Media Management: Ticker (with help panel, dropdown, input, replace button), Scroller (with help panel, dropdown, input, replace button), Fader (with help panel, dropdown, input, replace button), Date (view-only dropdown), Time (view-only dropdown), DateTime (view-only dropdown)
+- src/assets/js/cpanel/cpanel-enhanced.js - Added init calls for 6 new slot types in $(document).ready, added getAPITicker/Scroller/Fader/Date/Time/DateTime functions, added gettickerslot/getscrollerslot/getfaderslot/getdateslot/gettimeslot/getdatetimeslot socket request functions, added btnReplaceTicker/btnReplaceScroller/btnReplaceFader click handlers, added cpanel-tickerslot/cpanel-scrollerslot/cpanel-faderslot/cpanel-dateslot/cpanel-timeslot/cpanel-datetimeslot socket event handlers, added toggleTickerHelp/toggleScrollerHelp/toggleFaderHelp functions, removed if(detailed) gate from createSlotSummaryDisplay, added datetime to specialTypes, added type-specific detail fields for all 8 special slot types in createDetailedSlotsDisplay, added all 8 slot type counts to createSummaryStatistics
+- src/assets/js/socketio-cpanel.js - Added getdatetimeslot socket handler, added extractDateTimeSlotsFromLocalStorage and extractDateTimeSlotsFromLayoutData functions, added datetime:0 to slotSummary initialization, added case 'datetime' to slot categorization switch, added datetime handling to extractDetailedSlotInfo, added datetime to supportedSlotTypes array, added all 8 slot type counts to layout-details response (loop accumulation, single mode assignment, error fallback), fixed all 12 extraction conditions removing mandatory slot.attributes.name, added name fallback in all 15 name value locations
+
+**Mobile (Capacitor):**
+- mobile/www/dashboard.html - Synced with src/cpanel.html (identical slot management sections)
+- mobile/www/assets/js/cpanel/cpanel-enhanced.js - Synced with src version (identical changes)
+- mobile/www/assets/js/socketio-cpanel.js - Synced with src version (identical changes)
+
+### Impact
+
+| Feature | Before | After |
+|---------|--------|-------|
+| Ticker slot management | Not available | View, select, and replace ticker text |
+| Scroller slot management | Not available | View, select, and replace scroller text |
+| Fader slot management | Not available | View, select, and replace fader text |
+| Date slot management | Not available | View date slots with format info |
+| Time slot management | Not available | View time slots with format info |
+| DateTime slot management | Not available | View datetime slots with format info |
+| Slot Summary special types | Hidden in compact view, missing datetime | Always visible, includes all 8 types |
+| Slot Details type-specific info | Generic info only (name, type, position) | Type-specific attributes (speed, direction, format, timezone, columns, rows) |
+| Summary Statistics | Only text and media counts | All 10 slot type counts |
+| HTML slots without name attr | Silently dropped | Correctly extracted with fallback name |
+| Table slots without name attr | Silently dropped | Correctly extracted with fallback name |
+| DateTime slot extraction | Not supported | Full extraction and display support |
+
+### Compatibility
+
+- Works with desktop Electron app (Windows 7, 8, 10, 11, macOS, Linux)
+- Works with mobile Capacitor app (Android 7.0+, iOS 13.0+)
+- Fully backward compatible -- no breaking changes to any API response format
+- Slots with name attributes continue to work identically
+- Slots without name attributes now get auto-generated names (e.g., "html-123")
+- No additional dependencies or libraries required
+
+### Testing
+
+Verify new slot management sections:
+- Open the control panel dashboard
+- Verify Ticker, Scroller, Fader, Date, Time, DateTime sections appear below Media Management
+- Verify each section shows correct slot count after loading
+- For Ticker/Scroller/Fader: select a slot, enter text, click Replace, verify content updates on player
+
+Verify Slot Summary displays all types:
+- Open a layout with ticker, scroller, fader, date, time, datetime, html, table slots
+- Verify Slot Summary shows counts for all slot types present
+- Verify counts appear in both compact and detailed layout views
+
+Verify Slot Details type-specific information:
+- Expand Slot Details for a ticker slot, verify Speed and Direction fields appear
+- Expand Slot Details for a table slot, verify Columns and Rows fields appear
+- Expand Slot Details for a date slot, verify Format and Timezone fields appear
+
+Verify slots without name attribute are extracted:
+- Use a layout with HTML or table slots that have no name attribute
+- Verify they appear in the control panel with auto-generated names (e.g., "html-123")
+- Verify they appear in Slot Summary counts and Slot Details
+
+Verify datetime socket chain:
+- Use a layout with datetime slots
+- Verify datetime slots load in the DateTime Slot Management dropdown
+- Verify datetime slot count appears in Slot Summary and Summary Statistics
+
+Verify mobile sync:
+- Open dashboard in mobile Capacitor app
+- Verify all 6 new management sections appear and function identically to desktop
+
 ## [3.12.4] - 2026-02-25
 
 ### Fixed - Volume Control Not Working on Windows 10 (Mute/Unmute, Get/Set Volume)
