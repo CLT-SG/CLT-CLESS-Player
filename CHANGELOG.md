@@ -1,5 +1,65 @@
 # Change Log
 
+## [3.12.7] - 2026-05-20
+
+### Fixed - Flash of Unstyled Table Rows Before Pagination and Animation
+- **All Table Rows Briefly Visible Before Pagination/Animation Kicks In on Low-Spec Computers** - On low-spec computers users could briefly see every row of a table painted into the DOM before the pagination plugin trimmed the content to the first page and the configured transition started. The table appeared as plain unstyled-by-pagination content for a fraction of a second, then "jumped" into the configured animation
+    - Problem: tableRecord() in slot-table.js synchronously appends every row of the dataset into slot-tbody-{id} and applies row styles before pagination is initialised. The pagination plugin only trims the DOM down to one page (and only fires the configured transition) inside its asynchronous callback, which on slow hardware can run several frames after the synchronous row append. During that gap the browser had already painted the fully populated tbody, producing a visible flash. applyPageTransition() also had no notion of "first render" and would, when a transition other than none was configured, run the out-transition class on the fully-populated tbody on the very first callback, which animated content that was never meant to be visible. The same flash applied to flipmode = 2 (line-scroll) tables because implementLineTypeMode() exposed its initial line window immediately with no reveal step
+    - Solution: Added a per-table tableFirstRender flag in slot-table.js (both desktop and mobile). The table is hidden with visibility: hidden the moment its slot-table-{id} element is created in tableFunc(), preserving layout so no reflow jump occurs on reveal. applyPageTransition() now has a one-shot first-render branch that skips the out-transition (nothing was visible to animate out), swaps in the first-page data, applies row styles, forces a reflow, reveals tbody and the table, and then optionally plays the configured table-{type}-in class for a smooth entrance. implementLineTypeMode() now applies row styles, forces a reflow and reveals slot-table-{id} once after its initial render. cleanupAllTableAnimations() clears tableFirstRender so the protection re-engages on the next layout's tables when a layout loop swaps layouts. The mobile cleanup path also clears tableFirstRender alongside its existing tableRendering reset
+    - Files Changed: src/assets/js/slot-table.js, mobile/www/assets/js/slot-table.js
+    - Impact: On low-spec machines the table no longer flashes its full row content before pagination kicks in and the first page appears in one step with the configured transition, tables configured with fade / slide-right / slide-left / scroll-up / scroll-down now have a polished entrance on the very first page instead of a hard pop after a flash, flipmode = 2 line-scroll tables also show only their first window of rows on initial render with no flash, subsequent page flips and line shifts run the existing out-then-in transition path with no behavioural change, height-based maxrows calculation and other measurement logic still see real px values because visibility: hidden keeps the table in the layout tree, no breaking changes to any existing behaviour
+
+### Technical Details
+
+**New per-table flag and hide-on-construct in tableFunc():**
+```javascript
+// near the other per-table state arrays
+var tableFirstRender = [] // tracks whether the very first page has been rendered for a table.
+                          // Used to suppress the brief flash where all rows are visible before
+                          // pagination/animation kicks in on low-spec machines.
+
+// inside tableFunc(), right after the <table> element is appended:
+tableFirstRender[tableid] = true
+$('.slot-table-' + tableid).css('visibility', 'hidden')
+```
+
+**First-render branch in applyPageTransition():**
+```javascript
+if (tableFirstRender[tableid] === true) {
+    tableFirstRender[tableid] = false
+    tbody.css('visibility', 'hidden')
+    tbody.html(data)
+    applyTableRowStyles(tableid)
+    if (tbody[0]) { tbody[0].offsetHeight } // force reflow
+    tbody.css('visibility', 'visible')
+    $table.css('visibility', 'visible')
+    var firstRenderMap = {
+        'fade': 'table-fade-in',
+        'slide-right': 'table-slide-right-in',
+        'slide-left': 'table-slide-left-in',
+        'scroll-up': 'table-scroll-up-in',
+        'scroll-down': 'table-scroll-down-in'
+    }
+    var firstRenderInClass = firstRenderMap[transitionType]
+    if (firstRenderInClass) {
+        tbody.addClass(firstRenderInClass)
+        setTimeout(function () { tbody.removeClass(firstRenderInClass) }, duration)
+    }
+    restartVisibleCellAnimations(tableid)
+    return
+}
+```
+
+**Why visibility: hidden and not display: none:**
+```javascript
+// display: none would remove the table from layout, causing pagination
+// height calculation in tableRecord() (which reads $('.slot-tbody-...')
+// .find('tr').css('line-height')) to return 0 and break per-page row count.
+// visibility: hidden keeps the table in the layout tree so all measurement
+// logic still sees real px values - it just is not painted, which is
+// exactly what we need to suppress the flash.
+```
+
 ## [3.12.6] - 2026-02-25
 
 ### Fixed - Table Image Column Leaking Across Layouts in Loop Mode
