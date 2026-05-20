@@ -15,6 +15,7 @@ var textTimeout = textTimeout || []
 var mediaTimeout = mediaTimeout || []
 var colImageTimeout = colImageTimeout || []
 var colFaderTimeout = colFaderTimeout || []
+var colTextTransitionTimeout = colTextTransitionTimeout || []
 var pageAutoInterval = pageAutoInterval || []
 
 // Additional global variables (should be defined in main HTML files)
@@ -344,17 +345,13 @@ function playcurrentLayout(xmlData) {
   for (var i = 0; i < mediaTimeout.length; i++) {
     clearTimeout(mediaTimeout[i]);
   }
-  //clear colImageTimeout slot-table.js
-  for (var i = 0; i < colImageTimeout.length; i++) {
-    clearTimeout(colImageTimeout[i]);
-  }
-  //clear colFaderTimeout slot-table.js
-  for (var i = 0; i < colFaderTimeout.length; i++) {
-    clearTimeout(colFaderTimeout[i]);
-  }
-  //clear interval if running slot-table.js
-  for (var i = 0; i < pageAutoInterval.length; i++) {
-    clearInterval(pageAutoInterval[i]);
+  // Tear down ALL slot-table animation state (intervals + per-cell timeouts +
+  // cached image/text loops). The previous .length-based loops were no-ops because
+  // these globals are objects keyed by cellKey strings, not numerically-indexed
+  // arrays. Leftover rowAnimationControllers intervals from the previous layout
+  // were the reason a prior layout's images appeared in the next layout's table.
+  if (typeof cleanupAllTableAnimations === 'function') {
+    cleanupAllTableAnimations();
   }
   
   if (loopTimeout) { //clear loopTimeout to reset

@@ -36,6 +36,83 @@ var tableMaxRowsEnabled = [] // stores maxRowsEnabled flag per table (Y/N) - Y =
 var tableMaxRowsLimit = [] // stores maxRowsLimit per table - maximum number of rows per page when maxRowsEnabled = 'Y'
 
 /**
+ * Globally tear down ALL table animation state.
+ * Must be called when the entire layout is being replaced (e.g. loop layout switch),
+ * because per-table cleanup (cleanupTableState) only handles a single tableid and
+ * cannot stop intervals belonging to tables that exist only in the previous layout.
+ *
+ * Without this, stale setInterval handlers from rowAnimationControllers keep firing
+ * appendColumnImage(...) using the previous layout's cellKey/colImageloop data and
+ * write those images into the new layout's table cells (selectors are scoped only by
+ * column class + row index, which collide across layouts).
+ */
+function cleanupAllTableAnimations() {
+    // Stop every row-level synchronized animation interval
+    if (typeof rowAnimationControllers === 'object' && rowAnimationControllers) {
+        Object.keys(rowAnimationControllers).forEach(function (rowKey) {
+            var controller = rowAnimationControllers[rowKey];
+            if (controller && controller.timer) {
+                clearInterval(controller.timer);
+                controller.timer = null;
+            }
+            delete rowAnimationControllers[rowKey];
+        });
+    }
+
+    // Clear pending first-render / transition timeouts (objects keyed by cellKey,
+    // so .length-based loops do not work on them).
+    function clearTimeoutMap(map) {
+        if (!map) return;
+        Object.keys(map).forEach(function (key) {
+            if (map[key]) {
+                clearTimeout(map[key]);
+            }
+            delete map[key];
+        });
+    }
+    clearTimeoutMap(colImageTimeout);
+    clearTimeoutMap(colFaderTimeout);
+    clearTimeoutMap(colTextTransitionTimeout);
+
+    // Clear page auto-flip intervals (also object-keyed by tableid).
+    if (typeof pageAutoInterval === 'object' && pageAutoInterval) {
+        Object.keys(pageAutoInterval).forEach(function (key) {
+            if (pageAutoInterval[key]) {
+                clearInterval(pageAutoInterval[key]);
+            }
+            delete pageAutoInterval[key];
+        });
+    }
+
+    // Drop per-cell content/index caches so stale entries from the previous layout
+    // cannot be reused if a new table happens to receive the same cellKey.
+    function clearObjectMap(map) {
+        if (!map) return;
+        Object.keys(map).forEach(function (key) { delete map[key]; });
+    }
+    clearObjectMap(colImageloop);
+    clearObjectMap(colImageCurIndex);
+    clearObjectMap(colImageFirstRender);
+    clearObjectMap(colImageSettings);
+    clearObjectMap(colFaderloop);
+    clearObjectMap(colFaderCurIndex);
+    clearObjectMap(colFaderFirstRender);
+    clearObjectMap(colFaderSettings);
+    clearObjectMap(colTextTransitionloop);
+    clearObjectMap(colTextTransitionCurIndex);
+    clearObjectMap(colTextTransitionFirstRender);
+    clearObjectMap(colTextTransitionSettings);
+    clearObjectMap(tableCellAnimations);
+    clearObjectMap(cellAnimationRestarters);
+    clearObjectMap(tableRendering);
+}
+
+// Expose for cross-file callers (e.g. looplayout.js).
+if (typeof window !== 'undefined') {
+    window.cleanupAllTableAnimations = cleanupAllTableAnimations;
+}
+
+/**
  * Cleanup function to properly destroy table state before recreation
  * @param {string} tableid - The ID of the table to clean up
  */
