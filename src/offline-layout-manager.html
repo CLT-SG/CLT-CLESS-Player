@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>eCLESS Player · Offline Layout Manager</title>
+  <script>
+    if (typeof module === 'object') { window.module = module; module = undefined; }
+  </script>
+  <link rel="stylesheet" href="assets/css/offline-layout-manager.css" />
+  <!-- Configuration loader (supports both config.js and config.json) -->
+  <script src="assets/js/config-loader.js"></script>
+  <script>
+    // Bridge Electron preload globals into window.* for the manager script
+    try {
+      if (typeof window !== 'undefined' && window.config === undefined) {
+        // configLoader will populate window.config asynchronously
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="olm-app">
+    <!-- Top bar -->
+    <header class="olm-topbar">
+      <h1>
+        <span class="icon">&#128736;</span>
+        Offline Layout Manager
+      </h1>
+      <div class="olm-meta">
+        <div class="item"><span class="label">DSID:</span><span class="value" id="olm-dsid-value">—</span></div>
+        <div class="item"><span class="label">Mode:</span><span id="olm-mode-badge" class="olm-badge warn">unknown</span></div>
+        <div class="item"><span class="label">Layouts:</span><span class="value" id="olm-layout-count">0</span></div>
+        <button class="olm-btn ghost" id="olm-btn-reload-cache" title="Reload layouts from localStorage">&#x21bb; Refresh</button>
+        <button class="olm-btn primary" id="olm-btn-reload-player" title="Apply changes & reload the player window">Reload Player</button>
+        <button class="olm-btn" id="olm-btn-back" title="Back to player">&larr; Back</button>
+      </div>
+    </header>
+
+    <!-- Banner -->
+    <div class="olm-banner info" id="olm-banner">
+      Loading configuration…
+    </div>
+
+    <!-- Body -->
+    <div class="olm-body">
+      <aside class="olm-sidebar">
+        <h2>Cached Layouts</h2>
+        <div id="olm-sidebar-list"></div>
+      </aside>
+      <main class="olm-main" id="olm-main">
+        <div class="empty-state">
+          <div class="big-icon">&#128194;</div>
+          <div>Select a layout from the left to manage its slots.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Editor modal -->
+  <div class="olm-modal-backdrop" id="olm-modal" role="dialog" aria-modal="true">
+    <div class="olm-modal">
+      <div class="olm-modal-head">
+        <h3 id="olm-modal-title">Edit Slot</h3>
+        <button class="close" aria-label="Close" onclick="document.getElementById('olm-modal').classList.remove('show')">&times;</button>
+      </div>
+      <div class="olm-modal-body" id="olm-modal-body"></div>
+      <div class="olm-modal-foot"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/offline-layout-manager.js"></script>
+</body>
+</html>

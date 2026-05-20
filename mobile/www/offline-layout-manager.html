@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Viewport meta for mobile (MUST come first) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <meta charset="utf-8" />
+  <title>eCLESS Player · Offline Layout Manager</title>
+
+  <!-- ========================================
+       CRITICAL: Mobile Initialization Order
+       ======================================== -->
+  <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
+  <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
+  <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
+  <script src="assets/js/mobile/mobile-electron-shim.js"></script>
+  <!-- 3. Mobile Config Loader (needs window.log from shim) -->
+  <script src="assets/js/mobile/mobile-config.js"></script>
+
+  <link rel="stylesheet" href="assets/css/offline-layout-manager.css" />
+</head>
+<body>
+  <div class="olm-app">
+    <header class="olm-topbar">
+      <h1>
+        <span class="icon">&#128736;</span>
+        Offline Layout Manager
+      </h1>
+      <div class="olm-meta">
+        <div class="item"><span class="label">DSID:</span><span class="value" id="olm-dsid-value">—</span></div>
+        <div class="item"><span class="label">Mode:</span><span id="olm-mode-badge" class="olm-badge warn">unknown</span></div>
+        <div class="item"><span class="label">Layouts:</span><span class="value" id="olm-layout-count">0</span></div>
+        <button class="olm-btn ghost" id="olm-btn-reload-cache" title="Reload layouts from localStorage">&#x21bb; Refresh</button>
+        <button class="olm-btn primary" id="olm-btn-reload-player" title="Apply changes & reload the player window">Reload Player</button>
+        <button class="olm-btn" id="olm-btn-back" title="Back to player">&larr; Back</button>
+      </div>
+    </header>
+
+    <div class="olm-banner info" id="olm-banner">Loading configuration…</div>
+
+    <div class="olm-body">
+      <aside class="olm-sidebar">
+        <h2>Cached Layouts</h2>
+        <div id="olm-sidebar-list"></div>
+      </aside>
+      <main class="olm-main" id="olm-main">
+        <div class="empty-state">
+          <div class="big-icon">&#128194;</div>
+          <div>Select a layout from the left to manage its slots.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <div class="olm-modal-backdrop" id="olm-modal" role="dialog" aria-modal="true">
+    <div class="olm-modal">
+      <div class="olm-modal-head">
+        <h3 id="olm-modal-title">Edit Slot</h3>
+        <button class="close" aria-label="Close" onclick="document.getElementById('olm-modal').classList.remove('show')">&times;</button>
+      </div>
+      <div class="olm-modal-body" id="olm-modal-body"></div>
+      <div class="olm-modal-foot"></div>
+    </div>
+  </div>
+
+  <script src="assets/js/offline-layout-manager.js"></script>
+</body>
+</html>
