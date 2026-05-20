@@ -28,6 +28,9 @@ var tableFlipmodeSpeed = [] // stores flipmode transition speed per table (in mi
 var tableFlipmodeDelay = [] // stores flipmode delay per table (in milliseconds) - delay before starting transition
 var tableMaxRowsEnabled = [] // stores maxRowsEnabled flag per table (Y/N) - Y = use maxRowsLimit, N = calculate based on height
 var tableMaxRowsLimit = [] // stores maxRowsLimit per table - maximum number of rows per page when maxRowsEnabled = 'Y'
+var tableFirstRender = [] // tracks whether the very first page has been rendered for a table.
+                          // Used to suppress the brief flash where all rows are visible before
+                          // pagination/animation kicks in on low-spec machines.
 
 function tableFunc(slotitem, index, slotattr) {
     columnStyle = []
@@ -82,6 +85,13 @@ function tableFunc(slotitem, index, slotattr) {
 
     //create table element
     $('#slot-' + index).append('<table border="0" cellpadding="0" cellspacing="0" class="slot-table-' + tableid + '"><thead class="slot-thead-' + tableid + '"></thead></table>')
+
+    // Hide the table while its rows are being constructed and before pagination/animation
+    // has applied the first page. This prevents a flash-of-unstyled-content (FOUC) on low-spec
+    // machines where all rows would otherwise be visible briefly before the first transition.
+    // Use visibility:hidden (not display:none) so layout is preserved and no reflow jump occurs.
+    tableFirstRender[tableid] = true
+    $('.slot-table-' + tableid).css('visibility', 'hidden')
 
     //create pagination element
     $('#slot-' + index).append('<div id="pagination-' + tableid + '" class"pagination-js"></div>')
@@ -323,6 +333,7 @@ function cleanupAllTableAnimations() {
     clearObjectMap(colTextTransitionSettings);
     clearObjectMap(tableCellAnimations);
     clearObjectMap(cellAnimationRestarters);
+    clearObjectMap(tableFirstRender);
 }
 
 if (typeof window !== 'undefined') {
@@ -1347,7 +1358,19 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
     
     // Initial render - show first page
     var initialData = pageData.slice(0, pageSize)
-    $('.slot-tbody-' + tableid).html(initialData)
+    var $tbodyInit = $('.slot-tbody-' + tableid)
+    $tbodyInit.html(initialData)
+    applyTableRowStyles(tableid)
+    // Force reflow to ensure styles are committed before the reveal
+    if ($tbodyInit[0]) { $tbodyInit[0].offsetHeight }
+
+    // Reveal the table now that the first batch of rows is fully styled. This complements
+    // the visibility:hidden set in tableFunc() and prevents the unstyled flash on low-spec
+    // machines.
+    if (tableFirstRender[tableid] === true) {
+        tableFirstRender[tableid] = false
+        $('.slot-table-' + tableid).css('visibility', 'visible')
+    }
     
     // Update pagination display
     var totalPages = Math.ceil(totalRows / pageSize)
@@ -1396,9 +1419,46 @@ function implementLineTypeMode(tableid, pageData, pageSize) {
  */
 function applyPageTransition(tableid, data, transitionType, duration) {
     var tbody = $('.slot-tbody-' + tableid)
+    var $table = $('.slot-table-' + tableid)
     
     // Stop all cell animations before page change to prevent index drift
     stopAllCellAnimations(tableid)
+
+    // First-render path: the table was hidden by tableFunc() while rows were being
+    // constructed. We must NOT play an out-transition (nothing was visible to animate out).
+    // Instead, swap to the first-page data, apply styles, then reveal the table - optionally
+    // with the configured in-transition for a polished entrance.
+    if (tableFirstRender[tableid] === true) {
+        tableFirstRender[tableid] = false
+
+        tbody.css('visibility', 'hidden')
+        tbody.html(data)
+        applyTableRowStyles(tableid)
+        // Force reflow so styles are committed before the reveal
+        tbody[0].offsetHeight
+        tbody.css('visibility', 'visible')
+        $table.css('visibility', 'visible')
+
+        // Apply the in-transition (if configured and valid) so the first page has a
+        // smooth entrance instead of a hard pop.
+        var firstRenderMap = {
+            'fade': 'table-fade-in',
+            'slide-right': 'table-slide-right-in',
+            'slide-left': 'table-slide-left-in',
+            'scroll-up': 'table-scroll-up-in',
+            'scroll-down': 'table-scroll-down-in'
+        }
+        var firstRenderInClass = firstRenderMap[transitionType]
+        if (firstRenderInClass) {
+            tbody.addClass(firstRenderInClass)
+            setTimeout(function() {
+                tbody.removeClass(firstRenderInClass)
+            }, duration)
+        }
+
+        restartVisibleCellAnimations(tableid)
+        return
+    }
     
     if (transitionType === 'none' || !tbody.children().length) {
         // No transition or first render - instant change
