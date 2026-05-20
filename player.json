@@ -1,0 +1,398 @@
+{
+    "declaration": {
+        "attributes": {
+            "version": "1.0",
+            "encoding": "utf-8"
+        }
+    },
+    "elements": [
+        {
+            "type": "element",
+            "name": "Configuration",
+            "attributes": {
+                "update": "20260519025542",
+                "serverRefresh": "10",
+                "sqlQueryRefresh": "30",
+                "layout": "Copy of Lenskart Baifern Queue System + Video",
+                "mediapath": "/media/uploads",
+                "id": "1042",
+                "schedule_id": "0"
+            },
+            "elements": [
+                {
+                    "type": "element",
+                    "name": "display",
+                    "attributes": {
+                        "data": "record",
+                        "bgcolor": "#000000",
+                        "bgimage": "none",
+                        "resolution": "1080x1920_portrait",
+                        "autoscale": "N",
+                        "bgscretch": "N"
+                    },
+                    "elements": [
+                        {
+                            "type": "element",
+                            "name": "slots",
+                            "elements": [
+                                {
+                                    "type": "element",
+                                    "name": "ticker",
+                                    "attributes": {
+                                        "id": "6457",
+                                        "top": "1779",
+                                        "left": "-833",
+                                        "width": "1920",
+                                        "height": "100",
+                                        "enabled": "Y",
+                                        "font": "Avenir Black",
+                                        "fontsize": "50",
+                                        "fontcolor": "#FFFFFF",
+                                        "fontstyle": "",
+                                        "bgcolor": "#000000",
+                                        "direction": "righttoleft",
+                                        "speed": "2",
+                                        "antialias": "N",
+                                        "transparent": "Y",
+                                        "name": "Ticker"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "id": "18833",
+                                                "duration": "10"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "Developing a full range of iris recognition solution that delivers superior usability, speed, and imaging performance at an affordable price. Growing as the global leader in the total security solution provider market."
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "text",
+                                    "attributes": {
+                                        "id": "6462",
+                                        "align": "c",
+                                        "valign": "middle",
+                                        "top": "1199",
+                                        "left": "0",
+                                        "width": "1080",
+                                        "height": "500",
+                                        "enabled": "Y",
+                                        "font": "Arial",
+                                        "fontsize": "30",
+                                        "fontcolor": "#000000",
+                                        "fontstyle": "",
+                                        "bgcolor": "#FFFFFF",
+                                        "transparent": "N",
+                                        "name": "white_bg2"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "id": "18857",
+                                                "duration": "10"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "media",
+                                    "attributes": {
+                                        "id": "6461",
+                                        "top": "1199",
+                                        "left": "0",
+                                        "width": "1080",
+                                        "height": "500",
+                                        "enabled": "Y",
+                                        "name": "CLT Logo",
+                                        "layer": "2"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "10",
+                                                "layer": "2",
+                                                "id": "18856"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "82/CL - LOGO.png"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "4",
+                                                "layer": "0",
+                                                "id": "18860"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "82/ezgif.com-video-to-gif.gif"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "text",
+                                    "attributes": {
+                                        "id": "6454",
+                                        "align": "c",
+                                        "valign": "bottom",
+                                        "top": "1052",
+                                        "left": "38",
+                                        "width": "300",
+                                        "height": "120",
+                                        "enabled": "Y",
+                                        "font": "Montserrat Bold",
+                                        "fontsize": "65",
+                                        "fontcolor": "#FFFFFF",
+                                        "fontstyle": "",
+                                        "bgcolor": "#000000",
+                                        "transparent": "Y",
+                                        "name": "Partner"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "id": "18829",
+                                                "duration": "10"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "Partner: "
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "media",
+                                    "attributes": {
+                                        "id": "6458",
+                                        "top": "400",
+                                        "left": "0",
+                                        "width": "1080",
+                                        "height": "608",
+                                        "enabled": "Y",
+                                        "name": "Videos",
+                                        "layer": "4"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "4",
+                                                "id": "18837"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/AI Virtual Iris Recognition Border Crossing Video.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "4",
+                                                "id": "18837"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/AI Virtual Iris Recognition Border Crossing Video.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "4",
+                                                "id": "18837"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/AI Virtual Iris Recognition Border Crossing Video.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "3",
+                                                "id": "18838"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/AJ2.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "2",
+                                                "id": "18839"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/Outdoor test.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "1",
+                                                "id": "18840"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/Two puppies iris registration recognition test.mp4"
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "0",
+                                                "layer": "0",
+                                                "id": "18841"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6342/결제시장 영상.mp4"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "text",
+                                    "attributes": {
+                                        "id": "6459",
+                                        "align": "c",
+                                        "valign": "middle",
+                                        "top": "0",
+                                        "left": "0",
+                                        "width": "1080",
+                                        "height": "400",
+                                        "enabled": "Y",
+                                        "font": "Arial",
+                                        "fontsize": "30",
+                                        "fontcolor": "#000000",
+                                        "fontstyle": "",
+                                        "bgcolor": "#FFFFFF",
+                                        "transparent": "N",
+                                        "name": "white_bg"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "id": "18842",
+                                                "duration": "10"
+                                            }
+                                        },
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "id": "18843",
+                                                "duration": "10"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "none"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "type": "element",
+                                    "name": "media",
+                                    "attributes": {
+                                        "id": "6456",
+                                        "top": "54",
+                                        "left": "73",
+                                        "width": "900",
+                                        "height": "300",
+                                        "enabled": "Y",
+                                        "name": "AJ2 Logo",
+                                        "layer": "6"
+                                    },
+                                    "elements": [
+                                        {
+                                            "type": "element",
+                                            "name": "item",
+                                            "attributes": {
+                                                "duration": "10",
+                                                "layer": "0",
+                                                "id": "18836"
+                                            },
+                                            "elements": [
+                                                {
+                                                    "type": "text",
+                                                    "text": "6349/AJ2 LOGO.jpeg"
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "type": "element",
+                    "name": "records"
+                }
+            ]
+        }
+    ]
+}

@@ -265,6 +265,70 @@ var tableCellAnimations = {} // tableid -> [{ cellKey, type }]
 // Store restarter functions for each animated cell (closures that can restart from index 0)
 var cellAnimationRestarters = {} // 'cellKey-type' -> function()
 
+/**
+ * Globally tear down ALL table animation state.
+ * Called when the entire layout is being replaced (loop layout switch). Stale
+ * setInterval handlers from rowAnimationControllers would otherwise keep firing
+ * appendColumnImage(...) using the previous layout's cellKey/colImageloop data
+ * and write those images into the new layout's table cells, because cell DOM
+ * selectors are scoped only by column class + row index (which collide across
+ * layouts). Per-table cleanup cannot help here because the previous layout's
+ * tables may have different tableids than the new layout's tables.
+ */
+function cleanupAllTableAnimations() {
+    if (typeof rowAnimationControllers === 'object' && rowAnimationControllers) {
+        Object.keys(rowAnimationControllers).forEach(function (rowKey) {
+            var controller = rowAnimationControllers[rowKey];
+            if (controller && controller.timer) {
+                clearInterval(controller.timer);
+                controller.timer = null;
+            }
+            delete rowAnimationControllers[rowKey];
+        });
+    }
+
+    function clearTimeoutMap(map) {
+        if (!map) return;
+        Object.keys(map).forEach(function (key) {
+            if (map[key]) clearTimeout(map[key]);
+            delete map[key];
+        });
+    }
+    clearTimeoutMap(colImageTimeout);
+    clearTimeoutMap(colFaderTimeout);
+    clearTimeoutMap(colTextTransitionTimeout);
+
+    if (typeof pageAutoInterval === 'object' && pageAutoInterval) {
+        Object.keys(pageAutoInterval).forEach(function (key) {
+            if (pageAutoInterval[key]) clearInterval(pageAutoInterval[key]);
+            delete pageAutoInterval[key];
+        });
+    }
+
+    function clearObjectMap(map) {
+        if (!map) return;
+        Object.keys(map).forEach(function (key) { delete map[key]; });
+    }
+    clearObjectMap(colImageloop);
+    clearObjectMap(colImageCurIndex);
+    clearObjectMap(colImageFirstRender);
+    clearObjectMap(colImageSettings);
+    clearObjectMap(colFaderloop);
+    clearObjectMap(colFaderCurIndex);
+    clearObjectMap(colFaderFirstRender);
+    clearObjectMap(colFaderSettings);
+    clearObjectMap(colTextTransitionloop);
+    clearObjectMap(colTextTransitionCurIndex);
+    clearObjectMap(colTextTransitionFirstRender);
+    clearObjectMap(colTextTransitionSettings);
+    clearObjectMap(tableCellAnimations);
+    clearObjectMap(cellAnimationRestarters);
+}
+
+if (typeof window !== 'undefined') {
+    window.cleanupAllTableAnimations = cleanupAllTableAnimations;
+}
+
 //table record
 function tableNorecords(slotitem, slotid, slotattr) {
     //create table

@@ -1,5 +1,63 @@
 # Change Log
 
+## [3.12.6] - 2026-02-25
+
+### Fixed - Table Image Column Leaking Across Layouts in Loop Mode
+
+- **Images from Previous Layout's Table Appearing in Next Layout's Table** - When a layout loop contained two layouts that each had a table slot with image columns, images defined for the table in the first layout (for example PN-tail.png and AP-tail.png) appeared inside the table of the second layout, whose own configuration listed only different images (for example TX.png and QE.png)
+  - Problem: The cleanup code in playcurrentLayout() in looplayout.js attempted to clear table animation state with for (var i = 0; i < colImageTimeout.length; i++), and the same .length-based loop pattern for colFaderTimeout, colTextTransitionTimeout and pageAutoInterval. Those globals are objects keyed by cellKey or tableid strings, not numerically-indexed arrays, so .length is always zero and every one of those loops was a silent no-op. In addition, the row-level animation interval stored in rowAnimationControllers was never cleared on layout switch at all. As a result, setInterval handlers from the previous layout kept firing appendColumnImage() with the previous layout's cellKey and colImageloop content. Because the image render selector $('.' + cellKey.split('_').pop() + ' .imagecol-' + colRowIndex) is scoped only by column class plus row index (both of which collide across layouts), the stale handler wrote the previous layout's images into the new layout's table cells. The same root cause also affected fader and text-transition columns and any pageAutoInterval-driven pagination
+  - Solution: Added a new global helper cleanupAllTableAnimations() in slot-table.js (both desktop and mobile). It clears every entry of rowAnimationControllers by calling clearInterval and deleting the key, iterates colImageTimeout, colFaderTimeout, colTextTransitionTimeout and pageAutoInterval with Object.keys (the correct pattern for these object-keyed maps) and clears each, and resets all cellKey-indexed caches: colImageloop, colImageCurIndex, colImageFirstRender, colImageSettings, colFaderloop, colFaderCurIndex, colFaderFirstRender, colFaderSettings, colTextTransitionloop, colTextTransitionCurIndex, colTextTransitionFirstRender, colTextTransitionSettings, tableCellAnimations and cellAnimationRestarters. The mobile version also resets tableRendering, which only exists on mobile. The function is exposed on window so it can be called from looplayout.js. Replaced the four broken .length-based cleanup loops in playcurrentLayout() with a single guarded call to cleanupAllTableAnimations(). Per-table cleanup used by tableRecord (cleanupTableState) is untouched, so in-layout re-renders behave exactly as before
+  - Files Changed: src/assets/js/slot-table.js, src/assets/js/looplayout.js, mobile/www/assets/js/slot-table.js, mobile/www/assets/js/looplayout.js
+  - Impact: Image columns no longer carry over between layouts in loop mode and each layout's table renders only its own configured images, fader and text transition columns are also fully reset on layout change, pageAutoInterval pagination timers from the previous layout no longer keep ticking, layout transitions are smoother because no orphaned intervals continue firing in the background, all cellKey-indexed content caches are reset so the new layout's tableRecord starts from a clean slate, no breaking changes for single-layout playback or for in-layout re-renders
+
+### Technical Details
+
+**New global helper in slot-table.js:**
+```javascript
+function cleanupAllTableAnimations() {
+    Object.keys(rowAnimationControllers).forEach(function (rowKey) {
+        var controller = rowAnimationControllers[rowKey];
+        if (controller && controller.timer) clearInterval(controller.timer);
+        delete rowAnimationControllers[rowKey];
+    });
+    [colImageTimeout, colFaderTimeout, colTextTransitionTimeout].forEach(function (map) {
+        Object.keys(map).forEach(function (k) {
+            if (map[k]) clearTimeout(map[k]);
+            delete map[k];
+        });
+    });
+    Object.keys(pageAutoInterval).forEach(function (k) {
+        if (pageAutoInterval[k]) clearInterval(pageAutoInterval[k]);
+        delete pageAutoInterval[k];
+    });
+    // ... plus reset of all cellKey-indexed loop/index/firstRender/settings caches
+}
+window.cleanupAllTableAnimations = cleanupAllTableAnimations;
+```
+
+**Replaced cleanup in playcurrentLayout() in looplayout.js:**
+```javascript
+// BEFORE (no-op on object-keyed maps):
+for (var i = 0; i < colImageTimeout.length; i++) clearTimeout(colImageTimeout[i]);
+for (var i = 0; i < colFaderTimeout.length; i++) clearTimeout(colFaderTimeout[i]);
+for (var i = 0; i < colTextTransitionTimeout.length; i++) clearTimeout(colTextTransitionTimeout[i]);
+for (var i = 0; i < pageAutoInterval.length; i++) clearInterval(pageAutoInterval[i]);
+
+// AFTER (single helper that actually clears all table state):
+if (typeof cleanupAllTableAnimations === 'function') {
+    cleanupAllTableAnimations();
+}
+```
+
+**Why the leak was visible:**
+```javascript
+// In appendColumnImage() the render target is selected with:
+$('.' + cellKey.split('_').pop() + ' .imagecol-' + colRowIndex)
+// cellKey.split('_').pop() returns the column number (e.g. col01).
+// Both layout 1's and layout 2's tables expose .col01 + .imagecol-N elements,
+// so any stale interval from layout 1 happily writes into layout 2's DOM.
+```
+
 ## [3.12.5] - 2026-02-25
 
 ### Added - Slot Management for All Slot Types and Fixed Slot Extraction Dropping Slots Without Name Attribute
