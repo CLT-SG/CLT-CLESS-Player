@@ -250,7 +250,18 @@
   
   <!-- 3. Mobile Config Loader (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
-  
+
+  <!-- CTRL+2 fallback to open the Offline Layout Manager (works with attached keyboards) -->
+  <script>
+    document.addEventListener('keydown', function (e) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === '2' || e.code === 'Digit2' || e.keyCode === 50)) {
+        e.preventDefault();
+        try { console.log('eCLESS: CTRL+2 -> opening offline-layout-manager.html'); } catch (_) {}
+        location.href = 'offline-layout-manager.html';
+      }
+    }, true);
+  </script>
+
   <!-- 4. Mobile Layout Handler (dimension management for mobile) -->
   <script src="assets/js/mobile/mobile-layout-handler.js"></script>
   

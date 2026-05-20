@@ -1,5 +1,33 @@
 # Change Log
 
+## [3.12.9] - 2026-05-20
+
+### Enhanced - Offline Layout Manager: Friendly Multi-Item Editor with DnD & Duration
+
+- **Replaced the raw text editor with a per-item card editor for every multi-content slot type (`media`, `image`, `video`, `audio`, `text`, `ticker`, `scroller`, `fader`, `html`)** - Editing slot content no longer requires touching JSON. Each item is shown as a card with its own content field, duration field and a drag handle, so non-developer operators can manage offline playlists end to end from a single panel
+    - Drag & Drop: native HTML5 DnD on the `&#x2630;` handle lets operators reorder the playback / layer order of items. The order is reapplied to `slot.elements` on save so the player's existing iteration logic (e.g. `mediaFunc`, `textFunc`) picks up the new sequence
+    - Duration: every item card has a dedicated <em>Duration (s)</em> number input that maps directly to the item's XML `duration` attribute (in seconds, matching what `mediaFunc`, `textFunc`, `slot-text.js` and `slot-media.js` already read). Leaving the field blank removes the attribute
+    - Media file picker: for `media` / `image` / `video` / `audio` slots the content input is a `text` + `<datalist>` combo populated from the local res cache. On Electron the manager calls `fs.readdirSync(os.homedir() + '/clessapp/res')` directly through the preload-exposed `window.fs` / `window.os`; on Capacitor mobile it tries `Capacitor.Plugins.Filesystem.readdir` across a list of likely paths. Operators can still type a filename or external URL manually
+    - Add / remove: `+ Add Item` creates a blank item using the slot's existing item-tag (preserved via `inferItemTagName`) with a sensible default duration; the per-card `&times;` button removes an item and re-numbers the rest
+    - JSON escape hatch: an Advanced (JSON) tab is still available for power users (parses on save, rejects invalid JSON)
+    - Attribute preservation: `rebuildSlotElements` rewrites `slot.elements` while keeping every unknown attribute on each item element (e.g. `audio`, `transition`, custom flags) and the slot's own attributes (size, position, style). Inner text leaves are reused where present, otherwise a new `text` node is inserted
+    - Slot card preview now shows each item with its duration and an item count pill (e.g. `3 items`) so the slot grid doubles as a quick "what's in this slot" view
+    - Files Changed: `src/assets/js/offline-layout-manager.js` (added `readSlotItems`, `rebuildSlotElements`, `inferItemTagName`, `listResFiles`, `buildItemCard`, `reindexCards`, slot-type classifiers, rewrote `openEditor` and `saveEditor`, enriched `renderSlotCard` preview), `src/assets/css/offline-layout-manager.css` (added `.olm-items-toolbar`, `.olm-item-card`, `.olm-item-handle`, `.olm-item-fields`, `.olm-field-inline`, `.olm-item-remove`, `.olm-add-item-btn`, `.item-count` styles), `mobile/www/assets/js/offline-layout-manager.js` and `mobile/www/assets/css/offline-layout-manager.css` (mirrored from src)
+    - Impact: operators can now add a new media item, set its duration, drag it to the right position in the playback order and save — all without ever opening the JSON tab; the player picks up the changes on next render because the edits are written into both `layout-offline-XX` and `layout-XX`; no behavioural change for slots that have not been edited
+
+## [3.12.8] - 2026-05-20
+
+### Added - Offline Layout Manager (CTRL+2)
+
+- **New page to inspect, modify and add slot content for cached layouts while in offline mode** - Operators running with `config.mode === 'offline'` can now manage the contents of every cached layout (`layout-offline-XX` / `layout-XX` localStorage keys) without going back online. Pressing **CTRL+2** anywhere in the player navigates to the new Offline Layout Manager
+    - Shortcut: `CommandOrControl+2` is registered as a global shortcut in the Electron main process and as a `keydown` fallback on the player and mobile pages so the manager is reachable both from the desktop build and from any keyboard-attached mobile device
+    - Capabilities: lists every cached layout (with name / resolution / slot count), renders a slot grid showing slot type / id / name / position / content preview, opens a dual-tab editor (Quick text editor + raw slot JSON editor) for each slot, supports add / remove / edit of items for ticker / scroller / fader slot types, and persists changes to **both** `layout-offline-XX` and `layout-XX` so the running player picks them up on next render
+    - Reload: a **Reload Player** button sends `app-refresh` over IPC (Electron) or navigates back to `index.html` (mobile) to apply the saved changes immediately
+    - Safety: when not in offline mode the page still opens but a warning banner is shown, since the next online sync from the CLEVER server will overwrite local edits
+    - Files Added: `src/offline-layout-manager.html`, `src/assets/js/offline-layout-manager.js`, `src/assets/css/offline-layout-manager.css`, `mobile/www/offline-layout-manager.html`, `mobile/www/assets/js/offline-layout-manager.js`, `mobile/www/assets/css/offline-layout-manager.css`
+    - Files Changed: `index.js` (registered `CommandOrControl+2` global shortcut, added `offline-layout-manager.html` to the alwaysOnTop-disabled URL list), `src/index.html` and `mobile/www/index.html` (added `keydown` fallback that navigates to `offline-layout-manager.html` when CTRL+2 is pressed)
+    - Impact: operators can correct typos, swap text, add ticker items and update slot JSON entirely from the player while disconnected from the CLEVER server; no behavioural change for online-mode players because the manager is opt-in via the new shortcut
+
 ## [3.12.7] - 2026-05-20
 
 ### Fixed - Flash of Unstyled Table Rows Before Pagination and Animation

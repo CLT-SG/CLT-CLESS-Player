@@ -1969,9 +1969,9 @@ try {
                 if (currentURL.includes('index.html')) {
                     win.setMenuBarVisibility(false)
                     log.info('AlwaysOnTop restored for main player view')
-                } else if (currentURL.includes('configure.html') || currentURL.includes('activate.html')) {
-                    // Ensure alwaysOnTop stays disabled for configure/activate pages
-                    log.info('AlwaysOnTop remains disabled for configure/activate page')
+                } else if (currentURL.includes('configure.html') || currentURL.includes('activate.html') || currentURL.includes('offline-layout-manager.html')) {
+                    // Ensure alwaysOnTop stays disabled for configure/activate/offline-layout-manager pages
+                    log.info('AlwaysOnTop remains disabled for configure/activate/offline-layout-manager page')
                 }
             })
 
@@ -2033,6 +2033,32 @@ try {
                 log.info('Dev tools opened')
                 if (win) win.openDevTools()
                 if (win2) win2.openDevTools()
+            })
+
+            //open offline layout manager (only meaningful in offline mode)
+            globalShortcut.register('CommandOrControl+2', () => {
+                log.info('Open Offline Layout Manager (CTRL+2 pressed)')
+                if (!win) return
+                if (config && config.mode !== 'offline') {
+                    log.warn('Offline Layout Manager: player is not in offline mode (current mode: ' + (config && config.mode) + '). Page will still open in read/edit mode but server sync may overwrite changes.')
+                }
+                if (win2) {
+                    win2.setAlwaysOnTop(false)
+                    if (typeof checkScreens !== 'undefined' && checkScreens) clearInterval(checkScreens)
+                }
+                // Disable alwaysOnTop so dialogs/modals work
+                win.setAlwaysOnTop(false)
+                win.show()
+                try {
+                    win.setBounds({
+                        x: mainPosX,
+                        y: mainPosY,
+                        width: mainWidth,
+                        height: mainHeight
+                    })
+                } catch (e) { /* ignore if dimensions not set yet */ }
+                app.focus({ steal: true })
+                win.loadURL("file://" + __dirname + "/src/offline-layout-manager.html")
             })
 
             //open configure page
