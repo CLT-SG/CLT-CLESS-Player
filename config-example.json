@@ -11,6 +11,10 @@
   "updateInterval": 30,
   "logLevel": "debug",
   "screenOnOff": true,
+  "livePreview": {
+    "enabled": false,
+    "comment": "Set enabled to true to use server-side live preview rendering instead of client-side XML parsing. This provides better synchronization and feature parity across all player types."
+  },
   "displaySettings": {
     "resolution": "auto",
     "orientation": "landscape",

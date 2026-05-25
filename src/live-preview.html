@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>eCLess Live Preview</title>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <style>
+    /* Full-screen container with no margin/padding */
+    html, body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      width: 100%;
+      height: 100%;
+    }
+    /* Webview fills the entire window */
+    #live-preview-webview {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    /* Error overlay */
+    .error-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ff6b6b;
+      font-family: sans-serif;
+      background: rgba(0,0,0,0.85);
+      padding: 24px 32px;
+      border-radius: 8px;
+      text-align: center;
+      z-index: 10000;
+    }
+    .error-overlay h2 { margin: 0 0 12px 0; }
+    .error-overlay p { margin: 8px 0; color: #ccc; }
+    .error-overlay .retry-btn {
+      margin-top: 16px;
+      padding: 10px 24px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .error-overlay .retry-btn:hover { background: #555; }
+    /* Loading overlay */
+    .loading-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #888;
+      font-family: sans-serif;
+      font-size: 16px;
+      z-index: 9999;
+    }
+  </style>
+
+  <!-- Enhanced configuration loader (same as index.html) -->
+  <script src="assets/js/config-loader.js"></script>
+
+  <script>
+    /**
+     * Live Preview Bridge for Electron
+     *
+     * This page loads the cless458 server's /live/ds/<dsid> endpoint inside
+     * a <webview> element. It handles:
+     *
+     * 1. Window auto-resize based on layout dimensions from the live preview
+     * 2. Error handling and automatic retry on connection failure
+     * 3. IPC communication with the Electron main process
+     * 4. Synchronization state forwarding
+     *
+     * The live preview endpoint returns a self-contained HTML page that
+     * includes all slot rendering logic. This webview simply hosts it and
+     * handles Electron-specific window management.
+     */
+
+    // Electron APIs from preload.js
+    var ipcRenderer = window.ipcRenderer
+    var remote = window.remote
+    var log = window.log
+    var config = window.config
+
+    // State
+    var webview = null
+    var retryCount = 0
+    var maxRetries = 5
+    var retryDelay = 3000
+    var loadingOverlay = null
+    var errorOverlay = null
+    var lastKnownDimensions = { width: 1920, height: 1080 }
+
+    /**
+     * Initialize the live preview once config is loaded
+     */
+    function initializeLivePreview() {
+      log.info('[live-preview] Initializing live preview mode')
+      log.info('[live-preview] Server:', config.hostserver, 'DS ID:', config.id)
+
+      // Build the live preview URL
+      var livePreviewUrl = buildLivePreviewUrl()
+      log.info('[live-preview] Loading URL:', livePreviewUrl)
+
+      // Create and configure the webview
+      createWebview(livePreviewUrl)
+    }
+
+    /**
+     * Build the live preview URL from config
+     */
+    function buildLivePreviewUrl() {
+      var server = config.hostserver
+      var dsId = config.id
+
+      // Ensure server doesn't end with slash
+      if (server.endsWith('/')) {
+        server = server.slice(0, -1)
+      }
+
+      // The live preview endpoint
+      return server + '/live/ds/' + dsId
+    }
+
+    /**
+     * Create and configure the webview element
+     */
+    function createWebview(url) {
+      // Show loading overlay
+      showLoading()
+
+      // Create webview element
+      webview = document.createElement('webview')
+      webview.id = 'live-preview-webview'
+      webview.src = url
+
+      // Webview attributes for full access
+      webview.setAttribute('allowpopups', '')
+      webview.setAttribute('webpreferences', 'contextIsolation=no, nodeIntegration=no')
+
+      // Partition for clean session (optional)
+      // webview.setAttribute('partition', 'live-preview')
+
+      // Event handlers
+      webview.addEventListener('did-finish-load', onWebviewLoaded)
+      webview.addEventListener('did-fail-load', onWebviewFailedLoad)
+      webview.addEventListener('console-message', onWebviewConsole)
+      webview.addEventListener('ipc-message', onWebviewIpcMessage)
+
+      // Inject preload script for IPC communication with the webview content
+      // We'll use postMessage instead for simplicity (works without special preload)
+
+      document.body.appendChild(webview)
+
+      // Listen for messages from the webview content
+      window.addEventListener('message', onPostMessage)
+    }
+
+    /**
+     * Show loading overlay
+     */
+    function showLoading() {
+      hideError()
+      if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div')
+        loadingOverlay.className = 'loading-overlay'
+        loadingOverlay.textContent = 'Loading live preview...'
+        document.body.appendChild(loadingOverlay)
+      }
+      loadingOverlay.style.display = 'flex'
+    }
+
+    /**
+     * Hide loading overlay
+     */
+    function hideLoading() {
+      if (loadingOverlay) {
+        loadingOverlay.style.display = 'none'
+      }
+    }
+
+    /**
+     * Show error overlay
+     */
+    function showError(message, canRetry) {
+      hideLoading()
+      if (!errorOverlay) {
+        errorOverlay = document.createElement('div')
+        errorOverlay.className = 'error-overlay'
+        document.body.appendChild(errorOverlay)
+      }
+      var html = '<h2>Live Preview Error</h2><p>' + message + '</p>'
+      if (canRetry) {
+        html += '<button class="retry-btn" onclick="retryLoad()">Retry Now</button>'
+      }
+      errorOverlay.innerHTML = html
+      errorOverlay.style.display = 'block'
+    }
+
+    /**
+     * Hide error overlay
+     */
+    function hideError() {
+      if (errorOverlay) {
+        errorOverlay.style.display = 'none'
+      }
+    }
+
+    /**
+     * Webview loaded successfully
+     */
+    function onWebviewLoaded() {
+      log.info('[live-preview] Webview loaded successfully')
+      hideLoading()
+      hideError()
+      retryCount = 0
+
+      // Inject a small script to extract context and post dimensions back
+      injectDimensionExtractor()
+    }
+
+    /**
+     * Webview failed to load
+     */
+    function onWebviewFailedLoad(event) {
+      log.warn('[live-preview] Webview failed to load:', event.errorCode, event.errorDescription)
+      hideLoading()
+
+      if (retryCount < maxRetries) {
+        retryCount++
+        log.info('[live-preview] Retry attempt', retryCount, 'of', maxRetries)
+        showError('Connection failed: ' + event.errorDescription + '<br/>Retrying in ' + (retryDelay / 1000) + 's... (attempt ' + retryCount + '/' + maxRetries + ')', false)
+        setTimeout(function() {
+          if (webview) {
+            webview.reload()
+          }
+        }, retryDelay)
+      } else {
+        showError('Failed to connect to live preview server after ' + maxRetries + ' attempts.<br/>' + event.errorDescription, true)
+      }
+    }
+
+    /**
+     * Retry loading the webview
+     */
+    function retryLoad() {
+      retryCount = 0
+      showLoading()
+      if (webview) {
+        webview.src = buildLivePreviewUrl()
+      }
+    }
+    // Expose to global for onclick handler
+    window.retryLoad = retryLoad
+
+    /**
+     * Handle console messages from webview (for debugging)
+     */
+    function onWebviewConsole(event) {
+      // Prefix webview console messages
+      var level = event.level === 0 ? 'DEBUG' : event.level === 1 ? 'INFO' : event.level === 2 ? 'WARN' : 'ERROR'
+      log.info('[live-preview:webview][' + level + ']', event.message)
+    }
+
+    /**
+     * Handle IPC messages from webview (if using preload)
+     */
+    function onWebviewIpcMessage(event) {
+      log.info('[live-preview] IPC message from webview:', event.channel, event.args)
+      handleWebviewMessage(event.channel, event.args[0])
+    }
+
+    /**
+     * Handle postMessage from webview content
+     */
+    function onPostMessage(event) {
+      // Verify origin if needed (for security in production)
+      if (event.data && event.data.type === 'ecless-live-preview') {
+        handleWebviewMessage(event.data.channel, event.data.payload)
+      }
+    }
+
+    /**
+     * Process messages from the webview content
+     */
+    function handleWebviewMessage(channel, payload) {
+      switch (channel) {
+        case 'dimensions':
+          // Layout dimensions received from live preview
+          handleDimensionsUpdate(payload)
+          break
+        case 'sync-state':
+          // Sync state update (for logging/debugging)
+          log.info('[live-preview] Sync state:', payload)
+          break
+        case 'layout-change':
+          // Layout changed in live preview
+          log.info('[live-preview] Layout changed:', payload)
+          break
+        default:
+          log.info('[live-preview] Unknown message channel:', channel)
+      }
+    }
+
+    /**
+     * Handle layout dimensions update - resize Electron window
+     */
+    function handleDimensionsUpdate(payload) {
+      var width = parseInt(payload.width, 10) || 1920
+      var height = parseInt(payload.height, 10) || 1080
+
+      // Only resize if dimensions actually changed
+      if (width !== lastKnownDimensions.width || height !== lastKnownDimensions.height) {
+        log.info('[live-preview] Resizing window to:', width, 'x', height)
+        lastKnownDimensions = { width: width, height: height }
+
+        // Resize the Electron window to match layout dimensions exactly
+        // No autoscale, no aspect-ratio fitting - pixel-perfect
+        var resized = false
+
+        // Method 1: Use @electron/remote (direct access)
+        try {
+          if (remote && remote.getCurrentWindow) {
+            var win = remote.getCurrentWindow()
+            win.setBounds({
+              x: 0,
+              y: 0,
+              width: width,
+              height: height
+            })
+            log.info('[live-preview] Window resized successfully via remote')
+            resized = true
+          }
+        } catch (e) {
+          log.warn('[live-preview] remote.setBounds failed:', e.message)
+        }
+
+        // Method 2: Use IPC to main process (fallback)
+        if (!resized && ipcRenderer) {
+          try {
+            ipcRenderer.send('live-preview-resize', { width: width, height: height })
+            log.info('[live-preview] Window resize request sent via IPC')
+            resized = true
+          } catch (e) {
+            log.warn('[live-preview] IPC resize failed:', e.message)
+          }
+        }
+
+        if (!resized) {
+          log.error('[live-preview] Failed to resize window - no method available')
+        }
+      }
+    }
+
+    /**
+     * Inject a script into the webview to extract dimensions and post them back
+     */
+    function injectDimensionExtractor() {
+      var script = `
+        (function() {
+          // Try to read dimensions from the live-preview-ctx script
+          var ctxEl = document.getElementById('live-preview-ctx');
+          if (ctxEl) {
+            try {
+              var ctx = JSON.parse(ctxEl.textContent);
+              if (ctx.layoutWidth && ctx.layoutHeight) {
+                window.parent.postMessage({
+                  type: 'ecless-live-preview',
+                  channel: 'dimensions',
+                  payload: {
+                    width: ctx.layoutWidth,
+                    height: ctx.layoutHeight,
+                    dsId: ctx.dsId
+                  }
+                }, '*');
+              }
+            } catch (e) {
+              console.warn('[live-preview] Failed to parse context:', e);
+            }
+          }
+
+          // Also listen for any sync state changes from the eclessLive namespace
+          if (window.eclessLive && window.eclessLive.engine) {
+            // Engine booted - dimensions are in ctx
+          }
+        })();
+      `
+
+      try {
+        webview.executeJavaScript(script)
+      } catch (e) {
+        log.warn('[live-preview] Failed to inject dimension extractor:', e.message)
+      }
+    }
+
+    // Wait for config to load then initialize
+    window.addEventListener('configLoaded', function(event) {
+      log.info('[live-preview] Config loaded:', event.detail.source)
+      initializeLivePreview()
+    })
+
+    // Fallback: if config already loaded synchronously
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.configLoader && window.configLoader.config) {
+        // Config already available
+        setTimeout(initializeLivePreview, 100)
+      }
+    })
+
+    // Keyboard shortcuts (same as index.html for consistency)
+    document.addEventListener('keydown', function(e) {
+      // CTRL+2: Open offline layout manager (for debugging)
+      if ((e.ctrlKey || e.metaKey) && (e.key === '2' || e.code === 'Digit2' || e.keyCode === 50)) {
+        e.preventDefault()
+        log.info('[live-preview] CTRL+2 -> offline layout manager')
+        location.href = 'offline-layout-manager.html'
+      }
+      // F5: Reload webview
+      if (e.key === 'F5' || e.keyCode === 116) {
+        e.preventDefault()
+        log.info('[live-preview] F5 -> reload webview')
+        if (webview) webview.reload()
+      }
+    }, true)
+  </script>
+</head>
+<body>
+  <!-- Webview is created dynamically in JavaScript -->
+</body>
+</html>

@@ -1965,8 +1965,8 @@ try {
                 const currentURL = win.webContents.getURL()
                 log.info('Window finished loading:', currentURL)
                 
-                // Restore alwaysOnTop when loading main player (index.html)
-                if (currentURL.includes('index.html')) {
+                // Restore alwaysOnTop when loading main player (index.html or live-preview.html)
+                if (currentURL.includes('index.html') || currentURL.includes('live-preview.html')) {
                     win.setMenuBarVisibility(false)
                     log.info('AlwaysOnTop restored for main player view')
                 } else if (currentURL.includes('configure.html') || currentURL.includes('activate.html') || currentURL.includes('offline-layout-manager.html')) {
@@ -2174,13 +2174,22 @@ try {
                     // Get all network interface MAC addresses
                     const networkMACs = serialKeyValidator.getAllNetworkMACs()
                     
+                    // Helper: Determine which player page to load based on livePreview config
+                    const getPlayerPageUrl = () => {
+                        if (config.livePreview && config.livePreview.enabled === true) {
+                            log.info('Live Preview mode ENABLED - loading live-preview.html')
+                            return "file://" + __dirname + "/src/live-preview.html"
+                        }
+                        return "file://" + __dirname + "/src/index.html"
+                    }
+
                     if (networkMACs.length === 0) {
                         log.error('SerialKeyValidator: No network interfaces detected')
                         // In offline mode, allow proceeding without MAC detection
                         if (config.mode == 'offline') {
                             log.warn('Offline mode: Proceeding without network interface detection')
                             log.info('ecless player startup (offline mode, no network interfaces)')
-                            win.loadURL("file://" + __dirname + "/src/index.html")
+                            win.loadURL(getPlayerPageUrl())
                         } else {
                             win.loadURL("file://" + __dirname + "/src/offline.html")
                         }
@@ -2200,7 +2209,7 @@ try {
                         log.info('SerialKeyValidator: Serial key validation SUCCESS')
                         log.info(`SerialKeyValidator: Matched interface: ${validationResult.matchedInterface.interface} (${validationResult.matchedInterface.mac})`)
                         log.info('ecless player startup')
-                        win.loadURL("file://" + __dirname + "/src/index.html")
+                        win.loadURL(getPlayerPageUrl())
                     } else {
                         log.warn('SerialKeyValidator: Serial key validation FAILED')
                         log.warn(`SerialKeyValidator: Reason: ${validationResult.reason}`)
@@ -2238,6 +2247,28 @@ try {
                 } catch (error) {
                     log.error('Error providing configuration to renderer:', error)
                     return null
+                }
+            })
+
+            // Live Preview: Handle window resize request from live-preview.html
+            // This provides pixel-perfect rendering at the exact layout dimensions
+            ipcMain.on('live-preview-resize', (event, args) => {
+                const width = parseInt(args.width, 10) || 1920
+                const height = parseInt(args.height, 10) || 1080
+                log.info(`Live Preview: Resizing window to ${width}x${height}`)
+                
+                if (win) {
+                    try {
+                        win.setBounds({
+                            x: 0,
+                            y: 0,
+                            width: width,
+                            height: height
+                        })
+                        log.info('Live Preview: Window resized successfully')
+                    } catch (error) {
+                        log.error('Live Preview: Failed to resize window:', error.message)
+                    }
                 }
             })
 

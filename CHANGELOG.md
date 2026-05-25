@@ -1,5 +1,18 @@
 # Change Log
 
+## [3.13.0] - 2026-05-25
+
+### Added - Server-Side Live Preview Integration
+
+- **Electron player can now load layouts via server-rendered live preview endpoint** - When `livePreview.enabled` is set to `true` in config.json, the player loads `/live/ds/<id>` through a webview instead of parsing XML client-side. This enables browser-based layout preview and simplified debugging without the full Electron environment
+    - New page: `src/live-preview.html` loads the server endpoint in a webview with `nodeintegration` disabled for security
+    - IPC resize: the webview sends layout dimensions via `postMessage`, and the main process resizes the window to match via the new `live-preview-resize` IPC handler
+    - Config flag: `livePreview.enabled` (default: false) in config.json controls which mode the player uses
+    - Fallback: if the server endpoint fails to load, the webview shows an error overlay with auto-retry
+    - F5 reload: keyboard shortcut support for reloading the live preview
+    - Files Changed: `src/live-preview.html` (new), `index.js` (IPC handler, conditional loading), `config-example.json` (livePreview section)
+    - Impact: operators can enable server-side rendering for better sync and debugging; no change to default behavior
+
 ## [3.12.9] - 2026-05-20
 
 ### Enhanced - Offline Layout Manager: Friendly Multi-Item Editor with DnD & Duration
