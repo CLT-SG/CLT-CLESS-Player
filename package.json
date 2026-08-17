@@ -6,6 +6,7 @@
     "license": "ISC",
     "scripts": {
         "start": "electron .",
+        "test": "node --test test/*.test.js",
         "win32": "electron-builder --win --ia32",
         "win64": "electron-builder --win --x64",
         "ubuntu32": "electron-builder --linux --ia32",

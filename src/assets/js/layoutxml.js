@@ -31,6 +31,7 @@ function updatelayout(result2) {
 
     //check if layout slot got update
     if (layoutnewupdate > layoutolddate) {
+        if (typeof widgetStopAll === 'function') widgetStopAll()
         $('.main-slot').not(".mslot-table").remove()
         log.warn('Player info : Layout content updated')
         getLayoutXML(result2)
@@ -72,6 +73,8 @@ function updatelayout(result2) {
 
 //generate xml file from cless server
 function getLayoutXML(result2) {
+    //the previous layout's widget slots are about to be removed from the dom
+    if (typeof widgetStopAll === 'function') widgetStopAll()
     //reset pagination table when playing loop
     if (isLoopLyt) {
         pagerow = []
@@ -277,6 +280,9 @@ function getLayoutXML(result2) {
                 } //html slot
                 else if (slot['name'] == 'html') {
                     htmlFunc(slotitem, slotid)
+                } //widget slot
+                else if (slot['name'] == 'widget') {
+                    widgetFunc(slot, slotid)
                 } //table slot
                 else if (slot['name'] == 'table') {
                     // Store table slot config for silent data refresh on pagination loop
