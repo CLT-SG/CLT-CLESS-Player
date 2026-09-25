@@ -480,14 +480,38 @@ return (async function () {
                     rawLayouts.forEach(function (layout) {
                         var slotsRaw = layout.allSlots || layout.slots || []
                         var slots = slotsRaw.map(function (s) {
+                            var playlist = null
+                            if (s.playlist && Array.isArray(s.playlist.items)) {
+                                playlist = {
+                                    id: String(s.playlist.id || ''),
+                                    name: String(s.playlist.name || ''),
+                                    loop: s.playlist.loop !== false,
+                                    item_count: (s.playlist.items || []).length,
+                                    items: (s.playlist.items || []).map(function (item, idx) {
+                                        return {
+                                            id: String(item.id || (idx + 1)),
+                                            filename: String(item.filename || item.name || ''),
+                                            path: String(item.path || item.filePath || item.filename || ''),
+                                            type: String(item.type || item.contentType || 'unknown'),
+                                            order: Number(item.order || (idx + 1)),
+                                            duration: item.duration != null ? item.duration : null
+                                        }
+                                    }).filter(function (item) { return item.filename })
+                                }
+                            }
+                            var value = String(s.content || s.filename || s.fileName || s.value || '')
+                            if (!value && playlist && playlist.items.length) {
+                                value = playlist.items[0].filename
+                            }
                             return {
                                 slot_id: String(s.id || s.slotid || ''),
                                 slot_name: String(s.name || s.slotname || ''),
                                 slot_type: String(s.type || s.slottype || 'unknown'),
-                                value: String(s.content || s.filename || s.value || ''),
+                                value: value,
                                 enabled: String(s.enabled || 'Y'),
                                 layout_id: String(s.layoutId || s.layoutid || layout.id || ''),
-                                layout_name: String(s.layoutName || layout.name || '')
+                                layout_name: String(s.layoutName || layout.name || ''),
+                                playlist: playlist
                             }
                         }).filter(function (s) { return s.slot_id || s.slot_name })
                         layouts.push({

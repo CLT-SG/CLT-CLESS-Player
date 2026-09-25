@@ -7,10 +7,20 @@
  *   event: "zone_trigger" | "manual_test" | "auto_trigger",
  *   event_id: "...",
  *   slots: [{
- *     layout_id, layout_name, slot_id, slot_name, slot_type, value
+ *     layout_id, layout_name, slot_id, slot_name, slot_type, value,
+ *     media_mode?: "selected" | "loop" | "manual",
+ *     media_items?: [{ filename, order, id?, type?, duration? }],
+ *     temporary?: true
  *   }],
- *   announcement: { enabled, text, language, audio_url?, voice? }
+ *   announcement: {
+ *     enabled, text,
+ *     language?, voice?, audio_url?,   // single-language (legacy)
+ *     languages?: [{ language, voice, order, audio_url }]
+ *   }
  * }
+ *
+ * Media triggers update runtime medialoop / DOM only — they do NOT persist
+ * layout JSON (permanent playlist remains intact and is restored on re-render).
  */
 (function (global) {
     'use strict';
@@ -21,6 +31,7 @@
     var announcementQueue = [];
     var isPlaying = false;
     var currentAudio = null;
+    var mediaRestoreTimers = {};
 
     function rememberEventId(eventId) {
         if (!eventId) return false;
@@ -59,6 +70,20 @@
             .replace(/'/g, '&#39;');
     }
 
+    function basename(pathOrName) {
+        var s = String(pathOrName || '');
+        var n = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
+        return n === -1 ? s : s.substring(n + 1);
+    }
+
+    function guessMediaType(filename) {
+        var ext = String(filename || '').split('.').pop().toLowerCase();
+        if (['mp4', 'webm', 'ogg', 'avi', 'mov', 'mkv'].indexOf(ext) !== -1) return 'video';
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].indexOf(ext) !== -1) return 'image';
+        if (['mp3', 'wav', 'aac', 'flac'].indexOf(ext) !== -1) return 'audio';
+        return 'unknown';
+    }
+
     /**
      * Find a DOM / layout slot matching layout_id + slot_id (preferred) or slot_name.
      */
@@ -68,14 +93,11 @@
         var slotName = slot.slot_name || '';
         var slotType = (slot.slot_type || 'text').toLowerCase();
 
-        // Prefer existing helpers
         if (typeof getCurrentLayoutID === 'function' && typeof slotnameList !== 'undefined' && slotName) {
             try {
                 var info = getCurrentLayoutID(slotName, slotnameList);
                 if (info && info.slotid) {
-                    // If layout_id specified, ensure it matches when possible
                     if (layoutId && info.layoutid && String(info.layoutid) !== layoutId) {
-                        // Still allow if current layout matches requested
                         if (typeof currentPlayLayoutID !== 'undefined' &&
                             currentPlayLayoutID &&
                             String(currentPlayLayoutID) !== layoutId) {
@@ -99,7 +121,6 @@
             }
         }
 
-        // DOM by slot id
         if (slotId && typeof $ !== 'undefined') {
             var $byId = $('#slot-' + slotId);
             if ($byId.length) {
@@ -107,7 +128,6 @@
             }
         }
 
-        // DOM by data-slotname
         if (slotName && typeof $ !== 'undefined') {
             var $byName = $('[data-slotname="' + slotName + '"]');
             if ($byName.length) {
@@ -125,6 +145,142 @@
         };
     }
 
+    function buildMediaContentObj(filename) {
+        var src = basename(filename);
+        if (!src) return null;
+        var ext = src.split('.').pop().toLowerCase();
+        var resfolder = '';
+        try {
+            if (typeof config !== 'undefined' && config && config.resfolder) {
+                resfolder = config.resfolder;
+            }
+        } catch (e) { /* ignore */ }
+        var mediaLocalPath = resfolder ? (resfolder + '/' + src) : src;
+        if (typeof createMediaObject === 'function') {
+            try {
+                return createMediaObject(src, ext, mediaLocalPath, 0, src.split('/'));
+            } catch (err) {
+                console.warn('Airport Display createMediaObject failed:', err);
+            }
+        }
+        var mediaType = guessMediaType(src);
+        return {
+            contentUrl: mediaLocalPath,
+            contentDuration: 0,
+            contentType: mediaType === 'video' ? 'video/mp4' : (mediaType === 'image' ? 'image/' + ext : 'application/octet-stream'),
+            mediaType: mediaType === 'video' ? 'VIDEO' : (mediaType === 'image' ? 'IMAGE' : 'UNKNOWN'),
+            filename: src
+        };
+    }
+
+    /**
+     * Temporary media trigger: rewrite runtime medialoop only.
+     * Does NOT write localStorage layout / permanent playlist configuration.
+     */
+    function applyTemporaryMedia(slot, target) {
+        var numericId = String(target.numericId);
+        var mode = String(slot.media_mode || 'selected').toLowerCase();
+        var filenames = [];
+
+        if (mode === 'loop' || mode === 'play_all' || mode === 'all') {
+            var items = Array.isArray(slot.media_items) ? slot.media_items.slice() : [];
+            items.sort(function (a, b) {
+                return (Number(a.order) || 0) - (Number(b.order) || 0);
+            });
+            items.forEach(function (it) {
+                var name = basename(it && (it.filename || it.value || it.name || ''));
+                if (name) filenames.push(name);
+            });
+            if (!filenames.length && slot.value) {
+                filenames.push(basename(slot.value));
+            }
+        } else {
+            // selected / manual — play the chosen filename (or value)
+            if (Array.isArray(slot.media_items) && slot.media_items.length) {
+                slot.media_items.forEach(function (it) {
+                    if (it && (it.selected === false)) return;
+                    var name = basename(it.filename || it.value || it.name || '');
+                    if (name) filenames.push(name);
+                });
+            }
+            if (!filenames.length && slot.value) {
+                filenames.push(basename(slot.value));
+            }
+        }
+
+        if (!filenames.length) {
+            return { ok: false, error_code: 'MEDIA_VALUE_MISSING', message: 'No media filename selected for trigger' };
+        }
+
+        var contentObjs = [];
+        filenames.forEach(function (fn) {
+            var obj = buildMediaContentObj(fn);
+            if (obj) contentObjs.push(obj);
+        });
+        if (!contentObjs.length) {
+            return { ok: false, error_code: 'MEDIA_BUILD_FAILED', message: 'Unable to build media content objects' };
+        }
+
+        // Prefer medialoop runtime path used by the player (temporary; not persisted)
+        if (typeof medialoop !== 'undefined' && typeof appendMediaElement === 'function') {
+            try {
+                if (typeof mediaCurIndex !== 'undefined') {
+                    mediaCurIndex[numericId] = 1;
+                }
+                medialoop[numericId] = contentObjs.slice();
+                var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + numericId) : null);
+                if ($slot && $slot.length) {
+                    $slot.html('');
+                }
+                appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
+                reportStatus({
+                    status: 'media_trigger',
+                    phase: 'media',
+                    slot_id: numericId,
+                    media_mode: mode,
+                    filenames: filenames,
+                    temporary: true,
+                    message: 'Temporary media trigger applied (permanent playlist unchanged)'
+                });
+                return {
+                    ok: true,
+                    via: 'medialoop-temporary',
+                    layout_id: target.layoutId,
+                    slot_id: numericId,
+                    media_mode: mode,
+                    filenames: filenames,
+                    temporary: true
+                };
+            } catch (err) {
+                console.warn('Airport Display medialoop media trigger failed, falling back to DOM:', err);
+            }
+        }
+
+        // DOM fallback (also non-persistent)
+        var $el = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + numericId) : null);
+        if ($el && $el.length) {
+            var value = filenames[0];
+            var isVideo = guessMediaType(value) === 'video';
+            if (isVideo) {
+                $el.html('<video src="' + escapeAttr(value) + '" autoplay muted ' +
+                    (mode === 'loop' || mode === 'play_all' || mode === 'all' ? 'loop ' : '') +
+                    'playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
+            } else {
+                $el.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
+            }
+            return {
+                ok: true,
+                via: 'media-dom-temporary',
+                layout_id: target.layoutId,
+                slot_id: numericId,
+                media_mode: mode,
+                filenames: filenames,
+                temporary: true
+            };
+        }
+        return { ok: false, error_code: 'SLOT_NOT_FOUND', message: 'Media slot element not found' };
+    }
+
     function applySlotUpdate(slot) {
         if (!slot) {
             return { ok: false, error_code: 'INVALID_SLOT', message: 'Missing slot payload' };
@@ -137,11 +293,9 @@
             return target;
         }
 
-        // Type mismatch warning (non-fatal if still writable)
         if (slot.slot_type && target.resolvedType &&
             slot.slot_type !== target.resolvedType &&
             !(slotType === 'template_variable' && target.resolvedType === 'text')) {
-            // Allow text-like updates into ticker/fader
             var textLike = ['text', 'ticker', 'fader', 'scroller', 'template_variable'];
             if (!(textLike.indexOf(slotType) !== -1 && textLike.indexOf(target.resolvedType) !== -1) &&
                 !(slotType === 'media' && target.resolvedType === 'media')) {
@@ -155,17 +309,7 @@
 
         try {
             if (slotType === 'media' || target.resolvedType === 'media') {
-                var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
-                if ($slot && $slot.length) {
-                    var isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(value);
-                    if (isVideo) {
-                        $slot.html('<video src="' + escapeAttr(value) + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
-                    } else {
-                        $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
-                    }
-                    return { ok: true, via: 'media-dom', layout_id: target.layoutId, slot_id: target.numericId };
-                }
-                return { ok: false, error_code: 'SLOT_NOT_FOUND', message: 'Media slot element not found' };
+                return applyTemporaryMedia(slot, target);
             }
 
             if (typeof updateTextSlotContent === 'function' && target.numericId) {
@@ -204,21 +348,77 @@
                 ok: !!(r && r.ok),
                 error_code: r && r.error_code || null,
                 message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
-                via: r && r.via || null
+                via: r && r.via || null,
+                media_mode: r && r.media_mode || null,
+                temporary: !!(r && r.temporary)
             });
         }
         return results;
     }
 
+    /**
+     * Build ordered language playback list. First entry always plays first.
+     * Does not alphabetically sort — preserves explicit order.
+     */
+    function normalizeAnnouncementLanguages(ann) {
+        var list = [];
+        if (ann && Array.isArray(ann.languages) && ann.languages.length) {
+            ann.languages.forEach(function (entry, idx) {
+                if (!entry) return;
+                list.push({
+                    language: entry.language || entry.lang || 'en',
+                    voice: entry.voice || '',
+                    order: entry.order != null ? Number(entry.order) : (idx + 1),
+                    audio_url: entry.audio_url || entry.audio || '',
+                    text: entry.text || ann.text || ''
+                });
+            });
+            list.sort(function (a, b) { return a.order - b.order; });
+            // Re-number to 1..N after sort to keep reporting clean, but keep relative order
+            list.forEach(function (item, i) { item.order = i + 1; });
+            return list;
+        }
+        if (ann && (ann.audio_url || ann.text)) {
+            return [{
+                language: ann.language || 'en',
+                voice: ann.voice || '',
+                order: 1,
+                audio_url: ann.audio_url || '',
+                text: ann.text || ''
+            }];
+        }
+        return [];
+    }
+
     function enqueueAnnouncement(event) {
         var ann = event.announcement || {};
         if (!ann.enabled) return;
-        if (!ann.audio_url && !ann.text) return;
+        var languages = normalizeAnnouncementLanguages(ann);
+        if (!languages.length) return;
+        // Require at least one audio_url
+        var playable = languages.filter(function (l) { return !!l.audio_url; });
+        if (!playable.length) {
+            reportStatus({
+                event_id: event.event_id,
+                status: 'failed',
+                phase: 'announcement',
+                error_code: 'AUDIO_URL_MISSING',
+                message: 'Announcement enabled but no audio_url was provided'
+            });
+            return;
+        }
         announcementQueue.push({
             event_id: event.event_id,
             text: ann.text || '',
-            language: ann.language || 'en',
-            audio_url: ann.audio_url || ''
+            languages: playable
+        });
+        reportStatus({
+            event_id: event.event_id,
+            status: 'queued',
+            phase: 'announcement',
+            languages: playable.map(function (l) {
+                return { language: l.language, order: l.order };
+            })
         });
         pumpQueue();
     }
@@ -228,28 +428,69 @@
         var next = announcementQueue.shift();
         if (!next) return;
         isPlaying = true;
-        reportStatus({ event_id: next.event_id, status: 'playing', phase: 'announcement' });
-        playAudioUrl(next.audio_url)
-            .then(function (ok) {
+        playLanguageSequence(next)
+            .then(function (summary) {
                 reportStatus({
                     event_id: next.event_id,
-                    status: ok ? 'completed' : 'failed',
+                    status: summary.failed ? (summary.played ? 'partial' : 'failed') : 'completed',
                     phase: 'announcement',
-                    error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
+                    played: summary.played,
+                    failed: summary.failed,
+                    languages: summary.results
                 });
             })
-            .catch(function () {
+            .catch(function (err) {
                 reportStatus({
                     event_id: next.event_id,
                     status: 'failed',
                     phase: 'announcement',
-                    error_code: 'AUDIO_PLAYBACK_FAILED'
+                    error_code: 'AUDIO_PLAYBACK_FAILED',
+                    message: String(err && err.message || err)
                 });
             })
             .then(function () {
                 isPlaying = false;
                 pumpQueue();
             });
+    }
+
+    function playLanguageSequence(job) {
+        var results = [];
+        var chain = Promise.resolve();
+        (job.languages || []).forEach(function (lang) {
+            chain = chain.then(function () {
+                reportStatus({
+                    event_id: job.event_id,
+                    status: 'playing',
+                    phase: 'announcement',
+                    language: lang.language,
+                    order: lang.order,
+                    message: 'Playing ' + lang.language
+                });
+                return playAudioUrl(lang.audio_url).then(function (ok) {
+                    results.push({
+                        language: lang.language,
+                        order: lang.order,
+                        ok: !!ok,
+                        error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
+                    });
+                    reportStatus({
+                        event_id: job.event_id,
+                        status: ok ? 'language_completed' : 'language_failed',
+                        phase: 'announcement',
+                        language: lang.language,
+                        order: lang.order
+                    });
+                    // Continue to next language even if one fails
+                    return ok;
+                });
+            });
+        });
+        return chain.then(function () {
+            var played = results.filter(function (r) { return r.ok; }).length;
+            var failed = results.length - played;
+            return { played: played, failed: failed, results: results };
+        });
     }
 
     function playAudioUrl(url) {
@@ -321,8 +562,6 @@
                 error_code: 'ALL_SLOTS_FAILED',
                 slots: slotResults
             });
-            // Still attempt announcement only if some content intent remains? Spec: don't silently
-            // apply missing slots — but announcement may still be independent.
         } else {
             reportStatus({
                 event_id: eventId,
@@ -354,6 +593,8 @@
 
     global.AirportDisplayPlayer = {
         handle: handleAirportDisplayEvent,
-        getQueueLength: function () { return announcementQueue.length + (isPlaying ? 1 : 0); }
+        getQueueLength: function () { return announcementQueue.length + (isPlaying ? 1 : 0); },
+        _normalizeAnnouncementLanguages: normalizeAnnouncementLanguages,
+        _guessMediaType: guessMediaType
     };
 })(window);
