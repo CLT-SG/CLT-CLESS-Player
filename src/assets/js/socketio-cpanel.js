@@ -4001,3 +4001,27 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
         return processedLayout; // Return with empty slots
     }
 }
+// =============================================================================
+// Airport Display — normalized zone_trigger events from CLESS-Server via cpanel
+// =============================================================================
+socket.on('airport-display', function (payload) {
+    console.log('=== RENDERER PROCESS: airport-display event received ===', payload && payload.event_id);
+    try {
+        if (typeof AirportDisplayPlayer === 'undefined' || !AirportDisplayPlayer.handle) {
+            console.error('AirportDisplayPlayer module not loaded');
+            if (socket && socket.emit) {
+                socket.emit('airport-display-status', {
+                    event_id: payload && payload.event_id,
+                    status: 'error',
+                    message: 'AirportDisplayPlayer not loaded',
+                    timestamp: new Date().toISOString()
+                });
+            }
+            return;
+        }
+        var result = AirportDisplayPlayer.handle(payload || {});
+        console.log('=== RENDERER PROCESS: airport-display result ===', result);
+    } catch (err) {
+        console.error('=== RENDERER PROCESS: airport-display handler error ===', err);
+    }
+});

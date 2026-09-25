@@ -341,6 +341,41 @@ return (async function () {
         }
     })
 
+    /**
+     * Airport Display — receive normalized zone_trigger events from CLESS-Server.
+     * POST /api/airport-display
+     * Body: NormalizedAirportDisplayEvent JSON
+     */
+    app.post('/api/airport-display', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            var payload = req.body || {}
+            if (typeof payload === 'string') {
+                try { payload = JSON.parse(payload) } catch (e) { payload = {} }
+            }
+            electronID.emit('airport-display', payload)
+            res.json({
+                status: 'success',
+                message: 'Airport Display event forwarded',
+                event_id: payload.event_id || null
+            })
+        } catch (error) {
+            log.error('API: Airport Display error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
+        }
+    })
+
     app.get('/api/update-layout', function (req, res) {
         try {
             var electronID = io.sockets.sockets.get(userID['eCLESS'])
@@ -2073,6 +2108,31 @@ return (async function () {
             } catch (err) {
                 log.warn('cpanel replace-media: ' + err)
                 return err
+            }
+        })
+
+        // Airport Display event (Socket.IO path; REST also available at POST /api/airport-display)
+        socket.on('airport-display', (msg) => {
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    electronID.emit('airport-display', msg || {})
+                } else {
+                    log.warn('eCLESS client not connected for airport-display')
+                }
+            } catch (err) {
+                log.warn('cpanel airport-display: ' + err)
+                return err
+            }
+        })
+
+        socket.on('airport-display-status', (msg) => {
+            try {
+                log.info('airport-display-status: ' + JSON.stringify(msg || {}))
+                // Relay status to any connected control-panel clients
+                socket.broadcast.emit('cpanel-airport-display-status', msg || {})
+            } catch (err) {
+                log.warn('cpanel airport-display-status: ' + err)
             }
         })
 
