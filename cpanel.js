@@ -59,7 +59,7 @@ return (async function () {
     // Lazy load remaining modules
     const [ip, websockify, datetime, shutdown] = await Promise.all([
         lazyLoader.loadModule('ip'),
-        lazyLoader.loadModule('node-websockify'),
+        lazyLoader.loadModule('@maximegris/node-websockify'),
         lazyLoader.loadModule('date-and-time'),
         lazyLoader.loadModule('electron-shutdown-command')
     ])
