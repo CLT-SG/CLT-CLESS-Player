@@ -510,10 +510,18 @@ async function layoutLoopUpdateXML() {
     var serverAdd = config.hostserver; // Get the server address from the configuration
     log.info('Layout Loop: Updating xml..'); // Log the online mode
 
-    // Set up proxy if enabled
-    var urlServer = serverAdd + '/' + dsid + '/ds.xml'; // Create the URL for fetching XML data
+    // Set up proxy if enabled; report app version when available
+    var playerVersion = ''
+    try {
+      if (typeof remote !== 'undefined' && remote.app) {
+        playerVersion = remote.app.getVersion()
+      } else if (window.__CLESS_APP_VERSION__) {
+        playerVersion = window.__CLESS_APP_VERSION__
+      }
+    } catch (e) { playerVersion = '' }
+    var urlServer = serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : '')
     if (config.corsproxy == 'Y') {
-      urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml'); // Use CORS proxy if enabled
+      urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : ''))
     }
 
     $.ajax({

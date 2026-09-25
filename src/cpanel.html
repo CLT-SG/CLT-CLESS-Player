@@ -69,6 +69,10 @@
                         <i class="bi bi-bootstrap-reboot"></i>
                         Restart App
                     </button>
+                    <button type="button" class="modern-btn btn-info" id="checkForUpdates">
+                        <i class="bi bi-cloud-download"></i>
+                        Check for Updates
+                    </button>
                     <button type="button" class="modern-btn btn-warning" id="reboot">
                         <i class="bi bi-power"></i>
                         Reboot
@@ -173,6 +177,41 @@
                                 <option value="info" selected>Info</option>
                                 <option value="debug">Debug</option>
                             </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoCheckUpdates" style="margin-right: 0.5rem;" checked>
+                                Auto Check for App Updates
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoInstallUpdates" style="margin-right: 0.5rem;">
+                                Auto Install &amp; Restart Updates (unattended)
+                            </label>
+                            <small class="form-text text-muted">For airport displays: download and restart without confirmation.</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label">App Update Status</label>
+                            <div id="appUpdateStatus" class="alert alert-secondary mb-2" role="status">
+                                Checking for updates...
+                            </div>
+                            <div class="control-grid">
+                                <button type="button" class="modern-btn btn-info" id="checkForUpdatesSecondary">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                    Check for Updates
+                                </button>
+                                <button type="button" class="modern-btn btn-success" id="installUpdateBtn" disabled>
+                                    <i class="bi bi-download"></i>
+                                    Restart to Apply Update
+                                </button>
+                            </div>
+                            <small class="form-text text-muted" id="appVersionLabel">Player version: —</small>
                         </div>
                     </div>
                 </div>

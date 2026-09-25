@@ -25,7 +25,6 @@ build/builder-debug.yml
 # https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git-
 node_modules
 .vscode
-.github
 
 # Users Environment Variables
 .lock-wscript

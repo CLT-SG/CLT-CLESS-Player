@@ -498,6 +498,82 @@ return (async function () {
         }
     })
 
+    // --- GitHub Releases auto-update APIs (never interrupt playback on failure) ---
+    app.get('/api/updates/status', function (req, res) {
+        try {
+            const manager = global.updateManager
+            if (!manager) {
+                return res.json({
+                    state: 'unavailable',
+                    message: 'Update service is not initialized.',
+                    currentVersion: require('electron').app.getVersion(),
+                    packaged: require('electron').app.isPackaged
+                })
+            }
+            res.json(manager.getStatus())
+        } catch (error) {
+            log.error('API: update status error:', error)
+            res.status(500).json({
+                state: 'error',
+                message: 'Update failed.',
+                error: error.message
+            })
+        }
+    })
+
+    app.post('/api/updates/check', async function (req, res) {
+        try {
+            const manager = global.updateManager
+            if (!manager) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'Update service is not initialized.'
+                })
+            }
+            log.info('API: manual update check requested')
+            const status = await manager.checkForUpdates({ source: 'manual' })
+            res.json({ status: 'success', update: status })
+        } catch (error) {
+            log.error('API: update check error:', error)
+            res.status(500).json({
+                status: 'error',
+                message: 'Update failed.',
+                error: error.message
+            })
+        }
+    })
+
+    app.post('/api/updates/install', async function (req, res) {
+        try {
+            const manager = global.updateManager
+            if (!manager) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'Update service is not initialized.'
+                })
+            }
+            log.info('API: update install/restart requested')
+            res.json({
+                status: 'success',
+                message: 'Installing update. The player will restart shortly.'
+            })
+            setTimeout(() => {
+                manager.quitAndInstall({ source: 'manual' }).catch((error) => {
+                    log.error('API: update install failed:', error.message)
+                })
+            }, 1000)
+        } catch (error) {
+            log.error('API: update install error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Update failed.',
+                    error: error.message
+                })
+            }
+        }
+    })
+
     app.get('/api/reboot', function (req, res) {
         try {
             res.json({ status: 'success', message: 'System reboot initiated' })
@@ -667,6 +743,14 @@ return (async function () {
                 network: deviceInfo.network,
                 display: deviceInfo.display,
                 system: deviceInfo.system,
+                app: {
+                    name: 'CLESS-Player',
+                    version: require('electron').app.getVersion(),
+                    packaged: require('electron').app.isPackaged,
+                    electron: process.versions.electron,
+                    platform: process.platform,
+                    arch: process.arch
+                },
                 cached: true,
                 timestamp: Date.now()
             })
@@ -1087,6 +1171,12 @@ return (async function () {
             
             // Merge new configuration with existing configuration
             const mergedConfig = { ...existingConfig, ...newConfig }
+            if (existingConfig.systemSettings || newConfig.systemSettings) {
+                mergedConfig.systemSettings = {
+                    ...(existingConfig.systemSettings || {}),
+                    ...(newConfig.systemSettings || {})
+                }
+            }
             
             // Update timestamp
             mergedConfig.timestamp = new Date().toISOString()
@@ -1097,6 +1187,14 @@ return (async function () {
             var electronID = io.sockets.sockets.get(userID['eCLESS'])
             if (electronID) {
                 electronID.emit("config-updated", mergedConfig)
+            }
+
+            if (global.updateManager && typeof global.updateManager.reloadSettings === 'function') {
+                try {
+                    global.updateManager.reloadSettings()
+                } catch (reloadError) {
+                    log.warn('UpdateManager reload after config save failed:', reloadError.message)
+                }
             }
             
             res.json({ success: true, message: 'Configuration saved', config: mergedConfig })

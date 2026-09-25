@@ -797,11 +797,20 @@
         clearTimeout(refreshTimeout) // Clear the refresh timeout if it exists
       }
 
-      // Set up proxy if enabled
-      var urlServer = serverAdd + '/' + dsid + '/ds.xml' // Create the URL for fetching XML data
+      // Set up proxy if enabled; report app version when available
+      var playerVersion = ''
+      try {
+        if (window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.App) {
+          // best-effort; leave empty if plugin call is async-only
+          playerVersion = (window.__CLESS_APP_VERSION__) || ''
+        } else if (typeof remote !== 'undefined' && remote.app) {
+          playerVersion = remote.app.getVersion()
+        }
+      } catch (e) { playerVersion = '' }
+      var urlServer = serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : '')
       if (config.corsproxy == 'Y') {
         urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid +
-          '/ds.xml') // Use CORS proxy if enabled
+          '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : ''))
       }
 
       $.ajax({

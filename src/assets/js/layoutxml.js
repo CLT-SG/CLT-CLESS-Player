@@ -343,9 +343,11 @@ function silentTableDataRefresh(tableid) {
     log.info('Silent table refresh: Checking for updates on table ' + tableid)
 
     var serverAdd = config.hostserver
-    var urlServer = serverAdd + '/' + dsid + '/ds.xml'
+    var playerVersion = ''
+    try { playerVersion = remote.app.getVersion() } catch (e) { playerVersion = '' }
+    var urlServer = serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : '')
     if (config.corsproxy == 'Y') {
-        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml')
+        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : ''))
     }
 
     $.ajax({

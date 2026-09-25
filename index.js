@@ -18,8 +18,11 @@ const { exec } = require('child_process')
 // Initialize optimization modules
 const lazyLoader = require('./LazyModuleLoader')
 const createCpanelServer = require('./cpanel')
+const UpdateManager = require('./UpdateManager')
 const performanceMonitor = require('./PerformanceMonitor')
 const SerialKeyValidator = require('./SerialKeyValidator')
+
+let updateManager = null
 
 const homedir = os.homedir()
 const appdir = path.normalize(homedir + '/clessapp')
@@ -922,7 +925,10 @@ async function performConfigMigration() {
                 enableSystemInfo: true,
                 enableVNC: true,
                 vncPort: 5900,
-                cpanelPort: 9000
+                cpanelPort: 9000,
+                autoCheckUpdates: true,
+                autoInstallUpdates: false,
+                updateCheckIntervalHours: 6
             },
 
             // Synchronization settings (new feature)
@@ -1055,7 +1061,10 @@ async function createDefaultConfigJson() {
                 enableSystemInfo: true,
                 enableVNC: true,
                 vncPort: 5900,
-                cpanelPort: 9000
+                cpanelPort: 9000,
+                autoCheckUpdates: true,
+                autoInstallUpdates: false,
+                updateCheckIntervalHours: 6
             },
             syncSettings: {
                 syncMode: 'disabled',
@@ -1123,6 +1132,18 @@ function loadConfiguration() {
             }
             
             safeLog.info('Loaded configuration from config.json, version:', configData.version || 'unknown')
+            // Ensure auto-update settings exist without requiring a config schema bump
+            configData.systemSettings = Object.assign({
+                enableRemoteControl: true,
+                allowShutdown: true,
+                enableSystemInfo: true,
+                enableVNC: true,
+                vncPort: 5900,
+                cpanelPort: 9000,
+                autoCheckUpdates: true,
+                autoInstallUpdates: false,
+                updateCheckIntervalHours: 6
+            }, configData.systemSettings || {})
             return configData
         }
 
@@ -2427,6 +2448,27 @@ try {
                 log.info('Cpanel server initialized with window reference')
             } catch (error) {
                 log.error('Failed to initialize cpanel server:', error)
+            }
+
+            // GitHub Releases auto-update (packaged installs only). Failures never stop playback.
+            try {
+                updateManager = new UpdateManager({
+                    log: log || safeLog,
+                    getConfig: () => loadConfiguration() || {},
+                    onStatus: (status) => {
+                        try {
+                            if (global.cpanelServerInstance && global.cpanelServerInstance.io) {
+                                global.cpanelServerInstance.io.emit('app-update-status', status)
+                            }
+                        } catch (emitError) {
+                            safeLog.warn('UpdateManager status broadcast failed:', emitError.message)
+                        }
+                    }
+                })
+                global.updateManager = updateManager
+                updateManager.initialize()
+            } catch (error) {
+                safeLog.error('UpdateManager failed to start (playback continues):', error)
             }
             } catch (error) {
                 safeLog.error('Error in app ready callback:', error)

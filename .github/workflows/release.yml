@@ -1,0 +1,244 @@
+# Build CLESS-Player with the Electron version declared in package.json and
+# publish a GitHub Release only after every supported package succeeds.
+#
+# Supported targets come from the existing electron-builder scripts / config:
+#   Windows ia32 + x64 NSIS (single job so latest.yml covers both arches)
+#   Linux x64 deb + AppImage (AppImage enables electron-updater on Linux)
+#
+# npm run ubuntu32 is not run here. Electron 22.3.9 does not publish a
+# linux-ia32 binary, so that script cannot produce an artifact. macOS is not
+# a configured electron-builder target.
+#
+# electron-builder --publish never still generates updater metadata
+# (latest.yml / latest-linux.yml / *.blockmap) from the publish config in
+# package.json. Those files are uploaded to the GitHub Release so packaged
+# Players can auto-update via electron-updater.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (vX.Y.Z). Leave empty to use v<package.json version>."
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cless-player-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Package (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+            build_command: npx electron-builder --win --x64 --ia32 --publish never
+          - os: ubuntu-latest
+            label: linux-x64
+            build_command: npm run ubuntu64 -- --publish never
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Installing dependencies...
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Installing dependencies..."
+          ELECTRON_VERSION="$(node -p "require('./package.json').devDependencies.electron.replace(/^[^0-9]*/, '')")"
+          echo "Electron version from package.json: ${ELECTRON_VERSION}"
+          npm install --no-audit --no-fund --no-package-lock --cache ~/.npm
+          echo "Installing Electron ${ELECTRON_VERSION} without changing package.json..."
+          npm install --no-save --no-audit --no-fund --no-package-lock --cache ~/.npm "electron@${ELECTRON_VERSION}"
+          INSTALLED="$(node -p "require('electron/package.json').version")"
+          echo "Installed Electron version: ${INSTALLED}"
+          if [ "${INSTALLED}" != "${ELECTRON_VERSION}" ]; then
+            echo "Electron version mismatch. Expected ${ELECTRON_VERSION}, installed ${INSTALLED}."
+            exit 1
+          fi
+
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          echo "Installing Linux packaging tools..."
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fakeroot dpkg binutils
+
+      - name: Building application...
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Building application..."
+          echo "Packaging application... (${{ matrix.label }})"
+          echo "electron-builder publish is disabled so a failed or partial build cannot create a release."
+          echo "Updater metadata (latest*.yml / blockmap) is still generated for GitHub Releases."
+          ${{ matrix.build_command }}
+
+      - name: Collect release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Generating artifacts..."
+          mkdir -p staging
+          shopt -s nullglob
+          for file in build/release/*; do
+            base="$(basename "$file")"
+            case "$base" in
+              builder-debug.yml|builder-effective-config.yaml|*.yaml)
+                echo "Skipping build metadata: $base"
+                ;;
+              *.exe|*.msi|*.deb|*.AppImage|*.zip|*.tar.gz|*.blockmap|latest*.yml)
+                echo "Artifact: $base"
+                cp "$file" "staging/$base"
+                ;;
+              *)
+                echo "Skipping unsupported output: $base"
+                ;;
+            esac
+          done
+          if ! compgen -G "staging/*" > /dev/null; then
+            echo "No release artifacts were produced in build/release."
+            exit 1
+          fi
+          if ! compgen -G "staging/latest*.yml" > /dev/null; then
+            echo "WARNING: No latest*.yml updater metadata found. Auto-update clients may not find this release."
+          else
+            echo "Updater metadata present:"
+            ls -la staging/latest*.yml
+          fi
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cless-player-${{ matrix.label }}
+          path: staging/*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: meta
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          ELECTRON_VERSION="$(node -p "require('./package.json').devDependencies.electron.replace(/^[^0-9]*/, '')")"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          elif [ "$EVENT_NAME" = "push" ]; then
+            TAG="$REF_NAME"
+          else
+            TAG="v${VERSION}"
+          fi
+          echo "Application version: ${VERSION}"
+          echo "Electron version: ${ELECTRON_VERSION}"
+          echo "Release tag: ${TAG}"
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag must use the existing semver form vX.Y.Z (example: v${VERSION})."
+            exit 1
+          fi
+          if [ "$TAG" != "v${VERSION}" ]; then
+            echo "Tag ${TAG} does not match package.json version v${VERSION}."
+            echo "Update package.json before tagging so artifact names stay on the current version."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cless-player-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Uploading artifacts...
+        id: publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(release-assets/*)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "Release creation failed: no artifacts to upload."
+            exit 1
+          fi
+          echo "Creating GitHub Release..."
+          echo "Release name: CLESS-Player ${TAG}"
+          echo "Artifacts:"
+          printf '  %s\n' "${files[@]}"
+          if ! compgen -G "release-assets/latest*.yml" > /dev/null; then
+            echo "Release creation failed: missing updater metadata (latest*.yml)."
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists. Refusing to publish over it."
+            exit 1
+          fi
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "CLESS-Player ${TAG}" \
+            --draft \
+            --generate-notes \
+            "${files[@]}"
+          echo "Publishing release..."
+          gh release edit "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --latest
+          echo "Release completed successfully."
+
+      - name: Release creation failed
+        if: failure() && steps.meta.outputs.tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          echo "Release creation failed."
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null | grep -q true; then
+            echo "Deleting unpublished draft so an incomplete release is not left behind."
+            gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes
+          fi
