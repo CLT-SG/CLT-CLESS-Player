@@ -58,14 +58,23 @@
     "build": {
         "appId": "cless.player.app",
         "productName": "eCLESS_Player",
+        "asar": true,
         "extraResources": [
             {
                 "from": "./cert",
-                "to": "cert"
+                "to": "cert",
+                "filter": [
+                    "**/*",
+                    "!csr.pem"
+                ]
             }
         ],
         "files": [
-            "**/*"
+            "**/*",
+            "!cert",
+            "!cert/**/*",
+            "!build/release",
+            "!build/release/**/*"
         ],
         "directories": {
             "output": "build/release"

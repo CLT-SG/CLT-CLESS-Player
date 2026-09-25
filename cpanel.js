@@ -7,6 +7,11 @@ return (async function () {
     const { exec, execFile } = require('child_process')
     const homedir = os.homedir()
     const appdir = path.normalize(homedir + '/clessapp')
+    const {
+        loadHttpsCredentials,
+        formatCertLoadSummary,
+        CertificateLoadError,
+    } = require('./certPaths')
     
     // Load optimization modules
     const SystemInfoManager = require('./SystemInfoManager')
@@ -27,9 +32,28 @@ return (async function () {
     const bodyParser = await lazyLoader.loadModule('body-parser')
     const { expressCspHeader } = await lazyLoader.loadModule('express-csp-header')
 
+    // Resolve HTTPS certificates dynamically (dev / packaged / CLESS_CERT_DIR).
+    // Never hardcode C:\app\cert — never log private key contents.
+    let httpsCredentials
+    try {
+        httpsCredentials = loadHttpsCredentials({ appRoot: __dirname })
+    } catch (certErr) {
+        const message = certErr instanceof CertificateLoadError
+            ? certErr.message
+            : `Unable to start HTTPS CPanel server.\n\nCertificate load failed: ${certErr.message}`
+        // Use console here — electron-log may not be configured yet
+        console.error(message)
+        if (certErr && certErr.certDir) {
+            console.error('Resolved certificate directory:', certErr.certDir)
+        }
+        throw certErr instanceof CertificateLoadError
+            ? certErr
+            : new CertificateLoadError(message, { code: 'CERT_LOAD_ERROR' })
+    }
+
     var options = {
-        key: fs.readFileSync(path.join(__dirname, '..', 'cert/key.pem')),
-        cert: fs.readFileSync(path.join(__dirname, '..', 'cert/key.crt'))
+        key: httpsCredentials.key,
+        cert: httpsCredentials.cert
     }
 
     // Lazy load remaining modules
@@ -41,7 +65,24 @@ return (async function () {
     ])
     
     const app = express()
-    const server = https.createServer(options, app)
+    let server
+    try {
+        server = https.createServer(options, app)
+    } catch (tlsErr) {
+        const message = [
+            'Unable to start HTTPS CPanel server.',
+            '',
+            'TLS initialization failed while creating the HTTPS server.',
+            `Certificate directory: ${httpsCredentials.certDir}`,
+            `key_file=${httpsCredentials.keyFile} cert_file=${httpsCredentials.certFile}`,
+            `Error: ${tlsErr.message}`,
+        ].join('\n')
+        console.error(message)
+        throw new CertificateLoadError(message, {
+            code: 'TLS_INIT_FAILED',
+            certDir: httpsCredentials.certDir,
+        })
+    }
     
     // Load socket.io lazily and handle constructor properly
     const socketIO = await lazyLoader.loadModule('socket.io')
@@ -54,7 +95,8 @@ return (async function () {
         io: io,
         app: app,
         port: 9000,
-        systemInfoManager: systemInfoManager
+        systemInfoManager: systemInfoManager,
+        certDir: httpsCredentials.certDir,
     }
     global.cpanelServerInstance = serverInstance
     
@@ -67,6 +109,8 @@ return (async function () {
     const logdir = path.normalize(homedir + '/clessapp/logs/')
     const datelog = datetime.format(now, 'YYYY-MM-DD')
     log.transports.file.file = logdir + datelog + '.log'
+
+    log.info('HTTPS certificate loaded: ' + formatCertLoadSummary(httpsCredentials))
 
     // Debug function for development-only logging
     const debug = process.env.NODE_ENV === 'development' ? log.debug : () => {}
@@ -99,8 +143,8 @@ return (async function () {
             await websockify({
                 target: ipaddress + ':5900',
                 source: '127.0.0.1:9001',
-                key: path.join(__dirname, '..', 'cert/key.pem'),
-                cert: path.join(__dirname, '..', 'cert/key.crt')
+                key: httpsCredentials.keyPath,
+                cert: httpsCredentials.certPath
             })
             log.info('Websockify initialized successfully')
         } catch (e) {
@@ -1477,6 +1521,13 @@ return (async function () {
 
     app.use(express.static(__dirname + '//src'))
     app.use(express.static(__dirname + '//novnc'))
+    // Never expose private certificates through static routes or API responses.
+    app.use('/cert', function (_req, res) {
+        res.status(404).json({ status: 'error', message: 'Not found' })
+    })
+    app.use('/api/cert', function (_req, res) {
+        res.status(404).json({ status: 'error', message: 'Not found' })
+    })
 
     // ================================================
     // DIRECT VOLUME CONTROL FUNCTIONS
@@ -2744,14 +2795,29 @@ return (async function () {
     server.listen(port, '0.0.0.0', () => {
         log.info(`Express HTTPS server listening on all interfaces (0.0.0.0) port ${port}`)
         log.info(`Access the control panel at: https://localhost:${port} or https://{your-ip}:${port}`)
+        log.info(`HTTPS certificates: ${formatCertLoadSummary(httpsCredentials)}`)
     })
 
     server.on('error', (error) => {
-        log.error('Server error:', error)
         if (error.code === 'EADDRINUSE') {
-            log.error(`Port ${port} is already in use. Please close other applications using this port.`)
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `Port ${port} is already in use.\n` +
+                `Certificate directory: ${httpsCredentials.certDir}\n` +
+                `Close the other process using port ${port}, then restart CLESS-Player.`
+            )
         } else if (error.code === 'EACCES') {
-            log.error(`Permission denied to bind to port ${port}. Try running as administrator or use a port > 1024.`)
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `Permission denied binding to port ${port}.\n` +
+                `Certificate directory: ${httpsCredentials.certDir}`
+            )
+        } else {
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `TLS/server listen failure: ${error.message}\n` +
+                `Certificate directory: ${httpsCredentials.certDir}`
+            )
         }
     })
 

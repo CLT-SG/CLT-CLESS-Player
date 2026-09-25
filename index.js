@@ -2426,7 +2426,11 @@ try {
                 const server = await createCpanelServer(win)
                 log.info('Cpanel server initialized with window reference')
             } catch (error) {
-                log.error('Failed to initialize cpanel server:', error)
+                // CertificateLoadError already includes a clear multi-line message
+                log.error('Failed to initialize cpanel server:', error && error.message ? error.message : error)
+                if (error && error.certDir) {
+                    log.error('Expected certificate directory:', error.certDir)
+                }
             }
             } catch (error) {
                 safeLog.error('Error in app ready callback:', error)
