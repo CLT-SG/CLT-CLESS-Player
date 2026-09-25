@@ -7,6 +7,11 @@ return (async function () {
     const { exec, execFile } = require('child_process')
     const homedir = os.homedir()
     const appdir = path.normalize(homedir + '/clessapp')
+    const {
+        loadHttpsCredentials,
+        formatCertLoadSummary,
+        CertificateLoadError,
+    } = require('./certPaths')
     
     // Load optimization modules
     const SystemInfoManager = require('./SystemInfoManager')
@@ -27,21 +32,57 @@ return (async function () {
     const bodyParser = await lazyLoader.loadModule('body-parser')
     const { expressCspHeader } = await lazyLoader.loadModule('express-csp-header')
 
+    // Resolve HTTPS certificates dynamically (dev / packaged / CLESS_CERT_DIR).
+    // Never hardcode C:\app\cert — never log private key contents.
+    let httpsCredentials
+    try {
+        httpsCredentials = loadHttpsCredentials({ appRoot: __dirname })
+    } catch (certErr) {
+        const message = certErr instanceof CertificateLoadError
+            ? certErr.message
+            : `Unable to start HTTPS CPanel server.\n\nCertificate load failed: ${certErr.message}`
+        // Use console here — electron-log may not be configured yet
+        console.error(message)
+        if (certErr && certErr.certDir) {
+            console.error('Resolved certificate directory:', certErr.certDir)
+        }
+        throw certErr instanceof CertificateLoadError
+            ? certErr
+            : new CertificateLoadError(message, { code: 'CERT_LOAD_ERROR' })
+    }
+
     var options = {
-        key: fs.readFileSync(path.join(__dirname, '..', 'cert/key.pem')),
-        cert: fs.readFileSync(path.join(__dirname, '..', 'cert/key.crt'))
+        key: httpsCredentials.key,
+        cert: httpsCredentials.cert
     }
 
     // Lazy load remaining modules
     const [ip, websockify, datetime, shutdown] = await Promise.all([
         lazyLoader.loadModule('ip'),
-        lazyLoader.loadModule('node-websockify'),
+        lazyLoader.loadModule('@maximegris/node-websockify'),
         lazyLoader.loadModule('date-and-time'),
         lazyLoader.loadModule('electron-shutdown-command')
     ])
     
     const app = express()
-    const server = https.createServer(options, app)
+    let server
+    try {
+        server = https.createServer(options, app)
+    } catch (tlsErr) {
+        const message = [
+            'Unable to start HTTPS CPanel server.',
+            '',
+            'TLS initialization failed while creating the HTTPS server.',
+            `Certificate directory: ${httpsCredentials.certDir}`,
+            `key_file=${httpsCredentials.keyFile} cert_file=${httpsCredentials.certFile}`,
+            `Error: ${tlsErr.message}`,
+        ].join('\n')
+        console.error(message)
+        throw new CertificateLoadError(message, {
+            code: 'TLS_INIT_FAILED',
+            certDir: httpsCredentials.certDir,
+        })
+    }
     
     // Load socket.io lazily and handle constructor properly
     const socketIO = await lazyLoader.loadModule('socket.io')
@@ -54,7 +95,8 @@ return (async function () {
         io: io,
         app: app,
         port: 9000,
-        systemInfoManager: systemInfoManager
+        systemInfoManager: systemInfoManager,
+        certDir: httpsCredentials.certDir,
     }
     global.cpanelServerInstance = serverInstance
     
@@ -67,6 +109,8 @@ return (async function () {
     const logdir = path.normalize(homedir + '/clessapp/logs/')
     const datelog = datetime.format(now, 'YYYY-MM-DD')
     log.transports.file.file = logdir + datelog + '.log'
+
+    log.info('HTTPS certificate loaded: ' + formatCertLoadSummary(httpsCredentials))
 
     // Debug function for development-only logging
     const debug = process.env.NODE_ENV === 'development' ? log.debug : () => {}
@@ -99,8 +143,8 @@ return (async function () {
             await websockify({
                 target: ipaddress + ':5900',
                 source: '127.0.0.1:9001',
-                key: path.join(__dirname, '..', 'cert/key.pem'),
-                cert: path.join(__dirname, '..', 'cert/key.crt')
+                key: httpsCredentials.keyPath,
+                cert: httpsCredentials.certPath
             })
             log.info('Websockify initialized successfully')
         } catch (e) {
@@ -337,6 +381,212 @@ return (async function () {
                     status: 'error',
                     message: 'Internal server error: ' + error.message
                 })
+            }
+        }
+    })
+
+    /**
+     * Lightweight health check used by CLESS-Server Airport Display connectivity.
+     * GET /api/health  and  GET /api/airport-display/health
+     * Confirms the HTTPS control panel on port 9000 is accepting requests.
+     */
+    function airportDisplayHealthHandler(req, res) {
+        try {
+            var rendererConnected = Boolean(userID && userID['eCLESS'] && io.sockets.sockets.get(userID['eCLESS']))
+            res.json({
+                success: true,
+                status: 'ok',
+                service: 'cless-player',
+                protocol: 'https',
+                port: port,
+                listen: '0.0.0.0',
+                renderer_connected: rendererConnected,
+                timestamp: new Date().toISOString()
+            })
+        } catch (error) {
+            log.error('API: health error:', error)
+            res.status(500).json({
+                success: false,
+                status: 'error',
+                error: error.message || 'Health check failed'
+            })
+        }
+    }
+    app.get('/api/health', airportDisplayHealthHandler)
+    app.get('/api/airport-display/health', airportDisplayHealthHandler)
+
+    /**
+     * Airport Display — receive normalized zone_trigger events from CLESS-Server.
+     * POST /api/airport-display
+     * Body: NormalizedAirportDisplayEvent JSON
+     */
+    app.post('/api/airport-display', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected'
+                })
+            }
+            var payload = req.body || {}
+            if (typeof payload === 'string') {
+                try { payload = JSON.parse(payload) } catch (e) { payload = {} }
+            }
+            electronID.emit('airport-display', payload)
+            res.json({
+                status: 'success',
+                message: 'Airport Display event forwarded',
+                event_id: payload.event_id || null
+            })
+        } catch (error) {
+            log.error('API: Airport Display error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: 'Internal server error: ' + error.message
+                })
+            }
+        }
+    })
+
+    /**
+     * Airport Display layout/slot discovery.
+     * GET /api/airport-display/layouts
+     * Reuses the renderer layout-details path and normalizes the response.
+     */
+    app.get('/api/airport-display/layouts', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    success: false,
+                    error: 'eCLESS renderer process not connected',
+                    error_code: 'PLAYER_DISCONNECTED',
+                    layouts: [],
+                    current_layout: null,
+                    is_loop: false
+                })
+            }
+
+            var responseSent = false
+            var responseHandler = function (layoutInfo) {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                clearTimeout(responseTimeout)
+                try {
+                    var layouts = []
+                    var rawLayouts = (layoutInfo && layoutInfo.layouts) || []
+                    rawLayouts.forEach(function (layout) {
+                        var slotsRaw = layout.allSlots || layout.slots || []
+                        var slots = slotsRaw.map(function (s) {
+                            var playlist = null
+                            if (s.playlist && Array.isArray(s.playlist.items)) {
+                                playlist = {
+                                    id: String(s.playlist.id || ''),
+                                    name: String(s.playlist.name || ''),
+                                    loop: s.playlist.loop !== false,
+                                    item_count: (s.playlist.items || []).length,
+                                    items: (s.playlist.items || []).map(function (item, idx) {
+                                        return {
+                                            id: String(item.id || (idx + 1)),
+                                            filename: String(item.filename || item.name || ''),
+                                            path: String(item.path || item.filePath || item.filename || ''),
+                                            type: String(item.type || item.contentType || 'unknown'),
+                                            order: Number(item.order || (idx + 1)),
+                                            duration: item.duration != null ? item.duration : null
+                                        }
+                                    }).filter(function (item) { return item.filename })
+                                }
+                            }
+                            var value = String(s.content || s.filename || s.fileName || s.value || '')
+                            if (!value && playlist && playlist.items.length) {
+                                value = playlist.items[0].filename
+                            }
+                            return {
+                                slot_id: String(s.id || s.slotid || ''),
+                                slot_name: String(s.name || s.slotname || ''),
+                                slot_type: String(s.type || s.slottype || 'unknown'),
+                                value: value,
+                                enabled: String(s.enabled || 'Y'),
+                                layout_id: String(s.layoutId || s.layoutid || layout.id || ''),
+                                layout_name: String(s.layoutName || layout.name || ''),
+                                playlist: playlist
+                            }
+                        }).filter(function (s) { return s.slot_id || s.slot_name })
+                        layouts.push({
+                            layout_id: String(layout.id || ''),
+                            layout_name: String(layout.name || ('Layout ' + layout.id)),
+                            is_active: Boolean(layout.isActive),
+                            is_loop: Boolean(layout.isLoop || layoutInfo.isLoop),
+                            total_slots: slots.length,
+                            slots: slots
+                        })
+                    })
+                    var current = layoutInfo.currentLayout || null
+                    res.json({
+                        success: true,
+                        is_loop: Boolean(layoutInfo.isLoop),
+                        mode: layoutInfo.mode || (layoutInfo.isLoop ? 'loop' : 'single'),
+                        current_layout: current ? {
+                            layout_id: String(current.id || ''),
+                            layout_name: String(current.name || '')
+                        } : null,
+                        layouts: layouts,
+                        timestamp: Date.now()
+                    })
+                } catch (normErr) {
+                    log.error('Airport Display layout normalize error:', normErr)
+                    res.status(500).json({
+                        success: false,
+                        error: 'Failed to normalize layout details',
+                        error_code: 'LAYOUT_NORMALIZE_FAILED',
+                        layouts: []
+                    })
+                }
+            }
+
+            var responseTimeout = setTimeout(function () {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                electronID.removeListener('layout-details-response', responseHandler)
+                res.status(504).json({
+                    success: false,
+                    error: 'Timeout waiting for layout details',
+                    error_code: 'PLAYER_TIMEOUT',
+                    layouts: []
+                })
+            }, 8000)
+
+            electronID.once('layout-details-response', responseHandler)
+            electronID.emit('get-layout-details', { timestamp: Date.now(), source: 'airport-display' })
+        } catch (error) {
+            log.error('API: Airport Display layouts error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    error_code: 'INTERNAL_ERROR',
+                    layouts: []
+                })
+            }
+        }
+    })
+
+    /**
+     * Playback / delivery status callback from renderer.
+     * POST /api/airport-display/status
+     */
+    app.post('/api/airport-display/status', function (req, res) {
+        try {
+            var body = req.body || {}
+            log.info('airport-display-status: ' + JSON.stringify(body))
+            io.emit('cpanel-airport-display-status', body)
+            res.json({ status: 'ok' })
+        } catch (error) {
+            log.error('API: Airport Display status error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({ status: 'error', message: error.message })
             }
         }
     })
@@ -1393,6 +1643,13 @@ return (async function () {
 
     app.use(express.static(__dirname + '//src'))
     app.use(express.static(__dirname + '//novnc'))
+    // Never expose private certificates through static routes or API responses.
+    app.use('/cert', function (_req, res) {
+        res.status(404).json({ status: 'error', message: 'Not found' })
+    })
+    app.use('/api/cert', function (_req, res) {
+        res.status(404).json({ status: 'error', message: 'Not found' })
+    })
 
     // ================================================
     // DIRECT VOLUME CONTROL FUNCTIONS
@@ -2174,6 +2431,31 @@ return (async function () {
             }
         })
 
+        // Airport Display event (Socket.IO path; REST also available at POST /api/airport-display)
+        socket.on('airport-display', (msg) => {
+            try {
+                var electronID = io.sockets.sockets.get(userID['eCLESS'])
+                if (electronID) {
+                    electronID.emit('airport-display', msg || {})
+                } else {
+                    log.warn('eCLESS client not connected for airport-display')
+                }
+            } catch (err) {
+                log.warn('cpanel airport-display: ' + err)
+                return err
+            }
+        })
+
+        socket.on('airport-display-status', (msg) => {
+            try {
+                log.info('airport-display-status: ' + JSON.stringify(msg || {}))
+                // Relay status to any connected control-panel clients
+                socket.broadcast.emit('cpanel-airport-display-status', msg || {})
+            } catch (err) {
+                log.warn('cpanel airport-display-status: ' + err)
+            }
+        })
+
         //cpanel req to replace layout
         socket.on('replace-layout', (msg) => {
             try {
@@ -2635,14 +2917,29 @@ return (async function () {
     server.listen(port, '0.0.0.0', () => {
         log.info(`Express HTTPS server listening on all interfaces (0.0.0.0) port ${port}`)
         log.info(`Access the control panel at: https://localhost:${port} or https://{your-ip}:${port}`)
+        log.info(`HTTPS certificates: ${formatCertLoadSummary(httpsCredentials)}`)
     })
 
     server.on('error', (error) => {
-        log.error('Server error:', error)
         if (error.code === 'EADDRINUSE') {
-            log.error(`Port ${port} is already in use. Please close other applications using this port.`)
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `Port ${port} is already in use.\n` +
+                `Certificate directory: ${httpsCredentials.certDir}\n` +
+                `Close the other process using port ${port}, then restart CLESS-Player.`
+            )
         } else if (error.code === 'EACCES') {
-            log.error(`Permission denied to bind to port ${port}. Try running as administrator or use a port > 1024.`)
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `Permission denied binding to port ${port}.\n` +
+                `Certificate directory: ${httpsCredentials.certDir}`
+            )
+        } else {
+            log.error(
+                `Unable to start HTTPS CPanel server.\n\n` +
+                `TLS/server listen failure: ${error.message}\n` +
+                `Certificate directory: ${httpsCredentials.certDir}`
+            )
         }
     })
 

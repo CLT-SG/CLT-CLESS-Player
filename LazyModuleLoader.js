@@ -102,8 +102,8 @@ class LazyModuleLoader {
                     module = require('express-csp-header')
                     break
                     
-                case 'node-websockify':
-                    module = require('node-websockify')
+                case '@maximegris/node-websockify':
+                    module = require('@maximegris/node-websockify')
                     break
                     
                 case 'electron-shutdown-command':

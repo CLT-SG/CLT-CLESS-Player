@@ -454,12 +454,25 @@ curl -X POST "http://localhost:9000/api/config/save" \
 - Safari
 - Edge
 
+## HTTPS Certificates (port 9000)
+
+The control panel listens on **HTTPS port 9000**. Certificate files are resolved
+dynamically by `certPaths.js` (see `cert/README.md`):
+
+1. `CLESS_CERT_DIR` environment variable
+2. `~/clessapp/config.json` → `certDir`
+3. Development: `<app>/cert/key.pem` + `key.crt`
+4. Packaged: `<resourcesPath>/cert/` (electron-builder `extraResources`)
+
+Private keys are never served by Express and are never logged.
+
 ## Security Considerations
 - All API endpoints require access to the local network (port 9000)
 - Configuration data is stored locally in JSON format
 - Audio and screen control commands are sent via Socket.IO for real-time response
 - Volume control commands require system-level audio permissions
 - Cross-platform audio commands use appropriate system APIs
+- TLS private keys (`key.pem`) are main-process only and are not exposed via `/cert` or API routes
 
 ## Future Enhancements
 - Remote desktop control integration

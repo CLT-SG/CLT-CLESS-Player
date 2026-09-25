@@ -1942,6 +1942,63 @@ function extractDetailedSlotInfo(slot, layoutId, layoutName, index) {
             }
         }
 
+        // Media slots: expose full playlist in configured order (do not invent a second playlist system)
+        if (slot.name === 'media') {
+            var playlistItems = [];
+            var mediaElements = Array.isArray(slot.elements) ? slot.elements : [];
+            mediaElements.forEach(function (mediaItem, orderIdx) {
+                try {
+                    var rawSrc = '';
+                    if (mediaItem && mediaItem.elements && mediaItem.elements[0] && mediaItem.elements[0].text) {
+                        rawSrc = String(mediaItem.elements[0].text || '');
+                    } else if (mediaItem && mediaItem.text) {
+                        rawSrc = String(mediaItem.text || '');
+                    }
+                    if (!rawSrc || rawSrc.toLowerCase() === 'none') {
+                        return;
+                    }
+                    var filename = rawSrc;
+                    var slash = rawSrc.lastIndexOf('/');
+                    if (slash !== -1) {
+                        filename = rawSrc.substring(slash + 1);
+                    }
+                    var ext = filename.split('.').pop().toLowerCase();
+                    var mediaType = 'unknown';
+                    if (['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv'].indexOf(ext) !== -1) mediaType = 'video';
+                    else if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].indexOf(ext) !== -1) mediaType = 'image';
+                    else if (['mp3', 'wav', 'aac', 'flac', 'ogg'].indexOf(ext) !== -1) mediaType = 'audio';
+                    else if (rawSrc.indexOf('{') === 0 || /^(rtsp|rtmp|m3u8):/i.test(rawSrc)) mediaType = 'stream';
+
+                    var itemId = (mediaItem.attributes && (mediaItem.attributes.id || mediaItem.attributes.mediaid)) ||
+                        (layoutId + '-' + slot.attributes.id + '-' + (orderIdx + 1));
+                    playlistItems.push({
+                        id: String(itemId),
+                        filename: filename,
+                        path: rawSrc,
+                        type: mediaType,
+                        order: orderIdx + 1,
+                        duration: (mediaItem.attributes && (mediaItem.attributes.duration || mediaItem.attributes.timeout)) || null
+                    });
+                } catch (mediaErr) {
+                    console.warn('=== DETAILED SLOT INFO: media playlist item parse failed', mediaErr);
+                }
+            });
+
+            slotInfo.playlist = {
+                id: String(slot.attributes.playlistid || slot.attributes.id || ''),
+                name: slot.attributes.playlist || slot.attributes.name || ('Media ' + slot.attributes.id),
+                loop: true,
+                item_count: playlistItems.length,
+                items: playlistItems
+            };
+            if (playlistItems.length && !slotInfo.content) {
+                slotInfo.content = playlistItems[0].filename;
+                slotInfo.fileName = playlistItems[0].filename;
+                slotInfo.filePath = playlistItems[0].path;
+                slotInfo.contentType = playlistItems[0].type;
+            }
+        }
+
         // Determine content type and extract type-specific information
         if (slot.name === 'media' && slotInfo.content) {
             var extension = slotInfo.content.split('.').pop().toLowerCase();
@@ -4001,3 +4058,27 @@ function processLayoutForDetails(layoutId, layoutData, layoutInfo) {
         return processedLayout; // Return with empty slots
     }
 }
+// =============================================================================
+// Airport Display — normalized zone_trigger events from CLESS-Server via cpanel
+// =============================================================================
+socket.on('airport-display', function (payload) {
+    console.log('=== RENDERER PROCESS: airport-display event received ===', payload && payload.event_id);
+    try {
+        if (typeof AirportDisplayPlayer === 'undefined' || !AirportDisplayPlayer.handle) {
+            console.error('AirportDisplayPlayer module not loaded');
+            if (socket && socket.emit) {
+                socket.emit('airport-display-status', {
+                    event_id: payload && payload.event_id,
+                    status: 'error',
+                    message: 'AirportDisplayPlayer not loaded',
+                    timestamp: new Date().toISOString()
+                });
+            }
+            return;
+        }
+        var result = AirportDisplayPlayer.handle(payload || {});
+        console.log('=== RENDERER PROCESS: airport-display result ===', result);
+    } catch (err) {
+        console.error('=== RENDERER PROCESS: airport-display handler error ===', err);
+    }
+});
