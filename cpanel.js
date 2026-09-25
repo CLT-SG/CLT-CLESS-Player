@@ -342,6 +342,36 @@ return (async function () {
     })
 
     /**
+     * Lightweight health check used by CLESS-Server Airport Display connectivity.
+     * GET /api/health  and  GET /api/airport-display/health
+     * Confirms the HTTPS control panel on port 9000 is accepting requests.
+     */
+    function airportDisplayHealthHandler(req, res) {
+        try {
+            var rendererConnected = Boolean(userID && userID['eCLESS'] && io.sockets.sockets.get(userID['eCLESS']))
+            res.json({
+                success: true,
+                status: 'ok',
+                service: 'cless-player',
+                protocol: 'https',
+                port: port,
+                listen: '0.0.0.0',
+                renderer_connected: rendererConnected,
+                timestamp: new Date().toISOString()
+            })
+        } catch (error) {
+            log.error('API: health error:', error)
+            res.status(500).json({
+                success: false,
+                status: 'error',
+                error: error.message || 'Health check failed'
+            })
+        }
+    }
+    app.get('/api/health', airportDisplayHealthHandler)
+    app.get('/api/airport-display/health', airportDisplayHealthHandler)
+
+    /**
      * Airport Display — receive normalized zone_trigger events from CLESS-Server.
      * POST /api/airport-display
      * Body: NormalizedAirportDisplayEvent JSON
