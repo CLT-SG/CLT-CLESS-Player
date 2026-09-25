@@ -53,7 +53,7 @@
         "win-audio": "^3.0.5"
     },
     "devDependencies": {
-        "electron": "^22.3.9",
+        "electron": "^44.4.5",
         "electron-builder": "^22.3.3"
     },
     "build": {
