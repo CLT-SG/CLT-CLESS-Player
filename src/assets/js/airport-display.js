@@ -1,32 +1,26 @@
 /**
  * Airport Display — normalized event handler for CLESS-Player.
  *
- * Supports slot-based events:
+ * Event shape:
  * {
  *   type: "airport_display",
  *   event: "zone_trigger" | "manual_test" | "auto_trigger",
  *   event_id: "...",
- *   zone: 1,
- *   slots: [
- *     { slot_type: "text"|"media"|"fader"|"ticker"|..., slot_name: "...", value: "..." }
- *   ],
- *   announcement: { enabled, text, language, audio_url? }
+ *   slots: [{
+ *     layout_id, layout_name, slot_id, slot_name, slot_type, value
+ *   }],
+ *   announcement: { enabled, text, language, audio_url?, voice? }
  * }
- *
- * Flow: apply slot updates → enqueue announcement audio.
- * Duplicate event_ids are ignored (idempotency).
  */
 (function (global) {
     'use strict';
 
-    var RECENT_EVENT_LIMIT = 100;
+    var RECENT_EVENT_LIMIT = 200;
     var recentEventIds = [];
     var recentEventSet = {};
     var announcementQueue = [];
     var isPlaying = false;
     var currentAudio = null;
-    var overlayEl = null;
-    var localTtsUrl = 'http://127.0.0.1:8080';
 
     function rememberEventId(eventId) {
         if (!eventId) return false;
@@ -40,208 +34,178 @@
         return false;
     }
 
-    function ensureOverlay() {
-        if (overlayEl && document.body.contains(overlayEl)) {
-            return overlayEl;
-        }
-        overlayEl = document.getElementById('airport-display-overlay');
-        if (!overlayEl) {
-            overlayEl = document.createElement('div');
-            overlayEl.id = 'airport-display-overlay';
-            overlayEl.style.cssText = [
-                'position:fixed',
-                'inset:0',
-                'z-index:2147483000',
-                'display:none',
-                'flex-direction:column',
-                'align-items:center',
-                'justify-content:center',
-                'background:rgba(0,20,40,0.92)',
-                'color:#fff',
-                'font-family:Arial,Helvetica,sans-serif',
-                'padding:4vw',
-                'box-sizing:border-box',
-                'text-align:center',
-                'pointer-events:none'
-            ].join(';');
-            document.body.appendChild(overlayEl);
-        }
-        return overlayEl;
+    function reportStatus(payload) {
+        try {
+            if (typeof socket !== 'undefined' && socket && socket.emit) {
+                socket.emit('airport-display-status', Object.assign({
+                    timestamp: new Date().toISOString()
+                }, payload || {}));
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', 'https://localhost:9000/api/airport-display/status', true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send(JSON.stringify(payload || {}));
+        } catch (e2) { /* ignore */ }
     }
 
-    function escapeHtml(s) {
+    function escapeAttr(s) {
         return String(s == null ? '' : s)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    function escapeAttr(s) {
-        return escapeHtml(s).replace(/'/g, '&#39;');
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     /**
-     * Apply a single slot update using existing replace-text / replace-media paths
-     * when possible; falls back to DOM heuristics for ticker/fader/text.
+     * Find a DOM / layout slot matching layout_id + slot_id (preferred) or slot_name.
      */
-    function applySlotUpdate(slot) {
-        if (!slot || !slot.slot_name) return { ok: false, reason: 'missing_slot_name' };
+    function resolveSlotTarget(slot) {
+        var layoutId = slot.layout_id != null ? String(slot.layout_id) : '';
+        var slotId = slot.slot_id != null ? String(slot.slot_id) : '';
+        var slotName = slot.slot_name || '';
         var slotType = (slot.slot_type || 'text').toLowerCase();
-        var slotName = slot.slot_name;
-        var value = slot.value == null ? '' : String(slot.value);
 
-        // Prefer existing offline replace helpers when available
-        try {
-            if (typeof getCurrentLayoutID === 'function' && typeof slotnameList !== 'undefined') {
-                var slotInfo = getCurrentLayoutID(slotName, slotnameList);
-                var numericId = slotInfo && slotInfo.slotid
-                    ? String(slotInfo.slotid).split('-').pop()
-                    : null;
-                var resolvedType = (slotInfo && slotInfo.slottype) || slotType;
-
-                if (slotType === 'media' || resolvedType === 'media') {
-                    if (typeof updateMediaSlotContent === 'function' && numericId) {
-                        // Emit via the same path as replacemediaslot for consistency
-                        if (typeof socket !== 'undefined' && socket && socket.emit) {
-                            // Direct DOM/media update when helpers exist
+        // Prefer existing helpers
+        if (typeof getCurrentLayoutID === 'function' && typeof slotnameList !== 'undefined' && slotName) {
+            try {
+                var info = getCurrentLayoutID(slotName, slotnameList);
+                if (info && info.slotid) {
+                    // If layout_id specified, ensure it matches when possible
+                    if (layoutId && info.layoutid && String(info.layoutid) !== layoutId) {
+                        // Still allow if current layout matches requested
+                        if (typeof currentPlayLayoutID !== 'undefined' &&
+                            currentPlayLayoutID &&
+                            String(currentPlayLayoutID) !== layoutId) {
+                            return {
+                                ok: false,
+                                error_code: 'LAYOUT_NOT_FOUND',
+                                message: 'Layout ' + layoutId + ' is not active/available for slot ' + slotName
+                            };
                         }
                     }
-                    // Trigger the same handler shape as cpanel replace-media
-                    if (typeof socket !== 'undefined') {
-                        // Apply locally: find media slot by name
+                    return {
+                        ok: true,
+                        numericId: String(info.slotid).split('-').pop(),
+                        resolvedType: info.slottype || slotType,
+                        layoutId: info.layoutid || layoutId,
+                        via: 'slotnameList'
+                    };
+                }
+            } catch (err) {
+                console.warn('Airport Display getCurrentLayoutID failed:', err);
+            }
+        }
+
+        // DOM by slot id
+        if (slotId && typeof $ !== 'undefined') {
+            var $byId = $('#slot-' + slotId);
+            if ($byId.length) {
+                return { ok: true, numericId: slotId, resolvedType: slotType, layoutId: layoutId, via: 'dom-id' };
+            }
+        }
+
+        // DOM by data-slotname
+        if (slotName && typeof $ !== 'undefined') {
+            var $byName = $('[data-slotname="' + slotName + '"]');
+            if ($byName.length) {
+                var idAttr = $byName.attr('id') || '';
+                var num = idAttr.indexOf('slot-') === 0 ? idAttr.slice(5) : slotId;
+                return { ok: true, numericId: num, resolvedType: slotType, layoutId: layoutId, via: 'dom-name', $el: $byName };
+            }
+        }
+
+        return {
+            ok: false,
+            error_code: 'SLOT_NOT_FOUND',
+            message: 'Slot not found' + (layoutId ? (' in layout ' + layoutId) : '') +
+                (slotName ? (': ' + slotName) : (slotId ? (': #' + slotId) : ''))
+        };
+    }
+
+    function applySlotUpdate(slot) {
+        if (!slot) {
+            return { ok: false, error_code: 'INVALID_SLOT', message: 'Missing slot payload' };
+        }
+        var value = slot.value == null ? '' : String(slot.value);
+        var slotType = (slot.slot_type || 'text').toLowerCase();
+
+        var target = resolveSlotTarget(slot);
+        if (!target.ok) {
+            return target;
+        }
+
+        // Type mismatch warning (non-fatal if still writable)
+        if (slot.slot_type && target.resolvedType &&
+            slot.slot_type !== target.resolvedType &&
+            !(slotType === 'template_variable' && target.resolvedType === 'text')) {
+            // Allow text-like updates into ticker/fader
+            var textLike = ['text', 'ticker', 'fader', 'scroller', 'template_variable'];
+            if (!(textLike.indexOf(slotType) !== -1 && textLike.indexOf(target.resolvedType) !== -1) &&
+                !(slotType === 'media' && target.resolvedType === 'media')) {
+                return {
+                    ok: false,
+                    error_code: 'SLOT_TYPE_MISMATCH',
+                    message: 'Expected ' + slot.slot_type + ' but found ' + target.resolvedType
+                };
+            }
+        }
+
+        try {
+            if (slotType === 'media' || target.resolvedType === 'media') {
+                var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
+                if ($slot && $slot.length) {
+                    var isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(value);
+                    if (isVideo) {
+                        $slot.html('<video src="' + escapeAttr(value) + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
+                    } else {
+                        $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
                     }
-                    return applyMediaSlot(slotName, value, numericId, slotInfo);
+                    return { ok: true, via: 'media-dom', layout_id: target.layoutId, slot_id: target.numericId };
                 }
+                return { ok: false, error_code: 'SLOT_NOT_FOUND', message: 'Media slot element not found' };
+            }
 
-                // text / ticker / fader / template_variable
-                if (typeof updateTextSlotContent === 'function' && numericId) {
-                    updateTextSlotContent(numericId, resolvedType || slotType, value, slotInfo.layoutid);
-                    return { ok: true, via: 'updateTextSlotContent' };
-                }
+            if (typeof updateTextSlotContent === 'function' && target.numericId) {
+                updateTextSlotContent(
+                    target.numericId,
+                    target.resolvedType || slotType,
+                    value,
+                    target.layoutId || slot.layout_id
+                );
+                return { ok: true, via: 'updateTextSlotContent', layout_id: target.layoutId, slot_id: target.numericId };
+            }
+
+            var $el = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
+            if ($el && $el.length) {
+                $el.html(value);
+                return { ok: true, via: 'dom-html', layout_id: target.layoutId, slot_id: target.numericId };
             }
         } catch (err) {
-            console.warn('Airport Display slot helper path failed:', err);
+            return { ok: false, error_code: 'APPLY_FAILED', message: String(err && err.message || err) };
         }
 
-        // Fallback DOM update by slot name attribute / id patterns
-        return applySlotDomFallback(slotType, slotName, value);
-    }
-
-    function applyMediaSlot(slotName, value, numericId, slotInfo) {
-        try {
-            var $slot = null;
-            if (numericId) {
-                $slot = $('#slot-' + numericId);
-            }
-            if ((!$slot || !$slot.length) && slotName) {
-                $slot = $('[data-slotname="' + slotName + '"], .mslot-media').filter(function () {
-                    return $(this).attr('data-slotname') === slotName || $(this).attr('id') === 'slot-' + slotName;
-                });
-            }
-            if ($slot && $slot.length) {
-                var lower = value.toLowerCase();
-                var isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(lower);
-                if (isVideo) {
-                    $slot.html('<video src="' + escapeAttr(value) + '" autoplay muted loop playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
-                } else {
-                    $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
-                }
-                return { ok: true, via: 'dom-media' };
-            }
-        } catch (err) {
-            console.warn('Airport Display media slot apply failed:', err);
-        }
-        return { ok: false, reason: 'media_slot_not_found' };
-    }
-
-    function applySlotDomFallback(slotType, slotName, value) {
-        try {
-            var $candidates = $('[data-slotname="' + slotName + '"]');
-            if (!$candidates.length) {
-                // Try matching known text containers by id patterns used in layouts
-                $candidates = $('.text-slot, .ticker-slot, .fader-slot, .mslot-text, .mslot-ticker, .mslot-fader').filter(function () {
-                    var id = $(this).attr('id') || '';
-                    var name = $(this).attr('data-slotname') || $(this).attr('name') || '';
-                    return name === slotName || id.indexOf(slotName) !== -1;
-                });
-            }
-            if ($candidates.length) {
-                if (slotType === 'media') {
-                    return applyMediaSlot(slotName, value, null, null);
-                }
-                $candidates.html(value);
-                return { ok: true, via: 'dom-fallback' };
-            }
-        } catch (err) {
-            console.warn('Airport Display DOM fallback failed:', err);
-        }
-        return { ok: false, reason: 'slot_not_found' };
-    }
-
-    function updateOverlayFallback(event) {
-        var slots = event.slots || [];
-        var text = event.text || '';
-        var mediaUrl = (event.media && event.media.url) || '';
-        if (!text) {
-            for (var i = 0; i < slots.length; i++) {
-                if (slots[i].slot_type !== 'media' && slots[i].value) {
-                    text = slots[i].value;
-                    break;
-                }
-            }
-        }
-        if (!mediaUrl) {
-            for (var j = 0; j < slots.length; j++) {
-                if (slots[j].slot_type === 'media' && slots[j].value) {
-                    mediaUrl = slots[j].value;
-                    break;
-                }
-            }
-        }
-        if (!text && !mediaUrl && (event.zone == null)) {
-            return; // nothing to show
-        }
-        var el = ensureOverlay();
-        var zoneLabel = '';
-        if (event.zone != null) {
-            zoneLabel = event.zone_name
-                ? ('Zone ' + event.zone + ' — ' + event.zone_name)
-                : ('Zone ' + event.zone);
-        } else {
-            zoneLabel = 'Airport Display Test';
-        }
-        var mediaHtml = '';
-        if (mediaUrl) {
-            var isVideo = /\.(mp4|webm|ogg)(\?|$)/i.test(mediaUrl);
-            if (isVideo) {
-                mediaHtml = '<video src="' + escapeAttr(mediaUrl) +
-                    '" autoplay muted playsinline style="max-width:90vw;max-height:45vh;margin-bottom:2vh;"></video>';
-            } else {
-                mediaHtml = '<img src="' + escapeAttr(mediaUrl) +
-                    '" alt="" style="max-width:90vw;max-height:45vh;object-fit:contain;margin-bottom:2vh;" />';
-            }
-        }
-        el.innerHTML =
-            '<div style="font-size:clamp(18px,2.5vw,36px);opacity:0.85;margin-bottom:2vh;">' +
-            escapeHtml(zoneLabel) + '</div>' + mediaHtml +
-            '<div style="font-size:clamp(28px,5vw,72px);font-weight:700;line-height:1.2;max-width:95vw;">' +
-            escapeHtml(text) + '</div>';
-        el.style.display = 'flex';
+        return { ok: false, error_code: 'UNSUPPORTED_SLOT_TYPE', message: 'Unable to apply slot update' };
     }
 
     function applySlots(event) {
         var slots = event.slots || [];
         var results = [];
-        var anyOk = false;
         for (var i = 0; i < slots.length; i++) {
             var r = applySlotUpdate(slots[i]);
-            results.push({ slot_name: slots[i].slot_name, result: r });
-            if (r && r.ok) anyOk = true;
-        }
-        // If no named slots applied (or empty slots with legacy text), show overlay
-        if (!anyOk) {
-            updateOverlayFallback(event);
+            results.push({
+                layout_id: slots[i].layout_id || null,
+                layout_name: slots[i].layout_name || '',
+                slot_id: slots[i].slot_id || null,
+                slot_name: slots[i].slot_name || '',
+                slot_type: slots[i].slot_type || '',
+                ok: !!(r && r.ok),
+                error_code: r && r.error_code || null,
+                message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
+                via: r && r.via || null
+            });
         }
         return results;
     }
@@ -254,8 +218,7 @@
             event_id: event.event_id,
             text: ann.text || '',
             language: ann.language || 'en',
-            audio_url: ann.audio_url || '',
-            zone: event.zone
+            audio_url: ann.audio_url || ''
         });
         pumpQueue();
     }
@@ -265,9 +228,23 @@
         var next = announcementQueue.shift();
         if (!next) return;
         isPlaying = true;
-        playAnnouncement(next)
-            .catch(function (err) {
-                console.error('Airport Display announcement failed:', err);
+        reportStatus({ event_id: next.event_id, status: 'playing', phase: 'announcement' });
+        playAudioUrl(next.audio_url)
+            .then(function (ok) {
+                reportStatus({
+                    event_id: next.event_id,
+                    status: ok ? 'completed' : 'failed',
+                    phase: 'announcement',
+                    error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
+                });
+            })
+            .catch(function () {
+                reportStatus({
+                    event_id: next.event_id,
+                    status: 'failed',
+                    phase: 'announcement',
+                    error_code: 'AUDIO_PLAYBACK_FAILED'
+                });
             })
             .then(function () {
                 isPlaying = false;
@@ -275,15 +252,12 @@
             });
     }
 
-    function playAnnouncement(item) {
-        if (item.audio_url) {
-            return playAudioUrl(item.audio_url);
-        }
-        return callLocalBoardingTts(item.text, item.language);
-    }
-
     function playAudioUrl(url) {
         return new Promise(function (resolve) {
+            if (!url) {
+                resolve(false);
+                return;
+            }
             try {
                 if (currentAudio) {
                     try { currentAudio.pause(); } catch (e) { /* ignore */ }
@@ -291,123 +265,95 @@
                 }
                 var audio = new Audio(url);
                 currentAudio = audio;
-                var done = function () {
+                var settled = false;
+                var done = function (ok) {
+                    if (settled) return;
+                    settled = true;
                     if (currentAudio === audio) currentAudio = null;
-                    resolve();
+                    resolve(!!ok);
                 };
-                audio.addEventListener('ended', done);
-                audio.addEventListener('error', function () {
-                    console.error('Airport Display audio error for', url);
-                    done();
-                });
+                audio.addEventListener('ended', function () { done(true); });
+                audio.addEventListener('error', function () { done(false); });
                 var p = audio.play();
                 if (p && typeof p.then === 'function') {
-                    p.catch(function () { done(); });
+                    p.catch(function () { done(false); });
                 }
             } catch (err) {
-                resolve();
-            }
-        });
-    }
-
-    function callLocalBoardingTts(text, language) {
-        return new Promise(function (resolve) {
-            try {
-                var xhr = new XMLHttpRequest();
-                xhr.open('POST', localTtsUrl + '/announce', true);
-                xhr.setRequestHeader('Content-Type', 'application/json');
-                xhr.timeout = 30000;
-                xhr.onload = function () { resolve(); };
-                xhr.onerror = function () { resolve(); };
-                xhr.ontimeout = function () { resolve(); };
-                xhr.send(JSON.stringify({
-                    text: text,
-                    language: language || 'en',
-                    play: true
-                }));
-            } catch (err) {
-                resolve();
+                resolve(false);
             }
         });
     }
 
     function handleAirportDisplayEvent(event) {
         if (!event || typeof event !== 'object') {
-            return { status: 'error', message: 'Invalid event payload' };
+            return { status: 'error', error_code: 'INVALID_PAYLOAD', message: 'Invalid event payload' };
         }
         if (event.type && event.type !== 'airport_display') {
-            return { status: 'error', message: 'Unsupported event type' };
+            return { status: 'error', error_code: 'UNSUPPORTED_EVENT_TYPE', message: 'Unsupported event type' };
         }
 
         var eventId = event.event_id || '';
         if (rememberEventId(eventId)) {
-            console.log('Airport Display duplicate event ignored:', eventId);
-            return {
-                status: 'duplicate',
-                message: 'Duplicate event ignored',
-                event_id: eventId
-            };
+            reportStatus({ event_id: eventId, status: 'duplicate' });
+            return { status: 'duplicate', message: 'Duplicate event ignored', event_id: eventId };
         }
 
-        console.log(
-            'Airport Display handling event:',
-            eventId,
-            'event=', event.event,
-            'zone=', event.zone,
-            'slots=', (event.slots || []).length
-        );
+        reportStatus({ event_id: eventId, status: 'received', event: event.event, zone: event.zone });
 
-        var slotResults;
+        var slotResults = [];
         try {
             slotResults = applySlots(event);
         } catch (err) {
-            console.error('Airport Display slot apply failed:', err);
-            return { status: 'error', message: 'Slot update failed', event_id: eventId };
+            reportStatus({
+                event_id: eventId,
+                status: 'failed',
+                error_code: 'SLOT_APPLY_FAILED',
+                message: String(err && err.message || err)
+            });
+            return { status: 'error', error_code: 'SLOT_APPLY_FAILED', event_id: eventId };
+        }
+
+        var failed = slotResults.filter(function (r) { return !r.ok; });
+        if (failed.length && failed.length === slotResults.length && slotResults.length > 0) {
+            reportStatus({
+                event_id: eventId,
+                status: 'failed',
+                error_code: 'ALL_SLOTS_FAILED',
+                slots: slotResults
+            });
+            // Still attempt announcement only if some content intent remains? Spec: don't silently
+            // apply missing slots — but announcement may still be independent.
+        } else {
+            reportStatus({
+                event_id: eventId,
+                status: failed.length ? 'partial' : 'applied',
+                slots: slotResults
+            });
         }
 
         try {
             enqueueAnnouncement(event);
         } catch (err) {
-            console.error('Airport Display announce enqueue failed:', err);
-            return { status: 'error', message: 'Announcement queue failed', event_id: eventId };
+            reportStatus({
+                event_id: eventId,
+                status: 'failed',
+                phase: 'announcement',
+                error_code: 'ANNOUNCE_QUEUE_FAILED'
+            });
         }
 
-        try {
-            if (typeof socket !== 'undefined' && socket && socket.emit) {
-                socket.emit('airport-display-status', {
-                    event_id: eventId,
-                    zone: event.zone,
-                    event: event.event,
-                    status: 'accepted',
-                    slots: slotResults,
-                    timestamp: new Date().toISOString()
-                });
-            }
-        } catch (e) { /* ignore */ }
-
         return {
-            status: 'success',
-            message: 'Airport Display event accepted',
+            status: failed.length && failed.length === slotResults.length && slotResults.length
+                ? 'error'
+                : 'success',
+            message: 'Airport Display event processed',
             event_id: eventId,
             slots: slotResults
         };
     }
 
-    function clearOverlay() {
-        if (overlayEl) {
-            overlayEl.style.display = 'none';
-            overlayEl.innerHTML = '';
-        }
-    }
-
-    function setLocalTtsUrl(url) {
-        if (url) localTtsUrl = String(url).replace(/\/$/, '');
-    }
-
     global.AirportDisplayPlayer = {
         handle: handleAirportDisplayEvent,
-        clearOverlay: clearOverlay,
-        setLocalTtsUrl: setLocalTtsUrl,
         getQueueLength: function () { return announcementQueue.length + (isPlaying ? 1 : 0); }
     };
 })(window);

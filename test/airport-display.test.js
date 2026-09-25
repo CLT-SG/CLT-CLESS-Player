@@ -36,10 +36,21 @@ describe('AirportDisplayPlayer', () => {
             };
             return api;
         };
+        const slotCatalog = {
+            BoardingMsg: { slotid: '1', slottype: 'text', layoutid: '10' },
+            InfoTicker: { slotid: '2', slottype: 'ticker', layoutid: '10' },
+            TestSlot: { slotid: '3', slottype: 'text', layoutid: '11' },
+            FlightInfo: { slotid: '45', slottype: 'text', layoutid: '12' },
+            A: { slotid: '9', slottype: 'text', layoutid: '2' },
+        };
         const sandbox = {
             window: {},
             document,
             $: jqueryStub,
+            slotnameList: Object.keys(slotCatalog),
+            currentPlayLayoutID: '12',
+            getCurrentLayoutID: (name) => slotCatalog[name] || null,
+            updateTextSlotContent: () => true,
             Audio: function () {
                 this.addEventListener = () => {};
                 this.play = () => Promise.resolve();
@@ -87,6 +98,58 @@ describe('AirportDisplayPlayer', () => {
             announcement: { enabled: false },
         });
         assert.equal(result.status, 'success');
+    });
+
+    it('accepts Layout+Slot identifiers', () => {
+        const AD = loadModule();
+        const result = AD.handle({
+            type: 'airport_display',
+            event: 'manual_test',
+            event_id: 'airport-layout-slot-001',
+            slots: [
+                {
+                    layout_id: '12',
+                    layout_name: 'Departure',
+                    slot_id: '45',
+                    slot_name: 'FlightInfo',
+                    slot_type: 'text',
+                    value: 'SQ123 - Boarding',
+                },
+            ],
+            announcement: {
+                enabled: true,
+                text: 'Now boarding',
+                language: 'en',
+                audio_url: 'https://example.com/audio.mp3',
+            },
+        });
+        assert.equal(result.status, 'success');
+        assert.equal(result.slots.length, 1);
+        assert.equal(result.slots[0].layout_id, '12');
+        assert.equal(result.slots[0].slot_id, '45');
+        assert.equal(result.slots[0].ok, true);
+    });
+
+    it('reports slot not found without crashing', () => {
+        const AD = loadModule();
+        const result = AD.handle({
+            type: 'airport_display',
+            event: 'manual_test',
+            event_id: 'airport-missing-slot-001',
+            slots: [
+                {
+                    layout_id: '99',
+                    slot_id: '999',
+                    slot_name: 'DoesNotExist',
+                    slot_type: 'text',
+                    value: 'x',
+                },
+            ],
+            announcement: { enabled: false },
+        });
+        assert.equal(result.status, 'error');
+        assert.equal(result.slots[0].ok, false);
+        assert.equal(result.slots[0].error_code, 'SLOT_NOT_FOUND');
     });
 
     it('ignores duplicate event_ids', () => {

@@ -376,6 +376,123 @@ return (async function () {
         }
     })
 
+    /**
+     * Airport Display layout/slot discovery.
+     * GET /api/airport-display/layouts
+     * Reuses the renderer layout-details path and normalizes the response.
+     */
+    app.get('/api/airport-display/layouts', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    success: false,
+                    error: 'eCLESS renderer process not connected',
+                    error_code: 'PLAYER_DISCONNECTED',
+                    layouts: [],
+                    current_layout: null,
+                    is_loop: false
+                })
+            }
+
+            var responseSent = false
+            var responseHandler = function (layoutInfo) {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                clearTimeout(responseTimeout)
+                try {
+                    var layouts = []
+                    var rawLayouts = (layoutInfo && layoutInfo.layouts) || []
+                    rawLayouts.forEach(function (layout) {
+                        var slotsRaw = layout.allSlots || layout.slots || []
+                        var slots = slotsRaw.map(function (s) {
+                            return {
+                                slot_id: String(s.id || s.slotid || ''),
+                                slot_name: String(s.name || s.slotname || ''),
+                                slot_type: String(s.type || s.slottype || 'unknown'),
+                                value: String(s.content || s.filename || s.value || ''),
+                                enabled: String(s.enabled || 'Y'),
+                                layout_id: String(s.layoutId || s.layoutid || layout.id || ''),
+                                layout_name: String(s.layoutName || layout.name || '')
+                            }
+                        }).filter(function (s) { return s.slot_id || s.slot_name })
+                        layouts.push({
+                            layout_id: String(layout.id || ''),
+                            layout_name: String(layout.name || ('Layout ' + layout.id)),
+                            is_active: Boolean(layout.isActive),
+                            is_loop: Boolean(layout.isLoop || layoutInfo.isLoop),
+                            total_slots: slots.length,
+                            slots: slots
+                        })
+                    })
+                    var current = layoutInfo.currentLayout || null
+                    res.json({
+                        success: true,
+                        is_loop: Boolean(layoutInfo.isLoop),
+                        mode: layoutInfo.mode || (layoutInfo.isLoop ? 'loop' : 'single'),
+                        current_layout: current ? {
+                            layout_id: String(current.id || ''),
+                            layout_name: String(current.name || '')
+                        } : null,
+                        layouts: layouts,
+                        timestamp: Date.now()
+                    })
+                } catch (normErr) {
+                    log.error('Airport Display layout normalize error:', normErr)
+                    res.status(500).json({
+                        success: false,
+                        error: 'Failed to normalize layout details',
+                        error_code: 'LAYOUT_NORMALIZE_FAILED',
+                        layouts: []
+                    })
+                }
+            }
+
+            var responseTimeout = setTimeout(function () {
+                if (responseSent || res.headersSent) return
+                responseSent = true
+                electronID.removeListener('layout-details-response', responseHandler)
+                res.status(504).json({
+                    success: false,
+                    error: 'Timeout waiting for layout details',
+                    error_code: 'PLAYER_TIMEOUT',
+                    layouts: []
+                })
+            }, 8000)
+
+            electronID.once('layout-details-response', responseHandler)
+            electronID.emit('get-layout-details', { timestamp: Date.now(), source: 'airport-display' })
+        } catch (error) {
+            log.error('API: Airport Display layouts error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    success: false,
+                    error: error.message,
+                    error_code: 'INTERNAL_ERROR',
+                    layouts: []
+                })
+            }
+        }
+    })
+
+    /**
+     * Playback / delivery status callback from renderer.
+     * POST /api/airport-display/status
+     */
+    app.post('/api/airport-display/status', function (req, res) {
+        try {
+            var body = req.body || {}
+            log.info('airport-display-status: ' + JSON.stringify(body))
+            io.emit('cpanel-airport-display-status', body)
+            res.json({ status: 'ok' })
+        } catch (error) {
+            log.error('API: Airport Display status error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({ status: 'error', message: error.message })
+            }
+        }
+    })
+
     app.get('/api/update-layout', function (req, res) {
         try {
             var electronID = io.sockets.sockets.get(userID['eCLESS'])
