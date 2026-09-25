@@ -9,6 +9,103 @@ const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind
 console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
 socket.emit('save id', 'Controlpanel:')
 
+// --- App update status (GitHub Releases / electron-updater) ---
+function renderAppUpdateStatus(status) {
+    const el = $('#appUpdateStatus')
+    const installBtn = $('#installUpdateBtn')
+    if (!el.length) {
+        return
+    }
+    const message = (status && status.message) || 'Update status unavailable.'
+    const state = (status && status.state) || 'idle'
+    const version = (status && status.currentVersion) || '—'
+    $('#appVersionLabel').text('Player version: v' + version)
+
+    let alertClass = 'alert-secondary'
+    if (state === 'uptodate') alertClass = 'alert-success'
+    else if (state === 'available' || state === 'downloading' || state === 'downloaded' || state === 'installing') alertClass = 'alert-info'
+    else if (state === 'error') alertClass = 'alert-danger'
+    else if (state === 'checking') alertClass = 'alert-warning'
+
+    el.removeClass('alert-secondary alert-success alert-info alert-danger alert-warning')
+        .addClass(alertClass)
+        .text(message)
+
+    const canInstall = status && status.downloaded && state === 'downloaded'
+    installBtn.prop('disabled', !canInstall)
+}
+
+function refreshAppUpdateStatus() {
+    $.ajax({
+        type: 'get',
+        url: '/api/updates/status',
+        timeout: 10000,
+        success: function (data) {
+            renderAppUpdateStatus(data || {})
+        },
+        error: function () {
+            renderAppUpdateStatus({
+                state: 'error',
+                message: 'Update failed.',
+                currentVersion: '—'
+            })
+        }
+    })
+}
+
+function checkForAppUpdates() {
+    showToast('Checking for updates...', 'info')
+    renderAppUpdateStatus({
+        state: 'checking',
+        message: 'Checking for updates...',
+        currentVersion: ($('#appVersionLabel').text().replace(/^Player version:\s*v?/i, '') || '—')
+    })
+    $.ajax({
+        type: 'post',
+        url: '/api/updates/check',
+        timeout: 120000,
+        success: function (data) {
+            renderAppUpdateStatus((data && data.update) || {})
+            if (data && data.update && data.update.message) {
+                showToast(data.update.message, data.update.state === 'error' ? 'error' : 'info')
+            }
+        },
+        error: function (xhr) {
+            const message = (xhr.responseJSON && xhr.responseJSON.message) || 'Update failed.'
+            renderAppUpdateStatus({ state: 'error', message: message })
+            showToast(message, 'error')
+        }
+    })
+}
+
+function installDownloadedAppUpdate() {
+    if (!confirm('Install the downloaded update and restart CLESS-Player now?')) {
+        return
+    }
+    showToast('Installing update. The player will restart shortly.', 'warning')
+    $.ajax({
+        type: 'post',
+        url: '/api/updates/install',
+        timeout: 15000,
+        success: function (data) {
+            renderAppUpdateStatus({
+                state: 'installing',
+                message: (data && data.message) || 'Installing update and restarting...'
+            })
+        },
+        error: function (xhr) {
+            const message = (xhr.responseJSON && xhr.responseJSON.message) || 'Update failed.'
+            renderAppUpdateStatus({ state: 'error', message: message })
+            showToast(message, 'error')
+        }
+    })
+}
+
+socket.on('app-update-status', function (status) {
+    renderAppUpdateStatus(status || {})
+})
+
+
 // Socket connection event handlers for restart recovery
 socket.on('connect', function() {
     console.log('=== CONTROL PANEL: Connected to socket server ===')
@@ -343,6 +440,8 @@ $(document).ready(function () {
     gettimeslot()
     getdatetimeslot()
     loadConfiguration()
+    refreshAppUpdateStatus()
+    setInterval(refreshAppUpdateStatus, 30000)
     
     // Initialize modern dashboard features
     initModernFeatures()
@@ -743,6 +842,14 @@ function setupEventHandlers() {
 
     $('#restartapp').click(function () {
         throttledAction('restartapp', function () { restartapp() }, 5000)
+    })
+
+    $('#checkForUpdates, #checkForUpdatesSecondary').click(function () {
+        throttledAction('checkForUpdates', function () { checkForAppUpdates() }, 5000)
+    })
+
+    $('#installUpdateBtn').click(function () {
+        throttledAction('installUpdate', function () { installDownloadedAppUpdate() }, 5000)
     })
 
     $('#refreshLayout').click(function () {
@@ -1702,6 +1809,12 @@ function saveConfiguration() {
         hostserver: clessHostname,
         corsproxy: corsOptions,
         id: parseInt(dsId), // Ensure numeric type for DS ID
+
+        systemSettings: {
+            ...((configData && configData.systemSettings) || {}),
+            autoCheckUpdates: $('#autoCheckUpdates').is(':checked'),
+            autoInstallUpdates: $('#autoInstallUpdates').is(':checked')
+        },
         
         // Update timestamp
         timestamp: new Date().toISOString()
@@ -1906,6 +2019,16 @@ function loadConfiguration() {
                 $('#screenTimeout').val(data.screenTimeout || 0)
                 $('#updateInterval').val(data.updateInterval || 30)
                 $('#logLevel').val(data.logLevel || 'info')
+                $('#autoCheckUpdates').prop(
+                    'checked',
+                    data.systemSettings && typeof data.systemSettings.autoCheckUpdates === 'boolean'
+                        ? data.systemSettings.autoCheckUpdates
+                        : true
+                )
+                $('#autoInstallUpdates').prop(
+                    'checked',
+                    !!(data.systemSettings && data.systemSettings.autoInstallUpdates)
+                )
                 
                 // Load enhanced configuration fields
                 $('#clessHostname').val(data.hostserver || '')

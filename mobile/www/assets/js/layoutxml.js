@@ -527,9 +527,17 @@ function silentTableDataRefresh(tableid) {
     console.log('[Silent table refresh] Checking for updates on table ' + tableid)
 
     var serverAdd = config.hostserver
-    var urlServer = serverAdd + '/' + dsid + '/ds.xml'
+    var playerVersion = ''
+    try {
+        if (typeof remote !== 'undefined' && remote.app) {
+            playerVersion = remote.app.getVersion()
+        } else if (window.__CLESS_APP_VERSION__) {
+            playerVersion = window.__CLESS_APP_VERSION__
+        }
+    } catch (e) { playerVersion = '' }
+    var urlServer = serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : '')
     if (config.corsproxy == 'Y') {
-        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml')
+        urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : ''))
     }
 
     $.ajax({

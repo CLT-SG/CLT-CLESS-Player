@@ -201,6 +201,7 @@ See [CONTROL_PANEL_API.md](docs/CONTROL_PANEL_API.md) for complete API documenta
 See [SYNCHRONIZATION.md](docs/SYNCHRONIZATION.md) for multi-screen sync setup and configuration.
 See [MOBILE-APP.md](docs/MOBILE-APP.md) for mobile app development and deployment.
 See [WIDGET-SLOTS.md](docs/WIDGET-SLOTS.md) for rendering server widgets in layout widget slots.
+See [AUTO-UPDATE.md](docs/AUTO-UPDATE.md) for GitHub Releases auto-update and how to publish a new Player release.
 
 ## Building the Application
 

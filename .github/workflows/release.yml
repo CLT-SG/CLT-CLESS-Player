@@ -1,14 +1,18 @@
 # Build CLESS-Player with the Electron version declared in package.json and
 # publish a GitHub Release only after every supported package succeeds.
 #
-# Supported targets come from the existing electron-builder scripts:
-#   npm run win64    -> Windows x64 NSIS
-#   npm run win32    -> Windows ia32 NSIS
-#   npm run ubuntu64 -> Linux x64 deb
+# Supported targets come from the existing electron-builder scripts / config:
+#   Windows ia32 + x64 NSIS (single job so latest.yml covers both arches)
+#   Linux x64 deb + AppImage (AppImage enables electron-updater on Linux)
 #
 # npm run ubuntu32 is not run here. Electron 22.3.9 does not publish a
 # linux-ia32 binary, so that script cannot produce an artifact. macOS is not
 # a configured electron-builder target.
+#
+# electron-builder --publish never still generates updater metadata
+# (latest.yml / latest-linux.yml / *.blockmap) from the publish config in
+# package.json. Those files are uploaded to the GitHub Release so packaged
+# Players can auto-update via electron-updater.
 
 name: Release
 
@@ -39,14 +43,11 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            script: win64
-            label: windows-x64
-          - os: windows-latest
-            script: win32
-            label: windows-ia32
+            label: windows
+            build_command: npx electron-builder --win --x64 --ia32 --publish never
           - os: ubuntu-latest
-            script: ubuntu64
             label: linux-x64
+            build_command: npm run ubuntu64 -- --publish never
 
     steps:
       - name: Checkout repository
@@ -94,9 +95,10 @@ jobs:
         run: |
           set -euo pipefail
           echo "Building application..."
-          echo "Packaging application... (${{ matrix.script }})"
+          echo "Packaging application... (${{ matrix.label }})"
           echo "electron-builder publish is disabled so a failed or partial build cannot create a release."
-          npm run "${{ matrix.script }}" -- --publish never
+          echo "Updater metadata (latest*.yml / blockmap) is still generated for GitHub Releases."
+          ${{ matrix.build_command }}
 
       - name: Collect release artifacts
         shell: bash
@@ -123,6 +125,12 @@ jobs:
           if ! compgen -G "staging/*" > /dev/null; then
             echo "No release artifacts were produced in build/release."
             exit 1
+          fi
+          if ! compgen -G "staging/latest*.yml" > /dev/null; then
+            echo "WARNING: No latest*.yml updater metadata found. Auto-update clients may not find this release."
+          else
+            echo "Updater metadata present:"
+            ls -la staging/latest*.yml
           fi
 
       - name: Upload build artifacts
@@ -199,6 +207,10 @@ jobs:
           echo "Release name: CLESS-Player ${TAG}"
           echo "Artifacts:"
           printf '  %s\n' "${files[@]}"
+          if ! compgen -G "release-assets/latest*.yml" > /dev/null; then
+            echo "Release creation failed: missing updater metadata (latest*.yml)."
+            exit 1
+          fi
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "Release ${TAG} already exists. Refusing to publish over it."
             exit 1

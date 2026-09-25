@@ -15,7 +15,11 @@
         "build:mobile": "cd mobile && npm install && npm run build:mobile",
         "install:mobile": "cd mobile && npm install"
     },
-    "homepage": "www.closed-loop.biz",
+    "homepage": "https://github.com/CLT-SG/CLT-CLESS-Player",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/CLT-SG/CLT-CLESS-Player.git"
+    },
     "author": {
         "name": "Closed-Loop Technology Pte. Ltd",
         "email": "sales@closed-loop.biz"
@@ -71,14 +75,31 @@
             "output": "build/release"
         },
         "compression": "maximum",
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "CLT-SG",
+                "repo": "CLT-CLESS-Player",
+                "releaseType": "release"
+            }
+        ],
         "win": {
             "target": "nsis",
             "artifactName": "${productName}_Setup_${version}_Win7Above_${arch}.exe",
             "icon": "build/icons/win/clt.png",
             "legalTrademarks": "Copyright by Closed-loop Technology Pte Ltd. All rights reserved"
         },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "differentialPackage": true
+        },
         "linux": {
-            "target": "deb",
+            "target": [
+                "deb",
+                "AppImage"
+            ],
+            "artifactName": "${productName}_${version}_${arch}.${ext}",
             "icon": "build/icons/linux",
             "category": "AudioVideo",
             "desktop": "eClessplayer"

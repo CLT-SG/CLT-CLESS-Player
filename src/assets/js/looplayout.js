@@ -495,10 +495,12 @@ async function layoutLoopUpdateXML() {
     var serverAdd = config.hostserver; // Get the server address from the configuration
     log.info('Layout Loop: Updating xml..'); // Log the online mode
 
-    // Set up proxy if enabled
-    var urlServer = serverAdd + '/' + dsid + '/ds.xml'; // Create the URL for fetching XML data
+    // Set up proxy if enabled; report player version to CLESS-Server when available
+    var playerVersion = ''
+    try { playerVersion = remote.app.getVersion() } catch (e) { playerVersion = '' }
+    var urlServer = serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : '')
     if (config.corsproxy == 'Y') {
-      urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml'); // Use CORS proxy if enabled
+      urlServer = 'https://corsproxy.io/?url=' + encodeURIComponent(serverAdd + '/' + dsid + '/ds.xml' + (playerVersion ? ('?v=' + encodeURIComponent(playerVersion)) : ''))
     }
 
     $.ajax({
