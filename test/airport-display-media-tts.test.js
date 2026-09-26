@@ -72,6 +72,22 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(langs[2].text, 'SQ123航班现在开始登机。');
     });
 
+    it('supports expanded airport languages including Arabic and Russian in order', () => {
+        const AD = loadModule();
+        const langs = AD._normalizeAnnouncementLanguages({
+            enabled: true,
+            text: 'Boarding',
+            languages: [
+                { language: 'ar', order: 3, text: 'بدأ صعود الرحلة', audio_url: 'ar.mp3' },
+                { language: 'en', order: 1, text: 'Flight SQ123 is now boarding.', audio_url: 'en.mp3' },
+                { language: 'ru', order: 2, text: 'Начинается посадка на рейс SQ123.', audio_url: 'ru.mp3' },
+                { language: 'ms', order: 4, text: 'Penerbangan SQ123 kini menaiki.', audio_url: 'ms.mp3' },
+            ],
+        });
+        assert.equal(langs.map((l) => l.language).join(','), 'en,ru,ar,ms');
+        assert.equal(langs[2].text, 'بدأ صعود الرحلة');
+    });
+
     it('plays languages in configured order and continues after one failure', async () => {
         const played = [];
         function RecordingAudio(url) {
