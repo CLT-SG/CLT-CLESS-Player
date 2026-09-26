@@ -7,6 +7,7 @@ This document provides comprehensive instructions for building and deploying And
 ## Quick Navigation
 
 - [Ionic Appflow Cloud Build Setup](docs_mobile/IONIC-APPFLOW-SETUP.md)
+- Capgo live updates (OTA): https://capgo.app/docs/ (`@capgo/capacitor-updater` — channels, rollback, any CI/CD)
 - [Prerequisites](#prerequisites)
 - [Installation Steps](#installation-steps)
 - [Build Commands](#build-commands-reference)
