@@ -139,7 +139,7 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
                 slot_type: 'media',
                 media_mode: 'selected',
                 value: 'Welcome.mp4',
-                media_items: [{ filename: 'Welcome.mp4', order: 1, selected: true }],
+                media_items: [{ filename: 'Welcome.mp4', path: 'media/Welcome.mp4', order: 1, selected: true }],
                 temporary: true,
             }],
             announcement: { enabled: false },
@@ -147,5 +147,26 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         // Without DOM slot, media apply fails gracefully (does not crash)
         assert.ok(result);
         assert.ok(['success', 'error'].includes(result.status));
+    });
+
+    it('rejects empty media payloads and prefers path when building content', () => {
+        const AD = loadModule();
+        const empty = AD._applyTemporaryMedia(
+            { media_mode: 'selected', value: '', media_items: [] },
+            { numericId: '45', layoutId: '12', $el: { length: 0 } }
+        );
+        assert.equal(empty.ok, false);
+        assert.equal(empty.error_code, 'MEDIA_VALUE_MISSING');
+
+        const built = AD._buildMediaContentObj({
+            filename: 'Welcome.mp4',
+            path: '/opt/player/media/Welcome.mp4',
+            type: 'video',
+            selected: true,
+        });
+        assert.ok(built);
+        assert.equal(built.filename, 'Welcome.mp4');
+        assert.equal(built.contentUrl, '/opt/player/media/Welcome.mp4');
+        assert.equal(built.mediaType, 'VIDEO');
     });
 });
