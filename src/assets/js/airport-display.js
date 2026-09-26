@@ -13,10 +13,14 @@
  *     temporary?: true
  *   }],
  *   announcement: {
- *     enabled, text,
+ *     enabled, text,                    // primary language (first in order)
  *     language?, voice?, audio_url?,   // single-language (legacy)
- *     languages?: [{ language, voice, order, audio_url }]
+ *     languages?: [{ language, voice, order, text, audio_url }]
  *   }
+ *
+ * languages[] is the playback queue. Each entry has its own text and audio
+ * file. Playback follows `order` (the operator's language order). A failure
+ * for one language is reported and the next language still plays.
  * }
  *
  * Media triggers update runtime medialoop / DOM only — they do NOT persist
@@ -395,7 +399,6 @@
         if (!ann.enabled) return;
         var languages = normalizeAnnouncementLanguages(ann);
         if (!languages.length) return;
-        // Require at least one audio_url
         var playable = languages.filter(function (l) { return !!l.audio_url; });
         if (!playable.length) {
             reportStatus({
@@ -403,21 +406,26 @@
                 status: 'failed',
                 phase: 'announcement',
                 error_code: 'AUDIO_URL_MISSING',
-                message: 'Announcement enabled but no audio_url was provided'
+                message: 'Announcement enabled but no audio_url was provided',
+                languages: languages.map(function (l) {
+                    return { language: l.language, order: l.order, ok: false, error_code: 'AUDIO_URL_MISSING' };
+                })
             });
             return;
         }
+        // Keep languages that have no audio so they are reported in order,
+        // while the playable languages still play around them.
         announcementQueue.push({
             event_id: event.event_id,
             text: ann.text || '',
-            languages: playable
+            languages: languages
         });
         reportStatus({
             event_id: event.event_id,
             status: 'queued',
             phase: 'announcement',
-            languages: playable.map(function (l) {
-                return { language: l.language, order: l.order };
+            languages: languages.map(function (l) {
+                return { language: l.language, order: l.order, text: l.text || '' };
             })
         });
         pumpQueue();
@@ -459,6 +467,24 @@
         var chain = Promise.resolve();
         (job.languages || []).forEach(function (lang) {
             chain = chain.then(function () {
+                if (!lang.audio_url) {
+                    results.push({
+                        language: lang.language,
+                        order: lang.order,
+                        ok: false,
+                        error_code: 'AUDIO_URL_MISSING'
+                    });
+                    reportStatus({
+                        event_id: job.event_id,
+                        status: 'language_failed',
+                        phase: 'announcement',
+                        language: lang.language,
+                        order: lang.order,
+                        error_code: 'AUDIO_URL_MISSING',
+                        message: 'No audio for ' + lang.language
+                    });
+                    return false;
+                }
                 reportStatus({
                     event_id: job.event_id,
                     status: 'playing',
@@ -479,9 +505,10 @@
                         status: ok ? 'language_completed' : 'language_failed',
                         phase: 'announcement',
                         language: lang.language,
-                        order: lang.order
+                        order: lang.order,
+                        error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
                     });
-                    // Continue to next language even if one fails
+                    // Continue to the next language even if this one fails.
                     return ok;
                 });
             });
@@ -595,6 +622,7 @@
         handle: handleAirportDisplayEvent,
         getQueueLength: function () { return announcementQueue.length + (isPlaying ? 1 : 0); },
         _normalizeAnnouncementLanguages: normalizeAnnouncementLanguages,
+        _playLanguageSequence: playLanguageSequence,
         _guessMediaType: guessMediaType
     };
 })(window);

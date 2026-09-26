@@ -8,7 +8,7 @@ const path = require('path');
 const vm = require('vm');
 
 describe('AirportDisplayPlayer media + multilingual TTS', () => {
-    function loadModule() {
+    function loadModule(AudioImpl) {
         const code = fs.readFileSync(
             path.join(__dirname, '..', 'src', 'assets', 'js', 'airport-display.js'),
             'utf8'
@@ -22,7 +22,8 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
             },
             $: () => ({ length: 0, html: () => {}, attr: () => '' }),
             console,
-            Audio: function () {
+            queueMicrotask,
+            Audio: AudioImpl || function () {
                 this.addEventListener = () => {};
                 this.play = () => Promise.resolve();
                 this.pause = () => {};
@@ -52,6 +53,62 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(langs[1].language, 'ja');
         assert.equal(langs[0].order, 1);
         assert.equal(langs[1].order, 2);
+    });
+
+    it('keeps each language text instead of the shared announcement', () => {
+        const AD = loadModule();
+        const langs = AD._normalizeAnnouncementLanguages({
+            enabled: true,
+            text: 'shared',
+            languages: [
+                { language: 'en', order: 1, text: 'Flight SQ123 is now boarding.', audio_url: 'en.mp3' },
+                { language: 'ja', order: 2, text: 'フライトSQ123の搭乗を開始します。', audio_url: 'ja.mp3' },
+                { language: 'zh', order: 3, text: 'SQ123航班现在开始登机。', audio_url: 'zh.mp3' },
+            ],
+        });
+        assert.equal(langs.map((l) => l.language).join(','), 'en,ja,zh');
+        assert.equal(langs[0].text, 'Flight SQ123 is now boarding.');
+        assert.equal(langs[1].text, 'フライトSQ123の搭乗を開始します。');
+        assert.equal(langs[2].text, 'SQ123航班现在开始登机。');
+    });
+
+    it('plays languages in configured order and continues after one failure', async () => {
+        const played = [];
+        function RecordingAudio(url) {
+            this.url = url;
+            this._handlers = {};
+            this.addEventListener = (name, fn) => { this._handlers[name] = fn; };
+            this.play = () => {
+                played.push(this.url);
+                const fail = String(this.url).indexOf('fail') !== -1;
+                queueMicrotask(() => {
+                    const fn = fail ? this._handlers.error : this._handlers.ended;
+                    if (fn) fn();
+                });
+                return Promise.resolve();
+            };
+            this.pause = () => {};
+        }
+        const AD = loadModule(RecordingAudio);
+        const summary = await AD._playLanguageSequence({
+            event_id: 'seq-1',
+            languages: [
+                { language: 'en', order: 1, audio_url: 'en.mp3', text: 'English' },
+                { language: 'ja', order: 2, audio_url: 'fail-ja.mp3', text: 'Japanese' },
+                { language: 'zh', order: 3, audio_url: '', text: 'Chinese missing' },
+                { language: 'ko', order: 4, audio_url: 'ko.mp3', text: 'Korean' },
+            ],
+        });
+        assert.deepEqual(played, ['en.mp3', 'fail-ja.mp3', 'ko.mp3']);
+        assert.equal(summary.played, 2);
+        assert.equal(summary.failed, 2);
+        assert.equal(
+            Array.from(summary.results, (r) => r.language).join(','),
+            'en,ja,zh,ko'
+        );
+        assert.equal(summary.results[1].error_code, 'AUDIO_PLAYBACK_FAILED');
+        assert.equal(summary.results[2].error_code, 'AUDIO_URL_MISSING');
+        assert.equal(summary.results[3].ok, true);
     });
 
     it('does not alphabetically reorder languages when order is sequential', () => {
