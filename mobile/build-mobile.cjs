@@ -37,8 +37,13 @@ function copyDirectory(src, dest) {
 
         if (entry.isDirectory()) {
             copyDirectory(srcPath, destPath);
-        } else if (!entry.name.endsWith('.gz')) {
+        } else if (entry.name.endsWith('.gz')) {
             // Android Gradle treats file.js and file.js.gz as one resource.
+            continue;
+        } else if (entry.name.endsWith('.map')) {
+            // Source maps are megabytes and are of no use inside an APK.
+            continue;
+        } else {
             fs.copyFileSync(srcPath, destPath);
         }
     }
@@ -79,6 +84,47 @@ function syncSharedArtifacts() {
     return copied;
 }
 
+/**
+ * Adds the Capacitor bootstrap to the Vue renderer's page.
+ *
+ * `app-dist/index.html` is emitted by Vite and shipped to Electron as-is, so
+ * it must not carry mobile-only script tags. On mobile the page still needs
+ * two things before the Vue bundle runs: the Capacitor plugin bundle (which
+ * is what populates `window.Capacitor.Plugins`, where the platform layer
+ * looks) and the mobile config loader (which the Capacitor configuration
+ * source reuses, so both renderers are configured identically).
+ *
+ * Injected here rather than committed so the two builds cannot diverge.
+ */
+const CAPACITOR_BOOTSTRAP = `    <!-- Injected by mobile/build-mobile.cjs -->
+    <script type="module" src="../assets/js/mobile/capacitor-core.bundle.js"></script>
+    <script src="../assets/js/mobile/mobile-electron-shim.js"></script>
+    <script src="../assets/js/mobile/mobile-config.js"></script>
+`;
+
+const BOOTSTRAP_MARKER = 'mobile/build-mobile.cjs';
+
+function injectCapacitorBootstrap() {
+    const indexPath = path.join(wwwDir, 'app-dist', 'index.html');
+    if (!fs.existsSync(indexPath)) return false;
+
+    const html = fs.readFileSync(indexPath, 'utf8');
+    if (html.includes(BOOTSTRAP_MARKER)) return false;
+
+    // Ahead of Vite's own tag: module scripts run in document order, and the
+    // renderer reads window.Capacitor.Plugins while it is still booting.
+    const insertAt = html.indexOf('<script');
+    if (insertAt < 0) {
+        throw new Error('app-dist/index.html has no script tag; cannot order the Capacitor bootstrap.');
+    }
+
+    fs.writeFileSync(indexPath, html.slice(0, insertAt) + CAPACITOR_BOOTSTRAP.trimStart() + '    ' + html.slice(insertAt));
+    return true;
+}
+
 console.log('Syncing shared build artifacts into mobile/www...');
 const total = syncSharedArtifacts();
+if (injectCapacitorBootstrap()) {
+    console.log('  injected the Capacitor bootstrap into app-dist/index.html');
+}
 console.log(`Done: ${total} artifact(s) synced.`);

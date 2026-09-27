@@ -41,6 +41,8 @@ node_modules
 
 # Build output of the modern renderer (produced by `npm --prefix app run build`)
 src/app-dist/
+# Copy of the above, placed by mobile/build-mobile.cjs
+mobile/www/app-dist/
 
 #package-lock.json
 package-lock.json

@@ -405,15 +405,17 @@ export function capacitorConfigurationSource(): ConfigurationSource {
     async read() {
       const globals = globalThis as {
         config?: Record<string, unknown>
-        mobileConfigLoader?: { load?(): Promise<Record<string, unknown>> }
+        mobileConfigLoader?: { loadConfiguration?(): Promise<Record<string, unknown>> }
       }
 
-      if (globals.mobileConfigLoader?.load) {
+      if (globals.mobileConfigLoader?.loadConfiguration) {
         try {
-          const loaded = await globals.mobileConfigLoader.load()
+          const loaded = await globals.mobileConfigLoader.loadConfiguration()
           if (ValidationUtils.isRecord(loaded)) return loaded
-        } catch {
-          // Fall through to whatever the loader already published.
+        } catch (error) {
+          // Fall through to whatever the loader already published; a config
+          // read failure must not stop an offline device from booting.
+          logger.warn('Mobile config loader failed', error)
         }
       }
       return ValidationUtils.isRecord(globals.config) ? globals.config : null
