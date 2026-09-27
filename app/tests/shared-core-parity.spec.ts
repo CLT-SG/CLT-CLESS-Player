@@ -1,6 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+// Imported as text so the path is resolved relative to this file at transform
+// time; reading it at run time would depend on the working directory.
+import bundleSource from '../../src/assets/js/cless-core.js?raw'
 import { ColorUtils, TableCellCodec } from '@core/utilities'
 
 /**
@@ -147,14 +148,9 @@ describe('table cell decoding parity', () => {
  * sites use, and has to behave the same. This evaluates the shipped artifact.
  */
 describe('committed cless-core.js bundle', () => {
-  // Resolved from the Vitest root (`app/`) rather than `import.meta.url`,
-  // which is not a file URL under the jsdom environment.
-  const bundlePath = resolve(process.cwd(), '../src/assets/js/cless-core.js')
-
   function loadBundle(): Record<string, unknown> {
-    const source = readFileSync(bundlePath, 'utf8')
     const scope: Record<string, unknown> = {}
-    new Function('globalThis', 'window', `${source}\n;return globalThis.ClessCore`)(scope, scope)
+    new Function('globalThis', 'window', `${bundleSource}\n;return globalThis.ClessCore`)(scope, scope)
     return scope['ClessCore'] as Record<string, unknown>
   }
 
