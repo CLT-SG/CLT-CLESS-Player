@@ -226,6 +226,7 @@ one-layout loop produced a visible flash).
 | `GET /<ds_id>/ds.json` | Document for a display |
 | `GET /layout/<id>/ds.json` | A single layout |
 | `GET /layoutloop/<id>/loop.json` | A playlist |
+| `GET /layout-schema.json` | Schema version and content types this server speaks |
 
 - `ETag` is returned on every response; the player sends it back as
   `If-None-Match` and a `304` costs nothing but headers. This is what makes
