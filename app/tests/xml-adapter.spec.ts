@@ -134,7 +134,7 @@ describe('XmlLayoutAdapter', () => {
     const datasets = adaptSingleLayout().layout!.datasets
     expect(datasets).toHaveLength(1)
     expect(datasets[0]?.slotId).toBe('9')
-    expect(datasets[0]?.rows).toHaveLength(3)
+    expect(datasets[0]?.rows).toHaveLength(4)
     expect(datasets[0]?.rows[0]?.['col01']).toBe('SQ318')
     expect(datasets[0]?.columns).toEqual(['col01', 'col02', 'col03'])
   })

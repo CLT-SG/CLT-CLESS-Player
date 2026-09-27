@@ -86,9 +86,11 @@ export class LayoutTransport {
       return jsonOutcome
     }
 
-    // Only a definitive "this endpoint does not exist" downgrades the server;
-    // a timeout or 5xx must not make a modern server look legacy.
-    if (jsonOutcome.status === 'unreachable' && !LayoutTransport.isEndpointMissing(jsonOutcome.message)) {
+    // Only a definitive "this endpoint does not exist" downgrades the server.
+    // A timeout, a 5xx or a malformed payload must not make a modern server
+    // look legacy: in those cases the JSON API is present but unhappy, and
+    // retrying it later is the correct response.
+    if (jsonOutcome.status !== 'unreachable' || !LayoutTransport.isEndpointMissing(jsonOutcome.message)) {
       return jsonOutcome
     }
 

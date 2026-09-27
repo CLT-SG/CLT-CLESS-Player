@@ -54,7 +54,8 @@ export const SINGLE_LAYOUT_XML = `<?xml version="1.0" encoding="utf-8"?>
     <table id="9">
       <row col01="SQ318" col02="London Heathrow" col03="image:fade:4:sq.png,sq-alt.png" style="color:#ff9900"/>
       <row col01="EK355" col02="Dubai" col03="image:fade:4:ek.png"/>
-      <row col01="QF002" col02="Sydney" col03="transition:slide:3:On Time,Boarding"/>
+      <row col01="QF002" col02="Sydney" col03="transition:On Time,Boarding"/>
+      <row col01="NZ284" col02="Auckland" col03="fader:Delayed,New time 18:40"/>
     </table>
   </records>
 </Configuration>`
