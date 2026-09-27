@@ -35,8 +35,9 @@ node_modules
 *.mpd
 
 # The *.ts rule above targets MPEG-TS media segments. TypeScript sources in the
-# modern renderer must stay tracked.
+# modern renderer and the shared core must stay tracked.
 !app/**/*.ts
+!src/core/**/*.ts
 
 # Build output of the modern renderer (produced by `npm --prefix app run build`)
 src/app-dist/

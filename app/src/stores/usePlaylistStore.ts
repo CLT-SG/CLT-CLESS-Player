@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { PlaylistDefinition, TransitionDefinition } from '@/core/schema'
+import type { PlaylistDefinition, TransitionDefinition } from '@core/layouts/schema'
 
 /**
  * Owns: playlist identity, position and transition settings.

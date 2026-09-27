@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { XmlLayoutAdapter } from '@/core/adapters'
-import { validateLayoutDocument } from '@/core/schema'
+import { XmlLayoutAdapter } from '@core/transports/xml'
+import { validateLayoutDocument } from '@core/layouts/schema'
 import { LOOP_MEMBER_XML, LOOP_XML, SINGLE_LAYOUT_XML, parseXmlForTests } from './fixtures/dsxml'
 
 const adapter = new XmlLayoutAdapter({

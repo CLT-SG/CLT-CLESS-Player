@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import type { EmbedContent } from '@/core/content'
+import type { EmbedContent } from '@core/models'
 import { useConnectivityStore } from '@/stores'
 
 /**

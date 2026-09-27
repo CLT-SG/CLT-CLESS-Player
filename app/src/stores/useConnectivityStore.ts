@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { ConnectivityState, SyncOutcome } from '@/core/types'
+import type { ConnectivityState, SyncOutcome } from '@core/types'
 
 /**
  * Owns: connectivity and synchronisation status.

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { BaseContent } from '@/core/content'
+import type { BaseContent } from '@core/models'
 import { usePlayerStatusStore } from '@/stores'
 
 /**

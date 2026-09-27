@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import type { MediaContent, ResolvedMediaItem } from '@/core/content'
+import type { MediaContent, ResolvedMediaItem } from '@core/models'
 
 /**
  * Renders an image/video/stream rotation.

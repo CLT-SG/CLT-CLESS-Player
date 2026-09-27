@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { ConnectivityMonitor, type FetchOutcome, type LayoutTransport } from '@/core/comm'
-import { SyncService } from '@/core/services'
-import { AssetCache, LayoutRepository, MemoryStorageDriver } from '@/core/storage'
-import { XmlLayoutAdapter } from '@/core/adapters'
-import { SCHEMA_VERSION } from '@/core/schema/version'
-import { layoutDocumentSchema, type LayoutDocument } from '@/core/schema/layout'
-import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@/core/types'
+import { ConnectivityMonitor, type FetchOutcome, type LayoutTransport } from '@core/transports'
+import { SyncService } from '@core/services'
+import { AssetCache, LayoutRepository, MemoryStorageDriver } from '@core/storage'
+import { XmlLayoutAdapter } from '@core/transports/xml'
+import { SCHEMA_VERSION } from '@core/layouts/schema/version'
+import { layoutDocumentSchema, type LayoutDocument } from '@core/layouts/schema/layout'
+import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@core/types'
 import { SINGLE_LAYOUT_XML, parseXmlForTests } from './fixtures/dsxml'
 
 function makeDocument(revision: string): LayoutDocument {

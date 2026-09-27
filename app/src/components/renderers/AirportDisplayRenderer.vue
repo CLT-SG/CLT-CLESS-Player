@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { AirportDisplayContent } from '@/core/content'
+import type { AirportDisplayContent } from '@core/airport-display'
 
 /**
  * Renders the Airport Display overlay for an active boarding event.

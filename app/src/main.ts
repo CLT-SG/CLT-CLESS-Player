@@ -2,21 +2,16 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import './style.css'
-import { PlayerRuntime, REGISTRY_KEY, RUNTIME_KEY, createBrowserHost, createElectronHost } from '@/core/runtime'
-import { Logger } from '@/core/utils'
+import { PlayerRuntime, createHost } from '@core/player'
+import { Logger } from '@core/utilities'
+import { bindRuntime } from './bindRuntime'
+import { REGISTRY_KEY, RUNTIME_KEY } from './renderers'
 
 const logger = Logger.forScope('bootstrap')
 
-/**
- * Electron exposes `@electron/remote` on `window` through `preload.js`; its
- * presence is what distinguishes the packaged player from a browser preview.
- */
-function isElectronRenderer(): boolean {
-  return typeof (globalThis as { remote?: unknown }).remote !== 'undefined'
-}
-
-const host = isElectronRenderer() ? createElectronHost() : createBrowserHost()
-const runtime = new PlayerRuntime(host)
+// The host is resolved by the platform layer, so this file is identical on
+// Electron, Android and iOS.
+const runtime = new PlayerRuntime(createHost())
 
 const app = createApp(App)
 app.use(createPinia())
@@ -31,9 +26,16 @@ app.config.errorHandler = (error, _instance, info) => {
 
 app.mount('#app')
 
+// Stores exist only once the app is mounted, so the binding is made here
+// rather than in the runtime, which must stay framework-free.
+const unbind = bindRuntime(runtime)
+
 void runtime.start().catch((error: unknown) => {
   logger.error('Runtime failed to start', error)
 })
 
 // Stop timers cleanly so a reload does not leave orphaned intervals behind.
-window.addEventListener('beforeunload', () => runtime.stop())
+window.addEventListener('beforeunload', () => {
+  unbind()
+  runtime.stop()
+})

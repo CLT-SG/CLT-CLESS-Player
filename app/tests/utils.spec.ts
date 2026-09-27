@@ -7,7 +7,7 @@ import {
   MediaUtils,
   NetworkUtils,
   ValidationUtils,
-} from '@/core/utils'
+} from '@core/utilities'
 
 describe('DateUtils.format', () => {
   const sample = new Date(2026, 8, 27, 14, 5, 9) // Sun 27 Sep 2026, 14:05:09

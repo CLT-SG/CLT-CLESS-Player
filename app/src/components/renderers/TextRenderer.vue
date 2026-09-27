@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import type { TextContent } from '@/core/content'
+import type { TextContent } from '@core/models'
 
 /**
  * Renders a static or rotating text slot.

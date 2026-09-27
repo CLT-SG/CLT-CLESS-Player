@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { FormatUtils } from '@/core/utils'
+import { FormatUtils } from '@core/utilities'
 import { useConnectivityStore, useSettingsStore } from '@/stores'
 
 /**

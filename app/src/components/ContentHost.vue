@@ -1,19 +1,17 @@
 <script setup lang="ts">
-import { computed, inject } from 'vue'
-import type { BaseContent } from '@/core/content'
-import { TextContent } from '@/core/content'
-import { contentSlotSchema } from '@/core/schema/layout'
-import { ContentPluginRegistry } from '@/core/plugins'
-import { REGISTRY_KEY } from '@/core/runtime/injection'
-import UnsupportedRenderer from '@/components/renderers/UnsupportedRenderer.vue'
+import { computed } from 'vue'
+import type { BaseContent } from '@core/models'
+import { TextContent } from '@core/models'
+import { contentSlotSchema } from '@core/layouts/schema/layout'
+import { rendererFor } from '@/renderers'
 import { useAirportDisplayStore, useLayoutStore } from '@/stores'
 
 /**
  * Resolves a content object to its renderer and applies any active override.
  *
- * This is the only place that maps a content type to a component, which is
- * what keeps the plugin architecture honest: adding a content type cannot
- * require a change anywhere in the component tree above this file.
+ * This is the only place that consults the renderer map, which is what keeps
+ * the plugin architecture honest: adding a content type cannot require a
+ * change anywhere in the component tree above this file.
  *
  * Airport Display overrides are applied here too. A zone trigger replaces the
  * *value* of a named slot while leaving the slot's geometry and styling from
@@ -22,7 +20,6 @@ import { useAirportDisplayStore, useLayoutStore } from '@/stores'
  */
 const props = defineProps<{ content: BaseContent; mediaBaseUrl: string }>()
 
-const registry = inject<ContentPluginRegistry>(REGISTRY_KEY)
 const airport = useAirportDisplayStore()
 const layout = useLayoutStore()
 
@@ -44,10 +41,7 @@ const effectiveContent = computed<BaseContent>(() => {
   return parsed.success ? new TextContent(parsed.data) : props.content
 })
 
-const component = computed(() => {
-  const resolved = registry?.componentFor(effectiveContent.value.type)
-  return resolved ?? UnsupportedRenderer
-})
+const component = computed(() => rendererFor(effectiveContent.value.type))
 
 /** Forces a fresh renderer instance when the layout or the override changes. */
 const instanceKey = computed(

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
-import { LayoutMath } from '@/core/utils'
+import { LayoutMath } from '@core/utilities'
 import SlotFrame from '@/components/SlotFrame.vue'
 import { useLayoutStore, usePlaylistStore } from '@/stores'
 

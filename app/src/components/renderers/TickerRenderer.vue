@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { TickerContent } from '@/core/content'
+import type { TickerContent } from '@core/models'
 
 /**
  * Renders a scrolling ticker (horizontal) or scroller (vertical).

@@ -7,10 +7,10 @@ import {
   TextContent,
   TickerContent,
   UnsupportedContent,
-} from '@/core/content'
-import { BUILTIN_CONTENT_PLUGINS, ContentPluginRegistry, type ContentBuildContext } from '@/core/plugins'
-import { XmlLayoutAdapter } from '@/core/adapters'
-import { contentSlotSchema, type ContentSlotDefinition, type DatasetDefinition } from '@/core/schema/layout'
+} from '@core/models'
+import { BUILTIN_CONTENT_PLUGINS, ContentPluginRegistry, type ContentBuildContext } from '@core/plugins'
+import { XmlLayoutAdapter } from '@core/transports/xml'
+import { contentSlotSchema, type ContentSlotDefinition, type DatasetDefinition } from '@core/layouts/schema/layout'
 import { SINGLE_LAYOUT_XML, parseXmlForTests } from './fixtures/dsxml'
 
 const adapter = new XmlLayoutAdapter({ serverBaseUrl: 'https://cms.example.com/demo', displayId: '5' })
@@ -114,7 +114,6 @@ describe('ContentPluginRegistry', () => {
     const registry = new ContentPluginRegistry().register({
       type: 'broken',
       displayName: 'Broken',
-      component: {},
       create: () => {
         throw new Error('plugin exploded')
       },
@@ -127,10 +126,13 @@ describe('ContentPluginRegistry', () => {
 
   it('lets a late registration replace an earlier one', () => {
     const registry = makeRegistry()
-    const marker = {}
-    registry.register({ type: 'text', displayName: 'Custom Text', component: marker, create: (definition) => new TextContent(definition) })
+    registry.register({
+      type: 'text',
+      displayName: 'Custom Text',
+      create: (definition) => new TextContent(definition),
+    })
 
-    expect(registry.componentFor('text')).toBe(marker)
+    expect(registry.get('text')?.displayName).toBe('Custom Text')
   })
 })
 

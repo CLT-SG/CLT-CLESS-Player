@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import type { FaderContent } from '@/core/content'
+import type { FaderContent } from '@core/models'
 
 /**
  * Cross-fades between text pages.

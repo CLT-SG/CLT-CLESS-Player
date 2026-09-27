@@ -21,8 +21,14 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@core/*": ["../src/core/*"],
+      // The shared core lives above this directory, so Node resolution cannot
+      // reach app/node_modules from it. Every build of the core (Vue bundle
+      // and legacy bundle alike) runs through this toolchain, so there is only
+      // ever one install to point at.
+      "zod": ["./node_modules/zod"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts"]
+  "include": ["src/**/*.ts", "src/**/*.vue", "tests/**/*.ts", "../src/core/**/*.ts"]
 }

@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@/core/types'
-import { Logger } from '@/core/utils'
+import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@core/types'
+import { Logger } from '@core/utilities'
 
 /**
  * Owns: player configuration.

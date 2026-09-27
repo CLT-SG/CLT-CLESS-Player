@@ -4,8 +4,8 @@ import LayoutRenderer from '@/components/LayoutRenderer.vue'
 import BootScreen from '@/components/status/BootScreen.vue'
 import DiagnosticsOverlay from '@/components/status/DiagnosticsOverlay.vue'
 import OfflineBanner from '@/components/status/OfflineBanner.vue'
-import { RUNTIME_KEY } from '@/core/runtime/injection'
-import type { PlayerRuntime } from '@/core/runtime'
+import { RUNTIME_KEY } from '@/renderers'
+import type { PlayerRuntime } from '@core/player'
 import { useLayoutStore, usePlayerStatusStore } from '@/stores'
 
 /**

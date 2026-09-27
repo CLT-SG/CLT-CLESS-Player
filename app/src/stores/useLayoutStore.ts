@@ -1,7 +1,7 @@
 import { computed, ref, shallowRef } from 'vue'
 import { defineStore } from 'pinia'
-import type { LayoutDefinition, LayoutDocument } from '@/core/schema'
-import type { PreparedLayout } from '@/core/services/LayoutService'
+import type { LayoutDefinition, LayoutDocument } from '@core/layouts/schema'
+import type { PreparedLayout } from '@core/layouts/LayoutService'
 
 /**
  * Owns: the active layout document and the prepared (renderable) layout.

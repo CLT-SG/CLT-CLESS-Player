@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { AirportAnnouncementLanguage } from '@/core/content'
-import type { AirportSlotOverride } from '@/core/services/AirportDisplayService'
+import type { AirportAnnouncementLanguage } from '@core/airport-display'
+import type { AirportSlotOverride } from '@core/airport-display/AirportDisplayService'
 
 export interface AnnouncementQueueItem {
   readonly eventId: string

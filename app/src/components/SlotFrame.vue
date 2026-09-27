@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { BaseContent } from '@/core/content'
-import { LayoutMath } from '@/core/utils'
+import type { BaseContent } from '@core/models'
+import { LayoutMath } from '@core/utilities'
 import ContentHost from '@/components/ContentHost.vue'
 import { useScheduleStore } from '@/stores'
 

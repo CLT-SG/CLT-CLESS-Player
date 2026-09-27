@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { HttpClient, LayoutTransport, RealtimeClient, type RealtimeSocket } from '@/core/comm'
-import { AirportDisplayService, PlaybackService, SchedulerService } from '@/core/services'
-import { SCHEMA_VERSION } from '@/core/schema/version'
-import { layoutSchema, type LayoutDefinition, type PlaylistDefinition } from '@/core/schema/layout'
-import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@/core/types'
+import { HttpClient, LayoutTransport, RealtimeClient, type RealtimeSocket } from '@core/transports'
+import { PlaybackService } from '@core/services'
+import { SchedulerService } from '@core/schedules'
+import { AirportDisplayService } from '@core/airport-display'
+import { SCHEMA_VERSION } from '@core/layouts/schema/version'
+import { layoutSchema, type LayoutDefinition, type PlaylistDefinition } from '@core/layouts/schema/layout'
+import { DEFAULT_PLAYER_CONFIGURATION, type PlayerConfiguration } from '@core/types'
 import { LOOP_MEMBER_XML, LOOP_XML, SINGLE_LAYOUT_XML, parseXmlForTests } from './fixtures/dsxml'
 
 function makeLayout(id: string, name = `Layout ${id}`): LayoutDefinition {

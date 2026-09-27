@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { AssetSyncSummary } from '@/core/storage'
+import type { AssetSyncSummary } from '@core/storage'
 
 /**
  * Owns: asset cache state.

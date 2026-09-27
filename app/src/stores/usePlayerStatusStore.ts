@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { DeviceIdentity } from '@/core/services/DeviceService'
-import type { PlayerLifecycle } from '@/core/types'
+import type { DeviceIdentity } from '@core/services'
+import type { PlayerLifecycle } from '@core/types'
 
 /**
  * Owns: player lifecycle, device identity and the diagnostics flag.

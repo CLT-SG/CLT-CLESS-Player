@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import type { TableContent } from '@/core/content'
-import { MediaUtils } from '@/core/utils'
+import type { TableContent } from '@core/models'
+import { MediaUtils } from '@core/utilities'
 
 /**
  * Renders a paginated data table (flight boards, queue displays, price lists).

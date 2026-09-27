@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ClockContent } from '@/core/content'
+import type { ClockContent } from '@core/models'
 import { useScheduleStore } from '@/stores'
 
 /**
