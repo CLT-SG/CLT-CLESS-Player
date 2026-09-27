@@ -142,6 +142,16 @@ export class LayoutRepository {
     }
   }
 
+  /**
+   * Layout the pre-migration renderer had on screen.
+   *
+   * Adopted at boot so upgrading a device does not restart its playlist.
+   */
+  async readLegacyActiveLayoutId(): Promise<string | null> {
+    const raw = await this.driver.getItem('currentPlayLayoutID')
+    return raw ? raw.replace(/^"|"$/g, '') : null
+  }
+
   /** Reads a legacy `layout-<id>` entry, in the same spirit as above. */
   async readLegacyLayout(layoutId: string): Promise<unknown | null> {
     const raw =

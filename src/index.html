@@ -43,6 +43,28 @@
   <!-- Enhanced configuration loader (supports both config.js and config.json) -->
   <script src="assets/js/config-loader.js"></script>
 
+  <!--
+    Opt-in hand-off to the Vue renderer in app-dist/.
+
+    The legacy renderer below stays the default: a deployment opts in with
+    "renderer": "vue" in config.json, or per-device via the
+    cless:renderer localStorage key. Appending ?renderer=legacy to the URL
+    always lands here, so a device can be recovered without editing config.
+  -->
+  <script>
+    (function () {
+      try {
+        if (/[?&]renderer=legacy/.test(location.search)) return
+        var requested = null
+        try { requested = window.localStorage.getItem('cless:renderer') } catch (_) {}
+        if (!requested && window.config) requested = window.config.renderer
+        if (requested === 'vue') location.replace('app-dist/index.html')
+      } catch (e) {
+        console.warn('eCLESS: renderer switch skipped: ' + e)
+      }
+    })()
+  </script>
+
   <!-- CTRL+2 fallback to open the Offline Layout Manager -->
   <script>
     document.addEventListener('keydown', function (e) {

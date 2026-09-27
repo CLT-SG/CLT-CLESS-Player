@@ -3,6 +3,8 @@
   "id": "206",
   "mode": "online",
   "corsproxy": "N",
+  "renderer": "legacy",
+  "transport": "auto",
   "serialkey": "3a9f5e706cfeffb4a52649b0bb57ad1e546a8d25093b70e9fc3e4e76aa26f502",
   "timeout": 10000,
   "autoStartup": true,

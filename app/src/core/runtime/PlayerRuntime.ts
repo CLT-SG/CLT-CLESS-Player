@@ -322,6 +322,10 @@ export class PlayerRuntime {
       const document = adapter.adaptDocument(legacyRoot, members)
       logger.info('Adopted layout cache written by the previous renderer')
       await this.repository.saveDocument(configuration.displayId, document)
+
+      const resumeId = await this.repository.readLegacyActiveLayoutId()
+      if (resumeId) await this.repository.setActiveLayoutId(resumeId)
+
       return document
     } catch (error) {
       logger.warn('Legacy cache could not be adapted', error)
