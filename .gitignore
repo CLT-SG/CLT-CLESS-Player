@@ -34,5 +34,12 @@ node_modules
 *.mp4
 *.mpd
 
+# The *.ts rule above targets MPEG-TS media segments. TypeScript sources in the
+# modern renderer must stay tracked.
+!app/**/*.ts
+
+# Build output of the modern renderer (produced by `npm --prefix app run build`)
+src/app-dist/
+
 #package-lock.json
 package-lock.json
