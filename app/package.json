@@ -6,8 +6,9 @@
   "description": "Modern CLESS Player renderer (Vue 3 + Vite + TypeScript + Tailwind)",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build && npm run build:core",
     "build:only": "vite build",
+    "build:core": "vite build --config vite.core.config.ts",
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",

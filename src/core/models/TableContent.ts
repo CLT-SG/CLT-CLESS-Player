@@ -1,6 +1,6 @@
 import { BaseContent } from './BaseContent'
 import type { ContentSlotDefinition, DatasetDefinition } from '@core/layouts/schema'
-import { ColorUtils, LayoutMath, ValidationUtils } from '@core/utilities'
+import { ColorUtils, LayoutMath, TableCellCodec, ValidationUtils } from '@core/utilities'
 
 export interface TableColumn {
   readonly key: string
@@ -218,40 +218,18 @@ export class TableContent extends BaseContent {
   }
 
   /**
-   * Decodes the server's cell encoding.
+   * Shapes a decoded cell for the renderer.
    *
-   * Cells are plain text unless they carry a prefix, and the two prefix
-   * families delimit their payload differently — a quirk that is preserved
-   * here deliberately, because layouts in the field depend on it:
-   *
-   *  - `image:...:<file,file>` — the file list follows the *last* colon, so
-   *    any transition metadata in between is skipped.
-   *  - `fader:<text,text>` and `transition:<text,text>` — the list follows the
-   *    *first* colon, so the values may themselves contain colons.
-   *
-   * Presentation settings (transition style, timing) come from the column
-   * definition, not the cell.
+   * The encoding itself is `TableCellCodec`'s job, shared with the legacy
+   * renderer so both decode a row identically.
    */
   private static decodeCell(raw: string): TableCell {
-    const value = raw ?? ''
+    const decoded = TableCellCodec.decode(raw)
 
-    if (value.startsWith('image:')) {
-      const entries = TableContent.splitList(value.slice(value.lastIndexOf(':') + 1))
-      return { text: '', values: [], imagePaths: entries, rotate: entries.length > 1 }
+    if (decoded.kind === 'image') {
+      return { text: '', values: [], imagePaths: decoded.entries, rotate: decoded.rotate }
     }
 
-    if (value.startsWith('fader:') || value.startsWith('transition:')) {
-      const entries = TableContent.splitList(value.slice(value.indexOf(':') + 1))
-      return { text: entries[0] ?? '', values: entries, imagePaths: [], rotate: entries.length > 1 }
-    }
-
-    return { text: value, values: [value], imagePaths: [], rotate: false }
-  }
-
-  private static splitList(payload: string): string[] {
-    return payload
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter(Boolean)
+    return { text: decoded.text, values: decoded.entries, imagePaths: [], rotate: decoded.rotate }
   }
 }

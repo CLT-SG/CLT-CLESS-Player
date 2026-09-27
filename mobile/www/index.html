@@ -251,6 +251,28 @@
   <!-- 3. Mobile Config Loader (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
 
+  <!--
+    Opt-in hand-off to the Vue renderer in app-dist/, matching src/index.html.
+
+    The legacy renderer below stays the default: a deployment opts in with
+    "renderer": "vue" in its configuration, or per-device via the
+    cless:renderer localStorage key. Appending ?renderer=legacy to the URL
+    always lands here, so a device can be recovered without a new build.
+  -->
+  <script>
+    (function () {
+      try {
+        if (/[?&]renderer=legacy/.test(location.search)) return
+        var requested = null
+        try { requested = window.localStorage.getItem('cless:renderer') } catch (_) {}
+        if (!requested && window.config) requested = window.config.renderer
+        if (requested === 'vue') location.replace('app-dist/index.html')
+      } catch (e) {
+        console.warn('eCLESS: renderer switch skipped: ' + e)
+      }
+    })()
+  </script>
+
   <!-- CTRL+2 fallback to open the Offline Layout Manager (works with attached keyboards) -->
   <script>
     document.addEventListener('keydown', function (e) {
@@ -343,6 +365,10 @@
       console.warn('error loading configuration: ' + e)
     }
   </script>
+  <!-- Shared core (window.ClessCore): the same layout, colour, media and table
+       logic the Vue renderer uses. Copied from src/assets/js by the mobile
+       build; must load before any script that calls into it. -->
+  <script src="assets/js/cless-core.js"></script>
   <!-- https://github.com/videojs -->
   <script src="assets/js/jquery.min.js"></script>
   

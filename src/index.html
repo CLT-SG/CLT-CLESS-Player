@@ -129,6 +129,10 @@
       console.warn('error loading configuration: ' + e)
     }
   </script>
+  <!-- Shared core (window.ClessCore): the same layout, colour, media and table
+       logic the Vue renderer uses. Built from src/core by `npm run build:core`
+       in app/; must load before any script that calls into it. -->
+  <script src="assets/js/cless-core.js"></script>
   <!-- https://github.com/videojs -->
   <script src="assets/js/jquery.min.js"></script>
   <!-- http://pagination.js.org// -->

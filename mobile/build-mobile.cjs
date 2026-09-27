@@ -1,58 +1,84 @@
 /**
- * eCLESS Player Mobile Build Script
- * 
- * This script prepares the web frontend for mobile deployment by:
- * 1. Copying necessary HTML, CSS, and JS files from src/ to mobile/www/
- * 2. Removing Electron-specific dependencies
- * 3. Adding Capacitor-specific configurations
- * 4. Creating mobile-friendly versions of pages
+ * Syncs the build artifacts that mobile shares with the desktop player.
+ *
+ * Only *generated* artifacts are copied. `mobile/www/assets/js` also holds
+ * hand-maintained forks of several legacy scripts (`slot-media.js` and
+ * friends have real mobile-specific changes), so copying the whole tree would
+ * silently discard them. The convergence plan for those forks is in
+ * docs/SHARED-CORE.md; until then the allow-list below is the boundary.
+ *
+ *   src/assets/js/cless-core.js  ->  www/assets/js/cless-core.js
+ *   src/app-dist/                ->  www/app-dist/
+ *
+ * Both are produced by `npm run build` in `app/`, which must run first.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-// Read package.json to get version info
-const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));
-const APP_VERSION = packageJson.version;
-const VERSION_CODE = parseInt(APP_VERSION.replace(/\./g, ''), 10); // Convert 3.1.3 to 313
-
-// Directories
 const srcDir = path.join(__dirname, '..', 'src');
-const mobileDir = path.join(__dirname);
-const wwwDir = path.join(mobileDir, 'www');
-const assetsDir = path.join(wwwDir, 'assets');
+const wwwDir = path.join(__dirname, 'www');
 
-console.log('🚀 eCLESS Player Mobile Build Started...\n');
+/** Generated artifacts, and only generated artifacts. */
+const SHARED_FILES = [
+    { from: path.join('assets', 'js', 'cless-core.js'), required: true },
+];
 
-// Ensure www directory exists
-if (!fs.existsSync(wwwDir)) {
-    fs.mkdirSync(wwwDir, { recursive: true });
-    console.log('✓ Created www directory');
-}
+const SHARED_DIRECTORIES = [
+    { from: 'app-dist', required: false },
+];
 
-// Copy assets directory recursively
 function copyDirectory(src, dest) {
-    if (!fs.existsSync(dest)) {
-        fs.mkdirSync(dest, { recursive: true });
-    }
-    
-    const entries = fs.readdirSync(src, { withFileTypes: true });
-    
-    for (let entry of entries) {
+    fs.mkdirSync(dest, { recursive: true });
+
+    for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
         const srcPath = path.join(src, entry.name);
         const destPath = path.join(dest, entry.name);
-        
+
         if (entry.isDirectory()) {
             copyDirectory(srcPath, destPath);
-        } else {
-            // Skip .gz files to avoid duplicate resource errors in Android builds
-            // Android Gradle treats both file.js and file.js.gz as the same resource
-            if (!entry.name.endsWith('.gz')) {
-                fs.copyFileSync(srcPath, destPath);
-            }
+        } else if (!entry.name.endsWith('.gz')) {
+            // Android Gradle treats file.js and file.js.gz as one resource.
+            fs.copyFileSync(srcPath, destPath);
         }
     }
 }
 
-console.log('\n📝 Processing HTML files...');
+function syncSharedArtifacts() {
+    let copied = 0;
 
+    for (const { from, required } of SHARED_FILES) {
+        const source = path.join(srcDir, from);
+        if (!fs.existsSync(source)) {
+            if (required) {
+                throw new Error(`Missing ${from}. Run "npm run build" in app/ first.`);
+            }
+            continue;
+        }
+        const destination = path.join(wwwDir, from);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.copyFileSync(source, destination);
+        console.log(`  copied ${from}`);
+        copied += 1;
+    }
+
+    for (const { from, required } of SHARED_DIRECTORIES) {
+        const source = path.join(srcDir, from);
+        if (!fs.existsSync(source)) {
+            if (required) {
+                throw new Error(`Missing ${from}. Run "npm run build" in app/ first.`);
+            }
+            console.log(`  skipped ${from} (not built)`);
+            continue;
+        }
+        copyDirectory(source, path.join(wwwDir, from));
+        console.log(`  copied ${from}/`);
+        copied += 1;
+    }
+
+    return copied;
+}
+
+console.log('Syncing shared build artifacts into mobile/www...');
+const total = syncSharedArtifacts();
+console.log(`Done: ${total} artifact(s) synced.`);
