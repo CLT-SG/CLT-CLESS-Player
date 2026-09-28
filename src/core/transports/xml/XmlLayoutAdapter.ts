@@ -171,12 +171,15 @@ export class XmlLayoutAdapter {
     if (!tag) return null
 
     const type = SLOT_TYPE_ALIASES[tag] ?? tag
-    const id = node.attr('id', `${tag}-${index}`)
+    const id = XmlLayoutAdapter.slotId(tag, node.attr('id'), index)
 
     return {
       type,
       id,
-      name: node.attr('name'),
+      // A `table` element carries its slot name in `title`; every other slot
+      // type uses `name`. Both land here, so an Airport Display override —
+      // which addresses a slot by name — can target a table.
+      name: node.hasAttr('name') ? node.attr('name') : node.attr('title'),
       enabled: node.attrBoolean('enabled', true),
       transparent: node.attrBoolean('transparent', false),
       backgroundColor: node.hasAttr('bgcolor') ? node.attr('bgcolor') : null,
@@ -199,6 +202,19 @@ export class XmlLayoutAdapter {
       items: XmlLayoutAdapter.adaptItems(node),
       config: XmlLayoutAdapter.adaptConfig(node, type),
     }
+  }
+
+  /**
+   * Builds a slot id that is unique within a layout.
+   *
+   * The `id` attribute is a primary key from a per-type table, so a `table`
+   * slot and a `text` slot in the same layout routinely both claim id "1".
+   * Unqualified, one would overwrite the other in every id-keyed lookup the
+   * renderer does. Qualifying by element name is stable across polls, which
+   * an index alone would not be.
+   */
+  static slotId(tag: string, rawId: string, index: number): string {
+    return rawId ? `${tag}-${rawId}` : `${tag}-${index}`
   }
 
   private static adaptItems(node: XmlNode): ContentItemDefinition[] {
@@ -353,7 +369,9 @@ export class XmlLayoutAdapter {
       const rows = table.childrenNamed('row').map((row) => row.attributes)
       const columns = rows.length ? Object.keys(rows[0]!).filter((key) => key !== 'style') : []
       return {
-        slotId: table.attr('id', '0'),
+        // Keyed the same way slots are, so the table slot and its rows join
+        // on one value.
+        slotId: XmlLayoutAdapter.slotId('table', table.attr('id'), 0),
         revision: table.attr('update'),
         columns,
         rows,

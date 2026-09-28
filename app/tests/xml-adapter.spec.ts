@@ -131,12 +131,37 @@ describe('XmlLayoutAdapter', () => {
   })
 
   it('moves the records block into a dataset bound to its table slot', () => {
-    const datasets = adaptSingleLayout().layout!.datasets
+    const layout = adaptSingleLayout().layout!
+    const table = layout.slots.find((slot) => slot.type === 'table')!
+    const datasets = layout.datasets
+
     expect(datasets).toHaveLength(1)
-    expect(datasets[0]?.slotId).toBe('9')
+    expect(datasets[0]?.slotId).toBe(table.id)
     expect(datasets[0]?.rows).toHaveLength(4)
     expect(datasets[0]?.rows[0]?.['col01']).toBe('SQ318')
     expect(datasets[0]?.columns).toEqual(['col01', 'col02', 'col03'])
+  })
+
+  it('qualifies slot ids by element name so per-type primary keys cannot collide', () => {
+    // The `id` attribute is a primary key from a per-type table, so two slots
+    // of different types in one layout can both claim id "1". Unqualified,
+    // one would overwrite the other in every id-keyed lookup.
+    const xml = parseXmlForTests(
+      '<Configuration update="1" id="1" layout="Collision">' +
+        '<display><slots><table id="1" title="Departures"/><text id="1" name="Heading"/></slots></display>' +
+        '</Configuration>',
+    )
+    const slots = adapter.adaptDocument(xml).layout!.slots
+
+    expect(slots.map((slot) => slot.id)).toEqual(['table-1', 'text-1'])
+  })
+
+  it('reads a table slot name from title, where the server puts it', () => {
+    // Every other slot type carries its name in `name`; `table` uses `title`.
+    // Both have to land on `name` or an Airport Display override, which
+    // addresses a slot by name, can never target a table.
+    const table = adaptSingleLayout().layout!.slots.find((slot) => slot.type === 'table')!
+    expect(table.name).toBe('Departures')
   })
 
   it('derives an asset manifest from library media, excluding streams', () => {
