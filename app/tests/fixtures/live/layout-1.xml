@@ -1,7 +1,7 @@
-<Configuration update="20260928080946" serverRefresh="15" sqlQueryRefresh="20" layout="Validation Flight Information" mediapath="/media/uploads" id="1" schedule_id="0">
+<Configuration update="20260928082932" serverRefresh="15" sqlQueryRefresh="20" layout="Validation Flight Information" mediapath="/media/uploads" id="1" schedule_id="0">
   <display data="record" bgcolor="#06182e" bgimage="none" resolution="1920x1080_landscape" autoscale="Y" bgscretch="Y">
     <slots>
-      <table update="20260928080946" id="1" align="l" valign="middle" cellspacing="0" font="Arial" enabled="Y" fontsize="28" fontcolor="#FFFFFF" maxrows_limit="10" maxrows_enabled="Y" left="40" top="120" height="900" width="1840" bgcolor="#06182e" transparentbg="normal" wrap="N" horizontalborder="N" verticalborder="N" title="Departures" bodyrowHeight="64" flipmode="1" hidepagination="N" pageflip="12" transition="none" fixedheight="N" flipmode_speed="1000" flipmode_delay="0">
+      <table update="20260928082932" id="1" align="l" valign="middle" cellspacing="0" font="Arial" enabled="Y" fontsize="28" fontcolor="#FFFFFF" maxrows_limit="10" maxrows_enabled="Y" left="40" top="120" height="900" width="1840" bgcolor="#06182e" transparentbg="normal" wrap="N" horizontalborder="N" verticalborder="N" title="Departures" bodyrowHeight="64" flipmode="1" hidepagination="N" pageflip="12" transition="none" fixedheight="N" flipmode_speed="1000" flipmode_delay="0">
         <heading font="Arial" fontsize="30" fontcolor="#FFD166" bgcolor="#0b2545" hideheader="N"/>
         <column>
           <item width="220" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="N" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="N" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Flight</item>

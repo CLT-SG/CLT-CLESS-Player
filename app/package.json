@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "validate:live": "vite-node tools/validate-live.mjs --"
   },
   "dependencies": {
     "pinia": "^2.2.6",
