@@ -1,18 +1,20 @@
 import { BaseContent } from '@core/models/BaseContent'
 import { ValidationUtils } from '@core/utilities'
+import { AirportEventCodec } from './AirportEventCodec'
+import type { NormalisedAnnouncementLanguage, NormalisedMediaItem } from './AirportEventCodec'
 
-export interface AirportAnnouncementLanguage {
-  readonly code: string
-  readonly text: string
-  readonly audioUrl: string
-  readonly order: number
-}
+export type AirportAnnouncementLanguage = NormalisedAnnouncementLanguage
 
 export interface AirportOverride {
   readonly slotName: string
   readonly slotType: string
   readonly value: string
-  readonly mediaItems: readonly string[]
+  /**
+   * Media to play for a media-slot override, already reduced to the items the
+   * zone's mode selects. Structured rather than filenames because the server
+   * sends per-item order and duration that decide playback.
+   */
+  readonly mediaItems: readonly NormalisedMediaItem[]
   /** Temporary overrides revert when the event's dwell time expires. */
   readonly temporary: boolean
 }
@@ -48,14 +50,11 @@ export class AirportDisplayContent extends BaseContent {
     if (!Array.isArray(raw)) return []
     return raw.map((entry) => {
       const record = ValidationUtils.isRecord(entry) ? entry : {}
-      const mediaItems = Array.isArray(record['mediaItems'])
-        ? record['mediaItems'].map((item) => ValidationUtils.toStringValue(item)).filter(Boolean)
-        : []
       return {
         slotName: ValidationUtils.toStringValue(record['slotName']),
         slotType: ValidationUtils.toStringValue(record['slotType'], 'text'),
         value: ValidationUtils.toStringValue(record['value']),
-        mediaItems,
+        mediaItems: AirportEventCodec.mediaItems(record),
         temporary: ValidationUtils.toBoolean(record['temporary'], true),
       }
     })
@@ -63,23 +62,24 @@ export class AirportDisplayContent extends BaseContent {
 
   /** Announcement tracks ordered as the server wants them played. */
   get announcementLanguages(): readonly AirportAnnouncementLanguage[] {
-    const announcement = this.configRecord('announcement')
-    const raw = announcement['languages']
-    if (!Array.isArray(raw)) return []
-    return raw
-      .map((entry, index) => {
-        const record = ValidationUtils.isRecord(entry) ? entry : {}
-        return {
-          code: ValidationUtils.toStringValue(record['code'], 'en'),
-          text: ValidationUtils.toStringValue(record['text']),
-          audioUrl: ValidationUtils.toStringValue(record['audioUrl'] ?? record['audio_url']),
-          order: ValidationUtils.toInteger(record['order'], index),
-        }
-      })
-      .sort((a, b) => a.order - b.order)
+    return AirportEventCodec.announcementLanguages(this.configRecord('announcement'))
+  }
+
+  /**
+   * Whether the zone asked for an announcement at all. Separate from having
+   * tracks, because an event can carry a disabled announcement and the player
+   * must stay silent rather than play the text it happens to contain.
+   */
+  get announcementEnabled(): boolean {
+    return ValidationUtils.toBoolean(this.configRecord('announcement')['enabled'], false)
   }
 
   get hasAnnouncement(): boolean {
-    return this.announcementLanguages.length > 0
+    return this.announcementEnabled && this.announcementLanguages.length > 0
+  }
+
+  /** Tracks with audio the player can actually play. */
+  get playableAnnouncementLanguages(): readonly AirportAnnouncementLanguage[] {
+    return this.announcementLanguages.filter((language) => Boolean(language.audioUrl))
   }
 }

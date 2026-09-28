@@ -14,7 +14,12 @@ const props = defineProps<{ content: AirportDisplayContent }>()
 
 const flight = computed(() => props.content.flightInfo as Record<string, string | undefined>)
 const hasFlight = computed(() => Object.keys(flight.value).length > 0)
-const announcementText = computed(() => props.content.announcementLanguages[0]?.text ?? '')
+// Gated on the announcement being enabled, not merely present: an event can
+// carry a disabled announcement, and showing its text would caption something
+// the player is deliberately not saying.
+const announcementText = computed(() =>
+  props.content.hasAnnouncement ? (props.content.announcementLanguages[0]?.text ?? '') : '',
+)
 </script>
 
 <template>

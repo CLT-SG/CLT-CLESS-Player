@@ -42,6 +42,76 @@ var ClessCore = function() {
       }
     }
   }
+  const LEVEL_WEIGHT = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40
+  };
+  class Logger {
+    constructor(scope) {
+      this.scope = scope;
+    }
+    static {
+      this.level = "info";
+    }
+    static {
+      this.sinks = [Logger.consoleSink];
+    }
+    static {
+      this.ringBuffer = [];
+    }
+    static {
+      this.ringCapacity = 200;
+    }
+    static forScope(scope) {
+      return new Logger(scope);
+    }
+    static setLevel(level) {
+      Logger.level = level;
+    }
+    static getLevel() {
+      return Logger.level;
+    }
+    /** Replaces the default console sink; pass `true` to keep it as well. */
+    static setSink(sink, keepConsole = false) {
+      Logger.sinks = keepConsole ? [Logger.consoleSink, sink] : [sink];
+    }
+    /** Most recent records, oldest first. Backs the diagnostics overlay. */
+    static recent() {
+      return [...Logger.ringBuffer];
+    }
+    static consoleSink(record) {
+      const prefix = `[${record.scope}]`;
+      const method = record.level === "debug" ? "log" : record.level;
+      const target = console[method];
+      target?.(prefix, record.message, record.detail ?? "");
+    }
+    emit(level, message, detail) {
+      if (LEVEL_WEIGHT[level] < LEVEL_WEIGHT[Logger.level]) return;
+      const record = { level, scope: this.scope, message, timestamp: Date.now(), detail };
+      Logger.ringBuffer.push(record);
+      if (Logger.ringBuffer.length > Logger.ringCapacity) Logger.ringBuffer.shift();
+      for (const sink of Logger.sinks) {
+        try {
+          sink(record);
+        } catch {
+        }
+      }
+    }
+    debug(message, detail) {
+      this.emit("debug", message, detail);
+    }
+    info(message, detail) {
+      this.emit("info", message, detail);
+    }
+    warn(message, detail) {
+      this.emit("warn", message, detail);
+    }
+    error(message, detail) {
+      this.emit("error", message, detail);
+    }
+  }
   class DateUtils {
     static {
       this.MONTHS_SHORT = [
@@ -521,6 +591,122 @@ var ClessCore = function() {
       return Math.min(max, Math.max(min, parsed));
     }
   }
+  class AirportEventCodec {
+    static basename(pathOrName) {
+      const value = String(pathOrName ?? "");
+      const cut = Math.max(value.lastIndexOf("/"), value.lastIndexOf("\\"));
+      return cut === -1 ? value : value.substring(cut + 1);
+    }
+    /**
+     * Flattens an announcement to the tracks to play, in play order.
+     *
+     * The single-track fallback is the important half: the server only includes
+     * a `languages` array for a multilingual announcement, so reading `languages`
+     * alone means a plain one-language announcement produces nothing at all.
+     */
+    static announcementLanguages(announcement) {
+      const record = ValidationUtils.isRecord(announcement) ? announcement : {};
+      const fallbackText = ValidationUtils.toStringValue(record["text"]);
+      const raw = Array.isArray(record["languages"]) ? record["languages"] : [];
+      if (raw.length) {
+        const list = raw.filter((entry) => Boolean(entry)).map((entry, index) => {
+          const language = ValidationUtils.isRecord(entry) ? entry : {};
+          return {
+            language: ValidationUtils.toStringValue(
+              language["language"] ?? language["lang"] ?? language["code"],
+              "en"
+            ),
+            voice: ValidationUtils.toStringValue(language["voice"]),
+            order: ValidationUtils.toInteger(language["order"], index + 1),
+            audioUrl: ValidationUtils.toStringValue(language["audio_url"] ?? language["audioUrl"]),
+            text: ValidationUtils.toStringValue(language["text"]) || fallbackText
+          };
+        }).sort((left, right) => left.order - right.order);
+        return list.map((entry, index) => ({ ...entry, order: index + 1 }));
+      }
+      const audioUrl = ValidationUtils.toStringValue(record["audio_url"] ?? record["audioUrl"]);
+      if (!audioUrl && !fallbackText) return [];
+      return [
+        {
+          language: ValidationUtils.toStringValue(record["language"], "en"),
+          voice: ValidationUtils.toStringValue(record["voice"]),
+          order: 1,
+          audioUrl,
+          text: fallbackText
+        }
+      ];
+    }
+    /**
+     * Picks the media items a media-slot override should play.
+     *
+     * `loop` plays everything; any other mode plays the explicitly selected
+     * items, falling back to the first item so a zone configured without an
+     * explicit selection still shows something. A slot with no items at all but
+     * a `value` is treated as a single-file override, which is how the simpler
+     * zones are configured.
+     */
+    static mediaItems(slot) {
+      const record = ValidationUtils.isRecord(slot) ? slot : {};
+      const mode = ValidationUtils.toStringValue(
+        record["media_mode"] ?? record["mediaMode"],
+        "selected"
+      ).toLowerCase();
+      const rawItems = record["media_items"] ?? record["mediaItems"];
+      const items = (Array.isArray(rawItems) ? rawItems : []).map((entry, index) => AirportEventCodec.toMediaItem(entry, index)).filter((entry) => entry !== null).sort((left, right) => left.order - right.order);
+      let selected = [];
+      if (mode === "loop" || mode === "play_all" || mode === "all") {
+        selected = [...items];
+      } else if (items.length) {
+        selected = items.filter((entry) => entry.selected);
+        if (!selected.length && items[0]) selected = [items[0]];
+      }
+      const value = ValidationUtils.toStringValue(record["value"]);
+      if (!selected.length && value) {
+        selected = [
+          {
+            filename: AirportEventCodec.basename(value),
+            path: value,
+            order: 1,
+            duration: 0,
+            selected: true
+          }
+        ];
+      }
+      return selected;
+    }
+    static toMediaItem(entry, index) {
+      if (typeof entry === "string") {
+        const value = entry.trim();
+        if (!value) return null;
+        return {
+          filename: AirportEventCodec.basename(value),
+          path: value,
+          order: index + 1,
+          duration: 0,
+          selected: true
+        };
+      }
+      if (!ValidationUtils.isRecord(entry)) return null;
+      const path = ValidationUtils.toStringValue(
+        entry["path"] ?? entry["file_path"] ?? entry["url"] ?? entry["contentUrl"]
+      ).trim();
+      const named = ValidationUtils.toStringValue(
+        entry["filename"] ?? entry["value"] ?? entry["name"]
+      );
+      const filename = AirportEventCodec.basename(named || path);
+      if (!filename && !path) return null;
+      return {
+        filename: filename || AirportEventCodec.basename(path),
+        path: path || filename,
+        // `order` is 0-based here only when absent; the server emits 1-based.
+        order: ValidationUtils.toInteger(entry["order"], index + 1),
+        duration: ValidationUtils.toInteger(entry["duration"], 0),
+        // Absent means selected: a zone that lists items without ticking any is
+        // asking for all of them, not for none.
+        selected: entry["selected"] !== false
+      };
+    }
+  }
   const SCHEMA_MAJOR = 1;
   const SCHEMA_MINOR = 0;
   const SCHEMA_VERSION = `${SCHEMA_MAJOR}.${SCHEMA_MINOR}`;
@@ -553,6 +739,27 @@ var ClessCore = function() {
      */
     decodeCellEntries(raw) {
       return TableCellCodec.entries(raw);
+    },
+    /**
+     * Flattens an Airport Display announcement to the tracks to play, in play
+     * order, using the legacy field names so `airport-display.js` can hand the
+     * result straight on.
+     *
+     * The media-selection half of `AirportEventCodec` is deliberately not
+     * offered: the legacy `collectMediaTriggerItems` passes its items on to
+     * `resolveMediaSource`, which reads a `type` field the normalised item does
+     * not carry, so adopting it would quietly drop a hint the legacy media
+     * pipeline uses. The two implementations stay pinned to each other by
+     * `app/tests/airport-parity.spec.ts` instead.
+     */
+    airportAnnouncementLanguages(announcement) {
+      return AirportEventCodec.announcementLanguages(announcement).map((track) => ({
+        language: track.language,
+        voice: track.voice,
+        order: track.order,
+        audio_url: track.audioUrl,
+        text: track.text
+      }));
     }
   };
   globalThis.ClessCore = ClessCore2;

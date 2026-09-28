@@ -158,17 +158,29 @@ describe('committed cless-core.js bundle', () => {
     const bridge = loadBundle()
     expect(typeof bridge['hexToRgbA']).toBe('function')
     expect(typeof bridge['decodeCellEntries']).toBe('function')
+    expect(typeof bridge['airportAnnouncementLanguages']).toBe('function')
   })
 
   it('agrees with the core it was built from', () => {
     const bridge = loadBundle() as {
       hexToRgbA(hex: string, transparency: string): string
       decodeCellEntries(raw: string): string[]
+      airportAnnouncementLanguages(announcement: unknown): Array<Record<string, unknown>>
     }
 
     expect(bridge.hexToRgbA('#FF8800', 'medium')).toBe(sharedHexToRgbA('#FF8800', 'medium'))
     expect(bridge.decodeCellEntries('image:fade:a.png,b.png')).toEqual([
       ...TableCellCodec.entries('image:fade:a.png,b.png'),
     ])
+    // The legacy field names, because `airport-display.js` hands this result
+    // straight on to its announcement queue.
+    expect(
+      bridge.airportAnnouncementLanguages({
+        enabled: true,
+        text: 'Boarding',
+        language: 'en',
+        audio_url: '/tts/en.mp3',
+      }),
+    ).toEqual([{ language: 'en', voice: '', order: 1, audio_url: '/tts/en.mp3', text: 'Boarding' }])
   })
 })

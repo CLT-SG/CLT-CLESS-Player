@@ -9,3 +9,8 @@ export {
   type AirportAnnouncementLanguage,
   type AirportOverride,
 } from './AirportDisplayContent'
+export {
+  AirportEventCodec,
+  type NormalisedAnnouncementLanguage,
+  type NormalisedMediaItem,
+} from './AirportEventCodec'

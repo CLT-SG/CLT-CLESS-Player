@@ -1,3 +1,4 @@
+import { AirportEventCodec } from '@core/airport-display/AirportEventCodec'
 import { ColorUtils } from '@core/utilities/ColorUtils'
 import { DateUtils } from '@core/utilities/DateUtils'
 import { FormatUtils } from '@core/utilities/FormatUtils'
@@ -65,6 +66,28 @@ const ClessCore = {
    */
   decodeCellEntries(raw: string): readonly string[] {
     return TableCellCodec.entries(raw)
+  },
+
+  /**
+   * Flattens an Airport Display announcement to the tracks to play, in play
+   * order, using the legacy field names so `airport-display.js` can hand the
+   * result straight on.
+   *
+   * The media-selection half of `AirportEventCodec` is deliberately not
+   * offered: the legacy `collectMediaTriggerItems` passes its items on to
+   * `resolveMediaSource`, which reads a `type` field the normalised item does
+   * not carry, so adopting it would quietly drop a hint the legacy media
+   * pipeline uses. The two implementations stay pinned to each other by
+   * `app/tests/airport-parity.spec.ts` instead.
+   */
+  airportAnnouncementLanguages(announcement: unknown): Array<Record<string, unknown>> {
+    return AirportEventCodec.announcementLanguages(announcement).map((track) => ({
+      language: track.language,
+      voice: track.voice,
+      order: track.order,
+      audio_url: track.audioUrl,
+      text: track.text,
+    }))
   },
 } as const
 

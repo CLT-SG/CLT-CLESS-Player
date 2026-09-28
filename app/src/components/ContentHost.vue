@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { BaseContent } from '@core/models'
-import { TextContent } from '@core/models'
+import { MediaContent, TextContent } from '@core/models'
 import { contentSlotSchema } from '@core/layouts/schema/layout'
 import { rendererFor } from '@/renderers'
 import { useAirportDisplayStore, useLayoutStore } from '@/stores'
@@ -27,12 +27,32 @@ const override = computed(() => (props.content.name ? airport.overrideFor(props.
 
 /**
  * A text-like override is rendered through `TextContent` so the override
- * value picks up the slot's authored typography.
+ * value picks up the slot's authored typography; a media override is rendered
+ * through `MediaContent` so it picks up the slot's fit and mute settings.
+ *
+ * Substituting rather than mutating is what makes the override temporary for
+ * free: dropping it from the store restores the layout's own content, with no
+ * snapshot to take and restore the way the legacy renderer has to.
  */
 const effectiveContent = computed<BaseContent>(() => {
   const active = override.value
-  if (!active || !active.value) return props.content
-  if (props.content.type === 'media') return props.content
+  if (!active) return props.content
+
+  if (props.content.type === 'media') {
+    if (!active.mediaItems.length) return props.content
+    const parsed = contentSlotSchema.safeParse({
+      ...props.content.toJSON(),
+      items: active.mediaItems.map((item, index) => ({
+        id: `${props.content.id}-override-${index}`,
+        text: item.path,
+        duration: item.duration,
+        order: index,
+      })),
+    })
+    return parsed.success ? new MediaContent(parsed.data, props.mediaBaseUrl) : props.content
+  }
+
+  if (!active.value) return props.content
 
   const parsed = contentSlotSchema.safeParse({
     ...props.content.toJSON(),

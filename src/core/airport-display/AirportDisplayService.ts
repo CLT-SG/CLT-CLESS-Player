@@ -1,16 +1,12 @@
 import type { RealtimeClient } from '@core/transports'
 import { AirportDisplayContent } from './AirportDisplayContent'
+import type { AirportOverride } from './AirportDisplayContent'
 import { contentSlotSchema } from '@core/layouts/schema/layout'
 import { Logger, ValidationUtils } from '@core/utilities'
 
 const logger = Logger.forScope('airport')
 
-export interface AirportSlotOverride {
-  readonly slotName: string
-  readonly slotType: string
-  readonly value: string
-  readonly mediaItems: readonly string[]
-  readonly temporary: boolean
+export interface AirportSlotOverride extends AirportOverride {
   readonly appliedAt: number
 }
 
@@ -157,21 +153,26 @@ export class AirportDisplayService {
    */
   private static toContent(payload: Record<string, unknown>, eventId: string): AirportDisplayContent | null {
     const rawSlots = Array.isArray(payload['slots']) ? payload['slots'] : []
-    const slots = rawSlots.filter(ValidationUtils.isRecord).map((slot) => {
-      const rawMedia = slot['media_items'] ?? slot['mediaItems']
-      return {
-        slotName: ValidationUtils.toStringValue(slot['slot_name'] ?? slot['slotName']),
-        slotType: ValidationUtils.toStringValue(slot['slot_type'] ?? slot['slotType'], 'text'),
-        value: ValidationUtils.toStringValue(slot['value']),
-        mediaItems: Array.isArray(rawMedia)
-          ? rawMedia.map((entry) => ValidationUtils.toStringValue(entry)).filter(Boolean)
-          : [],
-        temporary: ValidationUtils.toBoolean(slot['temporary'], true),
-      }
-    })
+    const slots = rawSlots.filter(ValidationUtils.isRecord).map((slot) => ({
+      slotName: ValidationUtils.toStringValue(slot['slot_name'] ?? slot['slotName']),
+      slotType: ValidationUtils.toStringValue(slot['slot_type'] ?? slot['slotType'], 'text'),
+      value: ValidationUtils.toStringValue(slot['value']),
+      temporary: ValidationUtils.toBoolean(slot['temporary'], true),
+      // Carried through unreduced: `AirportEventCodec` applies the zone's mode
+      // when the content model is read, which keeps the selection rule in one
+      // place instead of splitting it across the wire boundary.
+      media_mode: ValidationUtils.toStringValue(slot['media_mode'] ?? slot['mediaMode'], 'selected'),
+      media_items: Array.isArray(slot['media_items'] ?? slot['mediaItems'])
+        ? (slot['media_items'] ?? slot['mediaItems'])
+        : [],
+    }))
 
-    const announcementRaw = ValidationUtils.isRecord(payload['announcement']) ? payload['announcement'] : {}
-    const languagesRaw = Array.isArray(announcementRaw['languages']) ? announcementRaw['languages'] : []
+    // Passed through whole rather than reduced to `languages`, because the
+    // server omits that array for a single-language announcement and carries
+    // the track inline instead.
+    const announcement = ValidationUtils.isRecord(payload['announcement'])
+      ? payload['announcement']
+      : {}
 
     const parsed = contentSlotSchema.safeParse({
       type: 'airport-display',
@@ -183,7 +184,7 @@ export class AirportDisplayService {
         event: ValidationUtils.toStringValue(payload['event'], 'zone_trigger'),
         flightInfo: ValidationUtils.isRecord(payload['flight_info']) ? payload['flight_info'] : {},
         slots,
-        announcement: { languages: languagesRaw },
+        announcement,
       },
     })
 

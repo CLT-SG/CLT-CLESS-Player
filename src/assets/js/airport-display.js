@@ -508,33 +508,12 @@
      * Does not alphabetically sort — preserves explicit order.
      */
     function normalizeAnnouncementLanguages(ann) {
-        var list = [];
-        if (ann && Array.isArray(ann.languages) && ann.languages.length) {
-            ann.languages.forEach(function (entry, idx) {
-                if (!entry) return;
-                list.push({
-                    language: entry.language || entry.lang || 'en',
-                    voice: entry.voice || '',
-                    order: entry.order != null ? Number(entry.order) : (idx + 1),
-                    audio_url: entry.audio_url || entry.audio || '',
-                    text: entry.text || ann.text || ''
-                });
-            });
-            list.sort(function (a, b) { return a.order - b.order; });
-            // Re-number to 1..N after sort to keep reporting clean, but keep relative order
-            list.forEach(function (item, i) { item.order = i + 1; });
-            return list;
-        }
-        if (ann && (ann.audio_url || ann.text)) {
-            return [{
-                language: ann.language || 'en',
-                voice: ann.voice || '',
-                order: 1,
-                audio_url: ann.audio_url || '',
-                text: ann.text || ''
-            }];
-        }
-        return [];
+        // Delegates to the shared core so this renderer and the Vue renderer
+        // cannot pick a different track, or a different play order, for the
+        // same announcement. Field-for-field identical to the implementation
+        // this replaced; see app/tests/airport-parity.spec.ts, which compares
+        // the two against a verbatim copy of it.
+        return ClessCore.airportAnnouncementLanguages(ann);
     }
 
     function enqueueAnnouncement(event) {

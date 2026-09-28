@@ -511,9 +511,12 @@ describe('AirportDisplayService', () => {
         { slot_name: 'hero', slot_type: 'media', media_items: ['7/boarding.jpg'], temporary: true },
       ],
       announcement: {
+        enabled: true,
+        text: 'Now boarding',
+        language: 'en',
         languages: [
-          { code: 'en', text: 'Now boarding', audio_url: 'https://cms/a-en.mp3', order: 0 },
-          { code: 'zh', text: '开始登机', audio_url: 'https://cms/a-zh.mp3', order: 1 },
+          { language: 'en', text: 'Now boarding', audio_url: 'https://cms/a-en.mp3', order: 1 },
+          { language: 'zh', text: '开始登机', audio_url: 'https://cms/a-zh.mp3', order: 2 },
         ],
       },
     }
@@ -530,7 +533,10 @@ describe('AirportDisplayService', () => {
 
     const overrides = service.activeOverrides
     expect(overrides.map((override) => override.slotName).sort()).toEqual(['headline', 'hero'])
-    expect(overrides.find((override) => override.slotName === 'hero')?.mediaItems).toEqual(['7/boarding.jpg'])
+
+    const hero = overrides.find((override) => override.slotName === 'hero')
+    expect(hero?.mediaItems.map((item) => item.path)).toEqual(['7/boarding.jpg'])
+    expect(hero?.mediaItems.map((item) => item.filename)).toEqual(['boarding.jpg'])
   })
 
   it('preserves the server announcement language order', () => {
@@ -543,7 +549,7 @@ describe('AirportDisplayService', () => {
     dispatch('airport-display', zoneEvent('evt-2'))
 
     const languages = service.mostRecentEvent?.content.announcementLanguages ?? []
-    expect(languages.map((language) => language.code)).toEqual(['en', 'zh'])
+    expect(languages.map((language) => language.language)).toEqual(['en', 'zh'])
     expect(languages[0]?.audioUrl).toBe('https://cms/a-en.mp3')
   })
 
