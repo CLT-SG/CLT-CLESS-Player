@@ -1,0 +1,16 @@
+<Configuration update="20260927153643" serverRefresh="15" sqlQueryRefresh="30" layout="Validation Gate Announcements" mediapath="/media/uploads" id="2" schedule_id="0">
+  <display data="record" bgcolor="#000000" bgimage="none" resolution="1920x1080_landscape" autoscale="Y" bgscretch="Y">
+    <slots>
+      <media id="3" top="0" left="0" width="1920" height="820" enabled="Y" name="GateMedia" layer="0">
+        <item duration="20" layer="0" id="3">none</item>
+      </media>
+      <ticker id="4" top="840" left="0" width="1920" height="90" enabled="Y" font="Arial" fontsize="44" fontcolor="#FFFFFF" fontstyle="" bgcolor="#000000" direction="righttoleft" speed="3" antialias="N" transparent="Y" name="GateMessage">
+        <item id="4" duration="20">Please proceed to your departure gate 30 minutes before boarding.</item>
+      </ticker>
+      <text id="5" align="c" valign="middle" top="940" left="0" width="1920" height="140" enabled="Y" font="Arial" fontsize="36" fontcolor="#FFFFFF" fontstyle="" bgcolor="#000000" transparent="Y" name="GateNotice">
+        <item id="5" duration="20">Gate information is updated continuously.</item>
+      </text>
+    </slots>
+  </display>
+  <records/>
+</Configuration>

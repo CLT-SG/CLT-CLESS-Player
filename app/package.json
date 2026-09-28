@@ -12,8 +12,7 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "eslint . --ext .ts,.vue"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "pinia": "^2.2.6",
