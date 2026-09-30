@@ -2153,9 +2153,25 @@ try {
                 }
             })
 
-            //reload main
+            //reload main — emit real startup progress to splash (second.html)
+            const emitStartupStatus = (payload) => {
+                try {
+                    if (win2 && !win2.isDestroyed() && win2.webContents) {
+                        win2.webContents.send('startup-status', payload)
+                    }
+                } catch (emitErr) {
+                    log.warn('startup-status emit failed:', emitErr.message)
+                }
+            }
+
             ipcMain.once('openwindow', async (event, logs) => {
                 log.info('Screen size captured.')
+                emitStartupStatus({
+                    step: 'loading-player',
+                    state: 'active',
+                    message: 'Loading player…'
+                })
+
                 win2.setBounds({
                     x: mainPosX,
                     y: mainPosY,
@@ -2169,20 +2185,57 @@ try {
                 win2.blur()
                 win.show()
                 win.focus()
+
+                emitStartupStatus({
+                    step: 'checking-network',
+                    state: 'active',
+                    message: 'Checking network…'
+                })
+
                 var networkStat = await si.networkInterfaces('default')
                 log.info("Network state : " + networkStat.operstate)
                 log.info("Configuration mode : " + config.mode)
                 const windowsVersion = os.release()
+                const networkUp = networkStat && networkStat.operstate !== 'down'
+
+                emitStartupStatus({
+                    step: 'checking-network',
+                    state: networkUp ? 'done' : 'warn',
+                    message: networkUp ? 'Network available' : 'Network unavailable',
+                    offline: !networkUp,
+                    mode: config.mode
+                })
                 
                 // Enhanced offline mode support: Only show offline.html when network is down AND mode is 'online'
                 // When config.mode is 'offline', bypass network check and load from cached layout-offline data
                 if (networkStat.operstate == 'down' && config.mode == 'online' && !windowsVersion.startsWith('6.1')) {
                     log.warn('Network state : network failed | Mode: online | Redirecting to offline.html', windowsVersion, networkStat)
+                    emitStartupStatus({
+                        step: 'connecting-server',
+                        state: 'error',
+                        message: 'Unable to connect to server',
+                        offline: true,
+                        detail: 'The Player will continue using available local configuration/content when possible.'
+                    })
                     win.loadURL("file://" + __dirname + "/src/offline.html")
                 } else {
                     // Network is up OR mode is 'offline' - proceed with normal startup
                     if (config.mode == 'offline' && networkStat.operstate == 'down') {
                         log.info('Offline mode active : Network is down but proceeding with cached layout data from localStorage')
+                        emitStartupStatus({
+                            step: 'connecting-server',
+                            state: 'warn',
+                            message: 'Offline Mode — using local cached content',
+                            offline: true
+                        })
+                    } else {
+                        emitStartupStatus({
+                            step: 'connecting-server',
+                            state: 'done',
+                            message: config.mode === 'offline'
+                                ? 'Offline mode — local content'
+                                : 'Server connection path ready'
+                        })
                     }
                     
                     // Initialize professional multi-NIC serial key validator
@@ -2201,8 +2254,20 @@ try {
                         if (config.mode == 'offline') {
                             log.warn('Offline mode: Proceeding without network interface detection')
                             log.info('ecless player startup (offline mode, no network interfaces)')
+                            emitStartupStatus({
+                                step: 'ready',
+                                state: 'done',
+                                message: 'Player Ready (offline)',
+                                offline: true
+                            })
                             win.loadURL("file://" + __dirname + "/src/index.html")
                         } else {
+                            emitStartupStatus({
+                                step: 'connecting-server',
+                                state: 'error',
+                                message: 'Unable to connect to server',
+                                offline: true
+                            })
                             win.loadURL("file://" + __dirname + "/src/offline.html")
                         }
                         return
@@ -2221,6 +2286,17 @@ try {
                         log.info('SerialKeyValidator: Serial key validation SUCCESS')
                         log.info(`SerialKeyValidator: Matched interface: ${validationResult.matchedInterface.interface} (${validationResult.matchedInterface.mac})`)
                         log.info('ecless player startup')
+                        emitStartupStatus({
+                            step: 'loading-content',
+                            state: 'done',
+                            message: 'Loading content…'
+                        })
+                        emitStartupStatus({
+                            step: 'ready',
+                            state: 'done',
+                            message: networkUp ? 'Player Ready' : 'Player Ready (offline)',
+                            offline: !networkUp || config.mode === 'offline'
+                        })
                         win.loadURL("file://" + __dirname + "/src/index.html")
                     } else {
                         log.warn('SerialKeyValidator: Serial key validation FAILED')
@@ -2231,6 +2307,12 @@ try {
                         const validationReport = serialKeyValidator.getValidationReport(config.serialkey)
                         log.debug('SerialKeyValidator: Validation report:', JSON.stringify(validationReport, null, 2))
                         
+                        emitStartupStatus({
+                            step: 'ready',
+                            state: 'error',
+                            message: 'License activation required',
+                            detail: validationResult.reason || 'Serial key validation failed'
+                        })
                         win.setSkipTaskbar(false)
                         win.setAlwaysOnTop(false)
                         win.setMenuBarVisibility(true)
@@ -2271,95 +2353,203 @@ try {
 
             //Save configuration app button (ecless-player)
             ipcMain.on('app-configsave', (event, args) => {
-                // Save to both old format (for compatibility) and new JSON format
-                const legacyConfigJs = 
-                    "var hostserver = '" + args['hostaddress'] + "'; // cless server url\r\n" +
-                    "var id = '" + args['dsid'] + "'; // ds id\r\n" +
-                    "var mode = '" + args['mode'] + "'; // offline or online\r\n" +
-                    "var corsproxy = '" + args['corsproxy'] + "'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n" +
-                    "var autostartup = '" + args['autostartup'] + "'; // Y or N\r\n" +
-                    "var serialkey = '" + args['serialkey'] + "'; // insert serial key\r\n\r\n\r\n" +
-                    "/*\r\n" +
-                    "DON'T CHANGE ANYTHING BELOW HERE\r\n" +
-                    "*/\r\n" +
-                    "module.exports.hostserver = hostserver;\r\n" +
-                    "module.exports.id = id;\r\n" +
-                    "module.exports.mode = mode;\r\n" +
-                    "module.exports.corsproxy = corsproxy;\r\n" +
-                    "module.exports.autostartup = autostartup;\r\n" +
-                    "module.exports.timeout = 10000;\r\n" +
-                    "module.exports.serialkey = serialkey;\r\n"
+                try {
+                    const existingConfig = loadConfiguration() || {}
+                    const hostaddress = args['hostaddress'] != null ? args['hostaddress'] : existingConfig.hostserver
+                    const dsid = args['dsid'] != null ? args['dsid'] : existingConfig.id
+                    const mode = args['mode'] != null ? args['mode'] : existingConfig.mode
+                    const corsproxy = args['corsproxy'] != null ? args['corsproxy'] : existingConfig.corsproxy
+                    const serialkey = args['serialkey'] != null && args['serialkey'] !== ''
+                        ? args['serialkey']
+                        : existingConfig.serialkey
+                    const autostartupFlag = args['autostartup'] != null
+                        ? args['autostartup']
+                        : (existingConfig.autoStartup ? 'Y' : 'N')
 
-                // Enhanced JSON config
-                const enhancedConfig = {
-                    hostserver: args['hostaddress'],
-                    id: args['dsid'],
-                    mode: args['mode'],
-                    corsproxy: args['corsproxy'],
-                    serialkey: args['serialkey'],
-                    timeout: 10000,
-                    autoStartup: args['autostartup'] === 'Y',
-                    fullscreenMode: args['fullscreenMode'] || true,
-                    screenTimeout: args['screenTimeout'] || 0,
-                    updateInterval: args['updateInterval'] || 30,
-                    logLevel: args['logLevel'] || 'info',
-                    screenOnOff: args['screenOnOff'] !== undefined ? args['screenOnOff'] : true,
-                    displaySettings: args['displaySettings'] || {
-                        resolution: 'auto',
-                        orientation: 'landscape',
-                        colorProfile: 'default',
-                        powerManagement: true
-                    },
-                    networkSettings: args['networkSettings'] || {
-                        autoConnect: true,
-                        preferredInterface: 'auto'
-                    },
-                    mediaSettings: args['mediaSettings'] || {
-                        defaultVolume: 50,
-                        autoPlay: true,
-                        loopMedia: true
-                    },
-                    systemSettings: args['systemSettings'] || {
+                    // Save to both old format (for compatibility) and new JSON format
+                    const legacyConfigJs =
+                        "var hostserver = '" + hostaddress + "'; // cless server url\r\n" +
+                        "var id = '" + dsid + "'; // ds id\r\n" +
+                        "var mode = '" + mode + "'; // offline or online\r\n" +
+                        "var corsproxy = '" + corsproxy + "'; // If the CORS blocked by Antivirus or Firewall then set to Y\r\n" +
+                        "var autostartup = '" + autostartupFlag + "'; // Y or N\r\n" +
+                        "var serialkey = '" + serialkey + "'; // insert serial key\r\n\r\n\r\n" +
+                        "/*\r\n" +
+                        "DON'T CHANGE ANYTHING BELOW HERE\r\n" +
+                        "*/\r\n" +
+                        "module.exports.hostserver = hostserver;\r\n" +
+                        "module.exports.id = id;\r\n" +
+                        "module.exports.mode = mode;\r\n" +
+                        "module.exports.corsproxy = corsproxy;\r\n" +
+                        "module.exports.autostartup = autostartup;\r\n" +
+                        "module.exports.timeout = 10000;\r\n" +
+                        "module.exports.serialkey = serialkey;\r\n"
+
+                    const mergeSection = function (key, incoming) {
+                        return Object.assign({}, existingConfig[key] || {}, incoming || {})
+                    }
+
+                    // Merge-safe JSON config — never drop syncSettings / update keys
+                    const enhancedConfig = Object.assign({}, existingConfig, {
+                        hostserver: hostaddress,
+                        id: dsid,
+                        mode: mode,
+                        corsproxy: corsproxy,
+                        serialkey: serialkey,
+                        timeout: args['timeout'] != null ? args['timeout'] : (existingConfig.timeout || 10000),
+                        autoStartup: autostartupFlag === 'Y' || autostartupFlag === true,
+                        fullscreenMode: args['fullscreenMode'] !== undefined
+                            ? !!args['fullscreenMode']
+                            : (existingConfig.fullscreenMode !== undefined ? existingConfig.fullscreenMode : true),
+                        screenTimeout: args['screenTimeout'] !== undefined
+                            ? Number(args['screenTimeout']) || 0
+                            : (existingConfig.screenTimeout || 0),
+                        updateInterval: args['updateInterval'] !== undefined
+                            ? Number(args['updateInterval']) || 30
+                            : (existingConfig.updateInterval || 30),
+                        logLevel: args['logLevel'] || existingConfig.logLevel || 'info',
+                        screenOnOff: args['screenOnOff'] !== undefined
+                            ? !!args['screenOnOff']
+                            : (existingConfig.screenOnOff !== undefined ? existingConfig.screenOnOff : true),
+                        displaySettings: mergeSection('displaySettings', args['displaySettings']),
+                        networkSettings: mergeSection('networkSettings', args['networkSettings']),
+                        mediaSettings: mergeSection('mediaSettings', args['mediaSettings']),
+                        systemSettings: mergeSection('systemSettings', args['systemSettings']),
+                        syncSettings: mergeSection('syncSettings', args['syncSettings']),
+                        timestamp: new Date().toISOString(),
+                        version: existingConfig.version && compareVersions(existingConfig.version, '2.6.5') >= 0
+                            ? existingConfig.version
+                            : '2.6.5'
+                    })
+
+                    // Ensure nested update defaults remain present after merge
+                    enhancedConfig.systemSettings = Object.assign({
                         enableRemoteControl: true,
                         allowShutdown: true,
-                        enableSystemInfo: true
-                    },
-                    timestamp: new Date().toISOString(),
-                    version: '2.0.14'
-                }
+                        enableSystemInfo: true,
+                        enableVNC: true,
+                        vncPort: 5900,
+                        cpanelPort: 9000,
+                        autoCheckUpdates: true,
+                        autoInstallUpdates: false,
+                        updateCheckIntervalHours: 6
+                    }, enhancedConfig.systemSettings || {})
 
-                // Write legacy config.js
-                fs.writeFile(appdir + '/config.js', legacyConfigJs, function (err, data) {
-                    if (err) {
-                        log.warn(err)
-                    }
+                    fs.writeFileSync(appdir + '/config.js', legacyConfigJs)
                     log.info('Legacy config.js updated.')
-                })
 
-                // Write enhanced config.json
-                fs.writeFile(appdir + '/config.json', JSON.stringify(enhancedConfig, null, 2), function (err, data) {
-                    if (err) {
-                        log.warn('Error saving config.json:', err)
-                        // Send error response to renderer
-                        event.reply('config-save-response', {
-                            success: false,
-                            error: 'Failed to save configuration file'
-                        })
-                    } else {
-                        log.info('Enhanced config.json updated.')
-                        
-                        // Send success response to renderer (no dialog blocking)
-                        // The renderer process will show the custom dialog
-                        event.reply('config-save-response', {
-                            success: true,
-                            message: 'Configuration has been updated successfully.',
-                            detail: 'Update successful for both config.js and config.json\n' +
-                                'Enhanced features are now available in the control panel.\n\n' +
-                                'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \n' +
-                                'www.closed-loop.biz'
-                        })
+                    fs.writeFileSync(appdir + '/config.json', JSON.stringify(enhancedConfig, null, 2))
+                    log.info('Enhanced config.json updated.')
+
+                    // Keep in-memory module config in sync when present
+                    try {
+                        config.hostserver = enhancedConfig.hostserver
+                        config.id = enhancedConfig.id
+                        config.mode = enhancedConfig.mode
+                        config.corsproxy = enhancedConfig.corsproxy
+                        config.serialkey = enhancedConfig.serialkey
+                        config.autostartup = autostartupFlag
+                    } catch (syncErr) {
+                        log.warn('In-memory config sync skipped:', syncErr.message)
                     }
-                })
+
+                    if (global.updateManager && typeof global.updateManager.reloadSettings === 'function') {
+                        try {
+                            global.updateManager.reloadSettings()
+                        } catch (reloadError) {
+                            log.warn('UpdateManager reload after configure save failed:', reloadError.message)
+                        }
+                    }
+
+                    event.reply('config-save-response', {
+                        success: true,
+                        message: 'Configuration has been updated successfully.',
+                        detail: 'Update successful for both config.js and config.json\n' +
+                            'Enhanced features are now available in the control panel.\n\n' +
+                            'Copyright © 2000-' + date.format(now, 'YYYY') + ' by Closed-loop Technology Pte Ltd. All rights reserved \n' +
+                            'www.closed-loop.biz',
+                        config: enhancedConfig
+                    })
+                } catch (saveError) {
+                    log.warn('Error saving configuration:', saveError)
+                    event.reply('config-save-response', {
+                        success: false,
+                        error: 'Failed to save configuration file'
+                    })
+                }
+            })
+
+            // Shared update IPC (Configure window + any renderer)
+            ipcMain.handle('updates-status', async () => {
+                try {
+                    if (global.updateManager) {
+                        return global.updateManager.getStatus()
+                    }
+                    return {
+                        state: 'unavailable',
+                        message: 'Update service is not initialized.',
+                        currentVersion: app.getVersion(),
+                        packaged: app.isPackaged,
+                        production: !!app.isPackaged,
+                        developmentMode: !app.isPackaged
+                    }
+                } catch (error) {
+                    return {
+                        state: 'error',
+                        message: 'Update failed.',
+                        error: error.message,
+                        currentVersion: app.getVersion(),
+                        packaged: app.isPackaged,
+                        production: !!app.isPackaged,
+                        developmentMode: !app.isPackaged
+                    }
+                }
+            })
+
+            ipcMain.handle('updates-check', async () => {
+                try {
+                    if (!global.updateManager) {
+                        return {
+                            state: 'unavailable',
+                            message: 'Update service is not initialized.',
+                            currentVersion: app.getVersion()
+                        }
+                    }
+                    return await global.updateManager.checkForUpdates({ source: 'manual' })
+                } catch (error) {
+                    return {
+                        state: 'error',
+                        message: 'Update check failed. The Player will continue running normally.',
+                        error: error.message,
+                        currentVersion: app.getVersion()
+                    }
+                }
+            })
+
+            ipcMain.handle('updates-install', async () => {
+                try {
+                    if (!global.updateManager) {
+                        throw new Error('Update service is not initialized.')
+                    }
+                    // Respond first conceptually — quitAndInstall terminates the process
+                    setTimeout(() => {
+                        global.updateManager.quitAndInstall({ source: 'manual' }).catch((error) => {
+                            log.error('IPC update install failed:', error.message)
+                        })
+                    }, 500)
+                    return {
+                        state: 'installing',
+                        message: 'Installing update. The player will restart shortly.',
+                        currentVersion: app.getVersion()
+                    }
+                } catch (error) {
+                    return {
+                        state: 'error',
+                        message: 'Update failed.',
+                        error: error.message,
+                        currentVersion: app.getVersion()
+                    }
+                }
             })
 
             // Enhanced IPC handlers for new control panel features
@@ -2466,6 +2656,18 @@ try {
                             }
                         } catch (emitError) {
                             safeLog.warn('UpdateManager status broadcast failed:', emitError.message)
+                        }
+                        // Also notify Configure / player windows via IPC (same status object)
+                        try {
+                            BrowserWindow.getAllWindows().forEach((bw) => {
+                                try {
+                                    if (bw && !bw.isDestroyed() && bw.webContents) {
+                                        bw.webContents.send('app-update-status', status)
+                                    }
+                                } catch (winErr) { /* ignore per-window */ }
+                            })
+                        } catch (ipcBroadcastErr) {
+                            safeLog.warn('UpdateManager IPC broadcast failed:', ipcBroadcastErr.message)
                         }
                     }
                 })
@@ -2644,6 +2846,17 @@ app.on('before-quit', (event) => {
     if (displayCalculator) {
         displayCalculator.clearCache()
         safeLog.info('DisplayCalculator: Cache cleared for app shutdown')
+    }
+
+    // Stop update startup/periodic timers (never leave orphaned GitHub checks)
+    try {
+        if (updateManager && typeof updateManager.dispose === 'function') {
+            updateManager.dispose()
+        } else if (global.updateManager && typeof global.updateManager.dispose === 'function') {
+            global.updateManager.dispose()
+        }
+    } catch (disposeError) {
+        safeLog.warn('UpdateManager dispose failed:', disposeError.message)
     }
 })
 

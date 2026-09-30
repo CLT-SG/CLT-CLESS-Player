@@ -848,11 +848,14 @@ return (async function () {
         try {
             const manager = global.updateManager
             if (!manager) {
+                const packaged = require('electron').app.isPackaged
                 return res.json({
                     state: 'unavailable',
                     message: 'Update service is not initialized.',
                     currentVersion: require('electron').app.getVersion(),
-                    packaged: require('electron').app.isPackaged
+                    packaged: packaged,
+                    production: packaged,
+                    developmentMode: !packaged
                 })
             }
             res.json(manager.getStatus())
@@ -1542,14 +1545,16 @@ return (async function () {
                 existingConfig = JSON.parse(configFileContent)
             }
             
-            // Merge new configuration with existing configuration
+            // Merge new configuration with existing configuration (deep-merge nested sections)
             const mergedConfig = { ...existingConfig, ...newConfig }
-            if (existingConfig.systemSettings || newConfig.systemSettings) {
-                mergedConfig.systemSettings = {
-                    ...(existingConfig.systemSettings || {}),
-                    ...(newConfig.systemSettings || {})
+            ;['systemSettings', 'displaySettings', 'networkSettings', 'mediaSettings', 'syncSettings'].forEach(function (key) {
+                if (existingConfig[key] || newConfig[key]) {
+                    mergedConfig[key] = {
+                        ...(existingConfig[key] || {}),
+                        ...(newConfig[key] || {})
+                    }
                 }
-            }
+            })
             
             // Update timestamp
             mergedConfig.timestamp = new Date().toISOString()

@@ -1785,7 +1785,7 @@
             <div class="section-stack">
 
             <div class="panel-card">
-<div class="card-header">
+                <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-gear"></i>
                     </div>
@@ -1812,7 +1812,7 @@
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label class="form-label" for="updateInterval">Update Interval (seconds):</label>
+                            <label class="form-label" for="updateInterval">Content Update Interval (seconds):</label>
                             <input type="number" id="updateInterval" class="form-control" value="30" min="10"
                                 max="3600">
                         </div>
@@ -1824,41 +1824,6 @@
                                 <option value="info" selected>Info</option>
                                 <option value="debug">Debug</option>
                             </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="autoCheckUpdates" style="margin-right: 0.5rem;" checked>
-                                Auto Check for App Updates
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="autoInstallUpdates" style="margin-right: 0.5rem;">
-                                Auto Install &amp; Restart Updates (unattended)
-                            </label>
-                            <small class="form-text text-muted">For airport displays: download and restart without confirmation.</small>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row mt-2">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <label class="form-label">App Update Status</label>
-                            <div id="appUpdateStatus" class="alert alert-secondary mb-2" role="status">
-                                Checking for updates...
-                            </div>
-                            <div class="control-grid">
-                                <button type="button" class="modern-btn btn-info" id="checkForUpdatesSecondary">
-                                    <i class="bi bi-arrow-repeat"></i>
-                                    Check for Updates
-                                </button>
-                                <button type="button" class="modern-btn btn-success" id="installUpdateBtn" disabled>
-                                    <i class="bi bi-download"></i>
-                                    Restart to Apply Update
-                                </button>
-                            </div>
-                            <small class="form-text text-muted" id="appVersionLabel">Player version: —</small>
                         </div>
                     </div>
                 </div>
@@ -1933,47 +1898,63 @@
                         <i class="bi bi-hdd-stack"></i>
                         Open Device Status &amp; Control
                     </button>
+                </div>
+            </div>
 
+            <div class="panel-card" id="applicationUpdatesCard">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-cloud-arrow-down"></i></div>
+                    <h2 class="card-title">Application Updates</h2>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group form-group-check">
+                        <label class="form-label checkbox-label">
+                            <input type="checkbox" id="autoCheckUpdates" checked> Auto Update
+                        </label>
+                        <small class="form-text text-muted">Check for updates at startup and periodically while running.</small>
+                        <div class="field-key">systemSettings.autoCheckUpdates</div>
+                    </div>
+                    <div class="form-group form-group-check">
+                        <label class="form-label checkbox-label">
+                            <input type="checkbox" id="autoInstallUpdates"> Auto Install &amp; Restart
+                        </label>
+                        <small class="form-text text-muted">For airport displays: download and restart without confirmation.</small>
+                        <div class="field-key">systemSettings.autoInstallUpdates</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="settingsUpdateChannel">Update Channel</label>
+                        <select id="settingsUpdateChannel" class="select-modern" disabled>
+                            <option value="stable" selected>Stable</option>
+                        </select>
+                        <small class="form-text text-muted">GitHub Releases stable channel (current provider).</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="updateCheckIntervalHours">Check Interval (hours)</label>
+                        <input type="number" id="updateCheckIntervalHours" class="form-control" min="1" max="168" value="6">
+                        <div class="field-key">systemSettings.updateCheckIntervalHours</div>
+                    </div>
+                </div>
+                <div class="form-group mt-3">
+                    <label class="form-label">Update Status</label>
+                    <div id="appUpdateStatus" class="alert alert-secondary mb-2" role="status">
+                        Checking for updates...
+                    </div>
+                    <div class="control-grid">
+                        <button type="button" class="modern-btn btn-info" id="checkForUpdatesSecondary">
+                            <i class="bi bi-arrow-repeat"></i>
+                            Check Now
+                        </button>
+                        <button type="button" class="modern-btn btn-success" id="installUpdateBtn" disabled>
+                            <i class="bi bi-download"></i>
+                            Restart to Apply Update
+                        </button>
+                    </div>
+                    <small class="form-text text-muted" id="appVersionLabel">Current version: —</small>
                 </div>
             </div>
 
             </div>
-
-            
-<!-- Media Cache Management (Mobile Only) -->
-            <div class="row" id="mediaCacheSection" style="display: none;">
-                <div class="col-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-images"></i>
-                        Media Cache Manager
-                    </h3>
-                    <div class="card-content">
-                        <div class="alert alert-info mb-3">
-                            <i class="bi bi-info-circle"></i>
-                            Cached media files are stored locally for faster playback and offline access.
-                        </div>
-                        
-                        <!-- Cache Statistics -->
-                        <div class="stats-grid mb-3">
-                            <div class="stat-item">
-                                <div class="stat-label">Cached Files</div>
-                                <div class="stat-value" id="cacheFilesCount">0</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Cache Size</div>
-                                <div class="stat-value" id="cacheSize">0 MB</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Cache Hits</div>
-                                <div class="stat-value" id="cacheHits">0</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-label">Downloads</div>
-                                <div class="stat-value" id="downloadCount">0</div>
-                            </div>
-                        </div>
-            </div>
-</section>
+        </section>
 
 
         </main>
@@ -2130,6 +2111,7 @@
     }
 </script>
 
+<script type="text/javascript" src="assets/js/update-client.js"></script>
 <script type="text/javascript" src="assets/js/cpanel/monitoring-service.js"></script>
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
 <script type="text/javascript" src="assets/js/cpanel.js"></script>

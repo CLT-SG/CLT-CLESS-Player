@@ -1,382 +1,480 @@
 <!DOCTYPE html>
-<html lang="us">
-
+<html lang="en" data-theme="light">
 <head>
-    <!-- Viewport meta for mobile (MUST come first) -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-
     <meta charset="utf-8">
-    <title>eCLESS Player</title>
-    
-    <!-- Latest compiled and minified CSS -->
-    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
-    
-    <!-- ========================================
-         CRITICAL: Mobile Initialization Order
-         ======================================== -->
-    
-    <!-- 1. Capacitor Mobile Initialization (MUST load FIRST) -->
-    <script type="module" src="assets/js/mobile/capacitor-core.bundle.js"></script>
-    
-    <!-- 2. Mobile Electron Shim (provides window.mobileAPI, window.log, etc.) -->
-    <script src="assets/js/mobile/mobile-electron-shim.js"></script>
-    
-    <!-- 3. Mobile Config Loader (needs window.log from shim) -->
-    <script src="assets/js/mobile/mobile-config.js"></script>
-    
-    <!-- 4. Other Scripts (load AFTER mobile initialization) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CLESS Player Configure</title>
     <script>
         if (typeof module === 'object') {
             window.module = module
             module = undefined
         }
     </script>
-    
-    <!-- Latest compiled and minified JavaScript -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
+    <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="assets/css/cpanel.css" rel="stylesheet">
     <script src="assets/js/jquery.min.js"></script>
     <script src="assets/js/bootstrap.min.js"></script>
-    
-    <!-- Custom Dialog System for alwaysOnTop compatibility -->
+    <script src="assets/js/config-loader.js"></script>
     <script src="assets/js/custom-dialog.js"></script>
-    
-    <style>
-        html,
-        body {
-            height: 100%;
-            width: 100%;
-        }
-
-        .note {
-            text-align: center;
-            height: 80px;
-            background: -webkit-linear-gradient(left, #0072ff, #8811c5);
-            color: #fff;
-            font-weight: bold;
-            line-height: 80px;
-        }
-
-        .form-content {
-            padding: 5%;
-            border: 1px solid #ced4da;
-            margin-bottom: 2%;
-        }
-
-        .btnSubmit {
-            border: none;
-            border-radius: 1.5rem;
-            padding: 1%;
-            width: 20%;
-            cursor: pointer;
-            background: #0062cc;
-            color: #fff;
-        }
-    </style>
-    
-    <script>
-        // Declare variables in global scope
-        var ipcRenderer, remote, path, os, config, win, homedir;
-        
-        // Set up IPC listeners (defined before initializeAPIs calls it)
-        function setupIPCListeners() {
-            if (!ipcRenderer) {
-                console.error('eCLESS: ipcRenderer not initialized, cannot set up listeners');
-                return;
-            }
-            
-            console.log('eCLESS: Setting up IPC listeners');
-            
-            // Listen for configuration save response from main process
-            ipcRenderer.on('config-save-response', async (event, response) => {
-                console.log('eCLESS: Configuration save response received:', response);
-                
-                if (response.success) {
-                    // Show success dialog with auto-dismiss
-                    await customAlert(
-                        response.detail || response.message, 
-                        { 
-                            type: 'success',
-                            title: 'Configuration Saved',
-                            timeout: 5000,
-                            buttonText: 'OK'
-                        }
-                    );
-                    
-                    // Restart the application after user acknowledges or timeout
-                    console.log('eCLESS: CLESS Player relaunch initiated');
-                    ipcRenderer.send('app-reload');
-                } else {
-                    // Show error dialog
-                    await customAlert(
-                        response.error || 'Failed to save configuration. Please try again.', 
-                        { 
-                            type: 'error',
-                            title: 'Configuration Error',
-                            timeout: 5000
-                        }
-                    );
-                }
-            });
-        }
-        
-        // Initialize variables safely after shim loads
-        function initializeAPIs() {
-            if (!window.mobileAPI) {
-                console.error('eCLESS: window.mobileAPI not available yet, retrying...');
-                setTimeout(initializeAPIs, 100);
-                return;
-            }
-            
-            ipcRenderer = window.mobileAPI.ipc;
-            remote = window.mobileAPI.remote;
-            path = window.path;
-            os = window.os;
-            config = window.config;
-            win = remote.getCurrentWindow(); // Fixed: use getCurrentWindow instead of getCurrentWebContents
-            homedir = os.homedir();
-            
-            console.log('eCLESS: APIs initialized successfully');
-            
-            // Set up IPC listener after initialization
-            setupIPCListeners();
-        }
-        
-        // Call initialization immediately (after shim scripts have loaded)
-        initializeAPIs();
-        
-        // Wait for configuration to load
-        window.addEventListener('configLoaded', function(event) {
-            console.log('eCLESS: Configuration loaded for configure window -', event.detail.source)
-            // Note: Full config not logged to prevent exposing sensitive data (serial key)
-            populateForm()
-        })
-        
-        // Load configuration on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check if config is already loaded
-            if (window.configLoader && window.configLoader.config && typeof window.configLoader.getAll === 'function') {
-                console.log('eCLESS: Configuration already loaded, populating form');
-                populateForm();
-            } else {
-                console.log('eCLESS: Waiting for configuration to load...');
-                // Start polling for config
-                setTimeout(populateForm, 300);
-            }
-        })
-        
-        function populateForm() {
-            // Wait for both configLoader and its config to be ready
-            if (!window.configLoader) {
-                console.warn('eCLESS: configLoader not available yet, retrying...');
-                setTimeout(populateForm, 200);
-                return;
-            }
-            
-            if (!window.configLoader.config) {
-                console.warn('eCLESS: configLoader.config not loaded yet, retrying...');
-                setTimeout(populateForm, 200);
-                return;
-            }
-            
-            // Get all config using getAll() method or fallback to config object
-            var configData = (typeof window.configLoader.getAll === 'function') 
-                ? window.configLoader.getAll() 
-                : window.configLoader.config;
-            
-            console.log('eCLESS: Populating form with configuration data');
-            
-            $('#hostserver').val(configData.hostserver || '')
-            $('#dsid').val(configData.id || '')
-            $('#mode option[value="' + (configData.mode || 'online') + '"]').prop("selected", true)
-            $('#corsproxy option[value="' + (configData.corsproxy || 'N') + '"]').prop("selected", true)
-            
-            // Handle both old and new autostartup formats
-            var autostartupValue
-            if (configData.autoStartup !== undefined) {
-                // New format (boolean)
-                autostartupValue = configData.autoStartup ? 'Y' : 'N'
-            } else {
-                // Legacy format (string)
-                autostartupValue = configData.autostartup || 'Y'
-            }
-            $('#autostartup option[value="' + autostartupValue + '"]').prop("selected", true)
-            
-            $('#serialkey').val(configData.serialkey || '')
-            
-            console.log('eCLESS: Form populated successfully with values:')
-            console.log('  - Host server:', configData.hostserver)
-            console.log('  - DS ID:', configData.id)
-            console.log('  - Mode:', configData.mode)
-            console.log('  - CORS Proxy:', configData.corsproxy)
-            console.log('  - Auto startup:', autostartupValue)
-            console.log('  - Serial key:', configData.serialkey ? '***' + configData.serialkey.slice(-8) : 'empty')
-        }
-    </script>
+    <script src="assets/js/update-client.js"></script>
 </head>
-
 <body>
-    <div class="container register-form" style="margin-top:10%;">
-        <div class="form">
-            <div class="note">
-                <p>CLESS PLAYER - CONFIGURATION</p>
+<div class="app-shell">
+    <aside id="appSidebar" class="sidebar" aria-label="Primary">
+        <div class="sidebar-brand">
+            <div class="brand-mark"><i class="bi bi-display"></i></div>
+            <div class="brand-text">
+                <div class="brand-name">CLESS Player</div>
+                <div class="brand-sub">Configure</div>
             </div>
+            <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar" aria-label="Collapse sidebar">
+                <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+        </div>
+        <div class="sidebar-status" id="sidebarPlayerStatus">
+            <span class="status-dot status-dot-success"></span>
+            <span class="status-text">Configure</span>
+        </div>
+        <nav class="sidebar-nav">
+            <button type="button" class="nav-item is-active" aria-current="page">
+                <i class="bi bi-sliders"></i>
+                <span class="nav-label">Configure</span>
+            </button>
+            <button type="button" class="nav-item" data-cpanel-nav="dashboard">
+                <i class="bi bi-grid-1x2"></i>
+                <span class="nav-label">Dashboard</span>
+            </button>
+            <button type="button" class="nav-item" data-cpanel-nav="device">
+                <i class="bi bi-hdd-stack"></i>
+                <span class="nav-label">Device Status &amp; Control</span>
+            </button>
+            <button type="button" class="nav-item" data-cpanel-nav="layout">
+                <i class="bi bi-layout-text-window"></i>
+                <span class="nav-label">Layout</span>
+            </button>
+            <button type="button" class="nav-item" data-cpanel-nav="settings">
+                <i class="bi bi-gear"></i>
+                <span class="nav-label">Settings</span>
+            </button>
+        </nav>
+        <div class="sidebar-footer">
+            <button type="button" class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle light and dark theme">
+                <i class="bi bi-sun-fill theme-icon-light"></i>
+                <i class="bi bi-moon-stars-fill theme-icon-dark"></i>
+                <span class="theme-toggle-label">Theme</span>
+            </button>
+        </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <div class="app-main">
+        <header class="topbar">
+            <button type="button" class="topbar-menu-btn" id="sidebarOpenBtn" aria-label="Open menu">
+                <i class="bi bi-list"></i>
+            </button>
+            <div class="topbar-title-wrap">
+                <h1 class="topbar-title">Configure</h1>
+                <p class="topbar-subtitle">Player, display, network, and update settings</p>
+            </div>
+            <div class="topbar-actions">
+                <button type="button" class="theme-toggle theme-toggle-compact" id="themeToggleMobile" title="Toggle theme" aria-label="Toggle theme">
+                    <i class="bi bi-sun-fill theme-icon-light"></i>
+                    <i class="bi bi-moon-stars-fill theme-icon-dark"></i>
+                </button>
+            </div>
+        </header>
+        <main class="app-content" id="appContent">
+            <div class="section-stack configure-stack">
 
-            <div class="form-content">
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <div>CLESS Server Address</div>
-                            <input type="text" id="hostserver" class="form-control" value="" />
-                        </div>
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-broadcast-pin"></i></div>
+                        <h2 class="card-title">Player Configuration</h2>
                     </div>
-                    <div class="col-md-6">
+                    <div class="form-grid">
                         <div class="form-group">
-                            <div>Digital Signage ID</div>
-                            <input type="text" id="dsid" class="form-control" value="" type="number" />
+                            <label class="form-label" for="hostserver">Server URL</label>
+                            <input type="url" id="hostserver" class="form-control" placeholder="https://server.example.com/demo" autocomplete="off">
+                            <div class="field-key">hostserver</div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
                         <div class="form-group">
-                            <div>Mode</div>
-                            <select class="form-control" id="mode">
-                                <option value="online">online</option>
-                                <option value="offline">offline</option>
+                            <label class="form-label" for="dsid">Device ID</label>
+                            <input type="number" id="dsid" class="form-control" min="1" max="9999" placeholder="206">
+                            <div class="field-key">id</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="mode">Network / Connection Mode</label>
+                            <select id="mode" class="select-modern">
+                                <option value="online">Online</option>
+                                <option value="offline">Offline</option>
                             </select>
+                            <div class="field-key">mode</div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
                         <div class="form-group">
-                            <div>Cors Proxy</div>
-                            <select class="form-control" id="corsproxy">
-                                <option value="Y">Enable</option>
+                            <label class="form-label" for="corsproxy">CORS Proxy</label>
+                            <select id="corsproxy" class="select-modern">
                                 <option value="N">Disable</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <div>Auto Startup</div>
-                            <select class="form-control" id="autostartup">
                                 <option value="Y">Enable</option>
-                                <option value="N">Disable</option>
                             </select>
+                            <small class="form-text text-muted">Enable if blocked by antivirus or firewall.</small>
+                            <div class="field-key">corsproxy</div>
                         </div>
-                    </div>
-                    <div class="col-md-6">
                         <div class="form-group">
-                            <div>License key</div>
-                            <input type="text" id="serialkey" class="form-control" value="" />
+                            <label class="form-label" for="timeout">Request Timeout (ms)</label>
+                            <input type="number" id="timeout" class="form-control" min="1000" max="120000" step="500">
+                            <div class="field-key">timeout</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="serialkey">License Key</label>
+                            <input type="password" id="serialkey" class="form-control" autocomplete="off" placeholder="Enter license serial key">
+                            <small class="form-text text-muted">Leave empty to keep the current key unchanged.</small>
+                            <div class="field-key">serialkey</div>
                         </div>
                     </div>
                 </div>
-                <button type="button" class="btnSubmit" id="home">Exit</button>
-                <button type="button" class="btnSubmit" id="save">Save</button>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-display"></i></div>
+                        <h2 class="card-title">Display Configuration</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="displayResolution">Resolution</label>
+                            <select id="displayResolution" class="select-modern">
+                                <option value="auto">Auto</option>
+                                <option value="1920x1080">1920×1080</option>
+                                <option value="1280x720">1280×720</option>
+                                <option value="3840x2160">3840×2160</option>
+                            </select>
+                            <div class="field-key">displaySettings.resolution</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="displayOrientation">Orientation</label>
+                            <select id="displayOrientation" class="select-modern">
+                                <option value="landscape">Landscape</option>
+                                <option value="portrait">Portrait</option>
+                            </select>
+                            <div class="field-key">displaySettings.orientation</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="displayColorProfile">Color Profile</label>
+                            <select id="displayColorProfile" class="select-modern">
+                                <option value="default">Default</option>
+                                <option value="srgb">sRGB</option>
+                                <option value="vivid">Vivid</option>
+                            </select>
+                            <div class="field-key">displaySettings.colorProfile</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="displayPowerManagement"> Power Management
+                            </label>
+                            <div class="field-key">displaySettings.powerManagement</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="fullscreenMode"> Fullscreen Mode
+                            </label>
+                            <div class="field-key">fullscreenMode</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="screenOnOff"> Screen On/Off Control
+                            </label>
+                            <div class="field-key">screenOnOff</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="screenTimeout">Screen Timeout (minutes)</label>
+                            <input type="number" id="screenTimeout" class="form-control" min="0" max="1440">
+                            <div class="field-key">screenTimeout</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-hdd-network"></i></div>
+                        <h2 class="card-title">Network Configuration</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="networkAutoConnect"> Auto Connect
+                            </label>
+                            <div class="field-key">networkSettings.autoConnect</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="networkPreferredInterface">Preferred Interface</label>
+                            <select id="networkPreferredInterface" class="select-modern">
+                                <option value="auto">Auto</option>
+                                <option value="ethernet">Ethernet</option>
+                                <option value="wifi">Wi-Fi</option>
+                            </select>
+                            <div class="field-key">networkSettings.preferredInterface</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="networkRetryAttempts">Retry Attempts</label>
+                            <input type="number" id="networkRetryAttempts" class="form-control" min="0" max="20">
+                            <div class="field-key">networkSettings.retryAttempts</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="networkRetryDelay">Retry Delay (ms)</label>
+                            <input type="number" id="networkRetryDelay" class="form-control" min="500" max="60000" step="500">
+                            <div class="field-key">networkSettings.retryDelay</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-play-circle"></i></div>
+                        <h2 class="card-title">Playback Configuration</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label class="form-label" for="mediaDefaultVolume">Default Volume</label>
+                            <input type="number" id="mediaDefaultVolume" class="form-control" min="0" max="100">
+                            <div class="field-key">mediaSettings.defaultVolume</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="updateInterval">Content Update Interval (seconds)</label>
+                            <input type="number" id="updateInterval" class="form-control" min="10" max="3600">
+                            <div class="field-key">updateInterval</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="mediaAutoPlay"> Auto Play
+                            </label>
+                            <div class="field-key">mediaSettings.autoPlay</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="mediaLoopMedia"> Loop Media
+                            </label>
+                            <div class="field-key">mediaSettings.loopMedia</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="mediaHardwareAcceleration"> Hardware Acceleration
+                            </label>
+                            <div class="field-key">mediaSettings.hardwareAcceleration</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card" id="applicationUpdatesCard">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-cloud-arrow-down"></i></div>
+                        <h2 class="card-title">Application Updates</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="autoCheckUpdates" checked> Auto Update
+                            </label>
+                            <small class="form-text text-muted">Check for updates at startup and periodically while running.</small>
+                            <div class="field-key">systemSettings.autoCheckUpdates</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="autoInstallUpdates"> Auto Install &amp; Restart
+                            </label>
+                            <small class="form-text text-muted">Download and restart without confirmation (unattended displays).</small>
+                            <div class="field-key">systemSettings.autoInstallUpdates</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="updateChannel">Update Channel</label>
+                            <select id="updateChannel" class="select-modern" disabled>
+                                <option value="stable" selected>Stable</option>
+                            </select>
+                            <small class="form-text text-muted">GitHub Releases stable channel (current provider).</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="updateCheckIntervalHours">Check Interval (hours)</label>
+                            <input type="number" id="updateCheckIntervalHours" class="form-control" min="1" max="168" value="6">
+                            <div class="field-key">systemSettings.updateCheckIntervalHours</div>
+                        </div>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label class="form-label">Update Status</label>
+                        <div id="appUpdateStatus" class="alert alert-secondary mb-2" role="status">
+                            Checking update status…
+                        </div>
+                        <div class="control-grid">
+                            <button type="button" class="modern-btn btn-info" id="checkForUpdatesSecondary">
+                                <i class="bi bi-arrow-repeat"></i> Check Now
+                            </button>
+                            <button type="button" class="modern-btn btn-success" id="installUpdateBtn" disabled>
+                                <i class="bi bi-download"></i> Restart to Apply Update
+                            </button>
+                        </div>
+                        <small class="form-text text-muted" id="appVersionLabel">Current version: —</small>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-shield-lock"></i></div>
+                        <h2 class="card-title">Security &amp; System</h2>
+                    </div>
+                    <div class="form-grid">
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="autoStartup"> Auto Startup on Boot
+                            </label>
+                            <div class="field-key">autoStartup</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="enableRemoteControl"> Enable Remote Control
+                            </label>
+                            <div class="field-key">systemSettings.enableRemoteControl</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="allowShutdown"> Allow Shutdown
+                            </label>
+                            <div class="field-key">systemSettings.allowShutdown</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="enableSystemInfo"> Enable System Info
+                            </label>
+                            <div class="field-key">systemSettings.enableSystemInfo</div>
+                        </div>
+                        <div class="form-group form-group-check">
+                            <label class="form-label checkbox-label">
+                                <input type="checkbox" id="enableVNC"> Enable VNC
+                            </label>
+                            <div class="field-key">systemSettings.enableVNC</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="vncPort">VNC Port</label>
+                            <input type="number" id="vncPort" class="form-control" min="1" max="65535">
+                            <div class="field-key">systemSettings.vncPort</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="cpanelPort">Control Panel Port</label>
+                            <input type="number" id="cpanelPort" class="form-control" min="1" max="65535">
+                            <div class="field-key">systemSettings.cpanelPort</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="logLevel">Log Level</label>
+                            <select id="logLevel" class="select-modern">
+                                <option value="error">Error</option>
+                                <option value="warn">Warning</option>
+                                <option value="info">Info</option>
+                                <option value="debug">Debug</option>
+                            </select>
+                            <div class="field-key">logLevel</div>
+                        </div>
+                    </div>
+                </div>
+
+                <details class="panel-card advanced-config" id="advancedConfigDetails">
+                    <summary class="card-header advanced-summary">
+                        <div class="card-icon"><i class="bi bi-tools"></i></div>
+                        <h2 class="card-title">Advanced Configuration</h2>
+                        <span class="advanced-hint">Sync &amp; technical options</span>
+                    </summary>
+                    <div class="advanced-body">
+                        <h3 class="subsection-title">Synchronization</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="syncMode">Sync Mode</label>
+                                <select id="syncMode" class="select-modern">
+                                    <option value="disabled">Disabled</option>
+                                    <option value="master">Master</option>
+                                    <option value="slave">Slave</option>
+                                </select>
+                                <div class="field-key">syncSettings.syncMode</div>
+                            </div>
+                            <div class="form-group form-group-check">
+                                <label class="form-label checkbox-label">
+                                    <input type="checkbox" id="syncIsMaster"> Is Master
+                                </label>
+                                <div class="field-key">syncSettings.isMaster</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncMasterServerAddress">Master Server Address</label>
+                                <input type="text" id="syncMasterServerAddress" class="form-control">
+                                <div class="field-key">syncSettings.masterServerAddress</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncMasterServerPort">Master Server Port</label>
+                                <input type="number" id="syncMasterServerPort" class="form-control" min="1" max="65535">
+                                <div class="field-key">syncSettings.masterServerPort</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncInterval">Sync Interval (ms)</label>
+                                <input type="number" id="syncInterval" class="form-control" min="500" max="60000">
+                                <div class="field-key">syncSettings.syncInterval</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncVideoThreshold">Video Sync Threshold</label>
+                                <input type="number" id="syncVideoThreshold" class="form-control" min="0" max="5" step="0.1">
+                                <div class="field-key">syncSettings.videoSyncThreshold</div>
+                            </div>
+                            <div class="form-group form-group-check">
+                                <label class="form-label checkbox-label">
+                                    <input type="checkbox" id="syncLayoutEnabled"> Layout Sync Enabled
+                                </label>
+                                <div class="field-key">syncSettings.layoutSyncEnabled</div>
+                            </div>
+                            <div class="form-group form-group-check">
+                                <label class="form-label checkbox-label">
+                                    <input type="checkbox" id="syncVideoEnabled"> Video Sync Enabled
+                                </label>
+                                <div class="field-key">syncSettings.videoSyncEnabled</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncMasterBroadcastInterval">Master Broadcast Interval (ms)</label>
+                                <input type="number" id="syncMasterBroadcastInterval" class="form-control" min="100" max="60000">
+                                <div class="field-key">syncSettings.masterBroadcastInterval</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="syncNetworkTimeout">Network Timeout (ms)</label>
+                                <input type="number" id="syncNetworkTimeout" class="form-control" min="1000" max="120000">
+                                <div class="field-key">syncSettings.networkTimeout</div>
+                            </div>
+                        </div>
+                        <div class="info-grid mt-3">
+                            <div class="info-item">
+                                <div class="info-label">Config Version</div>
+                                <div class="info-value" id="configVersionLabel">—</div>
+                                <div class="field-key">version</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Last Saved</div>
+                                <div class="info-value" id="configTimestampLabel">—</div>
+                                <div class="field-key">timestamp</div>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+
+                <div class="panel-card configure-actions-card">
+                    <div class="control-grid">
+                        <button type="button" class="modern-btn btn-success" id="saveConfig">
+                            <i class="bi bi-check-circle"></i> Save Configuration
+                        </button>
+                        <button type="button" class="modern-btn btn-secondary" id="reloadConfig">
+                            <i class="bi bi-arrow-clockwise"></i> Reload
+                        </button>
+                        <button type="button" class="modern-btn btn-secondary" id="exitConfig">
+                            <i class="bi bi-box-arrow-left"></i> Exit
+                        </button>
+                    </div>
+                </div>
+
             </div>
-        </div>
+        </main>
     </div>
+</div>
+<script src="assets/js/configure/configure-app.js"></script>
 </body>
-<script>
-    // jQuery event handlers - set up after DOM is ready
-    $(document).ready(function() {
-        $('#save').on('click', app_config);
-        $('#home').on('click', function () {
-            console.log('eCLESS: Exit button clicked - reloading app');
-            
-            // For mobile, reload the app to apply any potential changes
-            if (window.mobileAPI && window.mobileAPI.isNative) {
-                // Native mobile - reload the app
-                window.location.href = 'index.html';
-            } else {
-                // Web - simple reload
-                window.location.href = 'index.html';
-            }
-        });
-    });
-
-    async function app_config() {
-        var hostaddress = $('#hostserver').val()
-        var dsid = $('#dsid').val()
-        var mode = $('#mode').find(":selected").val()
-        var corsproxy = $('#corsproxy').find(":selected").val()
-        var autostartup = $('#autostartup').find(":selected").val()
-        var serialkey = $('#serialkey').val()
-        
-        console.log('eCLESS: Saving configuration with values:')
-        console.log('  - Host server:', hostaddress)
-        console.log('  - DS ID:', dsid)
-        console.log('  - Mode:', mode)
-        console.log('  - CORS Proxy:', corsproxy)
-        console.log('  - Auto startup:', autostartup)
-        console.log('  - Serial key:', serialkey ? '***' + serialkey.slice(-8) : 'empty')
-        
-        // Create configuration object for mobile
-        var configToSave = {
-            version: window.configLoader.config.version || '2.6.5',
-            hostserver: hostaddress,
-            id: dsid,
-            mode: mode,
-            corsproxy: corsproxy,
-            autostartup: autostartup,
-            serialkey: serialkey,
-            
-            // Preserve enhanced settings from existing config
-            syncSettings: window.configLoader.config.syncSettings || {
-                enabled: false,
-                role: 'none',
-                masterIp: '',
-                syncInterval: 5000,
-                syncPort: 9000
-            },
-            masterServerAddress: window.configLoader.config.masterServerAddress || 'localhost',
-            masterServerPort: window.configLoader.config.masterServerPort || 9000,
-            displaySettings: window.configLoader.config.displaySettings || {
-                orientation: 'landscape',
-                fullscreen: true,
-                hideStatusBar: true
-            },
-            networkSettings: window.configLoader.config.networkSettings || {
-                timeout: 5000,
-                retryAttempts: 3,
-                offlineMode: true
-            }
-        };
-        
-        console.log('eCLESS: Configuration prepared for saving (serialkey masked)');
-        
-        try {
-            // Save configuration using mobile config loader
-            if (window.configLoader && typeof window.configLoader.saveConfiguration === 'function') {
-                console.log('eCLESS: Saving configuration via mobile config loader...');
-                
-                // Show saving indicator
-                $('#save').prop('disabled', true).text('Saving...');
-                
-                const saveResult = await window.configLoader.saveConfiguration(configToSave);
-                
-                console.log('eCLESS: Configuration saved successfully', saveResult);
-                
-                // Show success message
-                alert('Configuration saved successfully! The app will now reload.');
-                
-                // Reload app after short delay
-                setTimeout(() => {
-                    window.location.href = 'index.html';
-                }, 1000);
-                
-            } else {
-                console.error('eCLESS: Mobile config loader not available');
-                alert('Error: Configuration system not initialized. Please restart the app.');
-                $('#save').prop('disabled', false).text('Save');
-            }
-            
-        } catch (error) {
-            console.error('eCLESS: Error saving configuration:', error);
-            alert('Failed to save configuration: ' + error.message);
-            $('#save').prop('disabled', false).text('Save');
-        }
-    }
-</script>
-
 </html>
