@@ -1496,6 +1496,108 @@ code.iface-mac {
     }
 }
 
+/* Device Status & Control — modular control center */
+.dc-module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.dc-module-card .card-header {
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.dc-module-heading {
+    flex: 1;
+    min-width: 0;
+}
+
+.dc-module-heading .card-title {
+    margin-bottom: 0.15rem;
+}
+
+.dc-module-desc {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.dc-module-status {
+    flex-shrink: 0;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.dc-module-card.is-future {
+    opacity: 0.85;
+    border-style: dashed;
+}
+
+.dc-diag-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.dc-diag-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.45rem 0.6rem;
+    background: var(--surface-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+}
+
+.dc-diag-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.85rem;
+}
+
+.dc-action-status {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.modern-btn.is-loading,
+.modern-btn.loading {
+    opacity: 0.75;
+    pointer-events: none;
+}
+
+.modern-btn.is-success {
+    box-shadow: inset 0 0 0 1px var(--success);
+}
+
+.modern-btn.is-error {
+    box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.modern-btn.is-unavailable {
+    opacity: 0.45;
+}
+
+@media (max-width: 767.98px) {
+    .dc-module-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dc-diag-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
 /* Legacy class aliases used by enhanced JS */
 .dashboard-container,
 .dashboard-grid,

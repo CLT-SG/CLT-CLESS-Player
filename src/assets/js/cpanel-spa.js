@@ -9,7 +9,7 @@
     var SIDEBAR_KEY = 'cless-cpanel-sidebar-collapsed';
     var sectionMeta = {
         dashboard: { title: 'Dashboard', subtitle: 'Overview and system health' },
-        device: { title: 'Device Status', subtitle: 'Operational monitoring and system details' },
+        device: { title: 'Device Status & Control', subtitle: 'Monitoring, playback, and device operations' },
         layout: { title: 'Layout', subtitle: 'Layout information, switching, and freeze' },
         slots: { title: 'Slots', subtitle: 'Text, ticker, scroller, fader, and datetime slots' },
         media: { title: 'Media', subtitle: 'Media slot replacement' },
@@ -17,7 +17,7 @@
         tts: { title: 'TTS', subtitle: 'Announcement repeat and language playback' },
         api: { title: 'API', subtitle: 'REST endpoints and integration notes' },
         preview: { title: 'Preview', subtitle: 'Adaptive noVNC live display' },
-        settings: { title: 'Settings', subtitle: 'Player configuration and controls' }
+        settings: { title: 'Settings', subtitle: 'Player configuration and updates' }
     };
 
     var currentSection = 'dashboard';

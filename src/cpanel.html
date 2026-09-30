@@ -44,7 +44,7 @@
                     </button>
                     <button type="button" class="nav-item" data-nav="device" aria-current="false">
                         <i class="bi bi-hdd-stack"></i>
-                        <span class="nav-label">Device Status</span>
+                        <span class="nav-label">Device Status &amp; Control</span>
                     </button>
                     <button type="button" class="nav-item" data-nav="layout" aria-current="false">
                         <i class="bi bi-layout-text-window"></i>
@@ -121,7 +121,7 @@
                                 <i class="bi bi-arrow-clockwise"></i> Refresh
                             </button>
                             <button type="button" class="modern-btn btn-secondary btn-sm" data-nav-jump="device">
-                                <i class="bi bi-hdd-stack"></i> Device Status
+                                <i class="bi bi-hdd-stack"></i> Device Status &amp; Control
                             </button>
                         </div>
                     </div>
@@ -1365,12 +1365,12 @@
         </section>
 
         
-        <section id="section-device" class="spa-section" data-title="Device Status" hidden>
+        <section id="section-device" class="spa-section" data-title="Device Status &amp; Control" hidden>
             <div class="section-stack">
                 <div class="panel-card overview-hero">
                     <div class="overview-hero-main">
                         <div>
-                            <div class="eyebrow">Device Status</div>
+                            <div class="eyebrow">Device Status &amp; Control</div>
                             <h2 class="hero-title" id="deviceHeroName">CLESS Player</h2>
                             <p class="hero-sub" id="deviceHeroMeta">Hostname and network details appear when available.</p>
                         </div>
@@ -1398,6 +1398,185 @@
                             <div id="deviceUptime" class="status-tile-value">Unavailable</div>
                         </div>
                     </div>
+                    <div class="meter-grid mt-3">
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">CPU</span><span class="meter-value" id="deviceCpuUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceCpuProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceCpuDetail">No data</div>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">Memory</span><span class="meter-value" id="deviceMemUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceMemProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceMemDetail">No data</div>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">Storage</span><span class="meter-value" id="deviceDiskUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceDiskProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceDiskDetail">No data</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Playback -->
+                <div class="panel-card dc-module-card" data-dc-module="playback-summary">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-play-btn"></i></div>
+                        <div class="dc-module-heading">
+                            <h2 class="card-title">Current Playback</h2>
+                            <p class="dc-module-desc">Live layout, slot, and freeze state from the Player.</p>
+                        </div>
+                        <span class="dc-module-status" data-dc-module-status="playback"></span>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item"><div class="info-label">Layout</div><div class="info-value" id="dcPlaybackLayout">No data</div></div>
+                        <div class="info-item"><div class="info-label">Slots</div><div class="info-value" id="dcPlaybackSlots">No data</div></div>
+                        <div class="info-item"><div class="info-label">Status</div><div class="info-value" id="dcPlaybackState"><span class="status-dot status-dot-neutral"></span> No data</div></div>
+                        <div class="info-item"><div class="info-label">Freeze</div><div class="info-value" id="dcPlaybackFreeze"><span class="status-dot status-dot-neutral"></span> No data</div></div>
+                    </div>
+                    <div class="control-grid mt-3">
+                        <button type="button" class="modern-btn btn-secondary" id="refresh">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button type="button" class="modern-btn btn-info" id="refreshLayout">
+                            <i class="bi bi-layout-three-columns"></i> Refresh Layout
+                        </button>
+                        <button type="button" class="modern-btn btn-secondary" data-proxy-click=".btnResumeLayout">
+                            <i class="bi bi-play-circle"></i> Resume Layout Loop
+                        </button>
+                        <button type="button" class="modern-btn btn-secondary" data-nav-jump="layout">
+                            <i class="bi bi-sliders"></i> Layout Controls
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Device Control Modules -->
+                <div class="dc-module-grid">
+                    <div class="panel-card dc-module-card" data-dc-module="playback">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="bi bi-play-circle"></i></div>
+                            <div class="dc-module-heading">
+                                <h2 class="card-title">Playback Control</h2>
+                                <p class="dc-module-desc">Content refresh and audio volume for the Player.</p>
+                            </div>
+                            <span class="dc-module-status" data-dc-module-status="playback"></span>
+                        </div>
+                        <div class="volume-control-panel">
+                            <div class="volume-toggle-row">
+                                <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
+                                    <i class="bi bi-volume-mute-fill"></i>
+                                    <span class="toggle-label">Mute</span>
+                                </button>
+                                <span class="volume-status-badge loading" id="volumeStatusBadge">
+                                    <i class="bi bi-arrow-clockwise spinning"></i> Checking...
+                                </span>
+                            </div>
+                            <div class="volume-slider-group mt-3">
+                                <label class="form-label d-flex justify-content-between">
+                                    <span><i class="bi bi-volume-down"></i> Volume Level</span>
+                                    <span class="volume-display-value" id="volumeDisplay">50%</span>
+                                </label>
+                                <div class="volume-slider-row">
+                                    <i class="bi bi-volume-off volume-icon-min"></i>
+                                    <div class="volume-slider-wrapper flex-grow-1">
+                                        <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100"
+                                            value="50" step="1">
+                                    </div>
+                                    <i class="bi bi-volume-up volume-icon-max"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-card dc-module-card" data-dc-module="display">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="bi bi-display"></i></div>
+                            <div class="dc-module-heading">
+                                <h2 class="card-title">Display Control</h2>
+                                <p class="dc-module-desc">Screen power and monitor information.</p>
+                            </div>
+                            <span class="dc-module-status" data-dc-module-status="display"></span>
+                        </div>
+                        <div class="control-grid">
+                            <button type="button" class="modern-btn btn-success" id="screenOn">
+                                <i class="bi bi-display"></i> Screen On
+                            </button>
+                            <button type="button" class="modern-btn btn-danger" id="screenOff">
+                                <i class="bi bi-display-fill"></i> Screen Off
+                            </button>
+                            <button type="button" class="modern-btn btn-secondary" id="dcRefreshMonitors"
+                                data-dc-action="display:refreshInfo">
+                                <i class="bi bi-arrow-repeat"></i> Refresh Monitors
+                            </button>
+                        </div>
+                        <div class="dc-action-status" data-dc-action-status="display:refreshInfo" hidden></div>
+                        <div id="displayInfoTable" class="mt-3 status-loading">Loading display information…</div>
+                    </div>
+
+                    <div class="panel-card dc-module-card" data-dc-module="application">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="bi bi-app-indicator"></i></div>
+                            <div class="dc-module-heading">
+                                <h2 class="card-title">Application Control</h2>
+                                <p class="dc-module-desc">Restart the Player application and check for updates.</p>
+                            </div>
+                            <span class="dc-module-status" data-dc-module-status="application"></span>
+                        </div>
+                        <div class="control-grid">
+                            <button type="button" class="modern-btn" id="restartapp">
+                                <i class="bi bi-bootstrap-reboot"></i> Restart Player
+                            </button>
+                            <button type="button" class="modern-btn btn-info" id="checkForUpdates">
+                                <i class="bi bi-cloud-download"></i> Check for Updates
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="panel-card dc-module-card" data-dc-module="system">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="bi bi-power"></i></div>
+                            <div class="dc-module-heading">
+                                <h2 class="card-title">System Control</h2>
+                                <p class="dc-module-desc">Device reboot and shutdown. Confirmation required.</p>
+                            </div>
+                            <span class="dc-module-status" data-dc-module-status="system"></span>
+                        </div>
+                        <div class="control-grid">
+                            <button type="button" class="modern-btn btn-warning" id="reboot">
+                                <i class="bi bi-power"></i> Restart Device
+                            </button>
+                            <button type="button" class="modern-btn btn-danger" id="shutdown">
+                                <i class="bi bi-power"></i> Shutdown Device
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="panel-card dc-module-card" data-dc-module="diagnostics">
+                        <div class="card-header">
+                            <div class="card-icon"><i class="bi bi-heart-pulse"></i></div>
+                            <div class="dc-module-heading">
+                                <h2 class="card-title">Diagnostics</h2>
+                                <p class="dc-module-desc">Health checks for process, network, server, and playback.</p>
+                            </div>
+                            <span class="dc-module-status" data-dc-module-status="diagnostics"></span>
+                        </div>
+                        <div id="dcDiagnosticsList" class="dc-diag-list"></div>
+                        <div class="dc-diag-footer">
+                            <span id="dcDiagnosticsChecked" class="text-muted">Last checked: —</span>
+                            <button type="button" class="modern-btn btn-secondary btn-sm" id="dcRunDiagnostics"
+                                data-dc-action="diagnostics:run">
+                                <i class="bi bi-activity"></i> Run Connection Test
+                            </button>
+                        </div>
+                        <div class="dc-action-status" data-dc-action-status="diagnostics:run" hidden></div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-wifi"></i></div>
+                        <h2 class="card-title">Network / Connection</h2>
+                    </div>
+                    <div id="networkInterfaces" class="status-loading">Loading network information…</div>
                 </div>
 
                 <div class="panel-card">
@@ -1414,30 +1593,6 @@
                         <div class="info-item"><div class="info-label">Architecture</div><div class="info-value" id="osArch">No data</div></div>
                         <div class="info-item"><div class="info-label">Player Version</div><div class="info-value" id="deviceAppVersion">No data</div></div>
                         <div class="info-item"><div class="info-label">Electron</div><div class="info-value" id="deviceElectronVersion">No data</div></div>
-                    </div>
-                </div>
-
-                <div class="panel-card">
-                    <div class="card-header">
-                        <div class="card-icon"><i class="bi bi-cpu"></i></div>
-                        <h2 class="card-title">System Resources</h2>
-                    </div>
-                    <div class="meter-grid">
-                        <div class="meter-card">
-                            <div class="meter-head"><span class="meter-label">CPU</span><span class="meter-value" id="deviceCpuUsage">—</span></div>
-                            <div class="progress-modern"><div id="deviceCpuProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
-                            <div class="meter-footnote" id="deviceCpuDetail">No data</div>
-                        </div>
-                        <div class="meter-card">
-                            <div class="meter-head"><span class="meter-label">Memory</span><span class="meter-value" id="deviceMemUsage">—</span></div>
-                            <div class="progress-modern"><div id="deviceMemProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
-                            <div class="meter-footnote" id="deviceMemDetail">No data</div>
-                        </div>
-                        <div class="meter-card">
-                            <div class="meter-head"><span class="meter-label">Storage</span><span class="meter-value" id="deviceDiskUsage">—</span></div>
-                            <div class="progress-modern"><div id="deviceDiskProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
-                            <div class="meter-footnote" id="deviceDiskDetail">No data</div>
-                        </div>
                     </div>
                     <div class="detail-split mt-3">
                         <div>
@@ -1472,22 +1627,6 @@
 
                 <div class="panel-card">
                     <div class="card-header">
-                        <div class="card-icon"><i class="bi bi-display"></i></div>
-                        <h2 class="card-title">Display</h2>
-                    </div>
-                    <div id="displayInfoTable" class="status-loading">Loading display information…</div>
-                </div>
-
-                <div class="panel-card">
-                    <div class="card-header">
-                        <div class="card-icon"><i class="bi bi-wifi"></i></div>
-                        <h2 class="card-title">Network</h2>
-                    </div>
-                    <div id="networkInterfaces" class="status-loading">Loading network information…</div>
-                </div>
-
-                <div class="panel-card">
-                    <div class="card-header">
                         <div class="card-icon"><i class="bi bi-hdd"></i></div>
                         <h2 class="card-title">Storage</h2>
                     </div>
@@ -1500,6 +1639,15 @@
                         <h2 class="card-title">License Status</h2>
                     </div>
                     <div id="deviceLicenseDetails" class="status-loading">Loading license status…</div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-puzzle"></i></div>
+                        <h2 class="card-title">Coming Soon</h2>
+                    </div>
+                    <p class="dc-module-desc mb-3">Future digital-signage modules can register here without redesigning this page.</p>
+                    <div id="deviceFutureModules"></div>
                 </div>
             </div>
         </section>
@@ -1652,96 +1800,11 @@
                         <i class="bi bi-upload"></i>
                         Load Configuration
                     </button>
-                </div>
-            </div>
-
-            <div class="panel-card">
-                <div class="card-header">
-                    <div class="card-icon"><i class="bi bi-controller"></i></div>
-                    <h2 class="card-title">Player Controls</h2>
-                </div>
-
-<div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-controller"></i>
-                    </div>
-                    <h2 class="card-title">Remote Control</h2>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-secondary" id="refresh">
-                        <i class="bi bi-arrow-clockwise"></i>
-                        Refresh
-                    </button>
-                    <button type="button" class="modern-btn" id="restartapp">
-                        <i class="bi bi-bootstrap-reboot"></i>
-                        Restart App
-                    </button>
-                    <button type="button" class="modern-btn btn-info" id="checkForUpdates">
-                        <i class="bi bi-cloud-download"></i>
-                        Check for Updates
-                    </button>
-                    <button type="button" class="modern-btn btn-warning" id="reboot">
-                        <i class="bi bi-power"></i>
-                        Reboot
-                    </button>
-                    <!-- Refresh Layout button - calls /api/refresh-layout endpoint -->
-                    <button type="button" class="modern-btn btn-info" id="refreshLayout">
-                        <i class="bi bi-layout-three-columns"></i>
-                        Refresh Layout
-                    </button>
-                    <button type="button" class="modern-btn btn-danger" id="shutdown">
-                        <i class="bi bi-power"></i>
-                        Shutdown
+                    <button type="button" class="modern-btn btn-secondary" data-nav-jump="device">
+                        <i class="bi bi-hdd-stack"></i>
+                        Open Device Status &amp; Control
                     </button>
                 </div>
-                <div class="card-header mt-4">
-                    <div class="card-icon">
-                        <i class="bi bi-display"></i>
-                    </div>
-                    <h2 class="card-title">Screen Control</h2>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-success" id="screenOn">
-                        <i class="bi bi-display"></i>
-                        Screen On
-                    </button>
-                    <button type="button" class="modern-btn btn-danger" id="screenOff">
-                        <i class="bi bi-display-fill"></i>
-                        Screen Off
-                    </button>
-                </div>
-                <div class="card-header mt-4">
-                    <div class="card-icon">
-                        <i class="bi bi-volume-up-fill"></i>
-                    </div>
-                    <h2 class="card-title">Volume Control</h2>
-                </div>
-                <div class="volume-control-panel">
-                    <div class="volume-toggle-row">
-                        <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
-                            <i class="bi bi-volume-mute-fill"></i>
-                            <span class="toggle-label">Mute</span>
-                        </button>
-                        <span class="volume-status-badge loading" id="volumeStatusBadge">
-                            <i class="bi bi-arrow-clockwise spinning"></i> Checking...
-                        </span>
-                    </div>
-                    <div class="volume-slider-group mt-3">
-                        <label class="form-label d-flex justify-content-between">
-                            <span><i class="bi bi-volume-down"></i> Volume Level</span>
-                            <span class="volume-display-value" id="volumeDisplay">50%</span>
-                        </label>
-                        <div class="volume-slider-row">
-                            <i class="bi bi-volume-off volume-icon-min"></i>
-                            <div class="volume-slider-wrapper flex-grow-1">
-                                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100"
-                                    value="50" step="1">
-                            </div>
-                            <i class="bi bi-volume-up volume-icon-max"></i>
-                        </div>
-                    </div>
-                </div>
-            
             </div>
 
             </div>
@@ -1769,5 +1832,6 @@
 <script type="text/javascript" src="assets/js/cpanel.js"></script>
 <script type="text/javascript" src="assets/js/cpanel-spa.js"></script>
 <script type="text/javascript" src="assets/js/cpanel-monitor-ui.js"></script>
+<script type="text/javascript" src="assets/js/cpanel/device-control-modules.js"></script>
 </body>
 </html>
