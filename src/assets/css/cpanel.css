@@ -943,6 +943,7 @@ textarea.form-control {
     color: var(--text-primary);
 }
 
+.theme-card,
 .network-license-card {
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -950,16 +951,275 @@ textarea.form-control {
     background: var(--surface-secondary);
 }
 
-.network-license-card .card-header {
+.theme-card-header,
+.network-license-card .card-header,
+.network-license-card .theme-card-header {
     background: var(--surface-secondary) !important;
     color: var(--text-primary) !important;
     margin: 0;
     border-bottom: 1px solid var(--border);
     padding: 0.7rem 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
 }
 
-.network-license-card .card-body {
+.theme-card-body,
+.network-license-card .card-body,
+.network-license-card .theme-card-body {
     padding: 0.85rem;
+    background: var(--surface);
+    color: var(--text-primary);
+}
+
+.theme-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0 0 0.65rem;
+}
+
+.iface-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.iface-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-secondary);
+    padding: 0.75rem 0.85rem;
+}
+
+.iface-card.is-licensed {
+    border-color: color-mix(in srgb, var(--success) 45%, var(--border));
+    background: var(--success-soft);
+}
+
+.iface-card-main {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.iface-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.iface-meta {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    margin-top: 0.2rem;
+}
+
+.iface-addrs {
+    text-align: right;
+}
+
+.iface-ip {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.iface-mac,
+code.iface-mac {
+    color: var(--accent);
+    font-size: 0.8rem;
+    background: transparent;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-secondary);
+}
+
+.status-badge-success {
+    background: var(--success-soft);
+    color: var(--success);
+    border-color: transparent;
+}
+
+.status-badge-neutral {
+    background: var(--surface);
+    color: var(--text-secondary);
+}
+
+.status-loading {
+    color: var(--text-secondary);
+}
+
+.overview-hero-main {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.hero-title {
+    margin: 0.15rem 0;
+    font-size: 1.35rem;
+    font-weight: 650;
+}
+
+.hero-sub {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+}
+
+.meter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.75rem;
+}
+
+.meter-card {
+    background: var(--surface-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.85rem;
+}
+
+.meter-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.55rem;
+}
+
+.meter-label {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+}
+
+.meter-value {
+    font-size: 1.15rem;
+    font-weight: 650;
+    color: var(--text-primary);
+}
+
+.meter-sub {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.meter-footnote {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.progress-bar-modern.is-warn {
+    background: var(--warning);
+}
+
+.progress-bar-modern.is-danger {
+    background: var(--danger);
+}
+
+.progress-bar-modern.is-unavailable {
+    background: var(--border-strong);
+}
+
+.sparkline {
+    width: 100%;
+    height: 36px;
+    margin-top: 0.55rem;
+    color: var(--accent);
+    display: block;
+}
+
+.sparkline.is-empty {
+    opacity: 0.35;
+}
+
+.detail-split {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+}
+
+.subsection-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin: 0 0 0.55rem;
+    color: var(--text-primary);
+}
+
+.metric-value-sm {
+    font-size: 0.95rem !important;
+}
+
+/* Bootstrap leftovers that break dark theme */
+.network-license-status-container .card,
+.iface-card.card {
+    background: var(--surface-secondary);
+    color: var(--text-primary);
+    border-color: var(--border);
+}
+
+.network-license-status-container .text-muted,
+.network-license-status-container .text-primary {
+    color: var(--text-secondary) !important;
+}
+
+.network-license-status-container code {
+    color: var(--accent);
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+    background-color: var(--surface-secondary);
+}
+
+.table {
+    color: var(--text-primary);
+}
+
+.badge.bg-success,
+.badge.bg-secondary,
+.bg-primary {
+    background: var(--surface-secondary) !important;
+    color: var(--text-primary) !important;
+}
+
+.status-badge.status-badge-success {
+    background: var(--success-soft) !important;
+    color: var(--success) !important;
 }
 
 .data-usage-breakdown {

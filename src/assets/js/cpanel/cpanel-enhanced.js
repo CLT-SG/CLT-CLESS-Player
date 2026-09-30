@@ -338,10 +338,18 @@ function updateConnectionStatus(connected) {
         setTimeout(() => {
             statusIndicator.fadeOut()
         }, 3000)
+        if (window.ClessMonitorUI) {
+            window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Online', 'success')
+            window.ClessMonitorUI.setStatus('dashServerStatus', 'Connected', 'success')
+        }
     } else {
         statusDot.css('background', '#dc3545') // Red
         statusText.text('Disconnected')
         statusIndicator.show()
+        if (window.ClessMonitorUI) {
+            window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Offline', 'danger')
+            window.ClessMonitorUI.setStatus('dashServerStatus', 'Disconnected', 'danger')
+        }
     }
 }
 
@@ -1082,6 +1090,7 @@ function loadNetworkLicenseStatus() {
                 '<i class="bi bi-exclamation-triangle"></i> Failed to load network interface information' +
                 '</div>'
             )
+            if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(null)
         }
     })
 }
@@ -1096,6 +1105,7 @@ function displayNetworkLicenseStatus(data) {
             '<i class="bi bi-exclamation-circle"></i> No network interfaces detected' +
             '</div>'
         )
+        if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(data || null)
         return
     }
     
@@ -1119,31 +1129,28 @@ function displayNetworkLicenseStatus(data) {
     }
     
     // Network interfaces list
-    html += '<h6 class="mb-3">Detected Network Interfaces:</h6>'
+    html += '<h6 class="theme-subtitle mb-3">Detected Network Interfaces</h6>'
     
     data.interfaces.forEach((iface, index) => {
         const isMatched = data.licenseValid && 
                          data.matchedInterface && 
                          iface.mac === data.matchedInterface.mac
-        const cardClass = isMatched ? 'border-success' : 'border-secondary'
-        const badgeClass = isMatched ? 'bg-success' : 'bg-secondary'
-        const badgeText = isMatched ? '✓ Licensed' : 'Not Licensed'
+        const cardClass = isMatched ? 'is-licensed' : ''
+        const badgeClass = isMatched ? 'status-badge status-badge-success' : 'status-badge status-badge-neutral'
+        const badgeText = isMatched ? 'Licensed' : 'Not Licensed'
         
         html += `
-            <div class="card mb-2 ${cardClass}">
-                <div class="card-body p-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${iface.interface}</strong>
-                            <span class="badge ${badgeClass} ms-2">${badgeText}</span>
-                            <br>
-                            <small class="text-muted">${iface.type}</small>
+            <div class="iface-card ${cardClass}">
+                <div class="iface-card-main">
+                    <div>
+                        <div class="iface-name">${iface.interface}
+                            <span class="${badgeClass}">${badgeText}</span>
                         </div>
-                        <div class="text-end">
-                            <code class="text-primary">${iface.mac}</code>
-                            <br>
-                            <small class="text-muted">${iface.address || 'No IP'}</small>
-                        </div>
+                        <div class="iface-meta">${iface.type || 'Unknown type'}</div>
+                    </div>
+                    <div class="iface-addrs">
+                        <code class="iface-mac">${iface.mac || 'No MAC'}</code>
+                        <div class="iface-meta">${iface.address || 'No IP'}</div>
                     </div>
                 </div>
             </div>
@@ -1152,6 +1159,7 @@ function displayNetworkLicenseStatus(data) {
     
     html += '</div>'
     container.html(html)
+    if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(data)
 }
 
 // Enhanced system information display
@@ -1160,7 +1168,7 @@ function deviceinfo() {
     
     $.ajax({
         type: 'GET',
-        url: '/api/system/full-info',
+        url: '/api/deviceinfo',
         timeout: 15000, // 15 second timeout
         success: function (data) {
             console.log('Device info data received:', data)
@@ -1168,49 +1176,53 @@ function deviceinfo() {
             try {
                 // CPU Information
                 if (data.cpu) {
-                    $('#sManu').text(data.cpu.manufacturer || 'N/A')
-                    $('#sBrand').text(data.cpu.brand || 'N/A')
-                    $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'N/A'))
-                    $('#sCores').text(data.cpu.cores || 'N/A')
-                    $('#sPhysicalCores').text(data.cpu.physicalCores || 'N/A')
-                    $('#sFamily').text(data.cpu.family || 'N/A')
-                    $('#sModel').text(data.cpu.model || 'N/A')
+                    $('#sManu').text(data.cpu.manufacturer || 'No data')
+                    $('#sBrand').text(data.cpu.brand || 'No data')
+                    $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'No data'))
+                    $('#sCores').text(data.cpu.cores != null ? data.cpu.cores : 'No data')
+                    $('#sPhysicalCores').text(data.cpu.physicalCores != null ? data.cpu.physicalCores : 'No data')
+                    $('#sFamily').text(data.cpu.family || 'No data')
+                    $('#sModel').text(data.cpu.model || 'No data')
                     console.log('CPU information updated')
                 } else {
                     console.warn('CPU data not available')
-                    $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('N/A')
+                    $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('Unavailable')
                 }
 
                 // Memory Information
                 if (data.memory) {
-                    $('#memTotal').text(formatBytes(data.memory.total))
-                    $('#memFree').text(formatBytes(data.memory.free))
-                    $('#memUsed').text(formatBytes(data.memory.used))
-                    $('#memAvailable').text(formatBytes(data.memory.available))
-                    $('#swapTotal').text(formatBytes(data.memory.swaptotal || 0))
-                    $('#swapUsed').text(formatBytes(data.memory.swapused || 0))
+                    $('#memTotal').text(data.memory.total != null ? formatBytes(data.memory.total) : 'Unavailable')
+                    $('#memFree').text(data.memory.free != null ? formatBytes(data.memory.free) : 'Unavailable')
+                    $('#memUsed').text(data.memory.used != null ? formatBytes(data.memory.used) : 'Unavailable')
+                    $('#memAvailable').text(data.memory.available != null ? formatBytes(data.memory.available) : 'Unavailable')
+                    $('#swapTotal').text(data.memory.swaptotal != null ? formatBytes(data.memory.swaptotal) : 'Unavailable')
+                    $('#swapUsed').text(data.memory.swapused != null ? formatBytes(data.memory.swapused) : 'Unavailable')
                     console.log('Memory information updated')
                 } else {
                     console.warn('Memory data not available')
-                    $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('N/A')
+                    $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('Unavailable')
                 }
 
                 // System Information
                 if (data.system) {
-                    $('#systemManu').text(data.system.manufacturer || 'N/A')
-                    $('#systemModel').text(data.system.model || 'N/A')
+                    $('#systemManu').text(data.system.manufacturer || 'No data')
+                    $('#systemModel').text(data.system.model || 'No data')
                     if (data.system.os) {
-                        $('#osInfo').text(`${data.system.os.distro || ''} ${data.system.os.release || ''}`.trim() || 'N/A')
-                        $('#osPlatform').text(data.system.os.platform || 'N/A')
-                        $('#osArch').text(data.system.os.arch || 'N/A')
-                        $('#osHostname').text(data.system.os.hostname || 'N/A')
+                        $('#osInfo').text(`${data.system.os.distro || ''} ${data.system.os.release || ''}`.trim() || 'No data')
+                        $('#osPlatform').text(data.system.os.platform || 'No data')
+                        $('#osArch').text(data.system.os.arch || 'No data')
+                        $('#osHostname').text(data.system.os.hostname || 'No data')
                     } else {
-                        $('#osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                        // si.system() may not nest OS fields; fall back to platform-like properties
+                        $('#osInfo').text([data.system.distro, data.system.release].filter(Boolean).join(' ') || 'No data')
+                        $('#osPlatform').text(data.system.platform || 'No data')
+                        $('#osArch').text(data.system.arch || 'No data')
+                        $('#osHostname').text(data.system.hostname || 'No data')
                     }
                     console.log('System information updated')
                 } else {
                     console.warn('System data not available')
-                    $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                    $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('Unavailable')
                 }
 
                 // Network Information
@@ -1219,8 +1231,7 @@ function deviceinfo() {
                     console.log('Network information updated')
                 } else {
                     console.warn('Network data not available')
-                    // Clear network display
-                    $('#networkInfo').html('<div class="text-muted">No network data available</div>')
+                    $('#networkInterfaces').html('<p class="text-secondary">No network data available.</p>')
                 }
 
                 // Display Information
@@ -1229,8 +1240,7 @@ function deviceinfo() {
                     console.log('Display information updated')
                 } else {
                     console.warn('Display data not available')
-                    // Clear display info
-                    $('#displayInfo').html('<div class="text-muted">No display data available</div>')
+                    $('#displayInfoTable').html('<p class="text-secondary">No display data available.</p>')
                 }
 
                 // Storage/Disk Information
@@ -1239,8 +1249,11 @@ function deviceinfo() {
                     console.log('Disk information updated')
                 } else {
                     console.warn('Disk data not available')
-                    // Clear disk info
-                    $('#diskInfo').html('<div class="text-muted">No storage data available</div>')
+                    $('#diskInfoTable').html('<p class="text-secondary">No storage data available.</p>')
+                }
+
+                if (window.ClessMonitorUI) {
+                    window.ClessMonitorUI.updateFromDeviceInfo(data)
                 }
                 
                 console.log('=== CONTROL PANEL: Device information update completed ===')
@@ -1261,7 +1274,15 @@ function deviceinfo() {
             })
             
             // Show error state in UI
-            $('.device-info-field').text('Error')
+            $('.device-info-field').text('Unavailable')
+            $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('Unavailable')
+            $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('Unavailable')
+            $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('Unavailable')
+            $('#networkInterfaces, #displayInfoTable, #diskInfoTable').html('<p class="text-secondary">Unavailable</p>')
+            if (window.ClessMonitorUI) {
+                window.ClessMonitorUI.setStatus('dashServerStatus', 'Disconnected', 'danger')
+                window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Offline', 'danger')
+            }
             
             if (window.showToast) {
                 window.showToast('Failed to fetch device information. Please check connection.', 'error')
@@ -1271,64 +1292,87 @@ function deviceinfo() {
 }
 
 function displayNetworkInterfaces(interfaces) {
-    var html = ''
+    if (!interfaces || !interfaces.length) {
+        $('#networkInterfaces').html('<p class="text-secondary">No network interfaces detected.</p>')
+        return
+    }
+    var html = '<div class="iface-list">'
     interfaces.forEach(function(iface) {
-        var statusClass = iface.operstate === 'up' ? 'status-online' : 'status-offline'
+        var isUp = iface.operstate === 'up'
+        var statusClass = isUp ? 'status-dot-success' : 'status-dot-danger'
+        var statusLabel = isUp ? 'Connected' : (iface.operstate || 'Disconnected')
         html += `
-            <div class="network-interface">
-                <span class="status-indicator ${statusClass}"></span>
-                <strong>${iface.ifaceName || iface.iface}</strong>
-                <br>
-                <small>
-                    IP: ${iface.ip4 || 'N/A'}<br>
-                    MAC: ${iface.mac || 'N/A'}<br>
-                    Type: ${iface.type || 'N/A'}<br>
-                    Speed: ${iface.speed ? iface.speed + ' Mbps' : 'N/A'}
-                </small>
+            <div class="iface-card">
+                <div class="iface-card-main">
+                    <div>
+                        <div class="iface-name">
+                            <span class="status-dot ${statusClass}"></span>
+                            ${iface.ifaceName || iface.iface || 'Interface'}
+                            <span class="status-badge ${isUp ? 'status-badge-success' : 'status-badge-neutral'}">${statusLabel}</span>
+                        </div>
+                        <div class="iface-meta">${iface.type || 'Unknown type'}${iface.speed ? ' · ' + iface.speed + ' Mbps' : ''}</div>
+                    </div>
+                    <div class="iface-addrs">
+                        <div class="iface-ip">${iface.ip4 || 'No IP'}</div>
+                        <code class="iface-mac">${iface.mac || 'No MAC'}</code>
+                    </div>
+                </div>
             </div>
         `
     })
+    html += '</div>'
     $('#networkInterfaces').html(html)
 }
 
 function displayDisplayInfo(displayData) {
-    var html = '<table class="table table-striped"><thead><tr><th>Display</th><th>Resolution</th><th>Position</th><th>Connection</th></tr></thead><tbody>'
-    
+    if (!displayData || !displayData.displays || !displayData.displays.length) {
+        $('#displayInfoTable').html('<p class="text-secondary">No display data available.</p>')
+        return
+    }
+    var html = '<div class="info-grid">'
     displayData.displays.forEach(function(display, index) {
+        var width = display.currentResX || display.resolutionx || (display.resolution && display.resolution.width)
+        var height = display.currentResY || display.resolutiony || (display.resolution && display.resolution.height)
+        var resolution = (width && height) ? (width + '×' + height) : 'Not detected'
+        var orientation = (width && height) ? (width >= height ? 'Landscape' : 'Portrait') : 'Unavailable'
         html += `
-            <tr>
-                <td>${display.model || `Display ${index + 1}`} ${display.main ? '(Primary)' : ''}</td>
-                <td>${display.currentResX || display.resolutionx}x${display.currentResY || display.resolutiony}</td>
-                <td>${display.positionX || 0}, ${display.positionY || 0}</td>
-                <td>${display.connection || 'N/A'}</td>
-            </tr>
+            <div class="info-item">
+                <div class="info-label">${display.model || ('Display ' + (index + 1))}${display.main ? ' (Primary)' : ''}</div>
+                <div class="info-value">${resolution}</div>
+                <div class="iface-meta">${orientation}${display.connection ? ' · ' + display.connection : ''}</div>
+            </div>
         `
     })
-    
-    html += '</tbody></table>'
+    html += '</div>'
     $('#displayInfoTable').html(html)
 }
 
 function displayDiskInfo(diskData) {
-    var html = '<table class="table table-striped"><thead><tr><th>Filesystem</th><th>Type</th><th>Size</th><th>Used</th><th>Available</th><th>Usage</th></tr></thead><tbody>'
+    if (!diskData || !diskData.length) {
+        $('#diskInfoTable').html('<p class="text-secondary">No storage data available.</p>')
+        return
+    }
+    var html = '<table class="info-table"><thead><tr><th>Filesystem</th><th>Type</th><th>Size</th><th>Used</th><th>Available</th><th>Usage</th></tr></thead><tbody>'
     
     diskData.forEach(function(disk) {
-        var usagePercent = disk.usage || 0
-        var progressBarClass = usagePercent > 90 ? 'bg-danger' : usagePercent > 70 ? 'bg-warning' : 'bg-success'
+        var usagePercent = (typeof disk.usage === 'number') ? disk.usage : null
+        var barClass = 'progress-bar-modern'
+        if (usagePercent != null && usagePercent > 90) barClass += ' is-danger'
+        else if (usagePercent != null && usagePercent > 70) barClass += ' is-warn'
         
         html += `
             <tr>
-                <td>${disk.filesystem}</td>
-                <td>${disk.type || 'N/A'}</td>
-                <td>${formatBytes(disk.size)}</td>
-                <td>${formatBytes(disk.used)}</td>
-                <td>${formatBytes(disk.available)}</td>
+                <td>${disk.filesystem || disk.fs || '—'}</td>
+                <td>${disk.type || '—'}</td>
+                <td>${disk.size != null ? formatBytes(disk.size) : '—'}</td>
+                <td>${disk.used != null ? formatBytes(disk.used) : '—'}</td>
+                <td>${disk.available != null ? formatBytes(disk.available) : '—'}</td>
                 <td>
-                    <div class="progress" style="height: 20px;">
-                        <div class="progress-bar ${progressBarClass}" role="progressbar" style="width: ${usagePercent}%">
-                            ${usagePercent.toFixed(1)}%
-                        </div>
+                    ${usagePercent == null ? '<span class="text-secondary">Unavailable</span>' : `
+                    <div class="progress-modern">
+                        <div class="${barClass}" style="width: ${usagePercent}%"></div>
                     </div>
+                    <div class="iface-meta">${usagePercent.toFixed(1)}%</div>`}
                 </td>
             </tr>
         `
@@ -1340,7 +1384,8 @@ function displayDiskInfo(diskData) {
 
 // System monitoring functions
 function startSystemMonitoring() {
-    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 30000)
+    // 5s sampling while Control Panel is open (supports dashboard sparklines)
+    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 5000)
     refreshSystemMonitoring() // Initial load
 }
 
@@ -1355,69 +1400,48 @@ function refreshSystemMonitoring() {
             console.log('System monitoring data received:', data)
             
             try {
-                // CPU Usage
-                if (data.cpu && typeof data.cpu.load !== 'undefined') {
-                    const cpuLoad = parseFloat(data.cpu.load).toFixed(1)
-                    $('#cpuUsage').html(`<span class="metric-value">${cpuLoad}%</span>`)
-                    $('#cpuProgressBar').css('width', cpuLoad + '%')
-                    console.log('CPU data updated:', cpuLoad + '%')
+                if (window.ClessMonitorUI) {
+                    window.ClessMonitorUI.updateFromMonitor(data)
                 } else {
-                    $('#cpuUsage').html('<span class="metric-value">N/A</span>')
-                    console.warn('CPU data not available in response')
-                }
-                
-                // Memory Usage
-                if (data.memory && data.memory.used && data.memory.total) {
-                    const memoryUsage = ((data.memory.used / data.memory.total) * 100).toFixed(1)
-                    $('#memoryUsage').html(`<span class="metric-value">${memoryUsage}%</span><br><small>${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}</small>`)
-                    $('#memoryProgressBar').css('width', memoryUsage + '%')
-                    console.log('Memory data updated:', memoryUsage + '%')
-                } else {
-                    $('#memoryUsage').html('<span class="metric-value">N/A</span>')
-                    console.warn('Memory data not available in response')
-                }
-                
-                // Disk Usage
-                if (data.disk && Array.isArray(data.disk)) {
-                    var diskHtml = ''
-                    data.disk.forEach(function(disk, index) {
-                        if (index < 2 && disk.filesystem && typeof disk.usage !== 'undefined') {
-                            diskHtml += `<small>${disk.filesystem}: ${parseFloat(disk.usage).toFixed(1)}%</small><br>`
-                        }
-                    })
-                    $('#diskUsage').html(diskHtml || '<small>No disk data</small>')
-                    console.log('Disk data updated')
-                } else {
-                    $('#diskUsage').html('<small>No disk data</small>')
-                    console.warn('Disk data not available in response')
+                    // Fallback if monitor UI helper is unavailable
+                    if (data.cpu && typeof data.cpu.load !== 'undefined') {
+                        const cpuLoad = parseFloat(data.cpu.load).toFixed(1)
+                        $('#cpuUsage').text(cpuLoad + '%')
+                        $('#cpuProgressBar').css('width', cpuLoad + '%')
+                    } else {
+                        $('#cpuUsage').text('—')
+                    }
+                    if (data.memory && data.memory.used && data.memory.total) {
+                        const memoryUsage = ((data.memory.used / data.memory.total) * 100).toFixed(1)
+                        $('#memoryUsage').html(memoryUsage + '%')
+                        $('#memoryProgressBar').css('width', memoryUsage + '%')
+                    } else {
+                        $('#memoryUsage').text('—')
+                    }
                 }
                 
                 // Network Stats
                 if (data.network && Array.isArray(data.network)) {
                     var networkHtml = ''
                     data.network.forEach(function(net, index) {
-                        if (index < 1 && net.rx_sec > 0) {
-                            networkHtml += `<small>↓ ${formatBytes(net.rx_sec)}/s<br>↑ ${formatBytes(net.tx_sec)}/s</small>`
+                        if (index < 1 && (net.rx_sec > 0 || net.tx_sec > 0)) {
+                            networkHtml += `↓ ${formatBytes(net.rx_sec)}/s · ↑ ${formatBytes(net.tx_sec)}/s`
                         }
                     })
-                    $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
-                    console.log('Network data updated')
+                    $('#networkStats').html(networkHtml || '<span class="text-secondary">No active traffic</span>')
                 } else {
-                    $('#networkStats').html('<small>No network data</small>')
-                    console.warn('Network data not available in response')
+                    $('#networkStats').html('<span class="text-secondary">Unavailable</span>')
                 }
                 
                 // Data Usage Stats
                 if (data.dataUsage) {
                     updateDataUsageDisplay(data.dataUsage)
-                    console.log('Data usage updated')
-                } else {
-                    console.warn('Data usage not available in response')
                 }
                 
             } catch (error) {
                 console.error('Error processing system monitoring data:', error)
-                $('#cpuUsage, #memoryUsage, #diskUsage, #networkStats').html('<span class="text-danger">Error</span>')
+                if (window.ClessMonitorUI) window.ClessMonitorUI.markMonitorUnavailable()
+                $('#networkStats').html('<span class="text-danger">Error</span>')
             }
         },
         error: function (xhr, status, error) {
@@ -1427,13 +1451,10 @@ function refreshSystemMonitoring() {
                 responseText: xhr.responseText
             })
             
-            // Show error state in UI
-            $('#cpuUsage').html('<span class="text-danger">Error</span>')
-            $('#memoryUsage').html('<span class="text-danger">Error</span>')
-            $('#diskUsage').html('<small class="text-danger">Connection Error</small>')
-            $('#networkStats').html('<small class="text-danger">Connection Error</small>')
+            if (window.ClessMonitorUI) window.ClessMonitorUI.markMonitorUnavailable()
+            $('#networkStats').html('<span class="text-secondary">Unavailable</span>')
+            $('#dataUsageTotal').html('<span class="text-secondary">Unavailable</span>')
             
-            // Try to show user-friendly error message
             if (window.showToast) {
                 window.showToast('Failed to fetch system monitoring data. Please check connection.', 'error')
             }
@@ -1453,13 +1474,15 @@ function updateDataUsageDisplay(dataUsage) {
             const totalBytes = dataUsage.total.download + dataUsage.total.upload
             $('#dataUsageTotal').html(formatBytes(totalBytes))
         } else {
-            $('#dataUsageTotal').html('N/A')
+            $('#dataUsageTotal').html('<span class="text-secondary">No data</span>')
         }
         
         // Update detailed breakdown in the Data Usage Management section
         if (dataUsage.daily) {
             $('#dailyDownload').text(formatBytes(dataUsage.daily.download || 0))
             $('#dailyUpload').text(formatBytes(dataUsage.daily.upload || 0))
+        } else {
+            $('#dailyDownload, #dailyUpload').text('No data')
         }
         
         if (dataUsage.monthly) {
@@ -1467,6 +1490,8 @@ function updateDataUsageDisplay(dataUsage) {
             const monthlyTotal = dataUsage.monthly.total || 
                                 (dataUsage.monthly.download + dataUsage.monthly.upload) || 0
             $('#monthlyTotal').text(formatBytes(monthlyTotal))
+        } else {
+            $('#monthlyTotal').text('No data')
         }
         
         if (dataUsage.total) {
@@ -1474,6 +1499,8 @@ function updateDataUsageDisplay(dataUsage) {
             const totalUsage = dataUsage.total.total || 
                               (dataUsage.total.download + dataUsage.total.upload) || 0
             $('#totalUsage').text(formatBytes(totalUsage))
+        } else {
+            $('#totalUsage').text('No data')
         }
         
         console.log('Data usage display updated successfully')
@@ -2657,6 +2684,9 @@ function displayDetailedLayoutInfo(layoutData) {
     
     $element.html(html)
     debug('Enhanced detailed layout information displayed successfully')
+    if (window.ClessMonitorUI) {
+        window.ClessMonitorUI.updatePlaybackFromLayout(layoutData)
+    }
 }
 
 // Function to create display for loop layouts with collapsible sections

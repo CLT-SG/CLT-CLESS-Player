@@ -9,7 +9,7 @@
     var SIDEBAR_KEY = 'cless-cpanel-sidebar-collapsed';
     var sectionMeta = {
         dashboard: { title: 'Dashboard', subtitle: 'Overview and system health' },
-        player: { title: 'Player', subtitle: 'Remote, screen, and volume controls' },
+        device: { title: 'Device Status', subtitle: 'Operational monitoring and system details' },
         layout: { title: 'Layout', subtitle: 'Layout information, switching, and freeze' },
         slots: { title: 'Slots', subtitle: 'Text, ticker, scroller, fader, and datetime slots' },
         media: { title: 'Media', subtitle: 'Media slot replacement' },
@@ -17,7 +17,7 @@
         tts: { title: 'TTS', subtitle: 'Announcement repeat and language playback' },
         api: { title: 'API', subtitle: 'REST endpoints and integration notes' },
         preview: { title: 'Preview', subtitle: 'Adaptive noVNC live display' },
-        settings: { title: 'Settings', subtitle: 'Configuration and device information' }
+        settings: { title: 'Settings', subtitle: 'Player configuration and controls' }
     };
 
     var currentSection = 'dashboard';
@@ -113,6 +113,10 @@
 
         if (sectionId === 'airport' && typeof window.refreshAirportPanel === 'function') {
             window.refreshAirportPanel();
+        }
+
+        if (sectionId === 'device' && window.ClessMonitorUI && typeof window.ClessMonitorUI.refreshDeviceStatus === 'function') {
+            window.ClessMonitorUI.refreshDeviceStatus();
         }
     }
 
@@ -220,11 +224,13 @@
     function updateConnectionChrome(connected) {
         var sidebar = document.getElementById('sidebarPlayerStatus');
         var dash = document.getElementById('dashboardConnectionStatus');
+        var device = document.getElementById('deviceOnlineStatus');
         var html = connected
             ? '<span class="status-dot status-dot-success"></span><span class="status-text">Online</span>'
             : '<span class="status-dot status-dot-danger"></span><span class="status-text">Offline</span>';
         if (sidebar) sidebar.innerHTML = html;
         if (dash) dash.innerHTML = html.replace('status-text', '');
+        if (device) device.innerHTML = html.replace('status-text', '');
     }
 
     function relocateConnectionStatus() {

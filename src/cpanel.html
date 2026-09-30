@@ -42,9 +42,9 @@
                         <i class="bi bi-grid-1x2"></i>
                         <span class="nav-label">Dashboard</span>
                     </button>
-                    <button type="button" class="nav-item" data-nav="player" aria-current="false">
-                        <i class="bi bi-controller"></i>
-                        <span class="nav-label">Player</span>
+                    <button type="button" class="nav-item" data-nav="device" aria-current="false">
+                        <i class="bi bi-hdd-stack"></i>
+                        <span class="nav-label">Device Status</span>
                     </button>
                     <button type="button" class="nav-item" data-nav="layout" aria-current="false">
                         <i class="bi bi-layout-text-window"></i>
@@ -60,7 +60,7 @@
                     </button>
                     <button type="button" class="nav-item" data-nav="airport" aria-current="false">
                         <i class="bi bi-airplane"></i>
-                        <span class="nav-label">Airport</span>
+                        <span class="nav-label">Airport Display</span>
                     </button>
                     <button type="button" class="nav-item" data-nav="tts" aria-current="false">
                         <i class="bi bi-soundwave"></i>
@@ -107,230 +107,169 @@
         </header>
         <main class="app-content" id="appContent">
 
-        <section id="section-dashboard" class="spa-section is-active" data-title="Dashboard" >
+        <section id="section-dashboard" class="spa-section is-active" data-title="Dashboard">
             <div class="section-stack">
-
-            <div class="status-grid dashboard-status-grid">
-                <div class="status-tile">
-                    <div class="status-tile-label">Connection</div>
-                    <div id="dashboardConnectionStatus" class="status-tile-value"><span class="status-dot status-dot-success"></span> Online</div>
-                </div>
-                <div class="status-tile">
-                    <div class="status-tile-label">Freeze</div>
-                    <div id="dashboardFreezeStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> Inactive</div>
-                </div>
-                <div class="status-tile">
-                    <div class="status-tile-label">CPU</div>
-                    <div class="status-tile-value"><span id="dashCpuUsage">—</span></div>
-                </div>
-                <div class="status-tile">
-                    <div class="status-tile-label">Memory</div>
-                    <div class="status-tile-value"><span id="dashMemUsage">—</span></div>
-                </div>
-            </div>
-            <div class="panel-card">
-                <div class="card-header">
-                    <div class="card-icon"><i class="bi bi-lightning"></i></div>
-                    <h2 class="card-title">Quick Controls</h2>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
-                    <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refreshLayout"><i class="bi bi-layout-three-columns"></i> Refresh Layout</button>
-                    <button type="button" class="modern-btn" data-proxy-click="#restartapp"><i class="bi bi-bootstrap-reboot"></i> Restart App</button>
-                    <button type="button" class="modern-btn btn-secondary" data-nav-jump="preview"><i class="bi bi-display"></i> Open Preview</button>
-                </div>
-                <p class="text-secondary mt-3">Full player, layout, slot, and system controls are available in the side menu.</p>
-            </div>
-            <div class="panel-card">
-<div class="card-header">
-                <div class="card-icon">
-                    <i class="bi bi-graph-up"></i>
-                </div>
-                <h2 class="card-title">System Monitoring</h2>
-            </div>
-            <button type="button" class="modern-btn btn-secondary" id="refreshMonitoring">
-                <i class="bi bi-arrow-clockwise"></i>
-                Refresh Data
-            </button>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-value" id="cpuUsage">0%</div>
-                    <div class="metric-label">CPU Usage</div>
-                    <div class="progress-modern">
-                        <div id="cpuProgressBar" class="progress-bar-modern" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="memoryUsage">0%</div>
-                    <div class="metric-label">Memory Usage</div>
-                    <div class="progress-modern">
-                        <div id="memoryProgressBar" class="progress-bar-modern" style="width: 0%"></div>
-                    </div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="diskUsage">Loading...</div>
-                    <div class="metric-label">Disk Usage</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="networkStats">Loading...</div>
-                    <div class="metric-label">Network</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="dataUsageTotal">Loading...</div>
-                    <div class="metric-label">Data Usage (Total)</div>
-                </div>
-            </div>
-
-            <!-- Data Usage Management Section -->
-            <div class="mt-4">
-                <h3 class="card-title mb-3">
-                    <i class="bi bi-arrow-down-up"></i>
-                    Data Usage Management
-                </h3>
-                <div class="row">
-                    <div class="col-md-8">
-                        <div class="data-usage-breakdown">
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-download"></i>
-                                    Today's Download:
-                                </span>
-                                <span id="dailyDownload" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-upload"></i>
-                                    Today's Upload:
-                                </span>
-                                <span id="dailyUpload" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-calendar-month"></i>
-                                    Monthly Total:
-                                </span>
-                                <span id="monthlyTotal" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-infinity"></i>
-                                    All-time Total:
-                                </span>
-                                <span id="totalUsage" class="usage-value">0 MB</span>
-                            </div>
+                <div class="panel-card overview-hero">
+                    <div class="overview-hero-main">
+                        <div>
+                            <div class="eyebrow">Player Overview</div>
+                            <h2 class="hero-title" id="dashPlayerName">CLESS Player</h2>
+                            <p class="hero-sub" id="dashPlayerMeta">Awaiting device information…</p>
                         </div>
-                    </div>
-                    <div class="col-md-4">
-                        <div class="data-usage-controls">
-                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetDailyUsage">
-                                <i class="bi bi-arrow-clockwise"></i>
-                                Reset Daily
+                        <div class="hero-actions">
+                            <button type="button" class="modern-btn btn-secondary btn-sm" data-proxy-click="#refreshMonitoring">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
                             </button>
-                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetMonthlyUsage">
-                                <i class="bi bi-calendar-x"></i>
-                                Reset Monthly
-                            </button>
-                            <button type="button" class="modern-btn btn-danger btn-sm" id="resetTotalUsage">
-                                <i class="bi bi-trash"></i>
-                                Reset All Data
+                            <button type="button" class="modern-btn btn-secondary btn-sm" data-nav-jump="device">
+                                <i class="bi bi-hdd-stack"></i> Device Status
                             </button>
                         </div>
                     </div>
+                    <div class="status-grid overview-status-grid">
+                        <div class="status-tile">
+                            <div class="status-tile-label">Player</div>
+                            <div id="dashboardConnectionStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> Checking…</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Playback</div>
+                            <div id="dashPlaybackStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Freeze</div>
+                            <div id="dashboardFreezeStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Server</div>
+                            <div id="dashServerStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            </div>
 
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-play-circle"></i></div>
+                        <h2 class="card-title">Current Playback</h2>
+                    </div>
+                    <div class="info-grid playback-grid">
+                        <div class="info-item">
+                            <div class="info-label">Layout</div>
+                            <div class="info-value" id="dashCurrentLayout">No data</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Slots</div>
+                            <div class="info-value" id="dashCurrentSlots">No data</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Mode</div>
+                            <div class="info-value" id="dashLayoutMode">No data</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">Version</div>
+                            <div class="info-value" id="dashPlayerVersion">No data</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-speedometer2"></i></div>
+                        <h2 class="card-title">System Resources</h2>
+                        <div class="card-actions">
+                            <button type="button" class="modern-btn btn-secondary btn-sm" id="refreshMonitoring">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh Data
+                            </button>
+                        </div>
+                    </div>
+                    <div class="meter-grid">
+                        <div class="meter-card">
+                            <div class="meter-head">
+                                <span class="meter-label">CPU</span>
+                                <span class="meter-value" id="cpuUsage">—</span>
+                            </div>
+                            <div class="progress-modern"><div id="cpuProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <svg class="sparkline" id="cpuSparkline" viewBox="0 0 120 36" preserveAspectRatio="none" aria-hidden="true"></svg>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head">
+                                <span class="meter-label">Memory</span>
+                                <span class="meter-value" id="memoryUsage">—</span>
+                            </div>
+                            <div class="progress-modern"><div id="memoryProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <svg class="sparkline" id="memSparkline" viewBox="0 0 120 36" preserveAspectRatio="none" aria-hidden="true"></svg>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head">
+                                <span class="meter-label">Storage</span>
+                                <span class="meter-value" id="diskUsage">—</span>
+                            </div>
+                            <div class="progress-modern"><div id="diskProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="diskUsageDetail">No data</div>
+                        </div>
+                    </div>
+                    <div class="metrics-grid mt-3">
+                        <div class="metric-card">
+                            <div class="metric-label">Network</div>
+                            <div class="metric-value metric-value-sm" id="networkStats">No data</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">Data Usage (Total)</div>
+                            <div class="metric-value metric-value-sm" id="dataUsageTotal">No data</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-lightning"></i></div>
+                        <h2 class="card-title">Quick Controls</h2>
+                    </div>
+                    <div class="control-grid">
+                        <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                        <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refreshLayout"><i class="bi bi-layout-three-columns"></i> Refresh Layout</button>
+                        <button type="button" class="modern-btn" data-proxy-click="#restartapp"><i class="bi bi-bootstrap-reboot"></i> Restart App</button>
+                        <button type="button" class="modern-btn btn-secondary" data-nav-jump="preview"><i class="bi bi-display"></i> Open Preview</button>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-arrow-down-up"></i></div>
+                        <h2 class="card-title">Data Usage</h2>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="data-usage-breakdown">
+                                <div class="usage-breakdown-item">
+                                    <span class="usage-label"><i class="bi bi-download"></i> Today's Download</span>
+                                    <span id="dailyDownload" class="usage-value">No data</span>
+                                </div>
+                                <div class="usage-breakdown-item">
+                                    <span class="usage-label"><i class="bi bi-upload"></i> Today's Upload</span>
+                                    <span id="dailyUpload" class="usage-value">No data</span>
+                                </div>
+                                <div class="usage-breakdown-item">
+                                    <span class="usage-label"><i class="bi bi-calendar-month"></i> Monthly Total</span>
+                                    <span id="monthlyTotal" class="usage-value">No data</span>
+                                </div>
+                                <div class="usage-breakdown-item">
+                                    <span class="usage-label"><i class="bi bi-infinity"></i> All-time Total</span>
+                                    <span id="totalUsage" class="usage-value">No data</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="data-usage-controls">
+                                <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetDailyUsage"><i class="bi bi-arrow-clockwise"></i> Reset Daily</button>
+                                <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetMonthlyUsage"><i class="bi bi-calendar-x"></i> Reset Monthly</button>
+                                <button type="button" class="modern-btn btn-danger btn-sm" id="resetTotalUsage"><i class="bi bi-trash"></i> Reset All Data</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <section id="section-player" class="spa-section" data-title="Player" hidden>
-            <div class="section-stack">
-
-            <div class="panel-card">
-<div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-controller"></i>
-                    </div>
-                    <h2 class="card-title">Remote Control</h2>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-secondary" id="refresh">
-                        <i class="bi bi-arrow-clockwise"></i>
-                        Refresh
-                    </button>
-                    <button type="button" class="modern-btn" id="restartapp">
-                        <i class="bi bi-bootstrap-reboot"></i>
-                        Restart App
-                    </button>
-                    <button type="button" class="modern-btn btn-info" id="checkForUpdates">
-                        <i class="bi bi-cloud-download"></i>
-                        Check for Updates
-                    </button>
-                    <button type="button" class="modern-btn btn-warning" id="reboot">
-                        <i class="bi bi-power"></i>
-                        Reboot
-                    </button>
-                    <!-- Refresh Layout button - calls /api/refresh-layout endpoint -->
-                    <button type="button" class="modern-btn btn-info" id="refreshLayout">
-                        <i class="bi bi-layout-three-columns"></i>
-                        Refresh Layout
-                    </button>
-                    <button type="button" class="modern-btn btn-danger" id="shutdown">
-                        <i class="bi bi-power"></i>
-                        Shutdown
-                    </button>
-                </div>
-                <div class="card-header mt-4">
-                    <div class="card-icon">
-                        <i class="bi bi-display"></i>
-                    </div>
-                    <h2 class="card-title">Screen Control</h2>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-success" id="screenOn">
-                        <i class="bi bi-display"></i>
-                        Screen On
-                    </button>
-                    <button type="button" class="modern-btn btn-danger" id="screenOff">
-                        <i class="bi bi-display-fill"></i>
-                        Screen Off
-                    </button>
-                </div>
-                <div class="card-header mt-4">
-                    <div class="card-icon">
-                        <i class="bi bi-volume-up-fill"></i>
-                    </div>
-                    <h2 class="card-title">Volume Control</h2>
-                </div>
-                <div class="volume-control-panel">
-                    <div class="volume-toggle-row">
-                        <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
-                            <i class="bi bi-volume-mute-fill"></i>
-                            <span class="toggle-label">Mute</span>
-                        </button>
-                        <span class="volume-status-badge loading" id="volumeStatusBadge">
-                            <i class="bi bi-arrow-clockwise spinning"></i> Checking...
-                        </span>
-                    </div>
-                    <div class="volume-slider-group mt-3">
-                        <label class="form-label d-flex justify-content-between">
-                            <span><i class="bi bi-volume-down"></i> Volume Level</span>
-                            <span class="volume-display-value" id="volumeDisplay">50%</span>
-                        </label>
-                        <div class="volume-slider-row">
-                            <i class="bi bi-volume-off volume-icon-min"></i>
-                            <div class="volume-slider-wrapper flex-grow-1">
-                                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100"
-                                    value="50" step="1">
-                            </div>
-                            <i class="bi bi-volume-up volume-icon-max"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            </div>
-        </section>
+        
 
         <section id="section-layout" class="spa-section" data-title="Layout" hidden>
             <div class="section-stack">
@@ -1425,6 +1364,146 @@
             </div>
         </section>
 
+        
+        <section id="section-device" class="spa-section" data-title="Device Status" hidden>
+            <div class="section-stack">
+                <div class="panel-card overview-hero">
+                    <div class="overview-hero-main">
+                        <div>
+                            <div class="eyebrow">Device Status</div>
+                            <h2 class="hero-title" id="deviceHeroName">CLESS Player</h2>
+                            <p class="hero-sub" id="deviceHeroMeta">Hostname and network details appear when available.</p>
+                        </div>
+                        <div class="hero-actions">
+                            <button type="button" class="modern-btn btn-secondary btn-sm" id="refreshDeviceStatus">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="status-grid overview-status-grid">
+                        <div class="status-tile">
+                            <div class="status-tile-label">Online</div>
+                            <div id="deviceOnlineStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> Checking…</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Playback</div>
+                            <div id="devicePlaybackStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">License</div>
+                            <div id="deviceLicenseStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Uptime</div>
+                            <div id="deviceUptime" class="status-tile-value">Unavailable</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-info-circle"></i></div>
+                        <h2 class="card-title">Device Overview</h2>
+                    </div>
+                    <div class="info-grid">
+                        <div class="info-item"><div class="info-label">Hostname</div><div class="info-value" id="osHostname">No data</div></div>
+                        <div class="info-item"><div class="info-label">Manufacturer</div><div class="info-value" id="systemManu">No data</div></div>
+                        <div class="info-item"><div class="info-label">Model</div><div class="info-value" id="systemModel">No data</div></div>
+                        <div class="info-item"><div class="info-label">Operating System</div><div class="info-value" id="osInfo">No data</div></div>
+                        <div class="info-item"><div class="info-label">Platform</div><div class="info-value" id="osPlatform">No data</div></div>
+                        <div class="info-item"><div class="info-label">Architecture</div><div class="info-value" id="osArch">No data</div></div>
+                        <div class="info-item"><div class="info-label">Player Version</div><div class="info-value" id="deviceAppVersion">No data</div></div>
+                        <div class="info-item"><div class="info-label">Electron</div><div class="info-value" id="deviceElectronVersion">No data</div></div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-cpu"></i></div>
+                        <h2 class="card-title">System Resources</h2>
+                    </div>
+                    <div class="meter-grid">
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">CPU</span><span class="meter-value" id="deviceCpuUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceCpuProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceCpuDetail">No data</div>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">Memory</span><span class="meter-value" id="deviceMemUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceMemProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceMemDetail">No data</div>
+                        </div>
+                        <div class="meter-card">
+                            <div class="meter-head"><span class="meter-label">Storage</span><span class="meter-value" id="deviceDiskUsage">—</span></div>
+                            <div class="progress-modern"><div id="deviceDiskProgressBar" class="progress-bar-modern" style="width:0%"></div></div>
+                            <div class="meter-footnote" id="deviceDiskDetail">No data</div>
+                        </div>
+                    </div>
+                    <div class="detail-split mt-3">
+                        <div>
+                            <h3 class="subsection-title">CPU Details</h3>
+                            <table class="info-table">
+                                <tbody>
+                                    <tr><th>Manufacturer</th><td><div id="sManu">No data</div></td></tr>
+                                    <tr><th>Brand</th><td><div id="sBrand">No data</div></td></tr>
+                                    <tr><th>Speed</th><td><div id="sSpeed">No data</div></td></tr>
+                                    <tr><th>Cores</th><td><div id="sCores">No data</div></td></tr>
+                                    <tr><th>Physical Cores</th><td><div id="sPhysicalCores">No data</div></td></tr>
+                                    <tr><th>Family</th><td><div id="sFamily">No data</div></td></tr>
+                                    <tr><th>Model</th><td><div id="sModel">No data</div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div>
+                            <h3 class="subsection-title">Memory Details</h3>
+                            <table class="info-table">
+                                <tbody>
+                                    <tr><th>Total RAM</th><td><div id="memTotal">No data</div></td></tr>
+                                    <tr><th>Free RAM</th><td><div id="memFree">No data</div></td></tr>
+                                    <tr><th>Used RAM</th><td><div id="memUsed">No data</div></td></tr>
+                                    <tr><th>Available RAM</th><td><div id="memAvailable">No data</div></td></tr>
+                                    <tr><th>Swap Total</th><td><div id="swapTotal">No data</div></td></tr>
+                                    <tr><th>Swap Used</th><td><div id="swapUsed">No data</div></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-display"></i></div>
+                        <h2 class="card-title">Display</h2>
+                    </div>
+                    <div id="displayInfoTable" class="status-loading">Loading display information…</div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-wifi"></i></div>
+                        <h2 class="card-title">Network</h2>
+                    </div>
+                    <div id="networkInterfaces" class="status-loading">Loading network information…</div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-hdd"></i></div>
+                        <h2 class="card-title">Storage</h2>
+                    </div>
+                    <div id="diskInfoTable" class="status-loading">Loading storage information…</div>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-shield-check"></i></div>
+                        <h2 class="card-title">License Status</h2>
+                    </div>
+                    <div id="deviceLicenseDetails" class="status-loading">Loading license status…</div>
+                </div>
+            </div>
+        </section>
+
         <section id="section-settings" class="spa-section" data-title="Settings" hidden>
             <div class="section-stack">
 
@@ -1534,12 +1613,13 @@
                 <!-- Network Interfaces & License Status -->
                 <div class="row mt-3">
                     <div class="col-md-12">
-                        <div class="card network-license-card">
-                            <div class="card-header bg-primary text-white">
-                                <i class="bi bi-ethernet"></i> Network Interfaces & License Status
+                        <div class="theme-card network-license-card">
+                            <div class="theme-card-header">
+                                <i class="bi bi-ethernet"></i>
+                                <span>Network Interfaces &amp; License Status</span>
                             </div>
-                            <div class="card-body">
-                                <div id="networkLicenseStatus" class="loading">Loading network interfaces...</div>
+                            <div class="theme-card-body">
+                                <div id="networkLicenseStatus" class="status-loading">Loading network interfaces…</div>
                             </div>
                         </div>
                     </div>
@@ -1574,202 +1654,99 @@
                     </button>
                 </div>
             </div>
+
             <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-controller"></i></div>
+                    <h2 class="card-title">Player Controls</h2>
+                </div>
+
 <div class="card-header">
-                <div class="card-icon">
-                    <i class="bi bi-cpu"></i>
+                    <div class="card-icon">
+                        <i class="bi bi-controller"></i>
+                    </div>
+                    <h2 class="card-title">Remote Control</h2>
                 </div>
-                <h2 class="card-title">Device Information</h2>
-            </div>
-
-            <div class="row">
-                <!-- CPU Information -->
-                <div class="col-lg-6 col-md-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-cpu"></i>
-                        CPU Information
-                    </h3>
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th>Manufacturer</th>
-                                <td>
-                                    <div id="sManu" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Brand</th>
-                                <td>
-                                    <div id="sBrand" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Speed</th>
-                                <td>
-                                    <div id="sSpeed" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Cores</th>
-                                <td>
-                                    <div id="sCores" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Physical Cores</th>
-                                <td>
-                                    <div id="sPhysicalCores" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Family</th>
-                                <td>
-                                    <div id="sFamily" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Model</th>
-                                <td>
-                                    <div id="sModel" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-secondary" id="refresh">
+                        <i class="bi bi-arrow-clockwise"></i>
+                        Refresh
+                    </button>
+                    <button type="button" class="modern-btn" id="restartapp">
+                        <i class="bi bi-bootstrap-reboot"></i>
+                        Restart App
+                    </button>
+                    <button type="button" class="modern-btn btn-info" id="checkForUpdates">
+                        <i class="bi bi-cloud-download"></i>
+                        Check for Updates
+                    </button>
+                    <button type="button" class="modern-btn btn-warning" id="reboot">
+                        <i class="bi bi-power"></i>
+                        Reboot
+                    </button>
+                    <!-- Refresh Layout button - calls /api/refresh-layout endpoint -->
+                    <button type="button" class="modern-btn btn-info" id="refreshLayout">
+                        <i class="bi bi-layout-three-columns"></i>
+                        Refresh Layout
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="shutdown">
+                        <i class="bi bi-power"></i>
+                        Shutdown
+                    </button>
                 </div>
-
-                <!-- Memory Information -->
-                <div class="col-lg-6 col-md-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-memory"></i>
-                        Memory Information
-                    </h3>
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th>Total RAM</th>
-                                <td>
-                                    <div id="memTotal" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Free RAM</th>
-                                <td>
-                                    <div id="memFree" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Used RAM</th>
-                                <td>
-                                    <div id="memUsed" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Available RAM</th>
-                                <td>
-                                    <div id="memAvailable" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Swap Total</th>
-                                <td>
-                                    <div id="swapTotal" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Swap Used</th>
-                                <td>
-                                    <div id="swapUsed" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="row">
-                <!-- System Information -->
-                <div class="col-lg-6 col-md-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-pc-display"></i>
-                        System Information
-                    </h3>
-                    <table class="info-table">
-                        <tbody>
-                            <tr>
-                                <th>Manufacturer</th>
-                                <td>
-                                    <div id="systemManu" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Model</th>
-                                <td>
-                                    <div id="systemModel" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Operating System</th>
-                                <td>
-                                    <div id="osInfo" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Platform</th>
-                                <td>
-                                    <div id="osPlatform" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Architecture</th>
-                                <td>
-                                    <div id="osArch" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Hostname</th>
-                                <td>
-                                    <div id="osHostname" class="loading">Loading...</div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Network Information -->
-                <div class="col-lg-6 col-md-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-wifi"></i>
-                        Network Interfaces
-                    </h3>
-                    <div id="networkInterfaces" class="loading">Loading network information...</div>
-                </div>
-            </div>
-
-            <!-- Display Information -->
-            <div class="row">
-                <div class="col-12">
-                    <h3 class="card-title">
+                <div class="card-header mt-4">
+                    <div class="card-icon">
                         <i class="bi bi-display"></i>
-                        Display Information
-                    </h3>
-                    <div id="displayInfoTable" class="loading">Loading display information...</div>
+                    </div>
+                    <h2 class="card-title">Screen Control</h2>
                 </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="screenOn">
+                        <i class="bi bi-display"></i>
+                        Screen On
+                    </button>
+                    <button type="button" class="modern-btn btn-danger" id="screenOff">
+                        <i class="bi bi-display-fill"></i>
+                        Screen Off
+                    </button>
+                </div>
+                <div class="card-header mt-4">
+                    <div class="card-icon">
+                        <i class="bi bi-volume-up-fill"></i>
+                    </div>
+                    <h2 class="card-title">Volume Control</h2>
+                </div>
+                <div class="volume-control-panel">
+                    <div class="volume-toggle-row">
+                        <button type="button" class="modern-btn btn-volume-toggle unmuted" id="volumeToggleMute">
+                            <i class="bi bi-volume-mute-fill"></i>
+                            <span class="toggle-label">Mute</span>
+                        </button>
+                        <span class="volume-status-badge loading" id="volumeStatusBadge">
+                            <i class="bi bi-arrow-clockwise spinning"></i> Checking...
+                        </span>
+                    </div>
+                    <div class="volume-slider-group mt-3">
+                        <label class="form-label d-flex justify-content-between">
+                            <span><i class="bi bi-volume-down"></i> Volume Level</span>
+                            <span class="volume-display-value" id="volumeDisplay">50%</span>
+                        </label>
+                        <div class="volume-slider-row">
+                            <i class="bi bi-volume-off volume-icon-min"></i>
+                            <div class="volume-slider-wrapper flex-grow-1">
+                                <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100"
+                                    value="50" step="1">
+                            </div>
+                            <i class="bi bi-volume-up volume-icon-max"></i>
+                        </div>
+                    </div>
+                </div>
+            
             </div>
 
-            <!-- Storage Information -->
-            <div class="row">
-                <div class="col-12">
-                    <h3 class="card-title">
-                        <i class="bi bi-hdd"></i>
-                        Storage Information
-                    </h3>
-                    <div id="diskInfoTable" class="loading">Loading storage information...</div>
-                </div>
-            </div>
-
-            </div>
             </div>
         </section>
+
 
         </main>
     </div>
@@ -1791,5 +1768,6 @@
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
 <script type="text/javascript" src="assets/js/cpanel.js"></script>
 <script type="text/javascript" src="assets/js/cpanel-spa.js"></script>
+<script type="text/javascript" src="assets/js/cpanel-monitor-ui.js"></script>
 </body>
 </html>

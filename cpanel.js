@@ -1080,6 +1080,33 @@ return (async function () {
             const deviceInfo = await systemInfoManager.getMultipleSystemInfo([
                 'cpu', 'memory', 'disk', 'network', 'display', 'system'
             ])
+
+            // Optional OS / uptime enrichment (non-breaking additive fields)
+            let osInfo = null
+            let timeInfo = null
+            try {
+                const si = require('systeminformation')
+                osInfo = await si.osInfo()
+                timeInfo = await si.time()
+            } catch (enrichError) {
+                log.debug('Device info OS/uptime enrichment unavailable:', enrichError.message)
+            }
+
+            const systemPayload = Object.assign({}, deviceInfo.system || {})
+            if (osInfo) {
+                systemPayload.os = {
+                    distro: osInfo.distro,
+                    release: osInfo.release,
+                    platform: osInfo.platform,
+                    arch: osInfo.arch,
+                    hostname: osInfo.hostname,
+                    kernel: osInfo.kernel
+                }
+                if (!systemPayload.hostname) systemPayload.hostname = osInfo.hostname
+            }
+            if (timeInfo && timeInfo.uptime != null) {
+                systemPayload.uptime = timeInfo.uptime
+            }
             
             res.json({
                 cpu: deviceInfo.cpu,
@@ -1087,14 +1114,15 @@ return (async function () {
                 disk: deviceInfo.disk,
                 network: deviceInfo.network,
                 display: deviceInfo.display,
-                system: deviceInfo.system,
+                system: systemPayload,
                 app: {
                     name: 'CLESS-Player',
                     version: require('electron').app.getVersion(),
                     packaged: require('electron').app.isPackaged,
                     electron: process.versions.electron,
                     platform: process.platform,
-                    arch: process.arch
+                    arch: process.arch,
+                    uptime: process.uptime()
                 },
                 cached: true,
                 timestamp: Date.now()
