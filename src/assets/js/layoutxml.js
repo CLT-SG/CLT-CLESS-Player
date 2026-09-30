@@ -446,23 +446,10 @@ function silentTableDataRefresh(tableid) {
 }
 
 
-//convert hex to rgb
+// Convert hex to rgba. Delegates to the shared core so this renderer and the
+// Vue renderer cannot produce different colours for the same layout. The
+// output is byte-identical to the implementation this replaced, except that a
+// malformed colour now yields black instead of throwing.
 function hexToRgbA(hex, transparent) {
-    if (transparent == "high") {
-        transparent = 0
-    } else if (transparent == "medium") {
-        transparent = 0.5
-    } else {
-        transparent = 1
-    }
-    var c;
-    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-        c = hex.substring(1).split('');
-        if (c.length == 3) {
-            c = [c[0], c[0], c[1], c[1], c[2], c[2]];
-        }
-        c = '0x' + c.join('');
-        return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + transparent + ')';
-    }
-    throw new Error('Bad Hex');
+    return ClessCore.hexToRgbA(hex, transparent);
 }

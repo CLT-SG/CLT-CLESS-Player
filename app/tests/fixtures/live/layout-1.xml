@@ -1,0 +1,31 @@
+<Configuration update="20260928082932" serverRefresh="15" sqlQueryRefresh="20" layout="Validation Flight Information" mediapath="/media/uploads" id="1" schedule_id="0">
+  <display data="record" bgcolor="#06182e" bgimage="none" resolution="1920x1080_landscape" autoscale="Y" bgscretch="Y">
+    <slots>
+      <table update="20260928082932" id="1" align="l" valign="middle" cellspacing="0" font="Arial" enabled="Y" fontsize="28" fontcolor="#FFFFFF" maxrows_limit="10" maxrows_enabled="Y" left="40" top="120" height="900" width="1840" bgcolor="#06182e" transparentbg="normal" wrap="N" horizontalborder="N" verticalborder="N" title="Departures" bodyrowHeight="64" flipmode="1" hidepagination="N" pageflip="12" transition="none" fixedheight="N" flipmode_speed="1000" flipmode_delay="0">
+        <heading font="Arial" fontsize="30" fontcolor="#FFD166" bgcolor="#0b2545" hideheader="N"/>
+        <column>
+          <item width="220" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="N" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="N" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Flight</item>
+          <item width="620" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="N" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="N" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Destination</item>
+          <item width="180" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="N" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="N" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Gate</item>
+          <item width="480" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="Y" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="N" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Status</item>
+          <item width="340" align="l" tlradius="0" trradius="0" blradius="0" brradius="0" bgcolor_enabled="N" bgcolor="" text_transition_enabled="N" text_transition="fade" text_transition_switching_time="4" text_transition_speed="1000" text_transition_delay="0" image_enabled="Y" image_transition="fade" image_switching_time="5" image_transition_speed="1000" image_transition_delay="0" fill_to_column="N">Airline</item>
+        </column>
+        <row margin="72" oddcolor="#0b2545" evencolor="#06182e"/>
+      </table>
+      <datetime id="2" align="c" valign="middle" top="24" left="1500" width="380" height="80" enabled="Y" font="Arial" fontsize="48" fontcolor="#FFFFFF" fontstyle="" bgcolor="#000000" transparent="Y" format="YYYY-MM-DD HH:mm:ss" name="FlightClock"/>
+      <text id="1" align="c" valign="middle" top="24" left="40" width="1200" height="80" enabled="Y" font="Arial" fontsize="56" fontcolor="#FFD166" fontstyle="" bgcolor="#000000" transparent="Y" name="FlightHeading">
+        <item id="1" duration="20">DEPARTURES</item>
+      </text>
+    </slots>
+  </display>
+  <records>
+    <table id="1">
+      <row col01="SQ318" col02="London Heathrow" col03="A11" col04="transition:Boarding,Final Call" col05="image:logos/sq.png"/>
+      <row col01="MH604" col02="Kuala Lumpur" col03="B02" col04="On Time" col05="image:fade:logos/mh.png,logos/mh-alt.png"/>
+      <row col01="CX694" col02="Hong Kong" col03="C07" col04="fader:Delayed,New time 18:40" col05="image:logos/cx.png"/>
+      <row col01="TR458" col02="Bangkok" col03="A03" col04="Gate Closed" col05="image:logos/tr.png"/>
+      <row col01="QF52" col02="Brisbane" col03="D14" col04="On Time" col05="image:logos/qf.png"/>
+      <row col01="EK355" col02="Dubai" col03="B11" col04="transition:Checking In,Counter 12" col05="image:logos/ek.png"/>
+    </table>
+  </records>
+</Configuration>
