@@ -8,21 +8,30 @@ const path = require('path');
 const vm = require('vm');
 
 describe('AirportDisplayPlayer media + multilingual TTS', () => {
-    function loadModule(AudioImpl) {
+    function loadModule(AudioImpl, extras) {
         const code = fs.readFileSync(
             path.join(__dirname, '..', 'src', 'assets', 'js', 'airport-display.js'),
             'utf8'
         );
-        const sandbox = {
+        const existingFiles = new Set([
+            '/home/player/clessapp/res/Welcome.mp4',
+            '/home/player/clessapp/res/boarding.jpg',
+            '/opt/player/media/Welcome.mp4',
+        ]);
+        const sandbox = Object.assign({
             window: {},
             document: {
                 body: { contains: () => false, appendChild: () => {} },
                 getElementById: () => null,
                 createElement: () => ({ style: {}, id: '', innerHTML: '' }),
             },
-            $: () => ({ length: 0, html: () => {}, attr: () => '' }),
+            $: () => ({ length: 0, html: () => {}, attr: () => '', find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }) }),
             console,
             queueMicrotask,
+            homedir: '/home/player',
+            fs: {
+                existsSync: (p) => existingFiles.has(String(p)),
+            },
             Audio: AudioImpl || function () {
                 this.addEventListener = () => {};
                 this.play = () => Promise.resolve();
@@ -33,7 +42,7 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
                 this.setRequestHeader = () => {};
                 this.send = () => {};
             },
-        };
+        }, extras || {});
         sandbox.window = sandbox;
         vm.runInNewContext(code, sandbox);
         return sandbox.window.AirportDisplayPlayer;
@@ -165,15 +174,32 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.ok(['success', 'error'].includes(result.status));
     });
 
-    it('rejects empty media payloads and prefers path when building content', () => {
+    it('resolves relative layout paths to clessapp/res basename like Control Panel', () => {
         const AD = loadModule();
-        const empty = AD._applyTemporaryMedia(
-            { media_mode: 'selected', value: '', media_items: [] },
-            { numericId: '45', layoutId: '12', $el: { length: 0 } }
-        );
-        assert.equal(empty.ok, false);
-        assert.equal(empty.error_code, 'MEDIA_VALUE_MISSING');
+        assert.equal(AD._getMediaResFolder(), '/home/player/clessapp/res');
 
+        const relative = AD._resolveMediaSource({
+            filename: 'Welcome.mp4',
+            path: 'media/Welcome.mp4',
+            type: 'video',
+        });
+        assert.equal(relative.filename, 'Welcome.mp4');
+        assert.equal(relative.mediaLocalPath, '/home/player/clessapp/res/Welcome.mp4');
+        assert.equal(relative.resolution, 'resfolder');
+
+        const bare = AD._buildMediaContentObj({
+            filename: 'boarding.jpg',
+            path: 'boarding.jpg',
+            type: 'image',
+            selected: true,
+        });
+        assert.ok(bare);
+        assert.equal(bare.contentUrl, '/home/player/clessapp/res/boarding.jpg');
+        assert.equal(bare.mediaType, 'IMAGE');
+    });
+
+    it('keeps absolute paths and remote URLs intact', () => {
+        const AD = loadModule();
         const built = AD._buildMediaContentObj({
             filename: 'Welcome.mp4',
             path: '/opt/player/media/Welcome.mp4',
@@ -184,5 +210,45 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(built.filename, 'Welcome.mp4');
         assert.equal(built.contentUrl, '/opt/player/media/Welcome.mp4');
         assert.equal(built.mediaType, 'VIDEO');
+
+        const remote = AD._resolveMediaSource({
+            filename: 'remote.jpg',
+            path: 'https://cdn.example/media/remote.jpg',
+            type: 'image',
+        });
+        assert.equal(remote.mediaLocalPath, 'https://cdn.example/media/remote.jpg');
+        assert.equal(remote.resolution, 'remote');
+    });
+
+    it('rejects missing cached media and preserves previous content', () => {
+        const AD = loadModule();
+        const htmlState = { value: '<img src="previous.jpg">' };
+        const $el = {
+            length: 1,
+            html: (v) => {
+                if (v === undefined) return htmlState.value;
+                htmlState.value = v;
+            },
+            find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }),
+        };
+        const missing = AD._applyTemporaryMedia(
+            {
+                media_mode: 'selected',
+                value: 'Missing.jpg',
+                media_items: [{ filename: 'Missing.jpg', path: 'media/Missing.jpg', selected: true }],
+                slot_name: 'MainMedia',
+            },
+            { numericId: '45', layoutId: '12', $el: $el }
+        );
+        assert.equal(missing.ok, false);
+        assert.equal(missing.error_code, 'MEDIA_NOT_FOUND');
+        assert.equal(htmlState.value, '<img src="previous.jpg">');
+
+        const empty = AD._applyTemporaryMedia(
+            { media_mode: 'selected', value: '', media_items: [] },
+            { numericId: '45', layoutId: '12', $el: { length: 0 } }
+        );
+        assert.equal(empty.ok, false);
+        assert.equal(empty.error_code, 'MEDIA_VALUE_MISSING');
     });
 });
