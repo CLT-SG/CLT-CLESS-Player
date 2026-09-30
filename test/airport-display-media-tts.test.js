@@ -150,10 +150,10 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(langs.map((l) => l.language).join(','), 'zh,en,ja');
     });
 
-    it('applies temporary media selected mode without requiring layout persist helpers', () => {
+    it('applies temporary media selected mode without requiring layout persist helpers', async () => {
         const AD = loadModule();
         // No medialoop in sandbox — DOM path should still accept media payload shape
-        const result = AD.handle({
+        const result = await AD.handle({
             type: 'airport_display',
             event: 'manual_test',
             event_id: 'media-test-1',
@@ -198,6 +198,30 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(bare.mediaType, 'IMAGE');
     });
 
+    it('maps /media web paths to res cache instead of treating them as filesystem paths', () => {
+        const AD = loadModule();
+        assert.equal(AD._isWebMediaPath('/media/Welcome.mp4'), true);
+        assert.equal(AD._isWebMediaPath('/opt/player/media/Welcome.mp4'), false);
+
+        const web = AD._resolveMediaSource({
+            filename: 'Welcome.mp4',
+            path: '/media/Welcome.mp4',
+            asset_url: 'https://cless.example/media/Welcome.mp4',
+            type: 'video',
+        });
+        assert.equal(web.mediaLocalPath, '/home/player/clessapp/res/Welcome.mp4');
+        assert.equal(web.resolution, 'webpath-resfolder');
+        assert.equal(
+            AD._resolveDownloadUrl({
+                filename: 'Welcome.mp4',
+                path: 'Welcome.mp4',
+                layout_path: 'media/Welcome.mp4',
+                asset_url: 'https://cless.example/media/Welcome.mp4',
+            }, web),
+            'https://cless.example/media/Welcome.mp4'
+        );
+    });
+
     it('keeps absolute paths and remote URLs intact', () => {
         const AD = loadModule();
         const built = AD._buildMediaContentObj({
@@ -220,7 +244,7 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(remote.resolution, 'remote');
     });
 
-    it('rejects missing cached media and preserves previous content', () => {
+    it('rejects missing cached media and preserves previous content', async () => {
         const AD = loadModule();
         const htmlState = { value: '<img src="previous.jpg">' };
         const $el = {
@@ -231,7 +255,7 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
             },
             find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }),
         };
-        const missing = AD._applyTemporaryMedia(
+        const missing = await AD._applyTemporaryMedia(
             {
                 media_mode: 'selected',
                 value: 'Missing.jpg',
@@ -244,11 +268,66 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         assert.equal(missing.error_code, 'MEDIA_NOT_FOUND');
         assert.equal(htmlState.value, '<img src="previous.jpg">');
 
-        const empty = AD._applyTemporaryMedia(
+        const empty = await AD._applyTemporaryMedia(
             { media_mode: 'selected', value: '', media_items: [] },
             { numericId: '45', layoutId: '12', $el: { length: 0 } }
         );
         assert.equal(empty.ok, false);
         assert.equal(empty.error_code, 'MEDIA_VALUE_MISSING');
+    });
+
+    it('downloads missing media via asset_url before applying', async () => {
+        const downloaded = [];
+        const existingFiles = new Set([
+            '/home/player/clessapp/res/Welcome.mp4',
+            '/home/player/clessapp/res/boarding.jpg',
+            '/opt/player/media/Welcome.mp4',
+        ]);
+        const AD = loadModule(null, {
+            config: { hostserver: 'https://cless.example/demo' },
+            ipcRenderer: {
+                invoke: async (channel, args) => {
+                    assert.equal(channel, 'app-downloadmedia');
+                    downloaded.push(args);
+                    existingFiles.add(args.mediaPathSrc);
+                    return args.mediaPathSrc;
+                },
+            },
+            fs: {
+                existsSync: (p) => existingFiles.has(String(p)),
+            },
+        });
+
+        const htmlState = { value: '<img src="previous.jpg">' };
+        const $el = {
+            length: 1,
+            html: (v) => {
+                if (v === undefined) return htmlState.value;
+                htmlState.value = v;
+            },
+            find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }),
+        };
+        const result = await AD._applyTemporaryMedia(
+            {
+                media_mode: 'selected',
+                value: 'GateA.jpg',
+                media_items: [{
+                    filename: 'GateA.jpg',
+                    path: 'GateA.jpg',
+                    layout_path: 'media/GateA.jpg',
+                    asset_url: 'https://cless.example/media/GateA.jpg',
+                    selected: true,
+                    type: 'image',
+                }],
+                slot_name: 'MainMedia',
+            },
+            { numericId: '45', layoutId: '12', $el: $el }
+        );
+        assert.equal(result.ok, true);
+        assert.equal(result.downloaded, true);
+        assert.equal(downloaded.length, 1);
+        assert.equal(downloaded[0].mediaURL, 'https://cless.example/media/GateA.jpg');
+        assert.equal(downloaded[0].mediaPathSrc, '/home/player/clessapp/res/GateA.jpg');
+        assert.match(htmlState.value, /GateA\.jpg/);
     });
 });

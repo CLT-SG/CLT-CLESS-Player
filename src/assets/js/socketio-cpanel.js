@@ -4076,8 +4076,11 @@ socket.on('airport-display', function (payload) {
             }
             return;
         }
-        var result = AirportDisplayPlayer.handle(payload || {});
-        console.log('=== RENDERER PROCESS: airport-display result ===', result);
+        Promise.resolve(AirportDisplayPlayer.handle(payload || {})).then(function (result) {
+            console.log('=== RENDERER PROCESS: airport-display result ===', result);
+        }).catch(function (err) {
+            console.error('=== RENDERER PROCESS: airport-display handler error ===', err);
+        });
     } catch (err) {
         console.error('=== RENDERER PROCESS: airport-display handler error ===', err);
     }

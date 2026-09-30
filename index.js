@@ -2568,10 +2568,20 @@ var downloadMedia = async (fileUrl, downloadFolder) => {
             method: 'GET',
             responseType: 'stream',
         })
-        const w = response.data.pipe(fs.createWriteStream(localFilePath))
-        w.on('finish', () => {
-            log.info('Successfully downloaded file to ' + localFilePath)
+        await new Promise((resolve, reject) => {
+            const w = response.data.pipe(fs.createWriteStream(localFilePath))
+            w.on('finish', () => {
+                log.info('Successfully downloaded file to ' + localFilePath)
+                resolve(localFilePath)
+            })
+            w.on('error', (err) => {
+                reject(err)
+            })
+            response.data.on('error', (err) => {
+                reject(err)
+            })
         })
+        return localFilePath
     } catch (err) {
         throw new Error(err)
     }

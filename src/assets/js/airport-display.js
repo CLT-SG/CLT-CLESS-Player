@@ -122,8 +122,19 @@
         return /^(https?:|file:|data:|rtsp:|rtmp:|udp:)/i.test(String(path || ''));
     }
 
+    function isWebMediaPath(path) {
+        var p = String(path || '').trim().replace(/\\/g, '/');
+        if (!p || isRemoteOrStreamRef(p)) return false;
+        if (p.indexOf('/') !== 0) return false;
+        // Windows drive paths are not web media paths.
+        if (/^[a-zA-Z]:[\\/]/.test(p)) return false;
+        var first = p.replace(/^\/+/, '').split('/')[0].toLowerCase();
+        return first === 'media' || first === 'static' || first === 'uploads' || first === 'airport';
+    }
+
     function isAbsoluteFilesystemPath(path) {
         var p = String(path || '');
+        if (isWebMediaPath(p)) return false;
         return p.indexOf('/') === 0 || p.indexOf('\\') === 0 || /^[a-zA-Z]:[\\/]/.test(p);
     }
 
@@ -131,13 +142,149 @@
      * @returns {boolean|null} true/false when fs is available, otherwise null (unknown).
      */
     function mediaFileExists(localPath) {
-        if (!localPath || isRemoteOrStreamRef(localPath)) return null;
+        if (!localPath || isRemoteOrStreamRef(localPath) || isWebMediaPath(localPath)) return null;
         try {
             if (typeof fs !== 'undefined' && fs && typeof fs.existsSync === 'function') {
                 return !!fs.existsSync(localPath);
             }
         } catch (e) { /* ignore */ }
         return null;
+    }
+
+    function getHostServerOrigin() {
+        try {
+            if (typeof config !== 'undefined' && config && config.hostserver) {
+                var raw = String(config.hostserver);
+                var parts = raw.split('/');
+                if (parts.length >= 3) {
+                    return parts[0] + '//' + parts[2];
+                }
+                return raw.replace(/\/+$/, '');
+            }
+        } catch (e) { /* ignore */ }
+        return '';
+    }
+
+    function getLayoutMediaPath() {
+        try {
+            if (typeof mediapath !== 'undefined' && mediapath != null) {
+                return String(mediapath);
+            }
+        } catch (e) { /* ignore */ }
+        return '';
+    }
+
+    function joinUrl(base, rel) {
+        var b = String(base || '').replace(/\/+$/, '');
+        var r = String(rel || '').replace(/^\/+/, '');
+        if (!b) return r ? ('/' + r) : '';
+        if (!r) return b;
+        return b + '/' + r;
+    }
+
+    /**
+     * Build a download URL for a missing local cache file.
+     * Preference: explicit asset_url → remote url → hostserver + layout_path → hostserver + mediapath/filename.
+     * Only absolute http(s) URLs are returned so the Player can fetch them.
+     */
+    function resolveDownloadUrl(item, source) {
+        item = item || {};
+        source = source || {};
+        var origin = getHostServerOrigin();
+        var candidates = [
+            item.asset_url,
+            item.url,
+            item.download_url,
+            item.contentUrl
+        ];
+        var i;
+        for (i = 0; i < candidates.length; i++) {
+            var c = String(candidates[i] || '').trim();
+            if (!c) continue;
+            if (isRemoteOrStreamRef(c)) return c;
+            if (isWebMediaPath(c) && origin) {
+                return joinUrl(origin, c);
+            }
+        }
+
+        var layoutPath = String(item.layout_path || '').trim();
+        var filename = (source && source.filename) || basename(item.filename || item.path || '');
+        if (!origin) return '';
+
+        if (layoutPath && !isAbsoluteFilesystemPath(layoutPath) && !isRemoteOrStreamRef(layoutPath)) {
+            // Layout XML sources are usually "media/file.ext" relative to host origin
+            // or mediapath. Prefer host + layout_path when it already includes media/.
+            if (layoutPath.indexOf('media/') === 0 || layoutPath.indexOf('/media/') === 0) {
+                return joinUrl(origin, layoutPath);
+            }
+            var mp = getLayoutMediaPath();
+            if (mp) {
+                return joinUrl(origin, joinUrl(mp, layoutPath));
+            }
+            return joinUrl(origin, layoutPath);
+        }
+
+        if (filename) {
+            var mediap = getLayoutMediaPath();
+            if (mediap) {
+                return joinUrl(origin, joinUrl(mediap, filename));
+            }
+            return joinUrl(origin, 'media/' + filename);
+        }
+        return '';
+    }
+
+    function downloadMediaToCache(downloadUrl, localPath) {
+        return new Promise(function (resolve) {
+            if (!downloadUrl || !localPath) {
+                resolve({ ok: false, error_code: 'MEDIA_DOWNLOAD_INVALID' });
+                return;
+            }
+            console.log(
+                'Airport Display media download\n' +
+                'Resolved URL: ' + downloadUrl + '\n' +
+                'Cache path: ' + localPath
+            );
+            try {
+                if (typeof ipcRenderer !== 'undefined' && ipcRenderer && typeof ipcRenderer.invoke === 'function') {
+                    ipcRenderer.invoke('app-downloadmedia', {
+                        mediaURL: downloadUrl,
+                        mediaPathSrc: localPath
+                    }).then(function () {
+                        var exists = mediaFileExists(localPath);
+                        if (exists === false) {
+                            console.warn(
+                                'Airport Display Trigger Failed\n' +
+                                'Reason: MEDIA_DOWNLOAD_FAILED\n' +
+                                'Resolved URL: ' + downloadUrl + '\n' +
+                                'Cache path: ' + localPath
+                            );
+                            resolve({ ok: false, error_code: 'MEDIA_DOWNLOAD_FAILED', url: downloadUrl, path: localPath });
+                            return;
+                        }
+                        console.log(
+                            'Airport Display media download complete\n' +
+                            'Resolved URL: ' + downloadUrl + '\n' +
+                            'Cache path: ' + localPath
+                        );
+                        resolve({ ok: true, url: downloadUrl, path: localPath });
+                    }).catch(function (err) {
+                        console.warn('Airport Display media download error:', err);
+                        resolve({
+                            ok: false,
+                            error_code: 'MEDIA_DOWNLOAD_FAILED',
+                            url: downloadUrl,
+                            path: localPath,
+                            message: String(err && err.message || err)
+                        });
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.warn('Airport Display media download invoke failed:', e);
+            }
+            resolve({ ok: false, error_code: 'MEDIA_DOWNLOAD_UNAVAILABLE', url: downloadUrl, path: localPath });
+        });
     }
 
     /**
@@ -208,6 +355,7 @@
      * Layout discovery often returns relative paths like "media/Welcome.mp4".
      * Those must NOT be used as DOM src values — they are layout XML sources,
      * not filesystem URLs. Always map local relative refs to the res cache.
+     * Remote asset_url values are download sources, not playback paths.
      */
     function resolveMediaSource(itemOrFilename) {
         var item = itemOrFilename;
@@ -216,8 +364,20 @@
         }
         item = item || {};
         var path = String(
-            item.path || item.file_path || item.url || item.contentUrl || item.layout_path || ''
+            item.path || item.file_path || item.contentUrl || ''
         ).trim();
+        // asset_url / url may be downloadable HTTP(S) or /media/... refs — only
+        // use them as the playback path when they are true remote/stream refs.
+        var assetUrl = String(item.asset_url || item.url || '').trim();
+        if ((!path || path === item.filename) && assetUrl && isRemoteOrStreamRef(assetUrl)) {
+            // Keep local basename playback when possible; remote-only media plays directly.
+            if (!item.filename && !item.path) {
+                path = assetUrl;
+            }
+        }
+        if (!path) {
+            path = String(item.layout_path || assetUrl || '').trim();
+        }
         var filename = basename(item.filename || item.value || item.name || path || '');
         if (!filename && path) {
             filename = basename(path);
@@ -233,11 +393,24 @@
         if (path && isRemoteOrStreamRef(path)) {
             mediaLocalPath = path;
             resolution = 'remote';
+        } else if (path && isWebMediaPath(path)) {
+            // /media/foo.jpg is a server URL path, not a local file.
+            if (resfolder && filename) {
+                mediaLocalPath = resfolder + '/' + filename;
+                resolution = 'webpath-resfolder';
+            } else {
+                mediaLocalPath = filename || path;
+                resolution = 'webpath-basename';
+            }
         } else if (path && isAbsoluteFilesystemPath(path)) {
             var absExists = mediaFileExists(path);
             if (absExists === false && resfolder && filename) {
                 mediaLocalPath = resfolder + '/' + filename;
                 resolution = 'absolute-fallback-resfolder';
+            } else if (absExists == null && resfolder && filename && !isAbsoluteFilesystemPath(filename)) {
+                // fs unavailable: prefer res cache over opaque absolute paths
+                mediaLocalPath = resfolder + '/' + filename;
+                resolution = 'absolute-unknown-resfolder';
             } else {
                 mediaLocalPath = path;
                 resolution = 'absolute';
@@ -257,6 +430,7 @@
         console.log('Airport Display media resolve', {
             filename: filename || basename(mediaLocalPath),
             input_path: path,
+            asset_url: assetUrl || null,
             resolved_url: mediaLocalPath,
             resfolder: resfolder || null,
             resolution: resolution
@@ -268,7 +442,9 @@
             duration: item.duration != null && item.duration !== '' ? Number(item.duration) : 0,
             type: item.type || item.content_type || '',
             resolution: resolution,
-            resfolder: resfolder
+            resfolder: resfolder,
+            assetUrl: assetUrl || null,
+            layoutPath: item.layout_path || null
         };
     }
 
@@ -430,6 +606,7 @@
      * Temporary media trigger: rewrite runtime medialoop only.
      * Does NOT write localStorage layout / permanent playlist configuration.
      * Existing content is kept when the replacement cannot be validated.
+     * Missing cache files are downloaded from asset_url / hostserver when possible.
      */
     function applyTemporaryMedia(slot, target) {
         var numericId = String(target.numericId);
@@ -448,177 +625,223 @@
                 error_code: 'MEDIA_VALUE_MISSING',
                 message: 'No media filename selected for trigger'
             });
-            return { ok: false, error_code: 'MEDIA_VALUE_MISSING', message: 'No media filename selected for trigger' };
+            return Promise.resolve({
+                ok: false,
+                error_code: 'MEDIA_VALUE_MISSING',
+                message: 'No media filename selected for trigger'
+            });
         }
 
-        var contentObjs = [];
-        var filenames = [];
+        var prepareChain = Promise.resolve();
+        var prepared = [];
         var missing = [];
+
         selectedItems.forEach(function (it) {
-            var obj = buildMediaContentObj(it);
-            if (!obj || !obj.contentUrl || !obj.mediaType || obj.mediaType === 'UNKNOWN') {
-                console.warn('Airport Display skipped invalid media item:', it);
-                return;
-            }
-            var exists = mediaFileExists(obj.contentUrl);
-            if (exists === false) {
-                missing.push({
-                    filename: obj.filename || basename(obj.contentUrl),
-                    content_url: obj.contentUrl,
-                    media_id: it && it.id || ''
-                });
+            prepareChain = prepareChain.then(function () {
+                var obj = buildMediaContentObj(it);
+                if (!obj || !obj.contentUrl || !obj.mediaType || obj.mediaType === 'UNKNOWN') {
+                    console.warn('Airport Display skipped invalid media item:', it);
+                    return;
+                }
+                if (isRemoteOrStreamRef(obj.contentUrl)) {
+                    prepared.push({ obj: obj, item: it });
+                    return;
+                }
+                var exists = mediaFileExists(obj.contentUrl);
+                if (exists === false) {
+                    var source = resolveMediaSource(it) || {};
+                    var downloadUrl = resolveDownloadUrl(it, source);
+                    if (!downloadUrl) {
+                        missing.push({
+                            filename: obj.filename || basename(obj.contentUrl),
+                            content_url: obj.contentUrl,
+                            media_id: it && it.id || '',
+                            reason: 'MEDIA_NOT_FOUND'
+                        });
+                        console.warn(
+                            'Airport Display Trigger Failed\n' +
+                            'Media ID: ' + (it && it.id || '') + '\n' +
+                            'Filename: ' + (obj.filename || '') + '\n' +
+                            'Reason: MEDIA_NOT_FOUND\n' +
+                            'Resolved URL: ' + obj.contentUrl
+                        );
+                        return;
+                    }
+                    return downloadMediaToCache(downloadUrl, obj.contentUrl).then(function (dl) {
+                        if (!dl || !dl.ok) {
+                            missing.push({
+                                filename: obj.filename || basename(obj.contentUrl),
+                                content_url: obj.contentUrl,
+                                download_url: downloadUrl,
+                                media_id: it && it.id || '',
+                                reason: (dl && dl.error_code) || 'MEDIA_DOWNLOAD_FAILED'
+                            });
+                            console.warn(
+                                'Airport Display Trigger Failed\n' +
+                                'Media ID: ' + (it && it.id || '') + '\n' +
+                                'Filename: ' + (obj.filename || '') + '\n' +
+                                'Reason: ' + ((dl && dl.error_code) || 'MEDIA_DOWNLOAD_FAILED') + '\n' +
+                                'Resolved URL: ' + downloadUrl
+                            );
+                            return;
+                        }
+                        prepared.push({ obj: obj, item: it, downloaded: true, download_url: downloadUrl });
+                    });
+                }
+                prepared.push({ obj: obj, item: it });
+            });
+        });
+
+        return prepareChain.then(function () {
+            var contentObjs = prepared.map(function (row) { return row.obj; });
+            var filenames = contentObjs.map(function (obj) {
+                return obj.filename || basename(obj.contentUrl);
+            });
+            if (!contentObjs.length) {
+                var reason = missing.length
+                    ? (missing[0].reason || 'MEDIA_NOT_FOUND')
+                    : 'MEDIA_BUILD_FAILED';
                 console.warn(
                     'Airport Display Trigger Failed\n' +
-                    'Media ID: ' + (it && it.id || '') + '\n' +
-                    'Filename: ' + (obj.filename || '') + '\n' +
-                    'Reason: MEDIA_NOT_FOUND\n' +
-                    'Resolved URL: ' + obj.contentUrl
-                );
-                return;
-            }
-            contentObjs.push(obj);
-            filenames.push(obj.filename || basename(obj.contentUrl));
-        });
-        if (!contentObjs.length) {
-            var reason = missing.length ? 'MEDIA_NOT_FOUND' : 'MEDIA_BUILD_FAILED';
-            console.warn(
-                'Airport Display Trigger Failed\n' +
-                'Slot: ' + (slot.slot_name || numericId) + '\n' +
-                'Reason: ' + reason + '\n' +
-                'Keeping previous slot content.'
-            );
-            reportStatus({
-                status: 'failed',
-                phase: 'media',
-                slot_id: numericId,
-                error_code: reason,
-                missing: missing,
-                message: reason === 'MEDIA_NOT_FOUND'
-                    ? 'Media file not found in player cache; previous content preserved'
-                    : 'Unable to build media content objects from payload'
-            });
-            return {
-                ok: false,
-                error_code: reason,
-                message: reason === 'MEDIA_NOT_FOUND'
-                    ? 'Media file not found; previous content preserved'
-                    : 'Unable to build media content objects'
-            };
-        }
-
-        var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + numericId) : null);
-        var snapshot = snapshotMediaSlot(numericId, $slot);
-
-        // Prefer medialoop runtime path used by the player (temporary; not persisted)
-        if (typeof medialoop !== 'undefined' && typeof appendMediaElement === 'function') {
-            try {
-                if (typeof mediaCurIndex !== 'undefined') {
-                    mediaCurIndex[numericId] = 1;
-                }
-                medialoop[numericId] = contentObjs.slice();
-                if ($slot && $slot.length) {
-                    $slot.html('');
-                }
-                appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
-                attachMediaLoadGuard(numericId, $slot, snapshot, contentObjs[0], {
-                    media_id: selectedItems[0] && selectedItems[0].id || ''
-                });
-                console.log(
-                    'Airport Display Trigger\n' +
-                    'Zone: ' + (slot.zone_name || '') + '\n' +
-                    'Layout: ' + (slot.layout_name || target.layoutId || '') + '\n' +
                     'Slot: ' + (slot.slot_name || numericId) + '\n' +
-                    'Media ID: ' + (selectedItems[0] && selectedItems[0].id || '') + '\n' +
-                    'Filename: ' + (filenames[0] || '') + '\n' +
-                    'Resolved URL: ' + (contentObjs[0].contentUrl || '') + '\n' +
-                    'Player Response: SUCCESS'
+                    'Reason: ' + reason + '\n' +
+                    'Keeping previous slot content.'
                 );
-                reportStatus({
-                    status: 'media_trigger',
-                    phase: 'media',
-                    slot_id: numericId,
-                    media_mode: mode,
-                    filenames: filenames,
-                    content_url: contentObjs[0].contentUrl,
-                    temporary: true,
-                    message: 'Temporary media trigger applied (permanent playlist unchanged)'
-                });
-                return {
-                    ok: true,
-                    via: 'medialoop-temporary',
-                    layout_id: target.layoutId,
-                    slot_id: numericId,
-                    media_mode: mode,
-                    filenames: filenames,
-                    content_url: contentObjs[0].contentUrl,
-                    temporary: true
-                };
-            } catch (err) {
-                console.warn('Airport Display medialoop media trigger failed; restoring previous media:', err);
-                restoreMediaSlot(numericId, $slot, snapshot);
                 reportStatus({
                     status: 'failed',
                     phase: 'media',
                     slot_id: numericId,
-                    error_code: 'MEDIA_RENDER_FAILED',
-                    message: String(err && err.message || err)
+                    error_code: reason,
+                    missing: missing,
+                    message: reason === 'MEDIA_NOT_FOUND' || reason === 'MEDIA_DOWNLOAD_FAILED'
+                        ? 'Media unavailable; previous content preserved'
+                        : 'Unable to build media content objects from payload'
                 });
                 return {
                     ok: false,
-                    error_code: 'MEDIA_RENDER_FAILED',
-                    message: 'Media render failed; previous content preserved'
+                    error_code: reason,
+                    message: 'Media update rejected; previous content preserved'
                 };
             }
-        }
 
-        // DOM fallback (also non-persistent)
-        if ($slot && $slot.length) {
-            try {
-                var first = contentObjs[0];
-                var value = first.contentUrl || first.filename;
-                var isVideo = first.mediaType === 'VIDEO' || guessMediaType(first.filename) === 'video';
-                if (isVideo) {
-                    $slot.html('<video src="' + escapeAttr(value) + '" autoplay muted ' +
-                        (mode === 'loop' || mode === 'play_all' || mode === 'all' ? 'loop ' : '') +
-                        'playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
-                } else {
-                    $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
+            var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + numericId) : null);
+            var snapshot = snapshotMediaSlot(numericId, $slot);
+
+            // Prefer medialoop runtime path used by the player (temporary; not persisted)
+            if (typeof medialoop !== 'undefined' && typeof appendMediaElement === 'function') {
+                try {
+                    if (typeof mediaCurIndex !== 'undefined') {
+                        mediaCurIndex[numericId] = 1;
+                    }
+                    medialoop[numericId] = contentObjs.slice();
+                    if ($slot && $slot.length) {
+                        $slot.html('');
+                    }
+                    appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
+                    attachMediaLoadGuard(numericId, $slot, snapshot, contentObjs[0], {
+                        media_id: selectedItems[0] && selectedItems[0].id || ''
+                    });
+                    console.log(
+                        'Airport Display Trigger\n' +
+                        'Zone: ' + (slot.zone_name || '') + '\n' +
+                        'Layout: ' + (slot.layout_name || target.layoutId || '') + '\n' +
+                        'Slot: ' + (slot.slot_name || numericId) + '\n' +
+                        'Media ID: ' + (selectedItems[0] && selectedItems[0].id || '') + '\n' +
+                        'Filename: ' + (filenames[0] || '') + '\n' +
+                        'Resolved URL: ' + (contentObjs[0].contentUrl || '') + '\n' +
+                        'Downloaded: ' + !!(prepared[0] && prepared[0].downloaded) + '\n' +
+                        'Player Response: SUCCESS'
+                    );
+                    reportStatus({
+                        status: 'media_trigger',
+                        phase: 'media',
+                        slot_id: numericId,
+                        media_mode: mode,
+                        filenames: filenames,
+                        content_url: contentObjs[0].contentUrl,
+                        downloaded: !!(prepared[0] && prepared[0].downloaded),
+                        temporary: true,
+                        message: 'Temporary media trigger applied (permanent playlist unchanged)'
+                    });
+                    return {
+                        ok: true,
+                        via: 'medialoop-temporary',
+                        layout_id: target.layoutId,
+                        slot_id: numericId,
+                        media_mode: mode,
+                        filenames: filenames,
+                        content_url: contentObjs[0].contentUrl,
+                        downloaded: !!(prepared[0] && prepared[0].downloaded),
+                        temporary: true
+                    };
+                } catch (err) {
+                    console.warn('Airport Display medialoop media trigger failed; restoring previous media:', err);
+                    restoreMediaSlot(numericId, $slot, snapshot);
+                    reportStatus({
+                        status: 'failed',
+                        phase: 'media',
+                        slot_id: numericId,
+                        error_code: 'MEDIA_RENDER_FAILED',
+                        message: String(err && err.message || err)
+                    });
+                    return {
+                        ok: false,
+                        error_code: 'MEDIA_RENDER_FAILED',
+                        message: 'Media render failed; previous content preserved'
+                    };
                 }
-                attachMediaLoadGuard(numericId, $slot, snapshot, first, {
-                    media_id: selectedItems[0] && selectedItems[0].id || ''
-                });
-                return {
-                    ok: true,
-                    via: 'media-dom-temporary',
-                    layout_id: target.layoutId,
-                    slot_id: numericId,
-                    media_mode: mode,
-                    filenames: filenames,
-                    content_url: first.contentUrl,
-                    temporary: true
-                };
-            } catch (domErr) {
-                restoreMediaSlot(numericId, $slot, snapshot);
-                return {
-                    ok: false,
-                    error_code: 'MEDIA_RENDER_FAILED',
-                    message: 'DOM media render failed; previous content preserved'
-                };
             }
-        }
-        return { ok: false, error_code: 'SLOT_NOT_FOUND', message: 'Media slot element not found' };
+
+            // DOM fallback (also non-persistent)
+            if ($slot && $slot.length) {
+                try {
+                    var first = contentObjs[0];
+                    var value = first.contentUrl || first.filename;
+                    var isVideo = first.mediaType === 'VIDEO' || guessMediaType(first.filename) === 'video';
+                    if (isVideo) {
+                        $slot.html('<video src="' + escapeAttr(value) + '" autoplay muted ' +
+                            (mode === 'loop' || mode === 'play_all' || mode === 'all' ? 'loop ' : '') +
+                            'playsinline style="width:100%;height:100%;object-fit:contain;"></video>');
+                    } else {
+                        $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
+                    }
+                    attachMediaLoadGuard(numericId, $slot, snapshot, first, {
+                        media_id: selectedItems[0] && selectedItems[0].id || ''
+                    });
+                    return {
+                        ok: true,
+                        via: 'media-dom-temporary',
+                        layout_id: target.layoutId,
+                        slot_id: numericId,
+                        media_mode: mode,
+                        filenames: filenames,
+                        content_url: first.contentUrl,
+                        downloaded: !!(prepared[0] && prepared[0].downloaded),
+                        temporary: true
+                    };
+                } catch (domErr) {
+                    restoreMediaSlot(numericId, $slot, snapshot);
+                    return {
+                        ok: false,
+                        error_code: 'MEDIA_RENDER_FAILED',
+                        message: 'DOM media render failed; previous content preserved'
+                    };
+                }
+            }
+            return { ok: false, error_code: 'SLOT_NOT_FOUND', message: 'Media slot element not found' };
+        });
     }
 
     function applySlotUpdate(slot) {
         if (!slot) {
-            return { ok: false, error_code: 'INVALID_SLOT', message: 'Missing slot payload' };
+            return Promise.resolve({ ok: false, error_code: 'INVALID_SLOT', message: 'Missing slot payload' });
         }
         var value = slot.value == null ? '' : String(slot.value);
         var slotType = (slot.slot_type || 'text').toLowerCase();
 
         var target = resolveSlotTarget(slot);
         if (!target.ok) {
-            return target;
+            return Promise.resolve(target);
         }
 
         if (slot.slot_type && target.resolvedType &&
@@ -627,17 +850,19 @@
             var textLike = ['text', 'ticker', 'fader', 'scroller', 'template_variable'];
             if (!(textLike.indexOf(slotType) !== -1 && textLike.indexOf(target.resolvedType) !== -1) &&
                 !(slotType === 'media' && target.resolvedType === 'media')) {
-                return {
+                return Promise.resolve({
                     ok: false,
                     error_code: 'SLOT_TYPE_MISMATCH',
                     message: 'Expected ' + slot.slot_type + ' but found ' + target.resolvedType
-                };
+                });
             }
         }
 
         try {
             if (slotType === 'media' || target.resolvedType === 'media') {
-                return applyTemporaryMedia(slot, target);
+                return Promise.resolve(applyTemporaryMedia(slot, target)).then(function (r) {
+                    return r;
+                });
             }
 
             if (typeof updateTextSlotContent === 'function' && target.numericId) {
@@ -647,41 +872,64 @@
                     value,
                     target.layoutId || slot.layout_id
                 );
-                return { ok: true, via: 'updateTextSlotContent', layout_id: target.layoutId, slot_id: target.numericId };
+                return Promise.resolve({
+                    ok: true,
+                    via: 'updateTextSlotContent',
+                    layout_id: target.layoutId,
+                    slot_id: target.numericId
+                });
             }
 
             var $el = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
             if ($el && $el.length) {
                 $el.html(value);
-                return { ok: true, via: 'dom-html', layout_id: target.layoutId, slot_id: target.numericId };
+                return Promise.resolve({
+                    ok: true,
+                    via: 'dom-html',
+                    layout_id: target.layoutId,
+                    slot_id: target.numericId
+                });
             }
         } catch (err) {
-            return { ok: false, error_code: 'APPLY_FAILED', message: String(err && err.message || err) };
+            return Promise.resolve({
+                ok: false,
+                error_code: 'APPLY_FAILED',
+                message: String(err && err.message || err)
+            });
         }
 
-        return { ok: false, error_code: 'UNSUPPORTED_SLOT_TYPE', message: 'Unable to apply slot update' };
+        return Promise.resolve({
+            ok: false,
+            error_code: 'UNSUPPORTED_SLOT_TYPE',
+            message: 'Unable to apply slot update'
+        });
     }
 
     function applySlots(event) {
         var slots = event.slots || [];
         var results = [];
-        for (var i = 0; i < slots.length; i++) {
-            var r = applySlotUpdate(slots[i]);
-            results.push({
-                layout_id: slots[i].layout_id || null,
-                layout_name: slots[i].layout_name || '',
-                slot_id: slots[i].slot_id || null,
-                slot_name: slots[i].slot_name || '',
-                slot_type: slots[i].slot_type || '',
-                ok: !!(r && r.ok),
-                error_code: r && r.error_code || null,
-                message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
-                via: r && r.via || null,
-                media_mode: r && r.media_mode || null,
-                temporary: !!(r && r.temporary)
+        var chain = Promise.resolve();
+        slots.forEach(function (slot) {
+            chain = chain.then(function () {
+                return applySlotUpdate(slot).then(function (r) {
+                    results.push({
+                        layout_id: slot.layout_id || null,
+                        layout_name: slot.layout_name || '',
+                        slot_id: slot.slot_id || null,
+                        slot_name: slot.slot_name || '',
+                        slot_type: slot.slot_type || '',
+                        ok: !!(r && r.ok),
+                        error_code: r && r.error_code || null,
+                        message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
+                        via: r && r.via || null,
+                        media_mode: r && r.media_mode || null,
+                        temporary: !!(r && r.temporary),
+                        downloaded: !!(r && r.downloaded)
+                    });
+                });
             });
-        }
-        return results;
+        });
+        return chain.then(function () { return results; });
     }
 
     /**
@@ -892,54 +1140,56 @@
 
         reportStatus({ event_id: eventId, status: 'received', event: event.event, zone: event.zone });
 
-        var slotResults = [];
-        try {
-            slotResults = applySlots(event);
-        } catch (err) {
-            reportStatus({
-                event_id: eventId,
-                status: 'failed',
-                error_code: 'SLOT_APPLY_FAILED',
-                message: String(err && err.message || err)
-            });
-            return { status: 'error', error_code: 'SLOT_APPLY_FAILED', event_id: eventId };
-        }
+        return Promise.resolve()
+            .then(function () {
+                return applySlots(event);
+            })
+            .then(function (slotResults) {
+                var failed = slotResults.filter(function (r) { return !r.ok; });
+                if (failed.length && failed.length === slotResults.length && slotResults.length > 0) {
+                    reportStatus({
+                        event_id: eventId,
+                        status: 'failed',
+                        error_code: 'ALL_SLOTS_FAILED',
+                        slots: slotResults
+                    });
+                } else {
+                    reportStatus({
+                        event_id: eventId,
+                        status: failed.length ? 'partial' : 'applied',
+                        slots: slotResults
+                    });
+                }
 
-        var failed = slotResults.filter(function (r) { return !r.ok; });
-        if (failed.length && failed.length === slotResults.length && slotResults.length > 0) {
-            reportStatus({
-                event_id: eventId,
-                status: 'failed',
-                error_code: 'ALL_SLOTS_FAILED',
-                slots: slotResults
-            });
-        } else {
-            reportStatus({
-                event_id: eventId,
-                status: failed.length ? 'partial' : 'applied',
-                slots: slotResults
-            });
-        }
+                try {
+                    enqueueAnnouncement(event);
+                } catch (err) {
+                    reportStatus({
+                        event_id: eventId,
+                        status: 'failed',
+                        phase: 'announcement',
+                        error_code: 'ANNOUNCE_QUEUE_FAILED'
+                    });
+                }
 
-        try {
-            enqueueAnnouncement(event);
-        } catch (err) {
-            reportStatus({
-                event_id: eventId,
-                status: 'failed',
-                phase: 'announcement',
-                error_code: 'ANNOUNCE_QUEUE_FAILED'
+                return {
+                    status: failed.length && failed.length === slotResults.length && slotResults.length
+                        ? 'error'
+                        : 'success',
+                    message: 'Airport Display event processed',
+                    event_id: eventId,
+                    slots: slotResults
+                };
+            })
+            .catch(function (err) {
+                reportStatus({
+                    event_id: eventId,
+                    status: 'failed',
+                    error_code: 'SLOT_APPLY_FAILED',
+                    message: String(err && err.message || err)
+                });
+                return { status: 'error', error_code: 'SLOT_APPLY_FAILED', event_id: eventId };
             });
-        }
-
-        return {
-            status: failed.length && failed.length === slotResults.length && slotResults.length
-                ? 'error'
-                : 'success',
-            message: 'Airport Display event processed',
-            event_id: eventId,
-            slots: slotResults
-        };
     }
 
     global.AirportDisplayPlayer = {
@@ -952,6 +1202,8 @@
         _getMediaResFolder: getMediaResFolder,
         _buildMediaContentObj: buildMediaContentObj,
         _collectMediaTriggerItems: collectMediaTriggerItems,
-        _applyTemporaryMedia: applyTemporaryMedia
+        _applyTemporaryMedia: applyTemporaryMedia,
+        _resolveDownloadUrl: resolveDownloadUrl,
+        _isWebMediaPath: isWebMediaPath
     };
 })(window);
