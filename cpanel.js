@@ -1542,14 +1542,16 @@ return (async function () {
                 existingConfig = JSON.parse(configFileContent)
             }
             
-            // Merge new configuration with existing configuration
+            // Merge new configuration with existing configuration (deep-merge nested sections)
             const mergedConfig = { ...existingConfig, ...newConfig }
-            if (existingConfig.systemSettings || newConfig.systemSettings) {
-                mergedConfig.systemSettings = {
-                    ...(existingConfig.systemSettings || {}),
-                    ...(newConfig.systemSettings || {})
+            ;['systemSettings', 'displaySettings', 'networkSettings', 'mediaSettings', 'syncSettings'].forEach(function (key) {
+                if (existingConfig[key] || newConfig[key]) {
+                    mergedConfig[key] = {
+                        ...(existingConfig[key] || {}),
+                        ...(newConfig[key] || {})
+                    }
                 }
-            }
+            })
             
             // Update timestamp
             mergedConfig.timestamp = new Date().toISOString()

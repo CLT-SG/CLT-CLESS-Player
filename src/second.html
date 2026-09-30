@@ -1,168 +1,490 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" data-theme="light">
 <head>
-  <title>eCLess Player</title>
-
+  <title>CLESS Player</title>
   <script>
     if (typeof module === 'object') {
       window.module = module
       module = undefined
     }
   </script>
-
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="assets/css/cpanel.css" rel="stylesheet">
   <script src="assets/js/jquery.min.js"></script>
-  <!-- Enhanced configuration loader -->
   <script src="assets/js/config-loader.js"></script>
   <style>
-    body {
-      background-image: url("assets/images/ezgif.com-video-to-gif.gif");
-      background-size: cover;
-      background-repeat: no-repeat;
-      background-size: 100%;
-      background-attachment: fixed;
+    html, body {
       height: 100%;
-      width: 100%;
+      margin: 0;
+    }
+    body.startup-body {
+      font-family: var(--font-sans, "IBM Plex Sans", sans-serif);
+      color: var(--text-primary);
+      background:
+        linear-gradient(160deg, rgba(13, 18, 26, 0.55), rgba(21, 32, 51, 0.72)),
+        url("assets/images/ezgif.com-video-to-gif.gif") center center / cover no-repeat fixed;
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+    }
+    .startup-shell {
+      width: min(440px, 100%);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-md);
+      padding: 2rem 1.75rem 1.5rem;
+      backdrop-filter: blur(10px);
+      animation: startup-rise 480ms ease both;
+    }
+    @keyframes startup-rise {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .startup-brand {
       text-align: center;
-      background-color: white;
-      color: black;
-      font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
-      font-size: 15px;
+      margin-bottom: 1.25rem;
     }
-
-    .clessinfo-parent {
-      width: 100%;
-      height: auto;
+    .startup-mark {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 0.85rem;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 1.6rem;
+      animation: startup-pulse 1.8s ease-in-out infinite;
     }
-
-    .title {
-      margin: 15px 0 15px 0;
-      font-size: 30px;
+    @keyframes startup-pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
     }
-
-    .desc {
-      text-transform: uppercase;
-      display: inline;
-      margin: 10px 0 10px 0;
+    .startup-title {
+      margin: 0;
+      font-size: 1.45rem;
+      font-weight: 650;
+      letter-spacing: 0.01em;
     }
-
-    .company {
-      margin: 15px 0 15px 0;
+    .startup-sub {
+      margin: 0.35rem 0 0;
+      color: var(--text-secondary);
+      font-size: 0.92rem;
     }
-
-    .result {
-      display: inline;
-      color: green;
+    .startup-status-line {
+      margin: 1.1rem 0 0.85rem;
+      text-align: center;
+      font-weight: 500;
+      min-height: 1.4em;
     }
-
-    .bottom {
-      position: absolute;
-      bottom: 0;
-      width: 100%;
-      background-color: rgb(0, 66, 0);
-      text-align: left;
-      vertical-align: top;
-      font-size: 5vw;
-      color: white;
-      white-space: pre-wrap;
-      transition: background-color 0.3s ease;
+    .startup-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.55rem;
     }
-
-    .bottom.offline {
-      background-color: rgb(139, 0, 0); /* Dark red for offline mode */
+    .startup-steps li {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      transition: color 180ms ease;
     }
-
-    .bottom.online {
-      background-color: rgb(0, 66, 0); /* Original green for online mode */
+    .startup-steps li .step-dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      border-radius: 50%;
+      border: 2px solid var(--border-strong);
+      flex-shrink: 0;
+      background: transparent;
+    }
+    .startup-steps li.is-active {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+    .startup-steps li.is-active .step-dot {
+      border-color: var(--accent);
+      background: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+      animation: startup-dot 1s ease-in-out infinite;
+    }
+    @keyframes startup-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+    .startup-steps li.is-done {
+      color: var(--success);
+    }
+    .startup-steps li.is-done .step-dot {
+      border-color: var(--success);
+      background: var(--success);
+    }
+    .startup-steps li.is-warn {
+      color: var(--warning);
+    }
+    .startup-steps li.is-warn .step-dot {
+      border-color: var(--warning);
+      background: var(--warning);
+    }
+    .startup-steps li.is-error {
+      color: var(--danger);
+    }
+    .startup-steps li.is-error .step-dot {
+      border-color: var(--danger);
+      background: var(--danger);
+    }
+    .startup-panel {
+      margin-top: 1.15rem;
+      padding: 0.9rem 1rem;
+      border-radius: var(--radius-sm);
+      background: var(--surface-secondary);
+      border: 1px solid var(--border);
+      display: none;
+    }
+    .startup-panel.is-visible {
+      display: block;
+      animation: startup-rise 320ms ease both;
+    }
+    .startup-panel h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1rem;
+    }
+    .startup-panel p {
+      margin: 0;
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+    }
+    .startup-actions {
+      margin-top: 0.85rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .startup-meta {
+      margin-top: 1.1rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono, "IBM Plex Mono", monospace);
+    }
+    .startup-spinner {
+      width: 1.1rem;
+      height: 1.1rem;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      display: inline-block;
+      vertical-align: -0.2em;
+      margin-right: 0.4rem;
+      animation: startup-spin 0.8s linear infinite;
+    }
+    @keyframes startup-spin {
+      to { transform: rotate(360deg); }
+    }
+    .startup-body.is-offline .startup-shell {
+      border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+    }
+    .startup-body.is-error .startup-shell {
+      border-color: color-mix(in srgb, var(--danger) 45%, var(--border));
     }
   </style>
 </head>
+<body class="startup-body">
+  <div class="startup-shell" role="status" aria-live="polite">
+    <div class="startup-brand">
+      <div class="startup-mark"><i class="bi bi-display"></i></div>
+      <h1 class="startup-title">CLESS Player</h1>
+      <p class="startup-sub" id="startupHeadline">Starting Player…</p>
+    </div>
 
-<body>
-  <div class="bottom"></div>
+    <div class="startup-status-line" id="startupStatusLine">
+      <span class="startup-spinner" id="startupSpinner"></span>
+      <span id="startupStatusText">Initializing</span>
+    </div>
+
+    <ul class="startup-steps" id="startupSteps">
+      <li data-step="initializing" class="is-active"><span class="step-dot"></span> Initializing</li>
+      <li data-step="loading-config"><span class="step-dot"></span> Loading configuration</li>
+      <li data-step="checking-network"><span class="step-dot"></span> Checking network</li>
+      <li data-step="connecting-server"><span class="step-dot"></span> Connecting to server</li>
+      <li data-step="loading-player"><span class="step-dot"></span> Loading player</li>
+      <li data-step="loading-content"><span class="step-dot"></span> Loading content</li>
+      <li data-step="ready"><span class="step-dot"></span> Ready</li>
+    </ul>
+
+    <div class="startup-panel" id="startupErrorPanel">
+      <h2 id="startupErrorTitle">Unable to connect to server</h2>
+      <p id="startupErrorDetail">The Player will continue using available local configuration/content.</p>
+      <div class="startup-actions">
+        <button type="button" class="modern-btn" id="startupRetryBtn">
+          <i class="bi bi-arrow-repeat"></i> Retry
+        </button>
+      </div>
+    </div>
+
+    <div class="startup-panel" id="startupOfflinePanel">
+      <h2>Offline Mode</h2>
+      <p>Server unavailable. Using local cached content.</p>
+    </div>
+
+    <div class="startup-meta" id="startupMeta">—</div>
+  </div>
 </body>
-
 <script>
   try {
     var ipcRenderer = window.ipcRenderer
     var remote = window.remote
-    var convert = window.xmljs
-    var datetime = window.datetime
-    var path = window.path
-    var os = window.os
     var config = window.config
-    
-    // Enhanced configuration variables
     var hostserver, dsid, mode
-    
-    // Wait for config to load
-    window.addEventListener('configLoaded', function(event) {
+    var openRequested = false
+    var startupComplete = false
+    var STEP_ORDER = [
+      'initializing',
+      'loading-config',
+      'checking-network',
+      'connecting-server',
+      'loading-player',
+      'loading-content',
+      'ready'
+    ]
+
+    function applyTheme() {
+      try {
+        var theme = localStorage.getItem('cless-cpanel-theme')
+        if (!theme && window.matchMedia) {
+          theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        }
+        document.documentElement.setAttribute('data-theme', theme === 'dark' ? 'dark' : 'light')
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light')
+      }
+    }
+
+    function setStatusText(text, spinning) {
+      $('#startupStatusText').text(text || '')
+      $('#startupHeadline').text(text || 'Starting Player…')
+      $('#startupSpinner').toggle(spinning !== false && !startupComplete)
+    }
+
+    function markStep(stepId, state) {
+      var idx = STEP_ORDER.indexOf(stepId)
+      $('#startupSteps li').each(function () {
+        var id = this.getAttribute('data-step')
+        var stepIdx = STEP_ORDER.indexOf(id)
+        var $li = $(this)
+        $li.removeClass('is-active is-done is-warn is-error')
+        if (stepIdx < 0) return
+        if (stepIdx < idx) {
+          $li.addClass('is-done')
+        } else if (stepIdx === idx) {
+          if (state === 'done') $li.addClass('is-done')
+          else if (state === 'warn') $li.addClass('is-warn')
+          else if (state === 'error') $li.addClass('is-error')
+          else $li.addClass('is-active')
+        }
+      })
+    }
+
+    function showError(title, detail) {
+      $('body').addClass('is-error').removeClass('is-offline')
+      $('#startupErrorTitle').text(title || 'Unable to connect to server')
+      $('#startupErrorDetail').text(detail || 'The Player will continue using available local configuration/content.')
+      $('#startupErrorPanel').addClass('is-visible')
+      $('#startupOfflinePanel').removeClass('is-visible')
+      setStatusText(title || 'Unable to connect to server', false)
+    }
+
+    function showOffline(message) {
+      $('body').addClass('is-offline').removeClass('is-error')
+      $('#startupOfflinePanel').addClass('is-visible')
+      $('#startupErrorPanel').removeClass('is-visible')
+      setStatusText(message || 'Offline Mode', false)
+    }
+
+    function updateMeta() {
+      var version = '—'
+      try {
+        if (remote && remote.app) version = remote.app.getVersion()
+      } catch (e) {}
+      var server = (config && config.hostserver) || hostserver || '—'
+      var id = (config && config.id) || dsid || '—'
+      var m = (config && config.mode) || mode || '—'
+      $('#startupMeta').text('v' + version + ' · DS ' + id + ' · ' + m + ' · ' + server)
+    }
+
+    function requestOpenWindow() {
+      if (openRequested || typeof ipcRenderer === 'undefined') return
+      openRequested = true
+      markStep('loading-player', 'active')
+      setStatusText('Loading player…', true)
+      ipcRenderer.send('openwindow')
+    }
+
+    async function checkNetworkReachable() {
+      markStep('checking-network', 'active')
+      setStatusText('Checking network…', true)
+
+      var online = typeof navigator !== 'undefined' ? navigator.onLine !== false : true
+      var serverOk = false
+
+      if (mode === 'offline') {
+        markStep('checking-network', online ? 'done' : 'warn')
+        markStep('connecting-server', 'warn')
+        showOffline('Offline Mode — using local configuration')
+        return { online: online, serverOk: false, offlineMode: true }
+      }
+
+      if (!online) {
+        markStep('checking-network', 'warn')
+        return { online: false, serverOk: false, offlineMode: false }
+      }
+
+      markStep('checking-network', 'done')
+      markStep('connecting-server', 'active')
+      setStatusText('Connecting to server…', true)
+
+      try {
+        if (window.isReachable && hostserver) {
+          serverOk = await window.isReachable(hostserver, { timeout: 4000 })
+        } else if (hostserver && /^https?:\/\//i.test(hostserver)) {
+          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+          var timer = setTimeout(function () {
+            if (controller) controller.abort()
+          }, 4000)
+          try {
+            await fetch(hostserver, {
+              method: 'HEAD',
+              mode: 'no-cors',
+              signal: controller ? controller.signal : undefined
+            })
+            serverOk = true
+          } catch (fetchErr) {
+            serverOk = false
+          }
+          clearTimeout(timer)
+        } else {
+          serverOk = online
+        }
+      } catch (e) {
+        serverOk = false
+      }
+
+      if (serverOk) {
+        markStep('connecting-server', 'done')
+        setStatusText('Server reachable', true)
+      } else {
+        markStep('connecting-server', 'warn')
+        showOffline('Server unavailable. Continuing with local startup…')
+      }
+      return { online: online, serverOk: serverOk, offlineMode: false }
+    }
+
+    async function beginStartup() {
+      applyTheme()
+      markStep('initializing', 'done')
+      markStep('loading-config', 'active')
+      setStatusText('Loading configuration…', true)
+
+      hostserver = config && config.hostserver
+      dsid = config && config.id
+      mode = config && config.mode
+      updateMeta()
+
+      if (!config || !config.hostserver) {
+        // Wait briefly for config-loader
+        await new Promise(function (resolve) { setTimeout(resolve, 400) })
+        hostserver = config && config.hostserver
+        dsid = config && config.id
+        mode = config && config.mode
+      }
+
+      markStep('loading-config', 'done')
+      updateMeta()
+
+      await checkNetworkReachable()
+      // Always continue — existing app must not block solely on server unavailability
+      requestOpenWindow()
+    }
+
+    window.addEventListener('configLoaded', function (event) {
+      if (event.detail && event.detail.config) {
+        config = event.detail.config
+      }
       hostserver = config.hostserver
       dsid = config.id
       mode = config.mode
-      console.log('eCLESS: Configuration loaded for second window -', event.detail.source)
-      
-      // Update display with loaded config
-      updateDisplay()
-    })
-    
-    // Fallback for immediate access
-    hostserver = config.hostserver
-    dsid = config.id
-    mode = config.mode
-    
-  } catch (e) {
-    console.warn('error loading configuration: ' + e)
-  }
-</script>
-<script>
-  try {
-    
-    function updateDisplay() {
-      if (!config || !remote) return
-      
-      var render = `<div class="clessinfo-parent">
-        <div class="title">eCLESS Player</div>
-      <div><div class="desc">Version :</div><div class="result"> ${remote.app.getVersion()}</div><div>
-      <div><div class="desc">CLESS Server Website :</div><div class="result"> ${config.hostserver}</div><div>
-      <div><div class="desc">Digital Signage ID :</div><div class="result"> ${config.id} </div><div>
-      <div><div class="desc">Mode :</div><div class="result"> ${config.mode}</div><div>
-      </div>
-      <img class="loading-img" src="assets/images/loading.gif">
-      `
-      //$('body').html(render)
-      $('.bottom').html('eCless Player Version : ' + remote.app.getVersion())
-      
-      if (mode == 'offline') {
-        $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode + ' | Offline Mode')
-        $('.bottom').removeClass('online').addClass('offline')
-      } else {
-        $('.bottom').html('DS : ' + config.id + ' | Mode : ' + config.mode)
-        $('.bottom').removeClass('offline').addClass('online')
-        setTimeout(function () {
-          $('.bottom').html('Server : ' + config.hostserver)
-        }, 3000)
+      updateMeta()
+      if (!openRequested) {
+        beginStartup()
       }
-      
-      setTimeout(function () {
-        if (typeof(ipcRenderer) != "undefined") {
-          ipcRenderer.send('openwindow')
+    })
+
+    if (ipcRenderer) {
+      ipcRenderer.on('startup-status', function (_event, payload) {
+        if (!payload || !payload.step) return
+        markStep(payload.step, payload.state || 'active')
+        if (payload.message) setStatusText(payload.message, payload.state !== 'done' && payload.state !== 'error')
+
+        if (payload.offline) {
+          showOffline(payload.message || 'Offline Mode')
         }
-      }, 3000)
+        if (payload.state === 'error') {
+          showError(payload.message || 'Unable to connect to server', payload.detail)
+        }
+        if (payload.step === 'ready' && (payload.state === 'done' || payload.state === 'warn')) {
+          startupComplete = true
+          $('#startupSpinner').hide()
+          markStep('ready', 'done')
+          if (payload.offline) {
+            setStatusText('Player Ready (offline)', false)
+          } else {
+            setStatusText('Player Ready', false)
+          }
+        }
+      })
     }
-    
-    // Initialize display with current config (if available)
+
+    $('#startupRetryBtn').on('click', function () {
+      openRequested = false
+      startupComplete = false
+      $('body').removeClass('is-error is-offline')
+      $('#startupErrorPanel, #startupOfflinePanel').removeClass('is-visible')
+      beginStartup()
+    })
+
+    applyTheme()
+    markStep('initializing', 'active')
+    setStatusText('Initializing', true)
+    updateMeta()
+
     if (window.configLoader && window.configLoader.config) {
-      updateDisplay()
+      config = window.configLoader.config
+      beginStartup()
+    } else if (config && config.hostserver) {
+      beginStartup()
+    } else {
+      // Fallback: still proceed after short wait so splash never hangs forever
+      setTimeout(function () {
+        if (!openRequested) beginStartup()
+      }, 2500)
     }
-    
   } catch (e) {
     console.warn('error in second window: ' + e)
+    try {
+      if (window.ipcRenderer) window.ipcRenderer.send('openwindow')
+    } catch (sendErr) {}
   }
 </script>
-
 </html>
