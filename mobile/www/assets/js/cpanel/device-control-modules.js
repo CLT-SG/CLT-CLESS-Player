@@ -345,6 +345,15 @@
         });
 
         register({
+            id: 'layout',
+            name: 'Layout Control',
+            icon: 'bi-layout-text-window',
+            order: 55,
+            category: 'future',
+            description: 'Scheduled and remote layout switching beyond the Layout page controls.'
+        });
+
+        register({
             id: 'content',
             name: 'Content Management',
             icon: 'bi-collection-play',
