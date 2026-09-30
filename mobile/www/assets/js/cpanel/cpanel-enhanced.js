@@ -31,8 +31,12 @@ if (!socket) {
     }
 }
 
-// --- App update status (GitHub Releases / electron-updater) ---
+// --- App update status (shared ClessUpdateClient → UpdateManager) ---
 function renderAppUpdateStatus(status) {
+    if (window.ClessUpdateClient) {
+        window.ClessUpdateClient.renderStatus(status || {})
+        return
+    }
     const el = $('#appUpdateStatus')
     const installBtn = $('#installUpdateBtn')
     if (!el.length) {
@@ -41,7 +45,7 @@ function renderAppUpdateStatus(status) {
     const message = (status && status.message) || 'Update status unavailable.'
     const state = (status && status.state) || 'idle'
     const version = (status && status.currentVersion) || '—'
-    $('#appVersionLabel').text('Player version: v' + version)
+    $('#appVersionLabel').text('Current version: v' + version)
 
     let alertClass = 'alert-secondary'
     if (state === 'uptodate') alertClass = 'alert-success'
@@ -58,6 +62,18 @@ function renderAppUpdateStatus(status) {
 }
 
 function refreshAppUpdateStatus() {
+    if (window.ClessUpdateClient) {
+        window.ClessUpdateClient.getStatus()
+            .then(function (data) { renderAppUpdateStatus(data || {}) })
+            .catch(function () {
+                renderAppUpdateStatus({
+                    state: 'error',
+                    message: 'Update check failed. The Player will continue running normally.',
+                    currentVersion: '—'
+                })
+            })
+        return
+    }
     $.ajax({
         type: 'get',
         url: '/api/updates/status',
@@ -80,8 +96,23 @@ function checkForAppUpdates() {
     renderAppUpdateStatus({
         state: 'checking',
         message: 'Checking for updates...',
-        currentVersion: ($('#appVersionLabel').text().replace(/^Player version:\s*v?/i, '') || '—')
+        currentVersion: ($('#appVersionLabel').text().replace(/^Current version:\s*v?/i, '').replace(/^Player version:\s*v?/i, '') || '—')
     })
+    if (window.ClessUpdateClient) {
+        window.ClessUpdateClient.checkForUpdates()
+            .then(function (status) {
+                renderAppUpdateStatus(status || {})
+                if (status && status.message) {
+                    showToast(status.message, status.state === 'error' ? 'error' : 'info')
+                }
+            })
+            .catch(function (err) {
+                const message = (err && err.message) || 'Update failed.'
+                renderAppUpdateStatus({ state: 'error', message: message })
+                showToast(message, 'error')
+            })
+        return
+    }
     $.ajax({
         type: 'post',
         url: '/api/updates/check',
@@ -105,6 +136,21 @@ function installDownloadedAppUpdate() {
         return
     }
     showToast('Installing update. The player will restart shortly.', 'warning')
+    if (window.ClessUpdateClient) {
+        window.ClessUpdateClient.installUpdate()
+            .then(function (data) {
+                renderAppUpdateStatus({
+                    state: 'installing',
+                    message: (data && data.message) || 'Installing update and restarting...'
+                })
+            })
+            .catch(function (err) {
+                const message = (err && err.message) || 'Update failed.'
+                renderAppUpdateStatus({ state: 'error', message: message })
+                showToast(message, 'error')
+            })
+        return
+    }
     $.ajax({
         type: 'post',
         url: '/api/updates/install',
@@ -1896,7 +1942,11 @@ function saveConfiguration() {
         systemSettings: {
             ...((configData && configData.systemSettings) || {}),
             autoCheckUpdates: $('#autoCheckUpdates').is(':checked'),
-            autoInstallUpdates: $('#autoInstallUpdates').is(':checked')
+            autoInstallUpdates: $('#autoInstallUpdates').is(':checked'),
+            updateCheckIntervalHours: Math.max(
+                1,
+                Math.min(168, parseInt($('#updateCheckIntervalHours').val(), 10) || 6)
+            )
         },
         
         // Update timestamp
@@ -2111,6 +2161,11 @@ function loadConfiguration() {
                 $('#autoInstallUpdates').prop(
                     'checked',
                     !!(data.systemSettings && data.systemSettings.autoInstallUpdates)
+                )
+                $('#updateCheckIntervalHours').val(
+                    data.systemSettings && data.systemSettings.updateCheckIntervalHours != null
+                        ? data.systemSettings.updateCheckIntervalHours
+                        : 6
                 )
                 
                 // Load enhanced configuration fields

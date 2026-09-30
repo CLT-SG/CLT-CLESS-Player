@@ -14,7 +14,7 @@ const { app } = require('electron')
 const GITHUB_OWNER = 'CLT-SG'
 const GITHUB_REPO = 'CLT-CLESS-Player'
 const DEFAULT_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6 hours
-const STARTUP_CHECK_DELAY_MS = 45 * 1000 // let playback settle first
+const STARTUP_CHECK_DELAY_MS = 12 * 1000 // let playback settle, then check promptly
 
 class UpdateManager {
     constructor(options = {}) {
@@ -250,7 +250,7 @@ class UpdateManager {
             this.busy = false
             this._setStatus({
                 state: 'error',
-                message: 'Update failed.',
+                message: 'Update check failed. Unable to reach update server. The Player will continue running normally.',
                 error: message,
                 progress: null
             })
@@ -298,6 +298,10 @@ class UpdateManager {
                 this.log.warn('UpdateManager: failed to refresh feed settings:', error.message)
             }
         }
+        this._setStatus({
+            autoCheckUpdates: this._readAutoCheck(),
+            autoInstallUpdates: this._readAutoInstall()
+        })
     }
 
     async checkForUpdates(options = {}) {
@@ -324,7 +328,7 @@ class UpdateManager {
             this.busy = false
             this._setStatus({
                 state: 'error',
-                message: 'Update failed.',
+                message: 'Update check failed. Unable to reach update server. The Player will continue running normally.',
                 error: message
             })
             return this.getStatus()
