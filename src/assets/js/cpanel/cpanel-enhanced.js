@@ -167,7 +167,7 @@ socket.on('connect', function() {
                 const restartBtn = $('#restartapp')
                 if (restartBtn.length) {
                     restartBtn.removeClass('loading').prop('disabled', false)
-                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart Player')
                     console.log('=== CONTROL PANEL: Restart button state restored after reconnection ===')
                 }
                 
@@ -431,7 +431,7 @@ function checkAndRecoverFromRestart() {
                 const restartBtn = $('#restartapp')
                 if (restartBtn.length) {
                     restartBtn.removeClass('loading').prop('disabled', false)
-                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart Player')
                     console.log('=== RESTART RECOVERY: Button state restored ===')
                 }
             }, 500)
