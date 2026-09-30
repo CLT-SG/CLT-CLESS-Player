@@ -76,8 +76,10 @@
 
     function basename(pathOrName) {
         var s = String(pathOrName || '');
-        var n = Math.max(s.lastIndexOf('/'), s.lastIndexOf('\\'));
-        return n === -1 ? s : s.substring(n + 1);
+        // Strip query/hash from URL-like refs before taking the leaf name.
+        var cleaned = s.split(/[?#]/)[0];
+        var n = Math.max(cleaned.lastIndexOf('/'), cleaned.lastIndexOf('\\'));
+        return n === -1 ? cleaned : cleaned.substring(n + 1);
     }
 
     function guessMediaType(filename) {
@@ -86,6 +88,56 @@
         if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'svg', 'webp'].indexOf(ext) !== -1) return 'image';
         if (['mp3', 'wav', 'aac', 'flac'].indexOf(ext) !== -1) return 'audio';
         return 'unknown';
+    }
+
+    /**
+     * Same resource folder the Control Panel injects into replace-media:
+     * ~/clessapp/res
+     */
+    function getMediaResFolder() {
+        try {
+            if (typeof config !== 'undefined' && config && config.resfolder) {
+                return String(config.resfolder).replace(/[/\\]+$/, '');
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            if (typeof homedir !== 'undefined' && homedir) {
+                return String(homedir).replace(/[/\\]+$/, '') + '/clessapp/res';
+            }
+        } catch (e2) { /* ignore */ }
+        try {
+            if (typeof os !== 'undefined' && os && typeof os.homedir === 'function') {
+                return String(os.homedir()).replace(/[/\\]+$/, '') + '/clessapp/res';
+            }
+        } catch (e3) { /* ignore */ }
+        try {
+            if (typeof require === 'function') {
+                return String(require('os').homedir()).replace(/[/\\]+$/, '') + '/clessapp/res';
+            }
+        } catch (e4) { /* ignore */ }
+        return '';
+    }
+
+    function isRemoteOrStreamRef(path) {
+        return /^(https?:|file:|data:|rtsp:|rtmp:|udp:)/i.test(String(path || ''));
+    }
+
+    function isAbsoluteFilesystemPath(path) {
+        var p = String(path || '');
+        return p.indexOf('/') === 0 || p.indexOf('\\') === 0 || /^[a-zA-Z]:[\\/]/.test(p);
+    }
+
+    /**
+     * @returns {boolean|null} true/false when fs is available, otherwise null (unknown).
+     */
+    function mediaFileExists(localPath) {
+        if (!localPath || isRemoteOrStreamRef(localPath)) return null;
+        try {
+            if (typeof fs !== 'undefined' && fs && typeof fs.existsSync === 'function') {
+                return !!fs.existsSync(localPath);
+            }
+        } catch (e) { /* ignore */ }
+        return null;
     }
 
     /**
@@ -149,48 +201,74 @@
         };
     }
 
+    /**
+     * Resolve media the same way as Control Panel replace-media:
+     *   contentUrl = ~/clessapp/res/<basename>
+     *
+     * Layout discovery often returns relative paths like "media/Welcome.mp4".
+     * Those must NOT be used as DOM src values — they are layout XML sources,
+     * not filesystem URLs. Always map local relative refs to the res cache.
+     */
     function resolveMediaSource(itemOrFilename) {
         var item = itemOrFilename;
         if (typeof itemOrFilename === 'string') {
             item = { filename: itemOrFilename, path: itemOrFilename };
         }
         item = item || {};
-        var filename = basename(item.filename || item.value || item.name || item.path || '');
-        var path = String(item.path || item.file_path || item.url || item.contentUrl || '').trim();
+        var path = String(
+            item.path || item.file_path || item.url || item.contentUrl || item.layout_path || ''
+        ).trim();
+        var filename = basename(item.filename || item.value || item.name || path || '');
         if (!filename && path) {
             filename = basename(path);
         }
         if (!filename && !path) {
             return null;
         }
-        var resfolder = '';
-        try {
-            if (typeof config !== 'undefined' && config && config.resfolder) {
-                resfolder = String(config.resfolder);
-            }
-        } catch (e) { /* ignore */ }
 
+        var resfolder = getMediaResFolder();
         var mediaLocalPath = '';
-        if (path) {
-            if (/^(https?:|file:|data:)/i.test(path) || path.indexOf('/') === 0 || path.indexOf('\\') === 0) {
-                mediaLocalPath = path;
-            } else if (path.indexOf('/') !== -1 || path.indexOf('\\') !== -1) {
-                mediaLocalPath = path;
-            } else if (resfolder) {
-                mediaLocalPath = resfolder + '/' + basename(path);
+        var resolution = 'unresolved';
+
+        if (path && isRemoteOrStreamRef(path)) {
+            mediaLocalPath = path;
+            resolution = 'remote';
+        } else if (path && isAbsoluteFilesystemPath(path)) {
+            var absExists = mediaFileExists(path);
+            if (absExists === false && resfolder && filename) {
+                mediaLocalPath = resfolder + '/' + filename;
+                resolution = 'absolute-fallback-resfolder';
             } else {
                 mediaLocalPath = path;
+                resolution = 'absolute';
             }
         } else if (resfolder && filename) {
+            // Bare filename OR relative layout path (e.g. media/foo.jpg)
             mediaLocalPath = resfolder + '/' + filename;
-        } else {
+            resolution = 'resfolder';
+        } else if (filename) {
             mediaLocalPath = filename;
+            resolution = 'basename-only';
+        } else {
+            mediaLocalPath = path;
+            resolution = 'raw-path';
         }
+
+        console.log('Airport Display media resolve', {
+            filename: filename || basename(mediaLocalPath),
+            input_path: path,
+            resolved_url: mediaLocalPath,
+            resfolder: resfolder || null,
+            resolution: resolution
+        });
+
         return {
             filename: filename || basename(mediaLocalPath),
             mediaLocalPath: mediaLocalPath,
             duration: item.duration != null && item.duration !== '' ? Number(item.duration) : 0,
-            type: item.type || item.content_type || ''
+            type: item.type || item.content_type || '',
+            resolution: resolution,
+            resfolder: resfolder
         };
     }
 
@@ -293,6 +371,61 @@
         }
     }
 
+    function attachMediaLoadGuard(numericId, $slot, snapshot, contentObj, meta) {
+        if (!$slot || !$slot.length || !contentObj) return;
+        meta = meta || {};
+        try {
+            if (contentObj.mediaType === 'IMAGE') {
+                var $img = $slot.find('img').first();
+                if (!$img.length) return;
+                $img.on('error.airportDisplayMedia', function () {
+                    console.warn(
+                        'Airport Display Trigger Failed\n' +
+                        'Media ID: ' + (meta.media_id || '') + '\n' +
+                        'Filename: ' + (contentObj.filename || '') + '\n' +
+                        'Reason: MEDIA_LOAD_FAILED\n' +
+                        'Resolved URL: ' + (contentObj.contentUrl || '') + '\n' +
+                        'Keeping previous slot content.'
+                    );
+                    restoreMediaSlot(numericId, $slot, snapshot);
+                    reportStatus({
+                        status: 'failed',
+                        phase: 'media',
+                        slot_id: numericId,
+                        error_code: 'MEDIA_LOAD_FAILED',
+                        filenames: contentObj.filename ? [contentObj.filename] : [],
+                        content_url: contentObj.contentUrl || '',
+                        message: 'Image failed to load; previous content preserved'
+                    });
+                });
+            } else if (contentObj.mediaType === 'VIDEO') {
+                var $video = $slot.find('video').first();
+                if (!$video.length) return;
+                $video.on('error.airportDisplayMedia', function () {
+                    console.warn(
+                        'Airport Display Trigger Failed\n' +
+                        'Filename: ' + (contentObj.filename || '') + '\n' +
+                        'Reason: MEDIA_LOAD_FAILED\n' +
+                        'Resolved URL: ' + (contentObj.contentUrl || '') + '\n' +
+                        'Keeping previous slot content.'
+                    );
+                    restoreMediaSlot(numericId, $slot, snapshot);
+                    reportStatus({
+                        status: 'failed',
+                        phase: 'media',
+                        slot_id: numericId,
+                        error_code: 'MEDIA_LOAD_FAILED',
+                        filenames: contentObj.filename ? [contentObj.filename] : [],
+                        content_url: contentObj.contentUrl || '',
+                        message: 'Video failed to load; previous content preserved'
+                    });
+                });
+            }
+        } catch (err) {
+            console.warn('Airport Display media load guard attach failed:', err);
+        }
+    }
+
     /**
      * Temporary media trigger: rewrite runtime medialoop only.
      * Does NOT write localStorage layout / permanent playlist configuration.
@@ -303,7 +436,11 @@
         var mode = String(slot.media_mode || 'selected').toLowerCase();
         var selectedItems = collectMediaTriggerItems(slot);
         if (!selectedItems.length) {
-            console.warn('Airport Display media trigger rejected: no media items', slot);
+            console.warn(
+                'Airport Display Trigger Failed\n' +
+                'Slot: ' + (slot.slot_name || numericId) + '\n' +
+                'Reason: MEDIA_VALUE_MISSING'
+            );
             reportStatus({
                 status: 'failed',
                 phase: 'media',
@@ -316,25 +453,57 @@
 
         var contentObjs = [];
         var filenames = [];
+        var missing = [];
         selectedItems.forEach(function (it) {
             var obj = buildMediaContentObj(it);
-            if (obj && obj.contentUrl && obj.mediaType && obj.mediaType !== 'UNKNOWN') {
-                contentObjs.push(obj);
-                filenames.push(obj.filename || basename(obj.contentUrl));
-            } else {
+            if (!obj || !obj.contentUrl || !obj.mediaType || obj.mediaType === 'UNKNOWN') {
                 console.warn('Airport Display skipped invalid media item:', it);
+                return;
             }
+            var exists = mediaFileExists(obj.contentUrl);
+            if (exists === false) {
+                missing.push({
+                    filename: obj.filename || basename(obj.contentUrl),
+                    content_url: obj.contentUrl,
+                    media_id: it && it.id || ''
+                });
+                console.warn(
+                    'Airport Display Trigger Failed\n' +
+                    'Media ID: ' + (it && it.id || '') + '\n' +
+                    'Filename: ' + (obj.filename || '') + '\n' +
+                    'Reason: MEDIA_NOT_FOUND\n' +
+                    'Resolved URL: ' + obj.contentUrl
+                );
+                return;
+            }
+            contentObjs.push(obj);
+            filenames.push(obj.filename || basename(obj.contentUrl));
         });
         if (!contentObjs.length) {
-            console.warn('Airport Display media trigger rejected: unable to build content', selectedItems);
+            var reason = missing.length ? 'MEDIA_NOT_FOUND' : 'MEDIA_BUILD_FAILED';
+            console.warn(
+                'Airport Display Trigger Failed\n' +
+                'Slot: ' + (slot.slot_name || numericId) + '\n' +
+                'Reason: ' + reason + '\n' +
+                'Keeping previous slot content.'
+            );
             reportStatus({
                 status: 'failed',
                 phase: 'media',
                 slot_id: numericId,
-                error_code: 'MEDIA_BUILD_FAILED',
-                message: 'Unable to build media content objects from payload'
+                error_code: reason,
+                missing: missing,
+                message: reason === 'MEDIA_NOT_FOUND'
+                    ? 'Media file not found in player cache; previous content preserved'
+                    : 'Unable to build media content objects from payload'
             });
-            return { ok: false, error_code: 'MEDIA_BUILD_FAILED', message: 'Unable to build media content objects' };
+            return {
+                ok: false,
+                error_code: reason,
+                message: reason === 'MEDIA_NOT_FOUND'
+                    ? 'Media file not found; previous content preserved'
+                    : 'Unable to build media content objects'
+            };
         }
 
         var $slot = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + numericId) : null);
@@ -351,12 +520,19 @@
                     $slot.html('');
                 }
                 appendMediaElement(medialoop[numericId][0], '#slot-' + numericId, numericId);
-                console.log('Airport Display media trigger applied', {
-                    slot_id: numericId,
-                    mode: mode,
-                    filenames: filenames,
-                    contentUrl: contentObjs[0].contentUrl
+                attachMediaLoadGuard(numericId, $slot, snapshot, contentObjs[0], {
+                    media_id: selectedItems[0] && selectedItems[0].id || ''
                 });
+                console.log(
+                    'Airport Display Trigger\n' +
+                    'Zone: ' + (slot.zone_name || '') + '\n' +
+                    'Layout: ' + (slot.layout_name || target.layoutId || '') + '\n' +
+                    'Slot: ' + (slot.slot_name || numericId) + '\n' +
+                    'Media ID: ' + (selectedItems[0] && selectedItems[0].id || '') + '\n' +
+                    'Filename: ' + (filenames[0] || '') + '\n' +
+                    'Resolved URL: ' + (contentObjs[0].contentUrl || '') + '\n' +
+                    'Player Response: SUCCESS'
+                );
                 reportStatus({
                     status: 'media_trigger',
                     phase: 'media',
@@ -374,6 +550,7 @@
                     slot_id: numericId,
                     media_mode: mode,
                     filenames: filenames,
+                    content_url: contentObjs[0].contentUrl,
                     temporary: true
                 };
             } catch (err) {
@@ -407,6 +584,9 @@
                 } else {
                     $slot.html('<img src="' + escapeAttr(value) + '" alt="" style="width:100%;height:100%;object-fit:contain;" />');
                 }
+                attachMediaLoadGuard(numericId, $slot, snapshot, first, {
+                    media_id: selectedItems[0] && selectedItems[0].id || ''
+                });
                 return {
                     ok: true,
                     via: 'media-dom-temporary',
@@ -414,6 +594,7 @@
                     slot_id: numericId,
                     media_mode: mode,
                     filenames: filenames,
+                    content_url: first.contentUrl,
                     temporary: true
                 };
             } catch (domErr) {
@@ -767,6 +948,8 @@
         _normalizeAnnouncementLanguages: normalizeAnnouncementLanguages,
         _playLanguageSequence: playLanguageSequence,
         _guessMediaType: guessMediaType,
+        _resolveMediaSource: resolveMediaSource,
+        _getMediaResFolder: getMediaResFolder,
         _buildMediaContentObj: buildMediaContentObj,
         _collectMediaTriggerItems: collectMediaTriggerItems,
         _applyTemporaryMedia: applyTemporaryMedia
