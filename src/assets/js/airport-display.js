@@ -36,6 +36,8 @@
     var isPlaying = false;
     var currentAudio = null;
     var mediaRestoreTimers = {};
+    var layoutTransitionQueue = Promise.resolve();
+    var layoutTransitionBusy = false;
 
     function rememberEventId(eventId) {
         if (!eventId) return false;
@@ -289,45 +291,72 @@
 
     /**
      * Find a DOM / layout slot matching layout_id + slot_id (preferred) or slot_name.
+     * Call only AFTER the target layout is active.
      */
     function resolveSlotTarget(slot) {
         var layoutId = slot.layout_id != null ? String(slot.layout_id) : '';
         var slotId = slot.slot_id != null ? String(slot.slot_id) : '';
         var slotName = slot.slot_name || '';
         var slotType = (slot.slot_type || 'text').toLowerCase();
+        var numericFromId = slotId ? String(slotId).replace(/^slot-/, '') : '';
+
+        // Primary identity: layout_id + slot_id against the live DOM.
+        if (numericFromId && typeof $ !== 'undefined') {
+            var $byId = $('#slot-' + numericFromId);
+            if ($byId.length) {
+                return {
+                    ok: true,
+                    numericId: numericFromId,
+                    resolvedType: slotType,
+                    layoutId: layoutId || getActiveLayoutId(),
+                    via: 'dom-id'
+                };
+            }
+        }
+
+        // Prefer slotnameList entries that match BOTH layout_id and slot_name.
+        if (typeof slotnameList !== 'undefined' && Array.isArray(slotnameList) && slotName) {
+            try {
+                var matched = null;
+                for (var i = 0; i < slotnameList.length; i++) {
+                    var entry = slotnameList[i];
+                    if (!entry || entry.slotname !== slotName) continue;
+                    if (layoutId && entry.layoutid && String(entry.layoutid) !== layoutId) continue;
+                    matched = entry;
+                    break;
+                }
+                if (matched && matched.slotid) {
+                    return {
+                        ok: true,
+                        numericId: String(matched.slotid).split('-').pop(),
+                        resolvedType: matched.slottype || slotType,
+                        layoutId: matched.layoutid || layoutId,
+                        via: 'slotnameList'
+                    };
+                }
+            } catch (err) {
+                console.warn('Airport Display slotnameList lookup failed:', err);
+            }
+        }
 
         if (typeof getCurrentLayoutID === 'function' && typeof slotnameList !== 'undefined' && slotName) {
             try {
                 var info = getCurrentLayoutID(slotName, slotnameList);
                 if (info && info.slotid) {
                     if (layoutId && info.layoutid && String(info.layoutid) !== layoutId) {
-                        if (typeof currentPlayLayoutID !== 'undefined' &&
-                            currentPlayLayoutID &&
-                            String(currentPlayLayoutID) !== layoutId) {
-                            return {
-                                ok: false,
-                                error_code: 'LAYOUT_NOT_FOUND',
-                                message: 'Layout ' + layoutId + ' is not active/available for slot ' + slotName
-                            };
-                        }
+                        // Name exists on another layout — do not use it.
+                    } else {
+                        return {
+                            ok: true,
+                            numericId: String(info.slotid).split('-').pop(),
+                            resolvedType: info.slottype || slotType,
+                            layoutId: info.layoutid || layoutId,
+                            via: 'slotnameList'
+                        };
                     }
-                    return {
-                        ok: true,
-                        numericId: String(info.slotid).split('-').pop(),
-                        resolvedType: info.slottype || slotType,
-                        layoutId: info.layoutid || layoutId,
-                        via: 'slotnameList'
-                    };
                 }
-            } catch (err) {
-                console.warn('Airport Display getCurrentLayoutID failed:', err);
-            }
-        }
-
-        if (slotId && typeof $ !== 'undefined') {
-            var $byId = $('#slot-' + slotId);
-            if ($byId.length) {
-                return { ok: true, numericId: slotId, resolvedType: slotType, layoutId: layoutId, via: 'dom-id' };
+            } catch (err2) {
+                console.warn('Airport Display getCurrentLayoutID failed:', err2);
             }
         }
 
@@ -335,8 +364,15 @@
             var $byName = $('[data-slotname="' + slotName + '"]');
             if ($byName.length) {
                 var idAttr = $byName.attr('id') || '';
-                var num = idAttr.indexOf('slot-') === 0 ? idAttr.slice(5) : slotId;
-                return { ok: true, numericId: num, resolvedType: slotType, layoutId: layoutId, via: 'dom-name', $el: $byName };
+                var num = idAttr.indexOf('slot-') === 0 ? idAttr.slice(5) : numericFromId;
+                return {
+                    ok: true,
+                    numericId: num,
+                    resolvedType: slotType,
+                    layoutId: layoutId || getActiveLayoutId(),
+                    via: 'dom-name',
+                    $el: $byName
+                };
             }
         }
 
@@ -346,6 +382,190 @@
             message: 'Slot not found' + (layoutId ? (' in layout ' + layoutId) : '') +
                 (slotName ? (': ' + slotName) : (slotId ? (': #' + slotId) : ''))
         };
+    }
+
+    function getActiveLayoutId() {
+        try {
+            if (typeof currentPlayLayoutID !== 'undefined' && currentPlayLayoutID) {
+                return String(currentPlayLayoutID);
+            }
+        } catch (e) { /* ignore */ }
+        try {
+            if (typeof currentlytID !== 'undefined' && currentlytID) {
+                return String(currentlytID);
+            }
+        } catch (e2) { /* ignore */ }
+        try {
+            var stored = localStorage.getItem('currentPlayLayoutID');
+            if (stored) return String(stored);
+        } catch (e3) { /* ignore */ }
+        return '';
+    }
+
+    function waitForSlotDom(slot, attemptsLeft) {
+        return new Promise(function (resolve) {
+            var left = attemptsLeft == null ? 20 : attemptsLeft;
+            var target = resolveSlotTarget(slot);
+            if (target.ok) {
+                resolve(target);
+                return;
+            }
+            if (left <= 0) {
+                resolve(target);
+                return;
+            }
+            setTimeout(function () {
+                waitForSlotDom(slot, left - 1).then(resolve);
+            }, 50);
+        });
+    }
+
+    /**
+     * Switch to the target layout using the same Control Panel helpers, then
+     * wait until the layout is active before slot updates.
+     *
+     * Order is mandatory:
+     *   Switch Layout → Confirm Active → Update Slot
+     */
+    function ensureLayoutActive(layoutId, meta) {
+        meta = meta || {};
+        var targetId = layoutId != null ? String(layoutId) : '';
+        if (!targetId) {
+            return Promise.resolve({
+                ok: false,
+                error_code: 'LAYOUT_ID_MISSING',
+                message: 'layout_id is required for Airport Display triggers'
+            });
+        }
+
+        var activeId = getActiveLayoutId();
+        if (activeId && String(activeId) === targetId) {
+            console.log(
+                'Airport Display Layout\n' +
+                'Target: ' + targetId + '\n' +
+                'Status: ALREADY_ACTIVE\n' +
+                'Slot: ' + (meta.slot_name || meta.slot_id || '')
+            );
+            return Promise.resolve({
+                ok: true,
+                switched: false,
+                layout_id: targetId,
+                via: 'already-active'
+            });
+        }
+
+        console.log(
+            'Airport Display Layout Switch\n' +
+            'From: ' + (activeId || '(unknown)') + '\n' +
+            'To: ' + targetId + '\n' +
+            'Slot: ' + (meta.slot_name || meta.slot_id || '') + '\n' +
+            'Loop: ' + !!(typeof isLoopLyt !== 'undefined' && isLoopLyt)
+        );
+
+        return new Promise(function (resolve) {
+            var finished = false;
+            var done = function (result) {
+                if (finished) return;
+                finished = true;
+                resolve(result);
+            };
+
+            var onSwitched = function (success, message) {
+                if (!success) {
+                    console.warn(
+                        'Airport Display Layout Switch Failed\n' +
+                        'Layout: ' + targetId + '\n' +
+                        'Reason: ' + (message || 'LAYOUT_SWITCH_FAILED')
+                    );
+                    done({
+                        ok: false,
+                        error_code: 'LAYOUT_SWITCH_FAILED',
+                        message: String(message || 'Layout switch failed'),
+                        layout_id: targetId
+                    });
+                    return;
+                }
+                // Confirm authoritative active layout id
+                if (typeof syncCurrentPlayLayoutID === 'function') {
+                    syncCurrentPlayLayoutID(targetId);
+                }
+                try { currentlytID = targetId; } catch (e) { /* ignore */ }
+
+                // Brief settle so getLayoutXML can append slots before we update.
+                setTimeout(function () {
+                    var nowActive = getActiveLayoutId();
+                    if (nowActive && String(nowActive) !== targetId) {
+                        console.warn(
+                            'Airport Display Layout Switch Failed\n' +
+                            'Layout: ' + targetId + '\n' +
+                            'Reason: LAYOUT_NOT_ACTIVE\n' +
+                            'Active: ' + nowActive
+                        );
+                        done({
+                            ok: false,
+                            error_code: 'LAYOUT_NOT_ACTIVE',
+                            message: 'Layout switch did not activate target layout',
+                            layout_id: targetId,
+                            active_layout_id: nowActive
+                        });
+                        return;
+                    }
+                    console.log(
+                        'Airport Display Layout Switch\n' +
+                        'Layout: ' + targetId + '\n' +
+                        'Player Response: SUCCESS'
+                    );
+                    done({
+                        ok: true,
+                        switched: true,
+                        layout_id: targetId,
+                        via: (typeof isLoopLyt !== 'undefined' && isLoopLyt)
+                            ? 'switchToLayoutTemporarilyInLoop'
+                            : 'switchToLayoutOffline'
+                    });
+                }, 150);
+            };
+
+            try {
+                if (typeof isLoopLyt !== 'undefined' && isLoopLyt &&
+                    typeof switchToLayoutTemporarilyInLoop === 'function') {
+                    switchToLayoutTemporarilyInLoop(targetId, onSwitched);
+                    return;
+                }
+                if (typeof switchToLayoutOffline === 'function') {
+                    switchToLayoutOffline(targetId, onSwitched, false);
+                    return;
+                }
+                done({
+                    ok: false,
+                    error_code: 'LAYOUT_SWITCH_UNAVAILABLE',
+                    message: 'No layout switch helper is available on the Player'
+                });
+            } catch (err) {
+                done({
+                    ok: false,
+                    error_code: 'LAYOUT_SWITCH_FAILED',
+                    message: String(err && err.message || err)
+                });
+            }
+        });
+    }
+
+    function enqueueLayoutTransition(taskFn) {
+        layoutTransitionQueue = layoutTransitionQueue.then(function () {
+            layoutTransitionBusy = true;
+            return Promise.resolve()
+                .then(taskFn)
+                .catch(function (err) {
+                    console.warn('Airport Display layout transition task failed:', err);
+                    return { ok: false, error_code: 'LAYOUT_TRANSITION_FAILED', message: String(err && err.message || err) };
+                })
+                .then(function (result) {
+                    layoutTransitionBusy = false;
+                    return result;
+                });
+        });
+        return layoutTransitionQueue;
     }
 
     /**
@@ -838,98 +1058,160 @@
         }
         var value = slot.value == null ? '' : String(slot.value);
         var slotType = (slot.slot_type || 'text').toLowerCase();
+        var layoutId = slot.layout_id != null ? String(slot.layout_id) : '';
 
-        var target = resolveSlotTarget(slot);
-        if (!target.ok) {
-            return Promise.resolve(target);
-        }
-
-        if (slot.slot_type && target.resolvedType &&
-            slot.slot_type !== target.resolvedType &&
-            !(slotType === 'template_variable' && target.resolvedType === 'text')) {
-            var textLike = ['text', 'ticker', 'fader', 'scroller', 'template_variable'];
-            if (!(textLike.indexOf(slotType) !== -1 && textLike.indexOf(target.resolvedType) !== -1) &&
-                !(slotType === 'media' && target.resolvedType === 'media')) {
-                return Promise.resolve({
-                    ok: false,
-                    error_code: 'SLOT_TYPE_MISMATCH',
-                    message: 'Expected ' + slot.slot_type + ' but found ' + target.resolvedType
-                });
-            }
-        }
-
-        try {
-            if (slotType === 'media' || target.resolvedType === 'media') {
-                return Promise.resolve(applyTemporaryMedia(slot, target)).then(function (r) {
-                    return r;
-                });
-            }
-
-            if (typeof updateTextSlotContent === 'function' && target.numericId) {
-                updateTextSlotContent(
-                    target.numericId,
-                    target.resolvedType || slotType,
-                    value,
-                    target.layoutId || slot.layout_id
-                );
-                return Promise.resolve({
-                    ok: true,
-                    via: 'updateTextSlotContent',
-                    layout_id: target.layoutId,
-                    slot_id: target.numericId
-                });
-            }
-
-            var $el = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
-            if ($el && $el.length) {
-                $el.html(value);
-                return Promise.resolve({
-                    ok: true,
-                    via: 'dom-html',
-                    layout_id: target.layoutId,
-                    slot_id: target.numericId
-                });
-            }
-        } catch (err) {
+        if (!layoutId) {
             return Promise.resolve({
                 ok: false,
-                error_code: 'APPLY_FAILED',
-                message: String(err && err.message || err)
+                error_code: 'LAYOUT_ID_MISSING',
+                message: 'layout_id is required; slot_name alone is not unique across layouts'
             });
         }
 
-        return Promise.resolve({
-            ok: false,
-            error_code: 'UNSUPPORTED_SLOT_TYPE',
-            message: 'Unable to apply slot update'
+        return ensureLayoutActive(layoutId, {
+            slot_id: slot.slot_id,
+            slot_name: slot.slot_name
+        }).then(function (layoutResult) {
+            if (!layoutResult || !layoutResult.ok) {
+                return layoutResult || {
+                    ok: false,
+                    error_code: 'LAYOUT_SWITCH_FAILED',
+                    message: 'Unable to activate target layout'
+                };
+            }
+
+            return waitForSlotDom(slot).then(function (target) {
+                if (!target.ok) {
+                    return target;
+                }
+
+                if (slot.slot_type && target.resolvedType &&
+                    slot.slot_type !== target.resolvedType &&
+                    !(slotType === 'template_variable' && target.resolvedType === 'text')) {
+                    var textLike = ['text', 'ticker', 'fader', 'scroller', 'template_variable'];
+                    if (!(textLike.indexOf(slotType) !== -1 && textLike.indexOf(target.resolvedType) !== -1) &&
+                        !(slotType === 'media' && target.resolvedType === 'media')) {
+                        return {
+                            ok: false,
+                            error_code: 'SLOT_TYPE_MISMATCH',
+                            message: 'Expected ' + slot.slot_type + ' but found ' + target.resolvedType
+                        };
+                    }
+                }
+
+                try {
+                    if (slotType === 'media' || target.resolvedType === 'media') {
+                        return Promise.resolve(applyTemporaryMedia(slot, target)).then(function (r) {
+                            if (r && typeof r === 'object') {
+                                r.layout_switched = !!layoutResult.switched;
+                                r.layout_id = layoutId;
+                            }
+                            return r;
+                        });
+                    }
+
+                    if (typeof updateTextSlotContent === 'function' && target.numericId) {
+                        updateTextSlotContent(
+                            target.numericId,
+                            target.resolvedType || slotType,
+                            value,
+                            layoutId
+                        );
+                        return {
+                            ok: true,
+                            via: 'updateTextSlotContent',
+                            layout_id: layoutId,
+                            slot_id: target.numericId,
+                            layout_switched: !!layoutResult.switched
+                        };
+                    }
+
+                    var $el = target.$el || (typeof $ !== 'undefined' ? $('#slot-' + target.numericId) : null);
+                    if ($el && $el.length) {
+                        $el.html(value);
+                        return {
+                            ok: true,
+                            via: 'dom-html',
+                            layout_id: layoutId,
+                            slot_id: target.numericId,
+                            layout_switched: !!layoutResult.switched
+                        };
+                    }
+                } catch (err) {
+                    return {
+                        ok: false,
+                        error_code: 'APPLY_FAILED',
+                        message: String(err && err.message || err)
+                    };
+                }
+
+                return {
+                    ok: false,
+                    error_code: 'UNSUPPORTED_SLOT_TYPE',
+                    message: 'Unable to apply slot update'
+                };
+            });
         });
+    }
+
+    function groupSlotsByLayout(slots) {
+        var groups = [];
+        var indexByLayout = {};
+        (slots || []).forEach(function (slot) {
+            var key = slot && slot.layout_id != null ? String(slot.layout_id) : '';
+            if (!Object.prototype.hasOwnProperty.call(indexByLayout, key)) {
+                indexByLayout[key] = groups.length;
+                groups.push({ layout_id: key, slots: [] });
+            }
+            groups[indexByLayout[key]].slots.push(slot);
+        });
+        return groups;
     }
 
     function applySlots(event) {
         var slots = event.slots || [];
         var results = [];
-        var chain = Promise.resolve();
-        slots.forEach(function (slot) {
-            chain = chain.then(function () {
-                return applySlotUpdate(slot).then(function (r) {
-                    results.push({
-                        layout_id: slot.layout_id || null,
-                        layout_name: slot.layout_name || '',
-                        slot_id: slot.slot_id || null,
-                        slot_name: slot.slot_name || '',
-                        slot_type: slot.slot_type || '',
-                        ok: !!(r && r.ok),
-                        error_code: r && r.error_code || null,
-                        message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
-                        via: r && r.via || null,
-                        media_mode: r && r.media_mode || null,
-                        temporary: !!(r && r.temporary),
-                        downloaded: !!(r && r.downloaded)
+        var groups = groupSlotsByLayout(slots);
+
+        return enqueueLayoutTransition(function () {
+            var chain = Promise.resolve();
+            groups.forEach(function (group) {
+                chain = chain.then(function () {
+                    var slotChain = Promise.resolve();
+                    group.slots.forEach(function (slot) {
+                        slotChain = slotChain.then(function () {
+                            return applySlotUpdate(slot).then(function (r) {
+                                results.push({
+                                    layout_id: slot.layout_id || null,
+                                    layout_name: slot.layout_name || '',
+                                    slot_id: slot.slot_id || null,
+                                    slot_name: slot.slot_name || '',
+                                    slot_type: slot.slot_type || '',
+                                    ok: !!(r && r.ok),
+                                    error_code: r && r.error_code || null,
+                                    message: r && r.message || (r && r.ok ? 'OK' : 'Failed'),
+                                    via: r && r.via || null,
+                                    media_mode: r && r.media_mode || null,
+                                    temporary: !!(r && r.temporary),
+                                    downloaded: !!(r && r.downloaded),
+                                    layout_switched: !!(r && r.layout_switched)
+                                });
+                            });
+                        });
+                    });
+                    return slotChain.then(function () {
+                        var anyOk = results.some(function (row) {
+                            return row.ok && String(row.layout_id || '') === String(group.layout_id || '');
+                        });
+                        if (anyOk && typeof restartLoopTimeoutForCurrentLayout === 'function') {
+                            // Content helpers may clear loopTimeout; restart once per layout group.
+                            restartLoopTimeoutForCurrentLayout('airport-display layout group complete');
+                        }
                     });
                 });
             });
+            return chain.then(function () { return results; });
         });
-        return chain.then(function () { return results; });
     }
 
     /**
@@ -1204,6 +1486,11 @@
         _collectMediaTriggerItems: collectMediaTriggerItems,
         _applyTemporaryMedia: applyTemporaryMedia,
         _resolveDownloadUrl: resolveDownloadUrl,
-        _isWebMediaPath: isWebMediaPath
+        _isWebMediaPath: isWebMediaPath,
+        _ensureLayoutActive: ensureLayoutActive,
+        _getActiveLayoutId: getActiveLayoutId,
+        _resolveSlotTarget: resolveSlotTarget,
+        _groupSlotsByLayout: groupSlotsByLayout,
+        _isLayoutTransitionBusy: function () { return !!layoutTransitionBusy; }
     };
 })(window);

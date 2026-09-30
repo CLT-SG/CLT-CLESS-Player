@@ -18,6 +18,9 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
             '/home/player/clessapp/res/boarding.jpg',
             '/opt/player/media/Welcome.mp4',
         ]);
+        let currentPlayLayoutID = (extras && extras.currentPlayLayoutID) || '12';
+        let currentlytID = (extras && extras.currentlytID) || currentPlayLayoutID;
+        const switchLog = (extras && extras._switchLog) || [];
         const sandbox = Object.assign({
             window: {},
             document: {
@@ -28,10 +31,34 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
             $: () => ({ length: 0, html: () => {}, attr: () => '', find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }) }),
             console,
             queueMicrotask,
+            setTimeout: (fn) => { fn(); return 1; },
+            clearTimeout: () => {},
             homedir: '/home/player',
+            isLoopLyt: true,
             fs: {
                 existsSync: (p) => existingFiles.has(String(p)),
             },
+            localStorage: {
+                getItem: (k) => (k === 'currentPlayLayoutID' ? currentPlayLayoutID : null),
+                setItem: () => {},
+            },
+            syncCurrentPlayLayoutID: (id) => {
+                currentPlayLayoutID = String(id);
+                currentlytID = String(id);
+            },
+            switchToLayoutTemporarilyInLoop: (layoutId, cb) => {
+                switchLog.push(String(layoutId));
+                currentPlayLayoutID = String(layoutId);
+                currentlytID = String(layoutId);
+                cb(true, 'ok');
+            },
+            switchToLayoutOffline: (layoutId, cb) => {
+                switchLog.push(String(layoutId));
+                currentPlayLayoutID = String(layoutId);
+                currentlytID = String(layoutId);
+                cb(true, 'ok');
+            },
+            restartLoopTimeoutForCurrentLayout: () => true,
             Audio: AudioImpl || function () {
                 this.addEventListener = () => {};
                 this.play = () => Promise.resolve();
@@ -43,6 +70,18 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
                 this.send = () => {};
             },
         }, extras || {});
+        Object.defineProperty(sandbox, 'currentPlayLayoutID', {
+            get: () => currentPlayLayoutID,
+            set: (v) => { currentPlayLayoutID = v; },
+            configurable: true,
+        });
+        Object.defineProperty(sandbox, 'currentlytID', {
+            get: () => currentlytID,
+            set: (v) => { currentlytID = v; },
+            configurable: true,
+        });
+        sandbox._switchLog = switchLog;
+        sandbox._getLayoutId = () => currentPlayLayoutID;
         sandbox.window = sandbox;
         vm.runInNewContext(code, sandbox);
         return sandbox.window.AirportDisplayPlayer;
@@ -274,6 +313,114 @@ describe('AirportDisplayPlayer media + multilingual TTS', () => {
         );
         assert.equal(empty.ok, false);
         assert.equal(empty.error_code, 'MEDIA_VALUE_MISSING');
+    });
+
+    it('requires layout_id and switches layout before updating slots', async () => {
+        const switchLog = [];
+        let currentPlayLayoutID = 'C';
+        let currentlytID = 'C';
+        let lastHtml = '';
+        const existingFiles = new Set([
+            '/home/player/clessapp/res/Welcome.mp4',
+            '/home/player/clessapp/res/boarding.jpg',
+        ]);
+        const code = fs.readFileSync(
+            path.join(__dirname, '..', 'src', 'assets', 'js', 'airport-display.js'),
+            'utf8'
+        );
+        const sandbox = {
+            window: {},
+            document: {
+                body: { contains: () => false, appendChild: () => {} },
+                getElementById: () => null,
+                createElement: () => ({ style: {}, id: '', innerHTML: '' }),
+            },
+            $: (sel) => {
+                if (String(sel) === '#slot-45' && String(currentPlayLayoutID) === 'A') {
+                    return {
+                        length: 1,
+                        html: (v) => { if (v !== undefined) lastHtml = v; return lastHtml; },
+                        attr: () => 'slot-45',
+                        find: () => ({ length: 1, first: () => ({ length: 1, on: () => {} }) }),
+                    };
+                }
+                return {
+                    length: 0,
+                    html: () => {},
+                    attr: () => '',
+                    find: () => ({ length: 0, first: () => ({ length: 0, on: () => {} }) }),
+                };
+            },
+            console,
+            queueMicrotask,
+            setTimeout: (fn) => { fn(); return 1; },
+            clearTimeout: () => {},
+            homedir: '/home/player',
+            isLoopLyt: true,
+            fs: { existsSync: (p) => existingFiles.has(String(p)) },
+            syncCurrentPlayLayoutID: (id) => {
+                currentPlayLayoutID = String(id);
+                currentlytID = String(id);
+            },
+            switchToLayoutTemporarilyInLoop: (layoutId, cb) => {
+                switchLog.push(String(layoutId));
+                currentPlayLayoutID = String(layoutId);
+                currentlytID = String(layoutId);
+                cb(true, 'ok');
+            },
+            restartLoopTimeoutForCurrentLayout: () => true,
+            updateTextSlotContent: () => {},
+            Audio: function () { this.addEventListener = () => {}; this.play = () => Promise.resolve(); this.pause = () => {}; },
+            XMLHttpRequest: function () { this.open = () => {}; this.setRequestHeader = () => {}; this.send = () => {}; },
+            localStorage: {
+                getItem: (k) => (k === 'currentPlayLayoutID' ? currentPlayLayoutID : null),
+                setItem: () => {},
+            },
+        };
+        Object.defineProperty(sandbox, 'currentPlayLayoutID', {
+            get: () => currentPlayLayoutID,
+            set: (v) => { currentPlayLayoutID = v; },
+            configurable: true,
+        });
+        Object.defineProperty(sandbox, 'currentlytID', {
+            get: () => currentlytID,
+            set: (v) => { currentlytID = v; },
+            configurable: true,
+        });
+        sandbox.window = sandbox;
+        vm.runInNewContext(code, sandbox);
+        const ADP = sandbox.window.AirportDisplayPlayer;
+
+        const missingLayout = await ADP.handle({
+            type: 'airport_display',
+            event_id: 'layout-missing-1',
+            slots: [{ slot_id: '45', slot_name: 'MainMedia', slot_type: 'text', value: 'Hi' }],
+            announcement: { enabled: false },
+        });
+        assert.equal(missingLayout.status, 'error');
+        assert.equal(missingLayout.slots[0].error_code, 'LAYOUT_ID_MISSING');
+
+        const result = await ADP.handle({
+            type: 'airport_display',
+            event_id: 'layout-switch-1',
+            slots: [{
+                layout_id: 'A',
+                layout_name: 'Layout A',
+                slot_id: '45',
+                slot_name: 'MainMedia',
+                slot_type: 'media',
+                media_mode: 'selected',
+                value: 'boarding.jpg',
+                media_items: [{ filename: 'boarding.jpg', path: 'boarding.jpg', selected: true, type: 'image' }],
+                temporary: true,
+            }],
+            announcement: { enabled: false },
+        });
+        assert.deepEqual(switchLog, ['A']);
+        assert.equal(currentPlayLayoutID, 'A');
+        assert.ok(result.slots[0].ok);
+        assert.equal(result.slots[0].layout_switched, true);
+        assert.match(lastHtml, /boarding\.jpg/);
     });
 
     it('downloads missing media via asset_url before applying', async () => {
