@@ -454,7 +454,10 @@ $(document).ready(function () {
     getAPILayout()
     if (typeof refreshFreezeStateHint === 'function') {
         refreshFreezeStateHint()
-        setInterval(refreshFreezeStateHint, 5000)
+        // Auto-refresh owned by ClessMonitoringService when available
+        if (!window.__CLESS_USE_MONITORING_SERVICE) {
+            setInterval(refreshFreezeStateHint, 5000)
+        }
     }
     getAPIText()  
     getAPIMedia()
@@ -489,22 +492,22 @@ $(document).ready(function () {
     // Load network interfaces and license status
     loadNetworkLicenseStatus()
     
-    // Set up intervals for monitoring
-    setInterval(function () {
-        deviceinfo()
-    }, 5000)
-    
-    // Refresh network license status every 30 seconds
-    setInterval(function () {
-        loadNetworkLicenseStatus()
-    }, 30000)
+    if (!window.__CLESS_USE_MONITORING_SERVICE) {
+        // Legacy polling fallback when centralized monitoring service is absent
+        setInterval(function () {
+            deviceinfo()
+        }, 5000)
 
-    // Set up system monitoring refresh
-    setInterval(function () {
-        refreshSystemStats()
-    }, 10000)
+        setInterval(function () {
+            loadNetworkLicenseStatus()
+        }, 30000)
+
+        setInterval(function () {
+            refreshSystemStats()
+        }, 10000)
+    }
     
-    // Set up real-time layout details monitoring
+    // Set up real-time layout details monitoring (socket listeners + optional interval)
     setupLayoutDetailsMonitoring()
 })
 
@@ -602,8 +605,10 @@ function setupLayoutDetailsMonitoring() {
     // Initial load
     refreshLayoutDetails()
     
-    // Set up periodic refresh (every 15 seconds)
-    layoutDetailsInterval = setInterval(refreshLayoutDetails, 15000)
+    // Periodic refresh — owned by MonitoringService when present
+    if (!window.__CLESS_USE_MONITORING_SERVICE) {
+        layoutDetailsInterval = setInterval(refreshLayoutDetails, 15000)
+    }
     
     // Listen for layout change events from socket if available
     if (typeof socket !== 'undefined' && socket) {
@@ -1057,7 +1062,11 @@ function setupEventHandlers() {
 
     // System monitoring
     $('#refreshMonitoring').click(function() {
-        refreshSystemMonitoring()
+        if (window.ClessMonitoringService) {
+            window.ClessMonitoringService.refreshNow(['system', 'deviceinfo', 'playback', 'networkLicense'])
+        } else {
+            refreshSystemMonitoring()
+        }
     })
     
     // Data usage reset handlers
@@ -1406,9 +1415,13 @@ function displayDiskInfo(diskData) {
 
 // System monitoring functions
 function startSystemMonitoring() {
-    // 5s sampling while Control Panel is open (supports dashboard sparklines)
-    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 5000)
     refreshSystemMonitoring() // Initial load
+    if (window.__CLESS_USE_MONITORING_SERVICE) {
+        // Centralized MonitoringService owns the recurring poll
+        return
+    }
+    // Legacy fallback: 5s sampling while Control Panel is open
+    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 5000)
 }
 
 function refreshSystemMonitoring() {

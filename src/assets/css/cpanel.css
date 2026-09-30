@@ -357,6 +357,10 @@ html[data-theme="dark"] .theme-icon-light {
 .app-content {
     padding: 1.25rem;
     flex: 1;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    box-sizing: border-box;
 }
 
 .spa-section[hidden] {
@@ -365,6 +369,7 @@ html[data-theme="dark"] .theme-icon-light {
 
 .spa-section.is-active {
     display: block;
+    width: 100%;
     animation: sectionIn 220ms ease;
 }
 
@@ -377,7 +382,8 @@ html[data-theme="dark"] .theme-icon-light {
     display: flex;
     flex-direction: column;
     gap: 1rem;
-    max-width: 1200px;
+    width: 100%;
+    max-width: none;
 }
 
 .panel-card {
@@ -460,6 +466,48 @@ html[data-theme="dark"] .theme-icon-light {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 0.75rem;
+    width: 100%;
+}
+
+.monitoring-updated {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    align-self: center;
+}
+
+.monitoring-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-secondary);
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.monitoring-live-badge.is-live {
+    color: var(--success);
+    border-color: color-mix(in srgb, var(--success) 35%, var(--border));
+}
+
+.monitoring-live-badge.is-live::before {
+    content: '';
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 22%, transparent);
+}
+
+.monitoring-live-badge.is-paused {
+    color: var(--warning);
+    border-color: color-mix(in srgb, var(--warning) 35%, var(--border));
 }
 
 .status-tile {
@@ -1101,6 +1149,89 @@ code.iface-mac {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0.75rem;
+    width: 100%;
+}
+
+/* Wide / ultrawide: use available horizontal space for monitoring layouts */
+@media (min-width: 1400px) {
+    .app-content {
+        padding: 1.35rem 1.5rem;
+    }
+
+    .status-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    .meter-grid {
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .info-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    }
+
+    .metrics-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+
+    .dc-module-grid {
+        grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    }
+
+    #section-dashboard .dashboard-stack {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    #section-dashboard .dashboard-stack > .overview-hero,
+    #section-dashboard .dashboard-stack > .panel-card.dashboard-span-full {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (min-width: 1920px) {
+    .status-grid {
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    /* Keep resource meters as a stable 3-up row on large screens */
+    .meter-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .dc-module-grid {
+        grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    }
+
+    /* Stay at 2 columns so Playback + Quick Controls sit side-by-side cleanly */
+    #section-dashboard .dashboard-stack {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 2560px) {
+    .app-content {
+        padding: 1.5rem 2rem;
+    }
+
+    .dc-module-grid {
+        grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    }
+
+    #section-dashboard .dashboard-stack {
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    }
+}
+
+@media (min-width: 3440px) {
+    .app-content {
+        padding: 1.5rem 2.25rem;
+    }
+
+    .dc-module-grid {
+        grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    }
 }
 
 .meter-card {

@@ -138,8 +138,8 @@
         <main class="app-content" id="appContent">
 
         <section id="section-dashboard" class="spa-section is-active" data-title="Dashboard">
-            <div class="section-stack">
-                <div class="panel-card overview-hero">
+            <div class="section-stack dashboard-stack">
+                <div class="panel-card overview-hero dashboard-span-full">
                     <div class="overview-hero-main">
                         <div>
                             <div class="eyebrow">Player Overview</div>
@@ -147,6 +147,8 @@
                             <p class="hero-sub" id="dashPlayerMeta">Awaiting device information…</p>
                         </div>
                         <div class="hero-actions">
+                            <span class="monitoring-live-badge is-live" id="monitoringLiveBadge">Auto-refresh on</span>
+                            <span class="monitoring-updated" data-monitoring-updated="both">Last Updated: —</span>
                             <button type="button" class="modern-btn btn-secondary btn-sm" data-proxy-click="#refreshMonitoring">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh
                             </button>
@@ -200,11 +202,12 @@
                     </div>
                 </div>
 
-                <div class="panel-card">
+                <div class="panel-card dashboard-span-full">
                     <div class="card-header">
                         <div class="card-icon"><i class="bi bi-speedometer2"></i></div>
                         <h2 class="card-title">System Resources</h2>
                         <div class="card-actions">
+                            <span class="monitoring-updated" data-monitoring-updated="ago">Updated —</span>
                             <button type="button" class="modern-btn btn-secondary btn-sm" id="refreshMonitoring">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh Data
                             </button>
@@ -261,7 +264,7 @@
                     </div>
                 </div>
 
-                <div class="panel-card">
+                <div class="panel-card dashboard-span-full">
                     <div class="card-header">
                         <div class="card-icon"><i class="bi bi-arrow-down-up"></i></div>
                         <h2 class="card-title">Data Usage</h2>
@@ -1405,6 +1408,7 @@
                             <p class="hero-sub" id="deviceHeroMeta">Hostname and network details appear when available.</p>
                         </div>
                         <div class="hero-actions">
+                            <span class="monitoring-updated" data-monitoring-updated="both">Last Updated: —</span>
                             <button type="button" class="modern-btn btn-secondary btn-sm" id="refreshDeviceStatus">
                                 <i class="bi bi-arrow-clockwise"></i> Refresh
                             </button>
@@ -1591,7 +1595,7 @@
                         </div>
                         <div id="dcDiagnosticsList" class="dc-diag-list"></div>
                         <div class="dc-diag-footer">
-                            <span id="dcDiagnosticsChecked" class="text-muted">Last checked: —</span>
+                            <span id="dcDiagnosticsChecked" class="text-muted" data-monitoring-updated="both">Last Updated: —</span>
                             <button type="button" class="modern-btn btn-secondary btn-sm" id="dcRunDiagnostics"
                                 data-dc-action="diagnostics:run">
                                 <i class="bi bi-activity"></i> Run Connection Test
@@ -2031,6 +2035,7 @@
     }
 </script>
 
+<script type="text/javascript" src="assets/js/cpanel/monitoring-service.js"></script>
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
 <script type="text/javascript" src="assets/js/cpanel.js"></script>
 <script type="text/javascript" src="assets/js/cpanel-spa.js"></script>

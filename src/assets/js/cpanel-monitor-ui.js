@@ -333,17 +333,23 @@
         setInterval(patchEnhanced, 2000);
 
         var btn = document.getElementById('refreshDeviceStatus');
-        if (btn) btn.addEventListener('click', refreshDeviceStatus);
-
-        // Faster sampling while dashboard/device pages are open
-        setInterval(function () {
-            var active = document.querySelector('.spa-section.is-active');
-            if (!active) return;
-            if (active.id === 'section-dashboard' || active.id === 'section-device') {
-                if (typeof window.refreshSystemMonitoring === 'function') {
-                    // Rely on existing 30s interval for API; sparklines update when data arrives.
+        if (btn) {
+            btn.addEventListener('click', function () {
+                if (window.ClessMonitoringService) {
+                    window.ClessMonitoringService.refreshNow();
+                } else {
+                    refreshDeviceStatus();
                 }
-            }
-        }, 5000);
+            });
+        }
+
+        // When monitoring data arrives, keep Last Updated indicators fresh
+        if (window.ClessMonitoringService && typeof window.ClessMonitoringService.subscribe === 'function') {
+            window.ClessMonitoringService.subscribe(function (event) {
+                if (event && event.type === 'updated') {
+                    window.ClessMonitoringService.updateLastUpdatedUi();
+                }
+            });
+        }
     });
 })(window, document, window.jQuery);

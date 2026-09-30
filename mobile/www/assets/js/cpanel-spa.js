@@ -115,11 +115,19 @@
             window.refreshAirportPanel();
         }
 
-        if (sectionId === 'device' && window.ClessMonitorUI && typeof window.ClessMonitorUI.refreshDeviceStatus === 'function') {
-            try {
-                window.ClessMonitorUI.refreshDeviceStatus();
-            } catch (err) {
-                console.warn('Device status refresh failed:', err);
+        if (window.ClessMonitoringService && typeof window.ClessMonitoringService.setActiveSection === 'function') {
+            window.ClessMonitoringService.setActiveSection(sectionId);
+        }
+
+        if (sectionId === 'device' || sectionId === 'dashboard') {
+            if (window.ClessMonitoringService) {
+                window.ClessMonitoringService.refreshNow(['playback', 'system', 'deviceinfo']);
+            } else if (sectionId === 'device' && window.ClessMonitorUI && typeof window.ClessMonitorUI.refreshDeviceStatus === 'function') {
+                try {
+                    window.ClessMonitorUI.refreshDeviceStatus();
+                } catch (err) {
+                    console.warn('Device status refresh failed:', err);
+                }
             }
         }
     }

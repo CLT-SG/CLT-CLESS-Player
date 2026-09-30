@@ -169,7 +169,7 @@
             row('Memory', mem) +
             row('Storage', disk);
 
-        if (stamp) {
+        if (stamp && !stamp.hasAttribute('data-monitoring-updated')) {
             var now = new Date();
             stamp.textContent = 'Last checked: ' +
                 now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -396,7 +396,20 @@
         bindDestructiveConfirmations();
         bindModuleActions();
         updateModuleStatuses();
-        setInterval(updateModuleStatuses, 3000);
+        if (window.ClessMonitoringService && typeof window.ClessMonitoringService.subscribe === 'function') {
+            window.ClessMonitoringService.subscribe(function (event) {
+                if (event && (event.type === 'updated' || event.type === 'started')) {
+                    updateModuleStatuses();
+                }
+            });
+            // Lightweight UI sync while device section is active (no API)
+            setInterval(function () {
+                var active = document.querySelector('.spa-section.is-active');
+                if (active && active.id === 'section-device') updateModuleStatuses();
+            }, 4000);
+        } else {
+            setInterval(updateModuleStatuses, 3000);
+        }
     }
 
     window.DeviceControlCenter = {
