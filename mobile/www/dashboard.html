@@ -1,4 +1,4 @@
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <!-- Viewport meta for mobile (MUST come first) -->
@@ -14,6 +14,9 @@
     <!-- CSS -->
     <link href="assets/css/bootstrap.min.css" rel="stylesheet" id="bootstrap-css">
     <link href="assets/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link href="assets/css/cpanel.css" rel="stylesheet">
 
     <!-- ========================================
@@ -47,42 +50,234 @@
 </head>
 
 <body>
-    <!-- Mobile Navigation -->
-    <div id="mobile-nav-back" style="position: fixed; top: 10px; left: 10px; z-index: 10000;">
-        <button onclick="window.location.href='index.html'" style="padding: 10px 15px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-            <i class="bi bi-arrow-left"></i> Back to Player
-        </button>
-    </div>
-
-    <div class="dashboard-container">
-        <!-- Dashboard Header -->
-        <header class="dashboard-header">
-            <h1 class="dashboard-title">
-                <i class="bi bi-display"></i>
-                eCLESS Player Dashboard
-            </h1>
-            <p class="dashboard-subtitle">Advanced Control Panel & System Monitor</p>
+<div class="app-shell">
+    <aside id="appSidebar" class="sidebar" aria-label="Primary">
+        <div class="sidebar-brand">
+            <div class="brand-mark"><i class="bi bi-display"></i></div>
+            <div class="brand-text">
+                <div class="brand-name">CLESS Player</div>
+                <div class="brand-sub">Control Panel</div>
+            </div>
+            <button type="button" class="sidebar-collapse-btn" id="sidebarCollapseBtn" title="Collapse sidebar" aria-label="Collapse sidebar">
+                <i class="bi bi-layout-sidebar-inset"></i>
+            </button>
+        </div>
+        <div class="sidebar-status" id="sidebarPlayerStatus">
+            <span class="status-dot status-dot-success"></span>
+            <span class="status-text">Online</span>
+        </div>
+        <nav class="sidebar-nav">
+                    <button type="button" class="nav-item is-active" data-nav="dashboard" aria-current="page">
+                        <i class="bi bi-grid-1x2"></i>
+                        <span class="nav-label">Dashboard</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="player" aria-current="false">
+                        <i class="bi bi-controller"></i>
+                        <span class="nav-label">Player</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="layout" aria-current="false">
+                        <i class="bi bi-layout-text-window"></i>
+                        <span class="nav-label">Layout</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="slots" aria-current="false">
+                        <i class="bi bi-ui-checks-grid"></i>
+                        <span class="nav-label">Slots</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="media" aria-current="false">
+                        <i class="bi bi-play-circle"></i>
+                        <span class="nav-label">Media</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="airport" aria-current="false">
+                        <i class="bi bi-airplane"></i>
+                        <span class="nav-label">Airport</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="tts" aria-current="false">
+                        <i class="bi bi-soundwave"></i>
+                        <span class="nav-label">TTS</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="api" aria-current="false">
+                        <i class="bi bi-code-slash"></i>
+                        <span class="nav-label">API</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="preview" aria-current="false">
+                        <i class="bi bi-display"></i>
+                        <span class="nav-label">Preview</span>
+                    </button>
+                    <button type="button" class="nav-item" data-nav="settings" aria-current="false">
+                        <i class="bi bi-gear"></i>
+                        <span class="nav-label">Settings</span>
+                    </button>
+        </nav>
+        <div class="sidebar-footer">
+            <button type="button" class="theme-toggle" id="themeToggle" title="Toggle theme" aria-label="Toggle light and dark theme">
+                <i class="bi bi-sun-fill theme-icon-light"></i>
+                <i class="bi bi-moon-stars-fill theme-icon-dark"></i>
+                <span class="theme-toggle-label">Theme</span>
+            </button>
+        </div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+    <div class="app-main">
+        <header class="topbar">
+            <div id="mobile-nav-back" class="mobile-nav-back"></div>
+            <button type="button" class="topbar-menu-btn" id="sidebarOpenBtn" aria-label="Open menu">
+                <i class="bi bi-list"></i>
+            </button>
+            <div class="topbar-title-wrap">
+                <h1 class="topbar-title" id="sectionTitle">Dashboard</h1>
+                <p class="topbar-subtitle" id="sectionSubtitle">Overview and system health</p>
+            </div>
+            <div class="topbar-actions">
+                <button type="button" class="theme-toggle theme-toggle-compact" id="themeToggleMobile" title="Toggle theme" aria-label="Toggle theme">
+                    <i class="bi bi-sun-fill theme-icon-light"></i>
+                    <i class="bi bi-moon-stars-fill theme-icon-dark"></i>
+                </button>
+                <div id="connection-status-slot"></div>
+            </div>
         </header>
+        <main class="app-content" id="appContent">
 
-        <!-- Main Dashboard Grid -->
-        <div class="dashboard-grid">
-            <!-- On View Section -->
-            <div class="dashboard-card" style="grid-column: 1 / -2;">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-play-circle-fill"></i>
-                    </div>
-                    <h2 class="card-title">On View</h2>
+        <section id="section-dashboard" class="spa-section is-active" data-title="Dashboard" >
+            <div class="section-stack">
+
+            <div class="status-grid dashboard-status-grid">
+                <div class="status-tile">
+                    <div class="status-tile-label">Connection</div>
+                    <div id="dashboardConnectionStatus" class="status-tile-value"><span class="status-dot status-dot-success"></span> Online</div>
                 </div>
-                <div class="remote-display" id="remoteDisplayContainer">
-                    <iframe id="remote-display" width="100%" height="100%"
-                        style="border: none; border-radius: var(--border-radius-sm);"></iframe>
+                <div class="status-tile">
+                    <div class="status-tile-label">Freeze</div>
+                    <div id="dashboardFreezeStatus" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> Inactive</div>
+                </div>
+                <div class="status-tile">
+                    <div class="status-tile-label">CPU</div>
+                    <div class="status-tile-value"><span id="dashCpuUsage">—</span></div>
+                </div>
+                <div class="status-tile">
+                    <div class="status-tile-label">Memory</div>
+                    <div class="status-tile-value"><span id="dashMemUsage">—</span></div>
+                </div>
+            </div>
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-lightning"></i></div>
+                    <h2 class="card-title">Quick Controls</h2>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refresh"><i class="bi bi-arrow-clockwise"></i> Refresh</button>
+                    <button type="button" class="modern-btn btn-secondary" data-proxy-click="#refreshLayout"><i class="bi bi-layout-three-columns"></i> Refresh Layout</button>
+                    <button type="button" class="modern-btn" data-proxy-click="#restartapp"><i class="bi bi-bootstrap-reboot"></i> Restart App</button>
+                    <button type="button" class="modern-btn btn-secondary" data-nav-jump="preview"><i class="bi bi-display"></i> Open Preview</button>
+                </div>
+                <p class="text-secondary mt-3">Full player, layout, slot, and system controls are available in the side menu.</p>
+            </div>
+            <div class="panel-card">
+<div class="card-header">
+                <div class="card-icon">
+                    <i class="bi bi-graph-up"></i>
+                </div>
+                <h2 class="card-title">System Monitoring</h2>
+            </div>
+            <button type="button" class="modern-btn btn-secondary" id="refreshMonitoring">
+                <i class="bi bi-arrow-clockwise"></i>
+                Refresh Data
+            </button>
+            <div class="metrics-grid">
+                <div class="metric-card">
+                    <div class="metric-value" id="cpuUsage">0%</div>
+                    <div class="metric-label">CPU Usage</div>
+                    <div class="progress-modern">
+                        <div id="cpuProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="memoryUsage">0%</div>
+                    <div class="metric-label">Memory Usage</div>
+                    <div class="progress-modern">
+                        <div id="memoryProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="diskUsage">Loading...</div>
+                    <div class="metric-label">Disk Usage</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="networkStats">Loading...</div>
+                    <div class="metric-label">Network</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-value" id="dataUsageTotal">Loading...</div>
+                    <div class="metric-label">Data Usage (Total)</div>
                 </div>
             </div>
 
-            <!-- Remote Control Section -->
-            <div class="dashboard-card">
-                <div class="card-header">
+            <!-- Data Usage Management Section -->
+            <div class="mt-4">
+                <h3 class="card-title mb-3">
+                    <i class="bi bi-arrow-down-up"></i>
+                    Data Usage Management
+                </h3>
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="data-usage-breakdown">
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-download"></i>
+                                    Today's Download:
+                                </span>
+                                <span id="dailyDownload" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-upload"></i>
+                                    Today's Upload:
+                                </span>
+                                <span id="dailyUpload" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-calendar-month"></i>
+                                    Monthly Total:
+                                </span>
+                                <span id="monthlyTotal" class="usage-value">0 MB</span>
+                            </div>
+                            <div class="usage-breakdown-item">
+                                <span class="usage-label">
+                                    <i class="bi bi-infinity"></i>
+                                    All-time Total:
+                                </span>
+                                <span id="totalUsage" class="usage-value">0 MB</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="data-usage-controls">
+                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetDailyUsage">
+                                <i class="bi bi-arrow-clockwise"></i>
+                                Reset Daily
+                            </button>
+                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetMonthlyUsage">
+                                <i class="bi bi-calendar-x"></i>
+                                Reset Monthly
+                            </button>
+                            <button type="button" class="modern-btn btn-danger btn-sm" id="resetTotalUsage">
+                                <i class="bi bi-trash"></i>
+                                Reset All Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+
+            </div>
+        </section>
+
+        <section id="section-player" class="spa-section" data-title="Player" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
+<div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-controller"></i>
                     </div>
@@ -96,6 +291,10 @@
                     <button type="button" class="modern-btn" id="restartapp">
                         <i class="bi bi-bootstrap-reboot"></i>
                         Restart App
+                    </button>
+                    <button type="button" class="modern-btn btn-info" id="checkForUpdates">
+                        <i class="bi bi-cloud-download"></i>
+                        Check for Updates
                     </button>
                     <button type="button" class="modern-btn btn-warning" id="reboot">
                         <i class="bi bi-power"></i>
@@ -160,122 +359,14 @@
                 </div>
             </div>
 
-            <!-- System Configuration Section -->
-            <div class="dashboard-card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-gear"></i>
-                    </div>
-                    <h2 class="card-title">System Configuration</h2>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="autoStartup" style="margin-right: 0.5rem;">
-                                Auto Start on Boot
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="fullscreenMode" style="margin-right: 0.5rem;">
-                                Fullscreen Mode
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="screenTimeout">Screen Timeout (minutes):</label>
-                            <input type="number" id="screenTimeout" class="form-control" value="0" min="0" max="1440">
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label" for="updateInterval">Update Interval (seconds):</label>
-                            <input type="number" id="updateInterval" class="form-control" value="30" min="10"
-                                max="3600">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="logLevel">Log Level:</label>
-                            <select id="logLevel" class="select-modern">
-                                <option value="error">Error</option>
-                                <option value="warn">Warning</option>
-                                <option value="info" selected>Info</option>
-                                <option value="debug">Debug</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Enhanced Configuration Section -->
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <label class="form-label" for="clessHostname">CLESS Server Hostname:</label>
-                            <input type="url" id="clessHostname" class="form-control"
-                                placeholder="https://cless4.closed-loop.biz/demo"
-                                title="Enter the CLESS server URL (e.g., https://example.com)">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="row">
-                    <div class="col-md-12">
-                        <div class="form-group">
-                            <label class="form-label" for="serialKey">Serial Key:</label>
-                            <input type="text" id="serialKey" class="form-control"
-                                placeholder="Enter new serial key to update"
-                                title="Enter the license serial key for activation">
-                            <small class="form-text text-muted">Leave empty to keep current key unchanged</small>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Network Interfaces & License Status -->
-                <div class="row mt-3">
-                    <div class="col-md-12">
-                        <div class="card network-license-card">
-                            <div class="card-header bg-primary text-white">
-                                <i class="bi bi-ethernet"></i> Network Interfaces & License Status
-                            </div>
-                            <div class="card-body">
-                                <div id="networkLicenseStatus" class="loading">Loading network interfaces...</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label" for="corsOptions">CORS Options:</label>
-                            <select id="corsOptions" class="select-modern"
-                                title="Enable CORS proxy if blocked by Antivirus or Firewall">
-                                <option value="N">No (Default)</option>
-                                <option value="Y">Yes (Enable CORS Proxy)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label class="form-label" for="dsId">DS ID (Digital Signage ID):</label>
-                            <input type="number" id="dsId" class="form-control" placeholder="10" min="1" max="9999"
-                                title="Enter a numeric Digital Signage ID (1-9999)">
-                        </div>
-                    </div>
-                </div>
-                <div class="control-grid">
-                    <button type="button" class="modern-btn btn-success" id="saveConfig">
-                        <i class="bi bi-check-circle"></i>
-                        Save Configuration
-                    </button>
-                    <button type="button" class="modern-btn btn-secondary" id="loadConfig">
-                        <i class="bi bi-upload"></i>
-                        Load Configuration
-                    </button>
-                </div>
             </div>
+        </section>
 
-            <!-- Enhanced Layout Management Section -->
-            <div class="dashboard-card layout-management-card" style="grid-column: 2 / -2;">
-                <div class="card-header">
+        <section id="section-layout" class="spa-section" data-title="Layout" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card layout-management-card">
+<div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-diagram-3"></i>
                     </div>
@@ -296,11 +387,8 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Text Management Section -->
-            <div class="dashboard-card">
-
-                <!-- Layout Switching Actions -->
+            <div class="panel-card">
+<!-- Layout Switching Actions -->
                 <div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-arrow-left-right"></i>
@@ -367,9 +455,44 @@
                             <i class="bi bi-arrow-repeat"></i>
                             Switch Layout
                         </button>
+                        <button type="button" class="modern-btn btn-secondary btnResumeLayout"
+                                title="Resume the normal layout loop and clear Airport Display freeze (GET /api/resume-layout)"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top">
+                            <i class="bi bi-play-circle"></i>
+                            Resume Layout Loop
+                        </button>
+                    </div>
+                    <div class="form-group mt-2">
+                        <label for="freezeTimeoutSelect" class="form-label text-muted" style="font-size:0.85rem;">
+                            Freeze timeout (after text/media replace)
+                        </label>
+                        <select id="freezeTimeoutSelect" class="select-modern"
+                                title="How long to freeze the layout loop after a Control Panel / API slot replace. Default: forever."
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top">
+                            <option value="forever" selected>forever (until Resume)</option>
+                            <option value="0">0 (no freeze)</option>
+                            <option value="30">30 seconds</option>
+                            <option value="60">60 seconds</option>
+                            <option value="120">120 seconds</option>
+                            <option value="300">300 seconds</option>
+                            <option value="600">600 seconds</option>
+                        </select>
+                        <div id="freezeStateHint" class="text-muted mt-1" style="font-size:0.8rem;">Freeze: inactive</div>
                     </div>
                 </div>
 
+
+            </div>
+
+            </div>
+        </section>
+
+        <section id="section-slots" class="spa-section" data-title="Slots" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
                 <!-- Text Management Section -->
                 <div class="card-header">
                     <div class="card-icon">
@@ -392,20 +515,20 @@
                         
                         <div class="api-endpoint-compact">
                             <span class="method-badge">GET</span>
-                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                            <code>/api/replace-text?slotname={slotName}&amp;text={textContent}&amp;freeze_timeout={forever|seconds}</code>
                         </div>
                         
                         <div class="help-examples">
                             <strong>Examples:</strong>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=title&amp;text=Welcome%20to%20eCLESS&amp;freeze_timeout=forever</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS&freeze_timeout=forever')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!')">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=news&amp;text=Breaking%20News!&amp;freeze_timeout=60</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!&freeze_timeout=60')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
@@ -413,7 +536,7 @@
                         
                         <div class="help-notes">
                             <i class="bi bi-lightbulb"></i>
-                            <strong>Tip:</strong> Text content must be URL encoded. Spaces become %20, special characters require encoding.
+                            <strong>Tip:</strong> <code>freeze_timeout</code> defaults to <code>forever</code> (layout loop stays on the triggered layout until <code>GET /api/resume-layout</code>). Use a number of seconds for automatic resume.
                         </div>
                     </div>
                 </div>
@@ -443,79 +566,6 @@
                     </button>
                 </div>
 
-                <!-- Media Management Section -->
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-play-circle"></i>
-                    </div>
-                    <h2 class="card-title">Media Management</h2>
-                    <div class="card-actions">
-                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleMediaHelp()">
-                            <i class="bi bi-question-circle"></i>
-                            API Help
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Media Management Help Panel -->
-                <div id="mediaManagementHelp" class="api-help-panel" style="display: none;">
-                    <div class="help-content">
-                        <h4><i class="bi bi-info-circle"></i> Media Replacement API</h4>
-                        <p>Replace media files in any media slot with files from your resource folder:</p>
-                        
-                        <div class="api-endpoint-compact">
-                            <span class="method-badge">GET</span>
-                            <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
-                        </div>
-                        
-                        <div class="help-examples">
-                            <strong>Examples:</strong>
-                            <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                            </div>
-                            <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg')">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div class="help-notes">
-                            <i class="bi bi-lightbulb"></i>
-                            <strong>Important:</strong> Media files must exist in <code>~/clessapp/res/</code> directory.
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="apiMedia" class="mb-3 loading">Loading media slots...</div>
-                <div class="form-group">
-                    <select class="select-modern" id="replaceMediaList"
-                            title="Select a media slot to update. Shows available media slots from your layouts"
-                            data-bs-toggle="tooltip" 
-                            data-bs-placement="top">
-                        <option selected>Select media slot - Slot Name | Slot Text</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <select class="select-modern" id="mediaFilesList" 
-                            style="margin-bottom: 0;"
-                            title="Select a media file from your ~/clessapp/res/ directory to use as replacement"
-                            data-bs-toggle="tooltip" 
-                            data-bs-placement="top">
-                        <option selected>Select media filename</option>
-                    </select>
-                    <button type="button" class="modern-btn btnReplaceMedia"
-                            title="Replace media in the selected slot using the /api/replace-media endpoint"
-                            data-bs-toggle="tooltip" 
-                            data-bs-placement="top">
-                        <i class="bi bi-arrow-repeat"></i>
-                        Replace
-                    </button>
-                </div>
 
                 <!-- Ticker Management Section -->
                 <div class="card-header">
@@ -743,22 +793,275 @@
                 </div>
             </div>
 
-            <!-- API Documentation Section -->
-            <div class="dashboard-card api-documentation-card" style="grid-column: 1 / -1;">
+            </div>
+        </section>
+
+        <section id="section-media" class="spa-section" data-title="Media" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
+                <!-- Media Management Section -->
                 <div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-play-circle"></i>
+                    </div>
+                    <h2 class="card-title">Media Management</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleMediaHelp()">
+                            <i class="bi bi-question-circle"></i>
+                            API Help
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Media Management Help Panel -->
+                <div id="mediaManagementHelp" class="api-help-panel" style="display: none;">
+                    <div class="help-content">
+                        <h4><i class="bi bi-info-circle"></i> Media Replacement API</h4>
+                        <p>Replace media files in any media slot with files from your resource folder:</p>
+                        
+                        <div class="api-endpoint-compact">
+                            <span class="method-badge">GET</span>
+                            <code>/api/replace-media?slotname={slotName}&amp;filename={fileName}&amp;freeze_timeout={forever|seconds}</code>
+                        </div>
+                        
+                        <div class="help-examples">
+                            <strong>Examples:</strong>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=video1&amp;filename=promo.mp4&amp;freeze_timeout=forever</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4&freeze_timeout=forever')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="example-item">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=bg&amp;filename=logo.jpg&amp;freeze_timeout=60</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg&freeze_timeout=60')">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="help-notes">
+                            <i class="bi bi-lightbulb"></i>
+                            <strong>Important:</strong> Media files must exist in <code>~/clessapp/res/</code>. <code>freeze_timeout</code> defaults to <code>forever</code>.
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="apiMedia" class="mb-3 loading">Loading media slots...</div>
+                <div class="form-group">
+                    <select class="select-modern" id="replaceMediaList"
+                            title="Select a media slot to update. Shows available media slots from your layouts"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select media slot - Slot Name | Slot Text</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <select class="select-modern" id="mediaFilesList" 
+                            style="margin-bottom: 0;"
+                            title="Select a media file from your ~/clessapp/res/ directory to use as replacement"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <option selected>Select media filename</option>
+                    </select>
+                    <button type="button" class="modern-btn btnReplaceMedia"
+                            title="Replace media in the selected slot using the /api/replace-media endpoint"
+                            data-bs-toggle="tooltip" 
+                            data-bs-placement="top">
+                        <i class="bi bi-arrow-repeat"></i>
+                        Replace
+                    </button>
+                </div>
+
+
+            </div>
+
+            </div>
+        </section>
+
+        <section id="section-airport" class="spa-section" data-title="Airport Display" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-airplane"></i></div>
+                    <h2 class="card-title">Airport Display</h2>
+                    <div class="card-actions">
+                        <button type="button" class="modern-btn btn-secondary btn-sm" id="refreshAirportStatus">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                <div class="status-grid">
+                    <div class="status-tile">
+                        <div class="status-tile-label">Player Health</div>
+                        <div id="airportHealthStatus" class="status-tile-value">
+                            <span class="status-dot status-dot-neutral"></span> Checking…
+                        </div>
+                    </div>
+                    <div class="status-tile">
+                        <div class="status-tile-label">Freeze State</div>
+                        <div id="airportFreezeStatus" class="status-tile-value">
+                            <span class="status-dot status-dot-neutral"></span> —
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group mt-3">
+                    <p class="text-secondary">Freeze timeout and Resume Layout Loop controls are available in the Layout section. Slot and media replaces use the selected freeze timeout.</p>
+                    <div class="control-grid">
+                        <button type="button" class="modern-btn btn-secondary" data-nav-jump="layout">
+                            <i class="bi bi-layout-text-window"></i> Open Layout Controls
+                        </button>
+                        <button type="button" class="modern-btn btn-secondary btnResumeLayout">
+                            <i class="bi bi-play-circle"></i> Resume Layout Loop
+                        </button>
+                    </div>
+                </div>
+                <div class="card-header mt-4">
+                    <div class="card-icon"><i class="bi bi-diagram-3"></i></div>
+                    <h2 class="card-title">Discovered Layouts</h2>
+                </div>
+                <div id="airportLayoutsList" class="loading">Loading airport layouts…</div>
+            </div>
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-snow"></i></div>
+                    <h2 class="card-title">Freeze &amp; Trigger API</h2>
+                </div>
+                <div class="api-help-panel" style="display:block;">
+<!-- Airport Display Freeze APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-snow"></i>
+                            Airport Display Layout + Slot Freeze &amp; TTS Repeat
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/airport-display/freeze</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Read current layout freeze state and documentation.</p>
+                            <p><strong>Layout + Slot property:</strong> <code>freeze_timeout</code> — type <code>string|number</code> — default <code>forever</code>. Belongs to Layout + Slot Updates (not TTS).</p>
+                            <p><strong>Values:</strong> <code>forever</code>, <code>0</code>, <code>30</code>, <code>60</code>, <code>120</code>, <code>300</code>, <code>600</code>, …</p>
+                            <p><strong>forever:</strong> Remain on the triggered layout until <code>GET /api/resume-layout</code>.</p>
+                            <p><strong>TTS property:</strong> <code>announcement.repeat</code> — type <code>number</code> — default <code>1</code> — max <code>9</code>. Total plays of the full language sequence (reuse same audio URLs).</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example (layout+slot freeze + TTS repeat):</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": "forever", "announcement": { "enabled": true, "repeat": 2, "languages": [...] } }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Finite freeze:</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "freeze_timeout": 60 }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Status:</span>
+                                    <code class="api-url">https://localhost:9000/api/airport-display/freeze</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/airport-display/freeze')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Resume loop:</span>
+                                    <code class="api-url">https://localhost:9000/api/resume-layout</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/resume-layout')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/resume-layout</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Clear Airport Display freeze and resume the normal layout loop (required when <code>freeze_timeout=forever</code>). Does not affect TTS repeat.</p>
+                        </div>
+                    </div>
+
+                    
+                </div>
+            </div>
+
+            </div>
+        </section>
+
+        <section id="section-tts" class="spa-section" data-title="TTS" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-soundwave"></i></div>
+                    <h2 class="card-title">TTS Announcements</h2>
+                </div>
+                <p class="text-secondary">Airport Display TTS is driven by the <code>announcement</code> object on trigger payloads. Audio URLs are pre-rendered; the player plays languages in order.</p>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Property</div>
+                        <div class="info-value"><code>announcement.repeat</code></div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Type</div>
+                        <div class="info-value">number</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Default</div>
+                        <div class="info-value">1</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Max</div>
+                        <div class="info-value">9</div>
+                    </div>
+                </div>
+                <div class="api-endpoint-compact mt-3">
+                    <span class="method-badge method-post">POST</span>
+                    <code>/api/airport-display</code>
+                </div>
+                <pre class="code-block mt-3">{
+  "announcement": {
+    "enabled": true,
+    "repeat": 2,
+    "languages": [
+      { "language": "en", "order": 1, "text": "...", "audio_url": "..." },
+      { "language": "zh", "order": 2, "text": "...", "audio_url": "..." }
+    ]
+  }
+}</pre>
+                <p class="text-secondary mt-3"><code>announcement.repeat</code> is independent of <code>freeze_timeout</code>. Freeze belongs to Layout + Slot updates.</p>
+                <div class="control-grid mt-3">
+                    <button type="button" class="modern-btn btn-secondary" id="openTtsTriggerModal">
+                        <i class="bi bi-send"></i> Send Test Announcement
+                    </button>
+                </div>
+                <div id="ttsLastResponse" class="mt-3 text-secondary">No announcement sent yet.</div>
+            </div>
+
+            </div>
+        </section>
+
+        <section id="section-api" class="spa-section" data-title="API" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card api-documentation-card">
+<div class="card-header">
                     <div class="card-icon">
                         <i class="bi bi-code-slash"></i>
                     </div>
                     <h2 class="card-title">eCLESS Player API Documentation</h2>
                     <div class="card-actions">
                         <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleApiDocumentation()">
-                            <i class="bi bi-chevron-down" id="apiDocToggleIcon"></i>
-                            <span id="apiDocToggleText">Show</span>
+                            <i class="bi bi-chevron-up" id="apiDocToggleIcon"></i>
+                            <span id="apiDocToggleText">Hide</span>
                         </button>
                     </div>
                 </div>
                 
-                <div id="apiDocumentationContent" class="api-documentation-content" style="display: none;">
+                <div id="apiDocumentationContent" class="api-documentation-content" >
                     <div class="api-intro">
                         <p class="text-muted">The eCLESS Player provides REST API endpoints for programmatic control of the system. Use these URLs to integrate with external systems or automate content management.</p>
                     </div>
@@ -798,16 +1101,16 @@
                         <div class="api-endpoint">
                             <div class="endpoint-method">GET</div>
                             <div class="endpoint-url">
-                                <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                                <code>/api/replace-text?slotname={slotName}&amp;text={textContent}&amp;freeze_timeout={forever|seconds}</code>
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Replace text content in a specific text slot across all layouts.</p>
+                            <p>Replace text content in a specific text slot. Optional <code>freeze_timeout</code> freezes the layout loop after the update (default: <code>forever</code>).</p>
                             <div class="api-examples">
                                 <div class="code-example">
                                     <span class="example-label">Example:</span>
-                                    <code class="api-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
-                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                    <code class="api-url">https://localhost:9000/api/replace-text?slotname=title&amp;text=Welcome%20to%20eCLESS&amp;freeze_timeout=forever</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS&freeze_timeout=forever')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
@@ -817,20 +1120,74 @@
                         <div class="api-endpoint">
                             <div class="endpoint-method">GET</div>
                             <div class="endpoint-url">
-                                <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
+                                <code>/api/replace-media?slotname={slotName}&amp;filename={fileName}&amp;freeze_timeout={forever|seconds}</code>
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Replace media content in a specific media slot with a file from the resource folder.</p>
+                            <p>Replace media content in a specific media slot with a file from the resource folder. Optional <code>freeze_timeout</code> (default: <code>forever</code>).</p>
                             <div class="api-examples">
                                 <div class="code-example">
                                     <span class="example-label">Example:</span>
-                                    <code class="api-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
-                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
+                                    <code class="api-url">https://localhost:9000/api/replace-media?slotname=video1&amp;filename=promo.mp4&amp;freeze_timeout=60</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4&freeze_timeout=60')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Airport Display Freeze APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-snow"></i>
+                            Airport Display Layout + Slot Freeze &amp; TTS Repeat
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/airport-display/freeze</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Read current layout freeze state and documentation.</p>
+                            <p><strong>Layout + Slot property:</strong> <code>freeze_timeout</code> — type <code>string|number</code> — default <code>forever</code>. Belongs to Layout + Slot Updates (not TTS).</p>
+                            <p><strong>Values:</strong> <code>forever</code>, <code>0</code>, <code>30</code>, <code>60</code>, <code>120</code>, <code>300</code>, <code>600</code>, …</p>
+                            <p><strong>forever:</strong> Remain on the triggered layout until <code>GET /api/resume-layout</code>.</p>
+                            <p><strong>TTS property:</strong> <code>announcement.repeat</code> — type <code>number</code> — default <code>1</code> — max <code>9</code>. Total plays of the full language sequence (reuse same audio URLs).</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example (layout+slot freeze + TTS repeat):</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": "forever", "announcement": { "enabled": true, "repeat": 2, "languages": [...] } }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Finite freeze:</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "freeze_timeout": 60 }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Status:</span>
+                                    <code class="api-url">https://localhost:9000/api/airport-display/freeze</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/airport-display/freeze')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Resume loop:</span>
+                                    <code class="api-url">https://localhost:9000/api/resume-layout</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/resume-layout')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/resume-layout</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Clear Airport Display freeze and resume the normal layout loop (required when <code>freeze_timeout=forever</code>). Does not affect TTS repeat.</p>
                         </div>
                     </div>
 
@@ -1065,121 +1422,190 @@
                                 <li><strong>File Requirements:</strong> Media files must exist in the <code>~/clessapp/res/</code> directory</li>
                                 <li><strong>HTTPS:</strong> The API uses HTTPS with self-signed certificates</li>
                                 <li><strong>Response:</strong> Most endpoints return simple text responses</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
                                 <li><strong>CORS:</strong> Cross-origin requests are enabled for web integration</li>
                             </ul>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- System Monitoring Section -->
-        <div class="dashboard-card" style="grid-column: 1 / -1;">
-            <div class="card-header">
-                <div class="card-icon">
-                    <i class="bi bi-graph-up"></i>
-                </div>
-                <h2 class="card-title">System Monitoring</h2>
             </div>
-            <button type="button" class="modern-btn btn-secondary" id="refreshMonitoring">
-                <i class="bi bi-arrow-clockwise"></i>
-                Refresh Data
-            </button>
-            <div class="metrics-grid">
-                <div class="metric-card">
-                    <div class="metric-value" id="cpuUsage">0%</div>
-                    <div class="metric-label">CPU Usage</div>
-                    <div class="progress-modern">
-                        <div id="cpuProgressBar" class="progress-bar-modern" style="width: 0%"></div>
+        </section>
+
+        <section id="section-preview" class="spa-section" data-title="Preview" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card panel-card-preview">
+                <div class="card-header">
+                    <div class="card-icon"><i class="bi bi-display"></i></div>
+                    <h2 class="card-title">Live Preview</h2>
+                    <div class="card-actions">
+                        <span id="previewResolutionBadge" class="status-chip status-neutral">Detecting…</span>
                     </div>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="memoryUsage">0%</div>
-                    <div class="metric-label">Memory Usage</div>
-                    <div class="progress-modern">
-                        <div id="memoryProgressBar" class="progress-bar-modern" style="width: 0%"></div>
-                    </div>
+                <div class="preview-meta">
+                    <span id="displayDetails" class="preview-display-details">Monitor aspect ratio follows the player display.</span>
                 </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="diskUsage">Loading...</div>
-                    <div class="metric-label">Disk Usage</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="networkStats">Loading...</div>
-                    <div class="metric-label">Network</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-value" id="dataUsageTotal">Loading...</div>
-                    <div class="metric-label">Data Usage (Total)</div>
+                <div class="remote-display" id="remoteDisplayContainer">
+                    <iframe id="remote-display" width="100%" height="100%"
+                        style="border: none; border-radius: var(--border-radius-sm);"></iframe>
                 </div>
             </div>
 
-            <!-- Data Usage Management Section -->
-            <div class="mt-4">
-                <h3 class="card-title mb-3">
-                    <i class="bi bi-arrow-down-up"></i>
-                    Data Usage Management
-                </h3>
+            </div>
+        </section>
+
+        <section id="section-settings" class="spa-section" data-title="Settings" hidden>
+            <div class="section-stack">
+
+            <div class="panel-card">
+<div class="card-header">
+                    <div class="card-icon">
+                        <i class="bi bi-gear"></i>
+                    </div>
+                    <h2 class="card-title">System Configuration</h2>
+                </div>
                 <div class="row">
-                    <div class="col-md-8">
-                        <div class="data-usage-breakdown">
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-download"></i>
-                                    Today's Download:
-                                </span>
-                                <span id="dailyDownload" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-upload"></i>
-                                    Today's Upload:
-                                </span>
-                                <span id="dailyUpload" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-calendar-month"></i>
-                                    Monthly Total:
-                                </span>
-                                <span id="monthlyTotal" class="usage-value">0 MB</span>
-                            </div>
-                            <div class="usage-breakdown-item">
-                                <span class="usage-label">
-                                    <i class="bi bi-infinity"></i>
-                                    All-time Total:
-                                </span>
-                                <span id="totalUsage" class="usage-value">0 MB</span>
-                            </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoStartup" style="margin-right: 0.5rem;">
+                                Auto Start on Boot
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="fullscreenMode" style="margin-right: 0.5rem;">
+                                Fullscreen Mode
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="screenTimeout">Screen Timeout (minutes):</label>
+                            <input type="number" id="screenTimeout" class="form-control" value="0" min="0" max="1440">
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="data-usage-controls">
-                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetDailyUsage">
-                                <i class="bi bi-arrow-clockwise"></i>
-                                Reset Daily
-                            </button>
-                            <button type="button" class="modern-btn btn-warning btn-sm mb-2" id="resetMonthlyUsage">
-                                <i class="bi bi-calendar-x"></i>
-                                Reset Monthly
-                            </button>
-                            <button type="button" class="modern-btn btn-danger btn-sm" id="resetTotalUsage">
-                                <i class="bi bi-trash"></i>
-                                Reset All Data
-                            </button>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="updateInterval">Update Interval (seconds):</label>
+                            <input type="number" id="updateInterval" class="form-control" value="30" min="10"
+                                max="3600">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="logLevel">Log Level:</label>
+                            <select id="logLevel" class="select-modern">
+                                <option value="error">Error</option>
+                                <option value="warn">Warning</option>
+                                <option value="info" selected>Info</option>
+                                <option value="debug">Debug</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoCheckUpdates" style="margin-right: 0.5rem;" checked>
+                                Auto Check for App Updates
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="autoInstallUpdates" style="margin-right: 0.5rem;">
+                                Auto Install &amp; Restart Updates (unattended)
+                            </label>
+                            <small class="form-text text-muted">For airport displays: download and restart without confirmation.</small>
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Device Information Section -->
-        <div class="dashboard-card" style="grid-column: 1 / -1;">
-            <div class="card-header">
+                <div class="row mt-2">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label">App Update Status</label>
+                            <div id="appUpdateStatus" class="alert alert-secondary mb-2" role="status">
+                                Checking for updates...
+                            </div>
+                            <div class="control-grid">
+                                <button type="button" class="modern-btn btn-info" id="checkForUpdatesSecondary">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                    Check for Updates
+                                </button>
+                                <button type="button" class="modern-btn btn-success" id="installUpdateBtn" disabled>
+                                    <i class="bi bi-download"></i>
+                                    Restart to Apply Update
+                                </button>
+                            </div>
+                            <small class="form-text text-muted" id="appVersionLabel">Player version: —</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Enhanced Configuration Section -->
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label" for="clessHostname">CLESS Server Hostname:</label>
+                            <input type="url" id="clessHostname" class="form-control"
+                                placeholder="https://cless4.closed-loop.biz/demo"
+                                title="Enter the CLESS server URL (e.g., https://example.com)">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label class="form-label" for="serialKey">Serial Key:</label>
+                            <input type="text" id="serialKey" class="form-control"
+                                placeholder="Enter new serial key to update"
+                                title="Enter the license serial key for activation">
+                            <small class="form-text text-muted">Leave empty to keep current key unchanged</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Network Interfaces & License Status -->
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <div class="card network-license-card">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-ethernet"></i> Network Interfaces & License Status
+                            </div>
+                            <div class="card-body">
+                                <div id="networkLicenseStatus" class="loading">Loading network interfaces...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="corsOptions">CORS Options:</label>
+                            <select id="corsOptions" class="select-modern"
+                                title="Enable CORS proxy if blocked by Antivirus or Firewall">
+                                <option value="N">No (Default)</option>
+                                <option value="Y">Yes (Enable CORS Proxy)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="dsId">DS ID (Digital Signage ID):</label>
+                            <input type="number" id="dsId" class="form-control" placeholder="10" min="1" max="9999"
+                                title="Enter a numeric Digital Signage ID (1-9999)">
+                        </div>
+                    </div>
+                </div>
+                <div class="control-grid">
+                    <button type="button" class="modern-btn btn-success" id="saveConfig">
+                        <i class="bi bi-check-circle"></i>
+                        Save Configuration
+                    </button>
+                    <button type="button" class="modern-btn btn-secondary" id="loadConfig">
+                        <i class="bi bi-upload"></i>
+                        Load Configuration
+                    </button>
+                </div>
+            </div>
+            <div class="panel-card">
+<div class="card-header">
                 <div class="card-icon">
                     <i class="bi bi-cpu"></i>
                 </div>
@@ -1371,7 +1797,11 @@
                 </div>
             </div>
 
-            <!-- Media Cache Management (Mobile Only) -->
+            </div>
+            </div>
+        
+            <div class="panel-card" id="mediaCachePanelWrap">
+<!-- Media Cache Management (Mobile Only) -->
             <div class="row" id="mediaCacheSection" style="display: none;">
                 <div class="col-12">
                     <h3 class="card-title">
@@ -1403,26 +1833,29 @@
                                 <div class="stat-value" id="downloadCount">0</div>
                             </div>
                         </div>
-                        
-                        <!-- Cache Actions -->
-                        <div class="btn-group mb-3" style="display: flex; gap: 10px;">
-                            <button class="modern-btn btn-secondary" onclick="refreshMediaCache()">
-                                <i class="bi bi-arrow-clockwise"></i> Refresh
-                            </button>
-                            <button class="modern-btn btn-warning" onclick="clearMediaCache()">
-                                <i class="bi bi-trash"></i> Clear Cache
-                            </button>
-                        </div>
-                        
-                        <!-- Cached Files List -->
-                        <div id="cachedFilesList" class="loading">Loading cached files...</div>
-                    </div>
-                </div>
             </div>
+
+        </section>
+
+        </main>
+    </div>
+</div>
+
+<!-- App modal (confirm / forms) -->
+<div class="app-modal" id="appModal" hidden>
+    <div class="app-modal-backdrop" data-modal-close></div>
+    <div class="app-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="appModalTitle">
+        <div class="app-modal-header">
+            <h3 id="appModalTitle">Confirm</h3>
+            <button type="button" class="icon-btn" data-modal-close aria-label="Close">&times;</button>
         </div>
+        <div class="app-modal-body" id="appModalBody"></div>
+        <div class="app-modal-footer" id="appModalFooter"></div>
     </div>
-    </div>
+</div>
+
 </body>
+
 
 <!-- Mobile Media Manager -->
 <script src="assets/js/mobile/mobile-media-manager.js"></script>
@@ -1559,5 +1992,5 @@
 
 <script type="text/javascript" src="assets/js/cpanel/cpanel-enhanced.js"></script>
 <script type="text/javascript" src="assets/js/cpanel.js"></script>
-
+<script type="text/javascript" src="assets/js/cpanel-spa.js"></script>
 </html>

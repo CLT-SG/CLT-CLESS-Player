@@ -203,59 +203,88 @@ class DisplayOrientationManager {
     }
 
     updateOrientationFromWindow() {
-        const width = window.screen.width || window.innerWidth;
-        const height = window.screen.height || window.innerHeight;
-        this.setOrientation(width, height);
-        console.log(`Window orientation detected: ${this.currentOrientation} (${width}x${height})`);
+        // Browser window/screen size is not the player monitor — use 16:9 fallback
+        console.warn('Player monitor resolution unavailable; using 16:9 preview fallback');
+        this.setOrientation(1920, 1080);
     }
 
     setOrientation(width, height) {
-        // Remove existing orientation classes
-        this.remoteDisplayContainer.classList.remove('landscape', 'portrait', 'square', 'ultra-wide', 'multi-display');
-        
-        const ratio = width / height;
-        
-        // Enhanced orientation detection for multi-display scenarios
+        if (!this.remoteDisplayContainer) {
+            return;
+        }
+
+        // Remove existing orientation / aspect helper classes
+        const staleAspectClasses = Array.from(this.remoteDisplayContainer.classList)
+            .filter((cls) => cls.indexOf('aspect-') === 0);
+        this.remoteDisplayContainer.classList.remove(
+            'landscape', 'portrait', 'square', 'ultra-wide', 'multi-display', ...staleAspectClasses
+        );
+
+        let safeWidth = Number(width);
+        let safeHeight = Number(height);
+        let usedFallback = false;
+
+        if (!isFinite(safeWidth) || !isFinite(safeHeight) || safeWidth <= 0 || safeHeight <= 0) {
+            // Safe responsive fallback when monitor resolution is unavailable/invalid
+            safeWidth = 1920;
+            safeHeight = 1080;
+            usedFallback = true;
+            console.warn('Invalid monitor resolution; falling back to 16:9 preview');
+        }
+
+        const ratio = safeWidth / safeHeight;
+
+        // Orientation labels (preview sizing uses the exact ratio, not fixed 16:9 / 9:16)
         if (Math.abs(ratio - 1) < 0.1) {
-            // Square-ish (ratio close to 1:1)
             this.currentOrientation = 'square';
         } else if (ratio > 2.5) {
-            // Ultra-wide (likely multi-display horizontal arrangement)
             this.currentOrientation = 'ultra-wide';
             this.remoteDisplayContainer.classList.add('multi-display');
-        } else if (ratio > 1.6) {
-            // Wide landscape (could be dual horizontal displays)
+        } else if (ratio > 1) {
             this.currentOrientation = 'landscape';
             if (ratio > 2.0) {
                 this.remoteDisplayContainer.classList.add('multi-display');
             }
-        } else if (ratio > 1.2) {
-            // Standard landscape
-            this.currentOrientation = 'landscape';
         } else if (ratio < 0.4) {
-            // Very tall portrait (likely multi-display vertical arrangement)
             this.currentOrientation = 'portrait';
             this.remoteDisplayContainer.classList.add('multi-display');
-        } else if (ratio < 0.8) {
-            // Portrait (height significantly larger than width)
-            this.currentOrientation = 'portrait';
         } else {
-            // Default to landscape for borderline cases
-            this.currentOrientation = 'landscape';
+            this.currentOrientation = 'portrait';
         }
-        
-        // Apply the orientation class
+
         this.remoteDisplayContainer.classList.add(this.currentOrientation);
-        
-        // Add aspect ratio class for fine-tuned styling
-        const aspectRatioClass = `aspect-${Math.round(ratio * 100)}`;
-        this.remoteDisplayContainer.classList.add(aspectRatioClass);
-        
-        // Store current dimensions for reference
-        this.currentDimensions = { width, height, ratio };
-        
-        // Update display info if available
-        this.updateDisplayInfoText(width, height);
+
+        // Exact monitor aspect ratio — avoids forcing every preview into 16:9 or 9:16
+        this.remoteDisplayContainer.style.aspectRatio = `${safeWidth} / ${safeHeight}`;
+        this.remoteDisplayContainer.style.height = 'auto';
+        this.remoteDisplayContainer.style.width = '100%';
+        this.remoteDisplayContainer.style.maxWidth = '100%';
+
+        // Portrait previews should shrink width so they fit the panel without cropping
+        if (ratio < 1) {
+            const maxH = Math.min(window.innerHeight * 0.7, 720);
+            const parentWidth = (this.remoteDisplayContainer.parentElement && this.remoteDisplayContainer.parentElement.clientWidth) || window.innerWidth;
+            const fittedWidth = Math.min(parentWidth, maxH * ratio);
+            this.remoteDisplayContainer.style.width = `${Math.max(160, fittedWidth)}px`;
+            this.remoteDisplayContainer.style.maxHeight = `${maxH}px`;
+        } else {
+            this.remoteDisplayContainer.style.maxHeight = `${Math.min(window.innerHeight * 0.7, 720)}px`;
+        }
+
+        this.remoteDisplayContainer.classList.add(`aspect-${Math.round(ratio * 100)}`);
+        this.currentDimensions = { width: safeWidth, height: safeHeight, ratio, usedFallback };
+        this.updateDisplayInfoText(safeWidth, safeHeight);
+        this.updatePreviewResolutionBadge(safeWidth, safeHeight, usedFallback);
+    }
+
+    updatePreviewResolutionBadge(width, height, usedFallback) {
+        const badge = document.getElementById('previewResolutionBadge');
+        if (!badge) return;
+        const orientationText = this.currentOrientation.charAt(0).toUpperCase() + this.currentOrientation.slice(1);
+        const ratioLabel = (width / height).toFixed(2);
+        badge.textContent = usedFallback
+            ? `Fallback 16:9 · ${width}×${height}`
+            : `${width}×${height} · ${orientationText} · ${ratioLabel}`;
     }
 
     updateDisplayInfoText(width, height) {
@@ -371,25 +400,17 @@ class DisplayOrientationManager {
     }
 
     handleResponsiveResize() {
-        // Adjust behavior based on screen size
-        const screenWidth = window.innerWidth;
-        
-        if (screenWidth <= 480) {
-            // Mobile: prioritize space efficiency
-            this.remoteDisplayContainer.style.minHeight = '150px';
-        } else if (screenWidth <= 768) {
-            // Tablet: balanced approach
-            this.remoteDisplayContainer.style.minHeight = '200px';
-        } else {
-            // Desktop: full experience
-            this.remoteDisplayContainer.style.minHeight = '280px';
+        if (!this.remoteDisplayContainer) return;
+
+        // Re-apply current monitor ratio so the preview stays undistorted
+        if (this.currentDimensions && this.currentDimensions.width && this.currentDimensions.height) {
+            this.setOrientation(this.currentDimensions.width, this.currentDimensions.height);
         }
-        
-        // Re-detect orientation on significant resize
+
+        const screenWidth = window.innerWidth;
         if (Math.abs(screenWidth - (this.lastScreenWidth || screenWidth)) > 100) {
             setTimeout(() => this.detectDisplayOrientation(), 100);
         }
-        
         this.lastScreenWidth = screenWidth;
     }
 
