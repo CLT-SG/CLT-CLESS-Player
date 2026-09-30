@@ -313,4 +313,62 @@ describe('AirportDisplayPlayer', () => {
         assert.equal(AD.isFrozen(), false);
         assert.equal(sandbox._restartCount, before);
     });
+
+    it('normalizes announcement.repeat to 1–9 total plays', () => {
+        const sandbox = loadModule();
+        const AD = sandbox.window.AirportDisplayPlayer;
+        assert.equal(AD.normalizeAnnouncementRepeat(null), 1);
+        assert.equal(AD.normalizeAnnouncementRepeat(0), 1);
+        assert.equal(AD.normalizeAnnouncementRepeat(3), 3);
+        assert.equal(AD.normalizeAnnouncementRepeat(9), 9);
+        assert.equal(AD.normalizeAnnouncementRepeat(10), 9);
+        assert.equal(AD.normalizeAnnouncementRepeat('2'), 2);
+    });
+
+    it('plays the full language sequence repeat times and reuses audio URLs', async () => {
+        const playLog = [];
+        const sandbox = loadModule({
+            Audio: function (url) {
+                this.url = url;
+                playLog.push(url);
+                this.addEventListener = (evt, cb) => {
+                    if (evt === 'ended') {
+                        setTimeout(cb, 0);
+                    }
+                };
+                this.play = () => Promise.resolve();
+                this.pause = () => {};
+            },
+        });
+        // Immediate short timers already fire; also fire 0ms ended callbacks.
+        const origSetTimeout = sandbox.setTimeout;
+        sandbox.setTimeout = (fn, ms) => {
+            const id = origSetTimeout(fn, ms);
+            if (ms === 0) {
+                try { fn(); } catch (e) { /* ignore */ }
+            }
+            return id;
+        };
+
+        const AD = sandbox.window.AirportDisplayPlayer;
+        const summary = await AD._playLanguageSequence({
+            event_id: 'rep-1',
+            repeat: 3,
+            languages: [
+                { language: 'en', order: 1, audio_url: 'https://example.com/en.mp3' },
+                { language: 'ms', order: 2, audio_url: 'https://example.com/ms.mp3' },
+            ],
+        });
+        assert.equal(summary.repeat, 3);
+        assert.equal(playLog.length, 6);
+        assert.deepEqual(playLog, [
+            'https://example.com/en.mp3',
+            'https://example.com/ms.mp3',
+            'https://example.com/en.mp3',
+            'https://example.com/ms.mp3',
+            'https://example.com/en.mp3',
+            'https://example.com/ms.mp3',
+        ]);
+        assert.equal(summary.played, 6);
+    });
 });

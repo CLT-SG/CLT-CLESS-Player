@@ -15,12 +15,15 @@
  *   announcement: {
  *     enabled, text,                    // primary language (first in order)
  *     language?, voice?, audio_url?,   // single-language (legacy)
- *     languages?: [{ language, voice, order, text, audio_url }]
+ *     languages?: [{ language, voice, order, text, audio_url }],
+ *     repeat?: 1..9                     // total plays of the full language sequence (default 1)
  *   }
+ *   freeze_timeout?: "forever" | seconds  // Layout + Slot freeze (not TTS)
  *
  * languages[] is the playback queue. Each entry has its own text and audio
  * file. Playback follows `order` (the operator's language order). A failure
  * for one language is reported and the next language still plays.
+ * `repeat` replays the full language sequence that many times (reuse same URLs).
  * }
  *
  * Media triggers update runtime medialoop / DOM only — they do NOT persist
@@ -1447,6 +1450,26 @@
         return [];
     }
 
+    function normalizeAnnouncementRepeat(raw) {
+        if (raw == null || raw === '') {
+            return 1;
+        }
+        var n = Number(raw);
+        if (!isFinite(n)) {
+            console.warn('Airport Display invalid announcement.repeat; defaulting to 1:', raw);
+            return 1;
+        }
+        n = Math.floor(n);
+        if (n < 1) {
+            return 1;
+        }
+        if (n > 9) {
+            console.warn('Airport Display announcement.repeat capped at 9:', raw);
+            return 9;
+        }
+        return n;
+    }
+
     function enqueueAnnouncement(event) {
         var ann = event.announcement || {};
         if (!ann.enabled) return;
@@ -1466,17 +1489,27 @@
             });
             return;
         }
+        var repeat = normalizeAnnouncementRepeat(ann.repeat);
         // Keep languages that have no audio so they are reported in order,
         // while the playable languages still play around them.
         announcementQueue.push({
             event_id: event.event_id,
             text: ann.text || '',
-            languages: languages
+            languages: languages,
+            repeat: repeat
         });
+        console.log(
+            'Airport Display Announcement Queued\n' +
+            'Event ID: ' + (event.event_id || '') + '\n' +
+            'Languages: ' + languages.length + '\n' +
+            'Repeat (total plays): ' + repeat + '\n' +
+            'Freeze timeout: ' + (event.freeze_timeout != null ? event.freeze_timeout : '(default)')
+        );
         reportStatus({
             event_id: event.event_id,
             status: 'queued',
             phase: 'announcement',
+            repeat: repeat,
             languages: languages.map(function (l) {
                 return { language: l.language, order: l.order, text: l.text || '' };
             })
@@ -1516,60 +1549,107 @@
     }
 
     function playLanguageSequence(job) {
-        var results = [];
+        var totalRepeat = normalizeAnnouncementRepeat(job && job.repeat);
+        var allResults = [];
         var chain = Promise.resolve();
-        (job.languages || []).forEach(function (lang) {
-            chain = chain.then(function () {
-                if (!lang.audio_url) {
-                    results.push({
-                        language: lang.language,
-                        order: lang.order,
-                        ok: false,
-                        error_code: 'AUDIO_URL_MISSING'
-                    });
+        var passIndex = 0;
+
+        function playOnePass(passNumber) {
+            var results = [];
+            var passChain = Promise.resolve();
+            console.log(
+                'Airport Display Announcement Repeat\n' +
+                'Event ID: ' + (job.event_id || '') + '\n' +
+                'Current repetition: ' + passNumber + '\n' +
+                'Total repetitions: ' + totalRepeat
+            );
+            reportStatus({
+                event_id: job.event_id,
+                status: 'repeat_pass',
+                phase: 'announcement',
+                current_repetition: passNumber,
+                total_repetitions: totalRepeat,
+                message: 'Announcement pass ' + passNumber + ' of ' + totalRepeat
+            });
+            (job.languages || []).forEach(function (lang) {
+                passChain = passChain.then(function () {
+                    if (!lang.audio_url) {
+                        results.push({
+                            language: lang.language,
+                            order: lang.order,
+                            ok: false,
+                            error_code: 'AUDIO_URL_MISSING',
+                            repetition: passNumber
+                        });
+                        reportStatus({
+                            event_id: job.event_id,
+                            status: 'language_failed',
+                            phase: 'announcement',
+                            language: lang.language,
+                            order: lang.order,
+                            repetition: passNumber,
+                            total_repetitions: totalRepeat,
+                            error_code: 'AUDIO_URL_MISSING',
+                            message: 'No audio for ' + lang.language
+                        });
+                        return false;
+                    }
                     reportStatus({
                         event_id: job.event_id,
-                        status: 'language_failed',
+                        status: 'playing',
                         phase: 'announcement',
                         language: lang.language,
                         order: lang.order,
-                        error_code: 'AUDIO_URL_MISSING',
-                        message: 'No audio for ' + lang.language
+                        repetition: passNumber,
+                        total_repetitions: totalRepeat,
+                        message: 'Playing ' + lang.language + ' (pass ' + passNumber + '/' + totalRepeat + ')'
                     });
-                    return false;
-                }
-                reportStatus({
-                    event_id: job.event_id,
-                    status: 'playing',
-                    phase: 'announcement',
-                    language: lang.language,
-                    order: lang.order,
-                    message: 'Playing ' + lang.language
-                });
-                return playAudioUrl(lang.audio_url).then(function (ok) {
-                    results.push({
-                        language: lang.language,
-                        order: lang.order,
-                        ok: !!ok,
-                        error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
+                    // Reuse the same cached/generated audio_url for each repetition.
+                    return playAudioUrl(lang.audio_url).then(function (ok) {
+                        results.push({
+                            language: lang.language,
+                            order: lang.order,
+                            ok: !!ok,
+                            error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED',
+                            repetition: passNumber
+                        });
+                        reportStatus({
+                            event_id: job.event_id,
+                            status: ok ? 'language_completed' : 'language_failed',
+                            phase: 'announcement',
+                            language: lang.language,
+                            order: lang.order,
+                            repetition: passNumber,
+                            total_repetitions: totalRepeat,
+                            error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
+                        });
+                        return ok;
                     });
-                    reportStatus({
-                        event_id: job.event_id,
-                        status: ok ? 'language_completed' : 'language_failed',
-                        phase: 'announcement',
-                        language: lang.language,
-                        order: lang.order,
-                        error_code: ok ? null : 'AUDIO_PLAYBACK_FAILED'
-                    });
-                    // Continue to the next language even if this one fails.
-                    return ok;
                 });
             });
-        });
+            return passChain.then(function () {
+                allResults = allResults.concat(results);
+                return results;
+            });
+        }
+
+        for (passIndex = 1; passIndex <= totalRepeat; passIndex++) {
+            (function (n) {
+                chain = chain.then(function () {
+                    return playOnePass(n);
+                });
+            })(passIndex);
+        }
+
         return chain.then(function () {
-            var played = results.filter(function (r) { return r.ok; }).length;
-            var failed = results.length - played;
-            return { played: played, failed: failed, results: results };
+            var played = allResults.filter(function (r) { return r.ok; }).length;
+            var failed = allResults.length - played;
+            return {
+                played: played,
+                failed: failed,
+                results: allResults,
+                repeat: totalRepeat
+            };
         });
     }
 
@@ -1705,6 +1785,7 @@
         activateFreeze: activateLayoutFreeze,
         resumeFreeze: resumeLayoutFreeze,
         normalizeFreezeTimeout: normalizeFreezeTimeout,
+        normalizeAnnouncementRepeat: normalizeAnnouncementRepeat,
         FREEZE_PRESETS: FREEZE_PRESETS.slice(),
         _normalizeAnnouncementLanguages: normalizeAnnouncementLanguages,
         _playLanguageSequence: playLanguageSequence,

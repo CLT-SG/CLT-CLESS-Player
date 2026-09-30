@@ -874,7 +874,7 @@
                     <div class="api-section">
                         <h3 class="api-section-title">
                             <i class="bi bi-snow"></i>
-                            Airport Display Freeze APIs
+                            Airport Display Layout + Slot Freeze &amp; TTS Repeat
                         </h3>
                         <div class="api-endpoint">
                             <div class="endpoint-method">GET</div>
@@ -883,19 +883,19 @@
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Read current layout freeze state and <code>freeze_timeout</code> documentation.</p>
-                            <p><strong>Property:</strong> <code>freeze_timeout</code> — type <code>string|number</code> — default <code>forever</code>.</p>
+                            <p>Read current layout freeze state and documentation.</p>
+                            <p><strong>Layout + Slot property:</strong> <code>freeze_timeout</code> — type <code>string|number</code> — default <code>forever</code>. Belongs to Layout + Slot Updates (not TTS).</p>
                             <p><strong>Values:</strong> <code>forever</code>, <code>0</code>, <code>30</code>, <code>60</code>, <code>120</code>, <code>300</code>, <code>600</code>, …</p>
                             <p><strong>forever:</strong> Remain on the triggered layout until <code>GET /api/resume-layout</code>.</p>
-                            <p><strong>number:</strong> Remain frozen for N seconds after successful layout+slot update, then resume the normal layout loop.</p>
+                            <p><strong>TTS property:</strong> <code>announcement.repeat</code> — type <code>number</code> — default <code>1</code> — max <code>9</code>. Total plays of the full language sequence (reuse same audio URLs).</p>
                             <div class="api-examples">
                                 <div class="code-example">
-                                    <span class="example-label">Example request (Airport Display JSON):</span>
-                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": "forever" }</code>
+                                    <span class="example-label">Example (layout+slot freeze + TTS repeat):</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": "forever", "announcement": { "enabled": true, "repeat": 2, "languages": [...] } }</code>
                                 </div>
                                 <div class="code-example">
-                                    <span class="example-label">Finite timeout:</span>
-                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": 60 }</code>
+                                    <span class="example-label">Finite freeze:</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "freeze_timeout": 60 }</code>
                                 </div>
                                 <div class="code-example">
                                     <span class="example-label">Status:</span>
@@ -920,7 +920,7 @@
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Clear Airport Display freeze and resume the normal layout loop (required when <code>freeze_timeout=forever</code>).</p>
+                            <p>Clear Airport Display freeze and resume the normal layout loop (required when <code>freeze_timeout=forever</code>). Does not affect TTS repeat.</p>
                         </div>
                     </div>
 

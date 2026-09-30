@@ -748,10 +748,20 @@ return (async function () {
                         property: 'freeze_timeout',
                         type: 'string|number',
                         default: 'forever',
+                        scope: 'layout_slot_update',
                         values: ['forever', 0, 30, 60, 120, 300, 600],
                         meaning: {
                             forever: 'Remain on triggered layout until GET /api/resume-layout',
                             number: 'Remain frozen for N seconds after successful layout+slot update, then resume loop'
+                        },
+                        note: 'freeze_timeout belongs to Layout + Slot Updates, not TTS Announcement',
+                        announcement_repeat: {
+                            property: 'announcement.repeat',
+                            type: 'number',
+                            default: 1,
+                            min: 1,
+                            max: 9,
+                            meaning: 'Total plays of the full multi-language announcement sequence (reuse same audio URLs)'
                         },
                         resume: 'GET /api/resume-layout',
                         example_forever: {
@@ -759,14 +769,16 @@ return (async function () {
                             slot_id: '45',
                             slot_type: 'media',
                             value: 'boarding.jpg',
-                            freeze_timeout: 'forever'
+                            freeze_timeout: 'forever',
+                            announcement: { enabled: true, repeat: 1 }
                         },
                         example_finite: {
                             layout_id: '12',
                             slot_id: '45',
                             slot_type: 'media',
                             value: 'boarding.jpg',
-                            freeze_timeout: 60
+                            freeze_timeout: 60,
+                            announcement: { enabled: true, repeat: 3 }
                         }
                     }
                 })
