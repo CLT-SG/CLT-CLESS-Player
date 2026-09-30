@@ -1,13 +1,35 @@
 console.log('=== CONTROL PANEL: Starting initialization ===')
-var socket = io()
 var systemMonitoringInterval
 var configData = {}
 
-// Debug function for development-only logging  
-const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind(console) : () => {}
+// Debug function for development-only logging (function declaration avoids TDZ if init is interrupted)
+function debug() {
+    if (localStorage.getItem('ecless-debug') === 'true') {
+        console.log.apply(console, arguments)
+    }
+}
 
-console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
-socket.emit('save id', 'Controlpanel:')
+// Socket.IO may be unavailable outside the Electron/player host — keep the rest of the panel usable.
+var socket = null
+try {
+    if (typeof io === 'function') {
+        socket = io()
+        console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
+        socket.emit('save id', 'Controlpanel:')
+    } else {
+        console.warn('=== CONTROL PANEL: Socket.IO client unavailable; realtime updates disabled ===')
+    }
+} catch (socketErr) {
+    console.warn('=== CONTROL PANEL: Socket.IO init failed ===', socketErr)
+}
+if (!socket) {
+    socket = {
+        connected: false,
+        on: function () { return this },
+        emit: function () { return this },
+        off: function () { return this }
+    }
+}
 
 // --- App update status (GitHub Releases / electron-updater) ---
 function renderAppUpdateStatus(status) {
@@ -145,7 +167,7 @@ socket.on('connect', function() {
                 const restartBtn = $('#restartapp')
                 if (restartBtn.length) {
                     restartBtn.removeClass('loading').prop('disabled', false)
-                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart Player')
                     console.log('=== CONTROL PANEL: Restart button state restored after reconnection ===')
                 }
                 
@@ -338,10 +360,18 @@ function updateConnectionStatus(connected) {
         setTimeout(() => {
             statusIndicator.fadeOut()
         }, 3000)
+        if (window.ClessMonitorUI) {
+            window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Online', 'success')
+            window.ClessMonitorUI.setStatus('dashServerStatus', 'Connected', 'success')
+        }
     } else {
         statusDot.css('background', '#dc3545') // Red
         statusText.text('Disconnected')
         statusIndicator.show()
+        if (window.ClessMonitorUI) {
+            window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Offline', 'danger')
+            window.ClessMonitorUI.setStatus('dashServerStatus', 'Disconnected', 'danger')
+        }
     }
 }
 
@@ -401,7 +431,7 @@ function checkAndRecoverFromRestart() {
                 const restartBtn = $('#restartapp')
                 if (restartBtn.length) {
                     restartBtn.removeClass('loading').prop('disabled', false)
-                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart App')
+                    restartBtn.html('<i class="bi bi-bootstrap-reboot"></i> Restart Player')
                     console.log('=== RESTART RECOVERY: Button state restored ===')
                 }
             }, 500)
@@ -424,7 +454,10 @@ $(document).ready(function () {
     getAPILayout()
     if (typeof refreshFreezeStateHint === 'function') {
         refreshFreezeStateHint()
-        setInterval(refreshFreezeStateHint, 5000)
+        // Auto-refresh owned by ClessMonitoringService when available
+        if (!window.__CLESS_USE_MONITORING_SERVICE) {
+            setInterval(refreshFreezeStateHint, 5000)
+        }
     }
     getAPIText()  
     getAPIMedia()
@@ -459,22 +492,22 @@ $(document).ready(function () {
     // Load network interfaces and license status
     loadNetworkLicenseStatus()
     
-    // Set up intervals for monitoring
-    setInterval(function () {
-        deviceinfo()
-    }, 5000)
-    
-    // Refresh network license status every 30 seconds
-    setInterval(function () {
-        loadNetworkLicenseStatus()
-    }, 30000)
+    if (!window.__CLESS_USE_MONITORING_SERVICE) {
+        // Legacy polling fallback when centralized monitoring service is absent
+        setInterval(function () {
+            deviceinfo()
+        }, 5000)
 
-    // Set up system monitoring refresh
-    setInterval(function () {
-        refreshSystemStats()
-    }, 10000)
+        setInterval(function () {
+            loadNetworkLicenseStatus()
+        }, 30000)
+
+        setInterval(function () {
+            refreshSystemStats()
+        }, 10000)
+    }
     
-    // Set up real-time layout details monitoring
+    // Set up real-time layout details monitoring (socket listeners + optional interval)
     setupLayoutDetailsMonitoring()
 })
 
@@ -572,8 +605,10 @@ function setupLayoutDetailsMonitoring() {
     // Initial load
     refreshLayoutDetails()
     
-    // Set up periodic refresh (every 15 seconds)
-    layoutDetailsInterval = setInterval(refreshLayoutDetails, 15000)
+    // Periodic refresh — owned by MonitoringService when present
+    if (!window.__CLESS_USE_MONITORING_SERVICE) {
+        layoutDetailsInterval = setInterval(refreshLayoutDetails, 15000)
+    }
     
     // Listen for layout change events from socket if available
     if (typeof socket !== 'undefined' && socket) {
@@ -861,7 +896,11 @@ function setupEventHandlers() {
     })
 
     $('.btnUpdateLyt').click(function () {
-        var lytid = $('#updateLytInput').val()
+        var lytid = $('#updateLytInput').val() || $('#layoutSwitchSelect').val()
+        if ($('#layoutSwitchSelect').val() && !$('#updateLytInput').val()) {
+            $('#updateLytInput').val($('#layoutSwitchSelect').val())
+            lytid = $('#layoutSwitchSelect').val()
+        }
         updateLyt(lytid)
     })
 
@@ -1027,7 +1066,11 @@ function setupEventHandlers() {
 
     // System monitoring
     $('#refreshMonitoring').click(function() {
-        refreshSystemMonitoring()
+        if (window.ClessMonitoringService) {
+            window.ClessMonitoringService.refreshNow(['system', 'deviceinfo', 'playback', 'networkLicense'])
+        } else {
+            refreshSystemMonitoring()
+        }
     })
     
     // Data usage reset handlers
@@ -1082,6 +1125,7 @@ function loadNetworkLicenseStatus() {
                 '<i class="bi bi-exclamation-triangle"></i> Failed to load network interface information' +
                 '</div>'
             )
+            if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(null)
         }
     })
 }
@@ -1096,6 +1140,7 @@ function displayNetworkLicenseStatus(data) {
             '<i class="bi bi-exclamation-circle"></i> No network interfaces detected' +
             '</div>'
         )
+        if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(data || null)
         return
     }
     
@@ -1119,31 +1164,28 @@ function displayNetworkLicenseStatus(data) {
     }
     
     // Network interfaces list
-    html += '<h6 class="mb-3">Detected Network Interfaces:</h6>'
+    html += '<h6 class="theme-subtitle mb-3">Detected Network Interfaces</h6>'
     
     data.interfaces.forEach((iface, index) => {
         const isMatched = data.licenseValid && 
                          data.matchedInterface && 
                          iface.mac === data.matchedInterface.mac
-        const cardClass = isMatched ? 'border-success' : 'border-secondary'
-        const badgeClass = isMatched ? 'bg-success' : 'bg-secondary'
-        const badgeText = isMatched ? '✓ Licensed' : 'Not Licensed'
+        const cardClass = isMatched ? 'is-licensed' : ''
+        const badgeClass = isMatched ? 'status-badge status-badge-success' : 'status-badge status-badge-neutral'
+        const badgeText = isMatched ? 'Licensed' : 'Not Licensed'
         
         html += `
-            <div class="card mb-2 ${cardClass}">
-                <div class="card-body p-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <strong>${iface.interface}</strong>
-                            <span class="badge ${badgeClass} ms-2">${badgeText}</span>
-                            <br>
-                            <small class="text-muted">${iface.type}</small>
+            <div class="iface-card ${cardClass}">
+                <div class="iface-card-main">
+                    <div>
+                        <div class="iface-name">${iface.interface}
+                            <span class="${badgeClass}">${badgeText}</span>
                         </div>
-                        <div class="text-end">
-                            <code class="text-primary">${iface.mac}</code>
-                            <br>
-                            <small class="text-muted">${iface.address || 'No IP'}</small>
-                        </div>
+                        <div class="iface-meta">${iface.type || 'Unknown type'}</div>
+                    </div>
+                    <div class="iface-addrs">
+                        <code class="iface-mac">${iface.mac || 'No MAC'}</code>
+                        <div class="iface-meta">${iface.address || 'No IP'}</div>
                     </div>
                 </div>
             </div>
@@ -1152,6 +1194,7 @@ function displayNetworkLicenseStatus(data) {
     
     html += '</div>'
     container.html(html)
+    if (window.ClessMonitorUI) window.ClessMonitorUI.updateLicenseSummary(data)
 }
 
 // Enhanced system information display
@@ -1160,7 +1203,7 @@ function deviceinfo() {
     
     $.ajax({
         type: 'GET',
-        url: '/api/system/full-info',
+        url: '/api/deviceinfo',
         timeout: 15000, // 15 second timeout
         success: function (data) {
             console.log('Device info data received:', data)
@@ -1168,49 +1211,53 @@ function deviceinfo() {
             try {
                 // CPU Information
                 if (data.cpu) {
-                    $('#sManu').text(data.cpu.manufacturer || 'N/A')
-                    $('#sBrand').text(data.cpu.brand || 'N/A')
-                    $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'N/A'))
-                    $('#sCores').text(data.cpu.cores || 'N/A')
-                    $('#sPhysicalCores').text(data.cpu.physicalCores || 'N/A')
-                    $('#sFamily').text(data.cpu.family || 'N/A')
-                    $('#sModel').text(data.cpu.model || 'N/A')
+                    $('#sManu').text(data.cpu.manufacturer || 'No data')
+                    $('#sBrand').text(data.cpu.brand || 'No data')
+                    $('#sSpeed').text((data.cpu.speed ? data.cpu.speed + ' GHz' : 'No data'))
+                    $('#sCores').text(data.cpu.cores != null ? data.cpu.cores : 'No data')
+                    $('#sPhysicalCores').text(data.cpu.physicalCores != null ? data.cpu.physicalCores : 'No data')
+                    $('#sFamily').text(data.cpu.family || 'No data')
+                    $('#sModel').text(data.cpu.model || 'No data')
                     console.log('CPU information updated')
                 } else {
                     console.warn('CPU data not available')
-                    $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('N/A')
+                    $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('Unavailable')
                 }
 
                 // Memory Information
                 if (data.memory) {
-                    $('#memTotal').text(formatBytes(data.memory.total))
-                    $('#memFree').text(formatBytes(data.memory.free))
-                    $('#memUsed').text(formatBytes(data.memory.used))
-                    $('#memAvailable').text(formatBytes(data.memory.available))
-                    $('#swapTotal').text(formatBytes(data.memory.swaptotal || 0))
-                    $('#swapUsed').text(formatBytes(data.memory.swapused || 0))
+                    $('#memTotal').text(data.memory.total != null ? formatBytes(data.memory.total) : 'Unavailable')
+                    $('#memFree').text(data.memory.free != null ? formatBytes(data.memory.free) : 'Unavailable')
+                    $('#memUsed').text(data.memory.used != null ? formatBytes(data.memory.used) : 'Unavailable')
+                    $('#memAvailable').text(data.memory.available != null ? formatBytes(data.memory.available) : 'Unavailable')
+                    $('#swapTotal').text(data.memory.swaptotal != null ? formatBytes(data.memory.swaptotal) : 'Unavailable')
+                    $('#swapUsed').text(data.memory.swapused != null ? formatBytes(data.memory.swapused) : 'Unavailable')
                     console.log('Memory information updated')
                 } else {
                     console.warn('Memory data not available')
-                    $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('N/A')
+                    $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('Unavailable')
                 }
 
                 // System Information
                 if (data.system) {
-                    $('#systemManu').text(data.system.manufacturer || 'N/A')
-                    $('#systemModel').text(data.system.model || 'N/A')
+                    $('#systemManu').text(data.system.manufacturer || 'No data')
+                    $('#systemModel').text(data.system.model || 'No data')
                     if (data.system.os) {
-                        $('#osInfo').text(`${data.system.os.distro || ''} ${data.system.os.release || ''}`.trim() || 'N/A')
-                        $('#osPlatform').text(data.system.os.platform || 'N/A')
-                        $('#osArch').text(data.system.os.arch || 'N/A')
-                        $('#osHostname').text(data.system.os.hostname || 'N/A')
+                        $('#osInfo').text(`${data.system.os.distro || ''} ${data.system.os.release || ''}`.trim() || 'No data')
+                        $('#osPlatform').text(data.system.os.platform || 'No data')
+                        $('#osArch').text(data.system.os.arch || 'No data')
+                        $('#osHostname').text(data.system.os.hostname || 'No data')
                     } else {
-                        $('#osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                        // si.system() may not nest OS fields; fall back to platform-like properties
+                        $('#osInfo').text([data.system.distro, data.system.release].filter(Boolean).join(' ') || 'No data')
+                        $('#osPlatform').text(data.system.platform || 'No data')
+                        $('#osArch').text(data.system.arch || 'No data')
+                        $('#osHostname').text(data.system.hostname || 'No data')
                     }
                     console.log('System information updated')
                 } else {
                     console.warn('System data not available')
-                    $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('N/A')
+                    $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('Unavailable')
                 }
 
                 // Network Information
@@ -1219,8 +1266,7 @@ function deviceinfo() {
                     console.log('Network information updated')
                 } else {
                     console.warn('Network data not available')
-                    // Clear network display
-                    $('#networkInfo').html('<div class="text-muted">No network data available</div>')
+                    $('#networkInterfaces').html('<p class="text-secondary">No network data available.</p>')
                 }
 
                 // Display Information
@@ -1229,8 +1275,7 @@ function deviceinfo() {
                     console.log('Display information updated')
                 } else {
                     console.warn('Display data not available')
-                    // Clear display info
-                    $('#displayInfo').html('<div class="text-muted">No display data available</div>')
+                    $('#displayInfoTable').html('<p class="text-secondary">No display data available.</p>')
                 }
 
                 // Storage/Disk Information
@@ -1239,8 +1284,11 @@ function deviceinfo() {
                     console.log('Disk information updated')
                 } else {
                     console.warn('Disk data not available')
-                    // Clear disk info
-                    $('#diskInfo').html('<div class="text-muted">No storage data available</div>')
+                    $('#diskInfoTable').html('<p class="text-secondary">No storage data available.</p>')
+                }
+
+                if (window.ClessMonitorUI) {
+                    window.ClessMonitorUI.updateFromDeviceInfo(data)
                 }
                 
                 console.log('=== CONTROL PANEL: Device information update completed ===')
@@ -1261,7 +1309,15 @@ function deviceinfo() {
             })
             
             // Show error state in UI
-            $('.device-info-field').text('Error')
+            $('.device-info-field').text('Unavailable')
+            $('#sManu, #sBrand, #sSpeed, #sCores, #sPhysicalCores, #sFamily, #sModel').text('Unavailable')
+            $('#memTotal, #memFree, #memUsed, #memAvailable, #swapTotal, #swapUsed').text('Unavailable')
+            $('#systemManu, #systemModel, #osInfo, #osPlatform, #osArch, #osHostname').text('Unavailable')
+            $('#networkInterfaces, #displayInfoTable, #diskInfoTable').html('<p class="text-secondary">Unavailable</p>')
+            if (window.ClessMonitorUI) {
+                window.ClessMonitorUI.setStatus('dashServerStatus', 'Disconnected', 'danger')
+                window.ClessMonitorUI.setStatus('deviceOnlineStatus', 'Offline', 'danger')
+            }
             
             if (window.showToast) {
                 window.showToast('Failed to fetch device information. Please check connection.', 'error')
@@ -1271,64 +1327,87 @@ function deviceinfo() {
 }
 
 function displayNetworkInterfaces(interfaces) {
-    var html = ''
+    if (!interfaces || !interfaces.length) {
+        $('#networkInterfaces').html('<p class="text-secondary">No network interfaces detected.</p>')
+        return
+    }
+    var html = '<div class="iface-list">'
     interfaces.forEach(function(iface) {
-        var statusClass = iface.operstate === 'up' ? 'status-online' : 'status-offline'
+        var isUp = iface.operstate === 'up'
+        var statusClass = isUp ? 'status-dot-success' : 'status-dot-danger'
+        var statusLabel = isUp ? 'Connected' : (iface.operstate || 'Disconnected')
         html += `
-            <div class="network-interface">
-                <span class="status-indicator ${statusClass}"></span>
-                <strong>${iface.ifaceName || iface.iface}</strong>
-                <br>
-                <small>
-                    IP: ${iface.ip4 || 'N/A'}<br>
-                    MAC: ${iface.mac || 'N/A'}<br>
-                    Type: ${iface.type || 'N/A'}<br>
-                    Speed: ${iface.speed ? iface.speed + ' Mbps' : 'N/A'}
-                </small>
+            <div class="iface-card">
+                <div class="iface-card-main">
+                    <div>
+                        <div class="iface-name">
+                            <span class="status-dot ${statusClass}"></span>
+                            ${iface.ifaceName || iface.iface || 'Interface'}
+                            <span class="status-badge ${isUp ? 'status-badge-success' : 'status-badge-neutral'}">${statusLabel}</span>
+                        </div>
+                        <div class="iface-meta">${iface.type || 'Unknown type'}${iface.speed ? ' · ' + iface.speed + ' Mbps' : ''}</div>
+                    </div>
+                    <div class="iface-addrs">
+                        <div class="iface-ip">${iface.ip4 || 'No IP'}</div>
+                        <code class="iface-mac">${iface.mac || 'No MAC'}</code>
+                    </div>
+                </div>
             </div>
         `
     })
+    html += '</div>'
     $('#networkInterfaces').html(html)
 }
 
 function displayDisplayInfo(displayData) {
-    var html = '<table class="table table-striped"><thead><tr><th>Display</th><th>Resolution</th><th>Position</th><th>Connection</th></tr></thead><tbody>'
-    
+    if (!displayData || !displayData.displays || !displayData.displays.length) {
+        $('#displayInfoTable').html('<p class="text-secondary">No display data available.</p>')
+        return
+    }
+    var html = '<div class="info-grid">'
     displayData.displays.forEach(function(display, index) {
+        var width = display.currentResX || display.resolutionx || (display.resolution && display.resolution.width)
+        var height = display.currentResY || display.resolutiony || (display.resolution && display.resolution.height)
+        var resolution = (width && height) ? (width + '×' + height) : 'Not detected'
+        var orientation = (width && height) ? (width >= height ? 'Landscape' : 'Portrait') : 'Unavailable'
         html += `
-            <tr>
-                <td>${display.model || `Display ${index + 1}`} ${display.main ? '(Primary)' : ''}</td>
-                <td>${display.currentResX || display.resolutionx}x${display.currentResY || display.resolutiony}</td>
-                <td>${display.positionX || 0}, ${display.positionY || 0}</td>
-                <td>${display.connection || 'N/A'}</td>
-            </tr>
+            <div class="info-item">
+                <div class="info-label">${display.model || ('Display ' + (index + 1))}${display.main ? ' (Primary)' : ''}</div>
+                <div class="info-value">${resolution}</div>
+                <div class="iface-meta">${orientation}${display.connection ? ' · ' + display.connection : ''}</div>
+            </div>
         `
     })
-    
-    html += '</tbody></table>'
+    html += '</div>'
     $('#displayInfoTable').html(html)
 }
 
 function displayDiskInfo(diskData) {
-    var html = '<table class="table table-striped"><thead><tr><th>Filesystem</th><th>Type</th><th>Size</th><th>Used</th><th>Available</th><th>Usage</th></tr></thead><tbody>'
+    if (!diskData || !diskData.length) {
+        $('#diskInfoTable').html('<p class="text-secondary">No storage data available.</p>')
+        return
+    }
+    var html = '<table class="info-table"><thead><tr><th>Filesystem</th><th>Type</th><th>Size</th><th>Used</th><th>Available</th><th>Usage</th></tr></thead><tbody>'
     
     diskData.forEach(function(disk) {
-        var usagePercent = disk.usage || 0
-        var progressBarClass = usagePercent > 90 ? 'bg-danger' : usagePercent > 70 ? 'bg-warning' : 'bg-success'
+        var usagePercent = (typeof disk.usage === 'number') ? disk.usage : null
+        var barClass = 'progress-bar-modern'
+        if (usagePercent != null && usagePercent > 90) barClass += ' is-danger'
+        else if (usagePercent != null && usagePercent > 70) barClass += ' is-warn'
         
         html += `
             <tr>
-                <td>${disk.filesystem}</td>
-                <td>${disk.type || 'N/A'}</td>
-                <td>${formatBytes(disk.size)}</td>
-                <td>${formatBytes(disk.used)}</td>
-                <td>${formatBytes(disk.available)}</td>
+                <td>${disk.filesystem || disk.fs || '—'}</td>
+                <td>${disk.type || '—'}</td>
+                <td>${disk.size != null ? formatBytes(disk.size) : '—'}</td>
+                <td>${disk.used != null ? formatBytes(disk.used) : '—'}</td>
+                <td>${disk.available != null ? formatBytes(disk.available) : '—'}</td>
                 <td>
-                    <div class="progress" style="height: 20px;">
-                        <div class="progress-bar ${progressBarClass}" role="progressbar" style="width: ${usagePercent}%">
-                            ${usagePercent.toFixed(1)}%
-                        </div>
+                    ${usagePercent == null ? '<span class="text-secondary">Unavailable</span>' : `
+                    <div class="progress-modern">
+                        <div class="${barClass}" style="width: ${usagePercent}%"></div>
                     </div>
+                    <div class="iface-meta">${usagePercent.toFixed(1)}%</div>`}
                 </td>
             </tr>
         `
@@ -1340,8 +1419,13 @@ function displayDiskInfo(diskData) {
 
 // System monitoring functions
 function startSystemMonitoring() {
-    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 30000)
     refreshSystemMonitoring() // Initial load
+    if (window.__CLESS_USE_MONITORING_SERVICE) {
+        // Centralized MonitoringService owns the recurring poll
+        return
+    }
+    // Legacy fallback: 5s sampling while Control Panel is open
+    systemMonitoringInterval = setInterval(refreshSystemMonitoring, 5000)
 }
 
 function refreshSystemMonitoring() {
@@ -1355,69 +1439,48 @@ function refreshSystemMonitoring() {
             console.log('System monitoring data received:', data)
             
             try {
-                // CPU Usage
-                if (data.cpu && typeof data.cpu.load !== 'undefined') {
-                    const cpuLoad = parseFloat(data.cpu.load).toFixed(1)
-                    $('#cpuUsage').html(`<span class="metric-value">${cpuLoad}%</span>`)
-                    $('#cpuProgressBar').css('width', cpuLoad + '%')
-                    console.log('CPU data updated:', cpuLoad + '%')
+                if (window.ClessMonitorUI) {
+                    window.ClessMonitorUI.updateFromMonitor(data)
                 } else {
-                    $('#cpuUsage').html('<span class="metric-value">N/A</span>')
-                    console.warn('CPU data not available in response')
-                }
-                
-                // Memory Usage
-                if (data.memory && data.memory.used && data.memory.total) {
-                    const memoryUsage = ((data.memory.used / data.memory.total) * 100).toFixed(1)
-                    $('#memoryUsage').html(`<span class="metric-value">${memoryUsage}%</span><br><small>${formatBytes(data.memory.used)} / ${formatBytes(data.memory.total)}</small>`)
-                    $('#memoryProgressBar').css('width', memoryUsage + '%')
-                    console.log('Memory data updated:', memoryUsage + '%')
-                } else {
-                    $('#memoryUsage').html('<span class="metric-value">N/A</span>')
-                    console.warn('Memory data not available in response')
-                }
-                
-                // Disk Usage
-                if (data.disk && Array.isArray(data.disk)) {
-                    var diskHtml = ''
-                    data.disk.forEach(function(disk, index) {
-                        if (index < 2 && disk.filesystem && typeof disk.usage !== 'undefined') {
-                            diskHtml += `<small>${disk.filesystem}: ${parseFloat(disk.usage).toFixed(1)}%</small><br>`
-                        }
-                    })
-                    $('#diskUsage').html(diskHtml || '<small>No disk data</small>')
-                    console.log('Disk data updated')
-                } else {
-                    $('#diskUsage').html('<small>No disk data</small>')
-                    console.warn('Disk data not available in response')
+                    // Fallback if monitor UI helper is unavailable
+                    if (data.cpu && typeof data.cpu.load !== 'undefined') {
+                        const cpuLoad = parseFloat(data.cpu.load).toFixed(1)
+                        $('#cpuUsage').text(cpuLoad + '%')
+                        $('#cpuProgressBar').css('width', cpuLoad + '%')
+                    } else {
+                        $('#cpuUsage').text('—')
+                    }
+                    if (data.memory && data.memory.used && data.memory.total) {
+                        const memoryUsage = ((data.memory.used / data.memory.total) * 100).toFixed(1)
+                        $('#memoryUsage').html(memoryUsage + '%')
+                        $('#memoryProgressBar').css('width', memoryUsage + '%')
+                    } else {
+                        $('#memoryUsage').text('—')
+                    }
                 }
                 
                 // Network Stats
                 if (data.network && Array.isArray(data.network)) {
                     var networkHtml = ''
                     data.network.forEach(function(net, index) {
-                        if (index < 1 && net.rx_sec > 0) {
-                            networkHtml += `<small>↓ ${formatBytes(net.rx_sec)}/s<br>↑ ${formatBytes(net.tx_sec)}/s</small>`
+                        if (index < 1 && (net.rx_sec > 0 || net.tx_sec > 0)) {
+                            networkHtml += `↓ ${formatBytes(net.rx_sec)}/s · ↑ ${formatBytes(net.tx_sec)}/s`
                         }
                     })
-                    $('#networkStats').html(networkHtml || '<small>No active traffic</small>')
-                    console.log('Network data updated')
+                    $('#networkStats').html(networkHtml || '<span class="text-secondary">No active traffic</span>')
                 } else {
-                    $('#networkStats').html('<small>No network data</small>')
-                    console.warn('Network data not available in response')
+                    $('#networkStats').html('<span class="text-secondary">Unavailable</span>')
                 }
                 
                 // Data Usage Stats
                 if (data.dataUsage) {
                     updateDataUsageDisplay(data.dataUsage)
-                    console.log('Data usage updated')
-                } else {
-                    console.warn('Data usage not available in response')
                 }
                 
             } catch (error) {
                 console.error('Error processing system monitoring data:', error)
-                $('#cpuUsage, #memoryUsage, #diskUsage, #networkStats').html('<span class="text-danger">Error</span>')
+                if (window.ClessMonitorUI) window.ClessMonitorUI.markMonitorUnavailable()
+                $('#networkStats').html('<span class="text-danger">Error</span>')
             }
         },
         error: function (xhr, status, error) {
@@ -1427,13 +1490,10 @@ function refreshSystemMonitoring() {
                 responseText: xhr.responseText
             })
             
-            // Show error state in UI
-            $('#cpuUsage').html('<span class="text-danger">Error</span>')
-            $('#memoryUsage').html('<span class="text-danger">Error</span>')
-            $('#diskUsage').html('<small class="text-danger">Connection Error</small>')
-            $('#networkStats').html('<small class="text-danger">Connection Error</small>')
+            if (window.ClessMonitorUI) window.ClessMonitorUI.markMonitorUnavailable()
+            $('#networkStats').html('<span class="text-secondary">Unavailable</span>')
+            $('#dataUsageTotal').html('<span class="text-secondary">Unavailable</span>')
             
-            // Try to show user-friendly error message
             if (window.showToast) {
                 window.showToast('Failed to fetch system monitoring data. Please check connection.', 'error')
             }
@@ -1453,13 +1513,15 @@ function updateDataUsageDisplay(dataUsage) {
             const totalBytes = dataUsage.total.download + dataUsage.total.upload
             $('#dataUsageTotal').html(formatBytes(totalBytes))
         } else {
-            $('#dataUsageTotal').html('N/A')
+            $('#dataUsageTotal').html('<span class="text-secondary">No data</span>')
         }
         
         // Update detailed breakdown in the Data Usage Management section
         if (dataUsage.daily) {
             $('#dailyDownload').text(formatBytes(dataUsage.daily.download || 0))
             $('#dailyUpload').text(formatBytes(dataUsage.daily.upload || 0))
+        } else {
+            $('#dailyDownload, #dailyUpload').text('No data')
         }
         
         if (dataUsage.monthly) {
@@ -1467,6 +1529,8 @@ function updateDataUsageDisplay(dataUsage) {
             const monthlyTotal = dataUsage.monthly.total || 
                                 (dataUsage.monthly.download + dataUsage.monthly.upload) || 0
             $('#monthlyTotal').text(formatBytes(monthlyTotal))
+        } else {
+            $('#monthlyTotal').text('No data')
         }
         
         if (dataUsage.total) {
@@ -1474,6 +1538,8 @@ function updateDataUsageDisplay(dataUsage) {
             const totalUsage = dataUsage.total.total || 
                               (dataUsage.total.download + dataUsage.total.upload) || 0
             $('#totalUsage').text(formatBytes(totalUsage))
+        } else {
+            $('#totalUsage').text('No data')
         }
         
         console.log('Data usage display updated successfully')
@@ -2549,8 +2615,49 @@ function refreshFreezeStateHint() {
 }
 
 function updateLyt(layoutid) {
-    socket.emit('replace-layout', {"id": layoutid})
-    showAlert('success', `Layout updated to ${layoutid}`)
+    const id = (layoutid == null ? '' : String(layoutid)).trim()
+    const $btn = $('.btnUpdateLyt')
+    const $feedback = $('#layoutSwitchFeedback')
+    const originalHtml = $btn.html()
+
+    if (!id) {
+        if ($feedback.length) {
+            $feedback.removeAttr('hidden').removeClass('is-success').addClass('is-error')
+                .text('Select or enter a layout before switching.')
+        }
+        showAlert('warning', 'Please select a layout to switch to')
+        return
+    }
+
+    $btn.addClass('loading').prop('disabled', true)
+        .html('<i class="bi bi-arrow-repeat spinning"></i> Switching…')
+    if ($feedback.length) {
+        $feedback.removeAttr('hidden').removeClass('is-success is-error')
+            .text('Switching to layout "' + id + '"…')
+    }
+
+    try {
+        socket.emit('replace-layout', { id: id })
+        showAlert('success', `Layout updated to ${id}`)
+        if ($feedback.length) {
+            $feedback.removeClass('is-error').addClass('is-success')
+                .text('Switch requested for layout "' + id + '".')
+        }
+        setTimeout(function () {
+            if (typeof refreshLayoutDetails === 'function') refreshLayoutDetails()
+        }, 800)
+    } catch (err) {
+        console.error('Layout switch failed:', err)
+        showAlert('danger', 'Unable to switch layout')
+        if ($feedback.length) {
+            $feedback.removeClass('is-success').addClass('is-error')
+                .text('Unable to switch layout. Check Player connection.')
+        }
+    } finally {
+        setTimeout(function () {
+            $btn.removeClass('loading').prop('disabled', false).html(originalHtml)
+        }, 1200)
+    }
 }
 
 function replacetextslot(layoutid, slotname, slottext) {
@@ -2601,19 +2708,245 @@ function getDetailedLayoutInfo() {
     refreshLayoutDetails()
 }
 
+function escapeLayoutHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+}
+
+function setLayoutField(key, value) {
+    const text = (value == null || value === '') ? 'No data' : String(value)
+    document.querySelectorAll('[data-layout-field="' + key + '"]').forEach(function (el) {
+        el.textContent = text
+    })
+}
+
+function getLayoutFreezeLabel() {
+    const hint = document.getElementById('freezeStateHint')
+    const raw = hint ? (hint.textContent || '').trim() : ''
+    if (!raw) return { label: 'No data', kind: 'neutral' }
+    const active = /active/i.test(raw) && !/inactive/i.test(raw)
+    return {
+        label: raw.replace(/^Freeze:\s*/i, '') || 'No data',
+        kind: active ? 'warning' : 'neutral'
+    }
+}
+
+function statusDotHtml(label, kind) {
+    const cls = kind === 'success' ? 'status-dot-success'
+        : kind === 'warning' ? 'status-dot-warning'
+        : kind === 'danger' ? 'status-dot-danger'
+        : kind === 'info' ? 'status-dot-info'
+        : 'status-dot-neutral'
+    return '<span class="status-dot ' + cls + '"></span> ' + escapeLayoutHtml(label)
+}
+
+function findCurrentLayoutRecord(layoutData) {
+    if (!layoutData) return null
+    if (layoutData.currentLayout && layoutData.layouts && layoutData.layouts.length) {
+        const currentId = String(layoutData.currentLayout.id)
+        const match = layoutData.layouts.find(function (layout) {
+            return String(layout.id) === currentId
+        })
+        if (match) {
+            return Object.assign({}, match, layoutData.currentLayout)
+        }
+    }
+    if (layoutData.currentLayout) return layoutData.currentLayout
+    if (layoutData.layouts && layoutData.layouts[0]) return layoutData.layouts[0]
+    return null
+}
+
+function populateLayoutSwitchSelect(layouts, currentId) {
+    const select = document.getElementById('layoutSwitchSelect')
+    if (!select) return
+    window.__clessLayoutOptions = Array.isArray(layouts) ? layouts.slice() : []
+    const filter = document.getElementById('layoutSwitchFilter')
+    const query = filter ? String(filter.value || '').toLowerCase().trim() : ''
+    const previous = select.value
+    let html = '<option value="">Select a layout…</option>'
+    window.__clessLayoutOptions.forEach(function (layout) {
+        const id = layout && layout.id != null ? String(layout.id) : ''
+        const name = (layout && (layout.name || layout.id)) || 'Untitled'
+        const label = name + (id ? ' (' + id + ')' : '')
+        if (query && label.toLowerCase().indexOf(query) === -1 && id.toLowerCase().indexOf(query) === -1) {
+            return
+        }
+        const selected = previous ? previous === id : String(currentId || '') === id
+        html += '<option value="' + escapeLayoutHtml(id) + '"' + (selected ? ' selected' : '') + '>' +
+            escapeLayoutHtml(label) + '</option>'
+    })
+    select.innerHTML = html
+    if (!window.__clessLayoutSwitchBound) {
+        window.__clessLayoutSwitchBound = true
+        select.addEventListener('change', function () {
+            const input = document.getElementById('updateLytInput')
+            if (input) input.value = select.value || ''
+        })
+        if (filter) {
+            filter.addEventListener('input', function () {
+                var inputEl = document.getElementById('updateLytInput')
+                populateLayoutSwitchSelect(window.__clessLayoutOptions || [], inputEl ? inputEl.value : '')
+            })
+        }
+    }
+}
+
+function renderActiveSlots(layout) {
+    const host = document.getElementById('layoutActiveSlots')
+    if (!host) return
+    const slots = layout && Array.isArray(layout.slots) ? layout.slots : []
+    if (!slots.length) {
+        host.innerHTML = '<div class="status-loading">No active slots for the current layout.</div>'
+        return
+    }
+    let html = '<div class="layout-slot-grid">'
+    slots.forEach(function (slot) {
+        const name = slot.name || slot.id || 'Unnamed slot'
+        const type = slot.type || 'unknown'
+        const content = slot.content != null && String(slot.content).trim() !== ''
+            ? String(slot.content)
+            : (slot.contentType || '')
+        html += '<div class="layout-slot-card">' +
+            '<div class="layout-slot-card-head">' +
+            '<span class="layout-slot-name">' + escapeLayoutHtml(name) + '</span>' +
+            '<span class="layout-slot-type">' + escapeLayoutHtml(type) + '</span>' +
+            '</div>' +
+            (content
+                ? '<div class="layout-slot-content">' + escapeLayoutHtml(content) + '</div>'
+                : '<div class="layout-slot-content is-empty">No content preview</div>') +
+            '</div>'
+    })
+    html += '</div>'
+    host.innerHTML = html
+}
+
+function renderAvailableLayouts(layouts, currentId) {
+    const host = document.getElementById('layoutAvailableList')
+    if (!host) return
+    if (!layouts || !layouts.length) {
+        host.innerHTML = '<div class="status-loading">No layouts available.</div>'
+        return
+    }
+    let html = '<div class="layout-available-grid">'
+    layouts.forEach(function (layout, index) {
+        const id = layout.id != null ? String(layout.id) : ''
+        const active = String(currentId || '') === id
+        html += '<button type="button" class="layout-available-item' + (active ? ' is-active' : '') + '" data-layout-pick="' + escapeLayoutHtml(id) + '">' +
+            '<span class="layout-available-index">' + (index + 1) + '</span>' +
+            '<span class="layout-available-body">' +
+            '<span class="layout-available-name">' + escapeLayoutHtml(layout.name || id || 'Untitled') + '</span>' +
+            '<span class="layout-available-meta">ID ' + escapeLayoutHtml(id || '—') +
+            (layout.duration != null ? ' · ' + escapeLayoutHtml(layout.duration) + 's' : '') +
+            (layout.totalSlots != null ? ' · ' + escapeLayoutHtml(layout.totalSlots) + ' slots' : '') +
+            '</span></span>' +
+            (active ? '<span class="layout-available-badge">Active</span>' : '') +
+            '</button>'
+    })
+    html += '</div>'
+    host.innerHTML = html
+    host.querySelectorAll('[data-layout-pick]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = btn.getAttribute('data-layout-pick') || ''
+            const select = document.getElementById('layoutSwitchSelect')
+            const input = document.getElementById('updateLytInput')
+            if (select) select.value = id
+            if (input) input.value = id
+            const feedback = document.getElementById('layoutSwitchFeedback')
+            if (feedback) {
+                feedback.hidden = false
+                feedback.className = 'layout-switch-feedback'
+                feedback.textContent = 'Selected "' + id + '". Click Switch Layout to apply.'
+            }
+        })
+    })
+}
+
 // Function to display comprehensive layout information with enhanced loop support
 function displayDetailedLayoutInfo(layoutData) {
     const $element = $('#apiLayout')
-    
+    window.__clessLastLayoutData = layoutData || null
     debug('Displaying enhanced layout information:', layoutData)
-    
-    // Build the comprehensive layout information display
-    let html = `
+
+    const current = findCurrentLayoutRecord(layoutData)
+    const freeze = getLayoutFreezeLabel()
+    const hasCurrent = !!(current && (current.name || current.id))
+    const slotSummary = (current && current.slotSummary) || {}
+    const totalSlots = layoutData.totalSlots != null
+        ? layoutData.totalSlots
+        : (current && (current.totalSlots != null ? current.totalSlots : slotSummary.total))
+    const textSlots = layoutData.textSlots != null ? layoutData.textSlots : slotSummary.text
+    const mediaSlots = layoutData.mediaSlots != null ? layoutData.mediaSlots : slotSummary.media
+    const otherSlots = Math.max(0, (Number(totalSlots) || 0) - (Number(textSlots) || 0) - (Number(mediaSlots) || 0))
+
+    const nameEl = document.getElementById('layoutStatusName')
+    const metaEl = document.getElementById('layoutStatusMeta')
+    if (nameEl) nameEl.textContent = hasCurrent ? (current.name || current.id) : 'No Active Layout'
+    if (metaEl) {
+        metaEl.textContent = hasCurrent
+            ? ((layoutData.isLoop ? 'Loop mode' : 'Single mode') +
+                (layoutData.layoutCount != null ? ' · ' + layoutData.layoutCount + ' layouts available' : ''))
+            : 'Unable to load a current layout from the Player.'
+    }
+
+    const stateEl = document.getElementById('layoutStatusState')
+    if (stateEl) {
+        stateEl.innerHTML = hasCurrent
+            ? statusDotHtml('Active', 'success')
+            : statusDotHtml('No Active Layout', 'neutral')
+    }
+    const loopEl = document.getElementById('layoutStatusLoop')
+    if (loopEl) {
+        loopEl.textContent = layoutData.isLoop
+            ? ('Loop · ' + (layoutData.layoutCount != null ? layoutData.layoutCount : (layoutData.layouts || []).length))
+            : 'Single'
+    }
+    const durationEl = document.getElementById('layoutStatusDuration')
+    if (durationEl) {
+        durationEl.textContent = current && current.duration != null ? (current.duration + 's') : '—'
+    }
+    const slotsEl = document.getElementById('layoutStatusSlots')
+    if (slotsEl) slotsEl.textContent = totalSlots != null ? String(totalSlots) : '—'
+    const freezeEl = document.getElementById('layoutStatusFreeze')
+    if (freezeEl) freezeEl.innerHTML = statusDotHtml(freeze.label, freeze.kind)
+
+    const switchName = document.getElementById('layoutSwitchCurrentName')
+    const switchId = document.getElementById('layoutSwitchCurrentId')
+    if (switchName) switchName.textContent = hasCurrent ? (current.name || current.id) : 'No Active Layout'
+    if (switchId) switchId.textContent = hasCurrent && current.id != null ? ('ID ' + current.id) : '—'
+
+    populateLayoutSwitchSelect(layoutData.layouts || [], current && current.id)
+    renderActiveSlots(current)
+    renderAvailableLayouts(layoutData.layouts || [], current && current.id)
+
+    setLayoutField('name', hasCurrent ? (current.name || current.id) : 'No Active Layout')
+    setLayoutField('status', hasCurrent ? 'Active' : 'No Active Layout')
+    setLayoutField('duration', current && current.duration != null ? (current.duration + 's') : null)
+    setLayoutField('loopMode', layoutData.isLoop ? 'Loop' : 'Single')
+    setLayoutField('playbackState', hasCurrent ? 'Playing' : 'Idle')
+    setLayoutField('freezeState', freeze.label)
+    setLayoutField('loopCount', layoutData.layoutCount != null ? layoutData.layoutCount : (layoutData.layouts || []).length)
+    setLayoutField('availableCount', (layoutData.layouts || []).length)
+    setLayoutField('totalSlots', totalSlots)
+    setLayoutField('textSlots', textSlots)
+    setLayoutField('mediaSlots', mediaSlots)
+    setLayoutField('otherSlots', otherSlots)
+    setLayoutField('source', layoutData.source || (layoutData.isLoop ? 'Layout loop' : 'Direct layout'))
+    setLayoutField('layoutId', current && current.id != null ? current.id : null)
+    setLayoutField('type', current && current.type ? current.type : (layoutData.isLoop ? 'loop' : 'single'))
+    setLayoutField('updated', layoutData.timestamp
+        ? new Date(layoutData.timestamp).toLocaleString()
+        : null)
+
+    // Advanced technical details remain available but collapsed by default
+    let advancedHtml = `
         <div class="layout-info-container">
             <div class="layout-status-header">
-                <div class="status-indicator ${layoutData.currentLayout ? 'status-online' : 'status-offline'}">
+                <div class="status-indicator ${hasCurrent ? 'status-online' : 'status-offline'}">
                     <div class="status-dot"></div>
-                    <span>Layout System ${layoutData.currentLayout ? 'Active' : 'Inactive'}</span>
+                    <span>Layout System ${hasCurrent ? 'Active' : 'Inactive'}</span>
                 </div>
                 <div class="layout-mode-badge ${layoutData.isLoop ? 'loop-mode' : 'single-mode'}">
                     <i class="bi ${layoutData.isLoop ? 'bi-arrow-repeat' : 'bi-file-earmark'}"></i>
@@ -2622,41 +2955,19 @@ function displayDetailedLayoutInfo(layoutData) {
                 </div>
             </div>
     `
-    
-    // Current Layout Information (if available)
-    if (layoutData.currentLayout) {
-        html += `
-            <div class="current-layout-info">
-                <h4 class="layout-section-title">
-                    <i class="bi bi-play-circle"></i>
-                    Currently Active Layout
-                </h4>
-                <div class="current-layout-details">
-                    <div class="layout-basic-info">
-                        <strong>ID:</strong> ${layoutData.currentLayout.id} | 
-                        <strong>Name:</strong> ${layoutData.currentLayout.name}
-                        ${layoutData.currentLayout.duration ? ` | <strong>Duration:</strong> ${layoutData.currentLayout.duration}s` : ''}
-                    </div>
-                    ${layoutData.currentLayout.slotSummary ? createSlotSummaryDisplay(layoutData.currentLayout.slotSummary) : ''}
-                </div>
-            </div>
-        `
-    }
-    
-    // Layout Details Section
     if (layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
-        html += createLoopLayoutsDisplay(layoutData.layouts)
+        advancedHtml += createLoopLayoutsDisplay(layoutData.layouts)
     } else if (!layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
-        html += createSingleLayoutDisplay(layoutData.layouts[0])
+        advancedHtml += createSingleLayoutDisplay(layoutData.layouts[0])
     }
-    
-    // Summary Statistics
-    html += createSummaryStatistics(layoutData)
-    
-    html += `</div>`
-    
-    $element.html(html)
+    advancedHtml += createSummaryStatistics(layoutData)
+    advancedHtml += '</div>'
+    $element.removeClass('loading').html(advancedHtml)
+
     debug('Enhanced detailed layout information displayed successfully')
+    if (window.ClessMonitorUI) {
+        window.ClessMonitorUI.updatePlaybackFromLayout(layoutData)
+    }
 }
 
 // Function to create display for loop layouts with collapsible sections
@@ -3153,6 +3464,22 @@ function displayLayoutInfoError(errorMessage, errorDetails = null) {
     `
     
     $element.html(html)
+
+    // Keep the primary Layout Status card readable during errors
+    const nameEl = document.getElementById('layoutStatusName')
+    const metaEl = document.getElementById('layoutStatusMeta')
+    const stateEl = document.getElementById('layoutStatusState')
+    if (nameEl) nameEl.textContent = 'Unable to Load Layout Information'
+    if (metaEl) metaEl.textContent = errorMessage
+    if (stateEl) stateEl.innerHTML = statusDotHtml(errorType === 'connection' ? 'Offline' : 'Unavailable', 'danger')
+    const activeSlots = document.getElementById('layoutActiveSlots')
+    if (activeSlots) {
+        activeSlots.innerHTML = '<div class="status-loading">Unable to load active slots.</div>'
+    }
+    const available = document.getElementById('layoutAvailableList')
+    if (available) {
+        available.innerHTML = '<div class="status-loading">Unable to load available layouts.</div>'
+    }
     
     // Log error for debugging
     console.error('Layout Error Display:', {
