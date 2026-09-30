@@ -39,6 +39,210 @@
     var layoutTransitionQueue = Promise.resolve();
     var layoutTransitionBusy = false;
 
+    /**
+     * Authoritative layout freeze state after Airport Display / Control Panel
+     * triggers. While active, the normal layout loop must not advance.
+     */
+    var layoutFreezeState = {
+        active: false,
+        freezeTimeout: 'forever',
+        freezeStartedAt: null,
+        freezeUntil: null,
+        triggeredBy: '',
+        eventId: '',
+        layoutId: '',
+        timerId: null,
+        savedLoopIndex: null,
+        generation: 0
+    };
+
+    var FREEZE_PRESETS = [0, 30, 60, 120, 300, 600];
+
+    function normalizeFreezeTimeout(raw) {
+        if (raw == null || raw === '') {
+            return 'forever';
+        }
+        if (typeof raw === 'string') {
+            var lowered = raw.trim().toLowerCase();
+            if (!lowered || lowered === 'forever' || lowered === 'infinite' || lowered === 'inf') {
+                return 'forever';
+            }
+            if (lowered === '0' || lowered === 'none') {
+                return 0;
+            }
+            var asNum = Number(lowered);
+            if (isFinite(asNum) && asNum >= 0) {
+                return Math.floor(asNum);
+            }
+            console.warn('Airport Display invalid freeze_timeout; defaulting to forever:', raw);
+            return 'forever';
+        }
+        if (typeof raw === 'number' && isFinite(raw) && raw >= 0) {
+            return Math.floor(raw);
+        }
+        console.warn('Airport Display invalid freeze_timeout; defaulting to forever:', raw);
+        return 'forever';
+    }
+
+    function clearFreezeTimer() {
+        if (layoutFreezeState.timerId != null) {
+            try { clearTimeout(layoutFreezeState.timerId); } catch (e) { /* ignore */ }
+            layoutFreezeState.timerId = null;
+        }
+    }
+
+    function getFreezeSnapshot() {
+        return {
+            active: !!layoutFreezeState.active,
+            freeze_timeout: layoutFreezeState.freezeTimeout,
+            freeze_started_at: layoutFreezeState.freezeStartedAt,
+            freeze_until: layoutFreezeState.freezeUntil,
+            triggered_by: layoutFreezeState.triggeredBy || '',
+            event_id: layoutFreezeState.eventId || '',
+            layout_id: layoutFreezeState.layoutId || '',
+            generation: layoutFreezeState.generation,
+            saved_loop_index: layoutFreezeState.savedLoopIndex
+        };
+    }
+
+    function isLayoutFrozen() {
+        return !!layoutFreezeState.active;
+    }
+
+    /**
+     * Stop automatic layout-loop advancement while freeze is active.
+     * Replaces any previous freeze timer (single authoritative freeze state).
+     */
+    function activateLayoutFreeze(options) {
+        options = options || {};
+        var timeout = normalizeFreezeTimeout(
+            options.freeze_timeout != null ? options.freeze_timeout : options.freezeTimeout
+        );
+        var generation = layoutFreezeState.generation + 1;
+        clearFreezeTimer();
+
+        var savedIndex = null;
+        try {
+            if (typeof loopXMLCurIndex !== 'undefined') {
+                savedIndex = loopXMLCurIndex;
+            }
+        } catch (e) { /* ignore */ }
+
+        layoutFreezeState.active = true;
+        layoutFreezeState.freezeTimeout = timeout;
+        layoutFreezeState.freezeStartedAt = new Date().toISOString();
+        layoutFreezeState.freezeUntil = null;
+        layoutFreezeState.triggeredBy = String(options.triggered_by || options.source || 'airport_display');
+        layoutFreezeState.eventId = String(options.event_id || '');
+        layoutFreezeState.layoutId = String(options.layout_id || getActiveLayoutId() || '');
+        layoutFreezeState.savedLoopIndex = savedIndex;
+        layoutFreezeState.generation = generation;
+
+        // Hard-stop the current loop timer so the previous layout cannot advance.
+        try {
+            if (typeof resetLoopTimeoutState === 'function') {
+                resetLoopTimeoutState();
+            } else if (typeof loopTimeout !== 'undefined' && loopTimeout) {
+                clearTimeout(loopTimeout);
+                loopTimeout = null;
+            }
+            if (typeof loopTimeoutPaused !== 'undefined') {
+                loopTimeoutPaused = true;
+            }
+        } catch (err) {
+            console.warn('Airport Display freeze: failed to clear loop timeout:', err);
+        }
+
+        console.log(
+            'Airport Display Freeze Started\n' +
+            'Layout: ' + (layoutFreezeState.layoutId || '') + '\n' +
+            'Freeze timeout: ' + timeout + '\n' +
+            'Triggered by: ' + layoutFreezeState.triggeredBy + '\n' +
+            'Event ID: ' + layoutFreezeState.eventId + '\n' +
+            'Generation: ' + generation
+        );
+        reportStatus({
+            status: 'freeze_started',
+            phase: 'freeze',
+            freeze: getFreezeSnapshot(),
+            message: timeout === 'forever'
+                ? 'Layout loop frozen indefinitely (resume via /api/resume-layout)'
+                : ('Layout loop frozen for ' + timeout + 's')
+        });
+
+        if (timeout === 'forever') {
+            return getFreezeSnapshot();
+        }
+        if (timeout === 0) {
+            // Immediate resume requested.
+            resumeLayoutFreeze('freeze_timeout_0');
+            return getFreezeSnapshot();
+        }
+
+        var untilMs = Date.now() + (timeout * 1000);
+        layoutFreezeState.freezeUntil = new Date(untilMs).toISOString();
+        layoutFreezeState.timerId = setTimeout(function () {
+            if (layoutFreezeState.generation !== generation) {
+                return; // superseded by a newer trigger
+            }
+            resumeLayoutFreeze('freeze_timeout_expired');
+        }, timeout * 1000);
+
+        return getFreezeSnapshot();
+    }
+
+    /**
+     * Clear freeze and resume the normal layout loop using existing helpers.
+     * When reason is resume-layout:*, skip restarting the loop timer — the
+     * existing /api/resume-layout handler owns refresh + loop restart.
+     */
+    function resumeLayoutFreeze(reason, options) {
+        options = options || {};
+        if (!layoutFreezeState.active && layoutFreezeState.timerId == null) {
+            return { ok: true, resumed: false, reason: reason || 'not_frozen' };
+        }
+        var snapshot = getFreezeSnapshot();
+        clearFreezeTimer();
+        layoutFreezeState.active = false;
+        layoutFreezeState.freezeUntil = null;
+        layoutFreezeState.freezeStartedAt = null;
+
+        var reasonStr = String(reason || 'manual');
+        var restartLoop = options.restartLoop !== false &&
+            reasonStr.indexOf('resume-layout:') !== 0;
+
+        console.log(
+            'Airport Display Freeze Resumed\n' +
+            'Reason: ' + reasonStr + '\n' +
+            'Previous layout: ' + (snapshot.layout_id || '') + '\n' +
+            'Previous timeout: ' + snapshot.freeze_timeout + '\n' +
+            'Restart loop: ' + restartLoop
+        );
+        reportStatus({
+            status: 'freeze_resumed',
+            phase: 'freeze',
+            reason: reasonStr,
+            previous_freeze: snapshot,
+            message: 'Layout loop resume requested'
+        });
+
+        if (restartLoop) {
+            try {
+                if (typeof loopTimeoutPaused !== 'undefined') {
+                    loopTimeoutPaused = false;
+                }
+                if (typeof restartLoopTimeoutForCurrentLayout === 'function') {
+                    restartLoopTimeoutForCurrentLayout('airport-display freeze resumed: ' + reasonStr);
+                } else if (typeof resumeLoopTimeout === 'function') {
+                    resumeLoopTimeout('airport-display freeze resumed');
+                }
+            } catch (err) {
+                console.warn('Airport Display freeze resume failed to restart loop:', err);
+            }
+        }
+        return { ok: true, resumed: true, reason: reasonStr, previous_freeze: snapshot };
+    }
+
     function rememberEventId(eventId) {
         if (!eventId) return false;
         if (recentEventSet[eventId]) return true;
@@ -1200,13 +1404,8 @@
                         });
                     });
                     return slotChain.then(function () {
-                        var anyOk = results.some(function (row) {
-                            return row.ok && String(row.layout_id || '') === String(group.layout_id || '');
-                        });
-                        if (anyOk && typeof restartLoopTimeoutForCurrentLayout === 'function') {
-                            // Content helpers may clear loopTimeout; restart once per layout group.
-                            restartLoopTimeoutForCurrentLayout('airport-display layout group complete');
-                        }
+                        // Do NOT restart the layout loop here — freeze activation
+                        // (or an explicit resume) owns loop timer lifecycle.
                     });
                 });
             });
@@ -1428,6 +1627,7 @@
             })
             .then(function (slotResults) {
                 var failed = slotResults.filter(function (r) { return !r.ok; });
+                var anyOk = slotResults.some(function (r) { return r.ok; });
                 if (failed.length && failed.length === slotResults.length && slotResults.length > 0) {
                     reportStatus({
                         event_id: eventId,
@@ -1440,6 +1640,28 @@
                         event_id: eventId,
                         status: failed.length ? 'partial' : 'applied',
                         slots: slotResults
+                    });
+                }
+
+                var freezeSnapshot = null;
+                // Freeze only after at least one slot successfully updated on the
+                // active layout (or when announcement-only with no slots).
+                if (anyOk || (!slotResults.length && event.announcement && event.announcement.enabled)) {
+                    var primaryLayout = '';
+                    for (var i = 0; i < slotResults.length; i++) {
+                        if (slotResults[i].ok && slotResults[i].layout_id) {
+                            primaryLayout = String(slotResults[i].layout_id);
+                            break;
+                        }
+                    }
+                    if (!primaryLayout && event.slots && event.slots[0]) {
+                        primaryLayout = String(event.slots[0].layout_id || '');
+                    }
+                    freezeSnapshot = activateLayoutFreeze({
+                        freeze_timeout: event.freeze_timeout,
+                        triggered_by: event.source || event.event || 'airport_display',
+                        event_id: eventId,
+                        layout_id: primaryLayout || getActiveLayoutId()
                     });
                 }
 
@@ -1460,7 +1682,8 @@
                         : 'success',
                     message: 'Airport Display event processed',
                     event_id: eventId,
-                    slots: slotResults
+                    slots: slotResults,
+                    freeze: freezeSnapshot
                 };
             })
             .catch(function (err) {
@@ -1477,6 +1700,12 @@
     global.AirportDisplayPlayer = {
         handle: handleAirportDisplayEvent,
         getQueueLength: function () { return announcementQueue.length + (isPlaying ? 1 : 0); },
+        isFrozen: isLayoutFrozen,
+        getFreezeState: getFreezeSnapshot,
+        activateFreeze: activateLayoutFreeze,
+        resumeFreeze: resumeLayoutFreeze,
+        normalizeFreezeTimeout: normalizeFreezeTimeout,
+        FREEZE_PRESETS: FREEZE_PRESETS.slice(),
         _normalizeAnnouncementLanguages: normalizeAnnouncementLanguages,
         _playLanguageSequence: playLanguageSequence,
         _guessMediaType: guessMediaType,

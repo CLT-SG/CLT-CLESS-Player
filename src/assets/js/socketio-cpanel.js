@@ -216,6 +216,20 @@ socket.on('resume-layout', function (msg) {
         var timestamp = msg.timestamp;
         console.log('=== RENDERER PROCESS: Resume layout action:', action, 'timestamp:', timestamp);
 
+        // Clear Airport Display / Control Panel freeze first so the loop may advance.
+        // Do not restart the loop timer here — refreshAndResumeLayout owns that.
+        try {
+            if (typeof AirportDisplayPlayer !== 'undefined' &&
+                AirportDisplayPlayer &&
+                typeof AirportDisplayPlayer.resumeFreeze === 'function') {
+                AirportDisplayPlayer.resumeFreeze('resume-layout:' + (action || 'resume'), {
+                    restartLoop: false
+                });
+            }
+        } catch (freezeErr) {
+            console.warn('=== RENDERER PROCESS: Failed to clear layout freeze:', freezeErr);
+        }
+
         // Validate required global variables and functions are available
         if (typeof isLoopLyt === 'undefined') {
             console.error('=== RENDERER PROCESS: isLoopLyt variable not defined ===');
@@ -761,6 +775,19 @@ function alignLoopIndexToLayout(layoutId) {
  */
 function restartLoopTimeoutForCurrentLayout(reason) {
     try {
+        try {
+            if (typeof AirportDisplayPlayer !== 'undefined' &&
+                AirportDisplayPlayer &&
+                typeof AirportDisplayPlayer.isFrozen === 'function' &&
+                AirportDisplayPlayer.isFrozen()) {
+                console.log(
+                    '=== LOOP TIMEOUT: Restart skipped — layout freeze is active. Reason was:',
+                    reason || ''
+                );
+                return false;
+            }
+        } catch (freezeErr) { /* ignore */ }
+
         if (typeof isLoopLyt === 'undefined' || !isLoopLyt) {
             return false;
         }
@@ -2472,6 +2499,47 @@ function extractTextSlotsFromLayoutData(layoutData, layoutKey) {
     return textSlots;
 }
 
+// Control Panel / API: read current Airport Display layout freeze state.
+socket.on('airport-display-get-freeze', function (msg) {
+    console.log('=== RENDERER PROCESS: airport-display-get-freeze REQUEST ===', msg);
+    var state = { active: false };
+    try {
+        if (typeof AirportDisplayPlayer !== 'undefined' &&
+            AirportDisplayPlayer &&
+            typeof AirportDisplayPlayer.getFreezeState === 'function') {
+            state = AirportDisplayPlayer.getFreezeState() || state;
+        }
+    } catch (err) {
+        console.warn('=== RENDERER PROCESS: getFreezeState failed:', err);
+    }
+    try {
+        socket.emit('airport-display-freeze-state', state);
+    } catch (emitErr) {
+        console.warn('=== RENDERER PROCESS: emit freeze-state failed:', emitErr);
+    }
+});
+
+// Helper: after Control Panel / API slot updates, freeze the layout loop
+// using the same Airport Display freeze manager (default: forever).
+function activateControlPanelLayoutFreeze(layoutId, freezeTimeout, source) {
+    try {
+        if (typeof AirportDisplayPlayer === 'undefined' ||
+            !AirportDisplayPlayer ||
+            typeof AirportDisplayPlayer.activateFreeze !== 'function') {
+            console.warn('=== RENDERER PROCESS: AirportDisplayPlayer.activateFreeze unavailable ===');
+            return null;
+        }
+        return AirportDisplayPlayer.activateFreeze({
+            freeze_timeout: freezeTimeout != null && freezeTimeout !== '' ? freezeTimeout : 'forever',
+            triggered_by: source || 'control_panel',
+            layout_id: layoutId || ''
+        });
+    } catch (err) {
+        console.warn('=== RENDERER PROCESS: activateControlPanelLayoutFreeze failed:', err);
+        return null;
+    }
+}
+
 //Replace text - OFFLINE VERSION
 socket.on('replacetextslot', function (msg) {
     console.log('=== RENDERER PROCESS: replacetextslot REQUEST RECEIVED (OFFLINE MODE) ===');
@@ -2515,6 +2583,7 @@ socket.on('replacetextslot', function (msg) {
             // Content is for current layout - skip layout switch, go straight to content update
             console.log('=== RENDERER PROCESS: Content for current layout - updating DOM directly ===');
             updateTextSlotContent(numericId, slottype, text, layoutid);
+            activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_text');
             return;
         }
 
@@ -2540,6 +2609,7 @@ socket.on('replacetextslot', function (msg) {
                 console.warn('=== RENDERER PROCESS: Layout not found in available layouts, updating current layout content only ===');
                 if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
                     updateTextSlotContent(numericId, slottype, text, currentPlayLayoutID);
+                    activateControlPanelLayoutFreeze(currentPlayLayoutID, msg && msg.freeze_timeout, 'control_panel_replace_text');
                 } else {
                     console.error('=== RENDERER PROCESS: No suitable layout found for text update ===');
                 }
@@ -2551,6 +2621,7 @@ socket.on('replacetextslot', function (msg) {
         switchToLayoutTemporarilyInLoop(layoutid, function (success, message) {
             console.log('=== RENDERER PROCESS: replacetextslot temporary switch completed:', success, message);
             updateTextSlotContent(numericId, slottype, text, layoutid);
+            activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_text');
         });
 
         return; // Exit here for loop mode processing
@@ -2559,6 +2630,7 @@ socket.on('replacetextslot', function (msg) {
     // Non-loop layout mode - update content directly
     console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
     updateTextSlotContent(numericId, slottype, text, layoutid);
+    activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_text');
 });
 
 // Helper function to update text slot content in DOM
@@ -3758,6 +3830,7 @@ socket.on('replacemediaslot', function (msg) {
             // Content is for current layout - skip layout switch, go straight to content update
             console.log('=== RENDERER PROCESS: Content for current layout - updating DOM directly ===');
             updateMediaSlotContent(layoutid);
+            activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_media');
             return;
         }
 
@@ -3783,6 +3856,7 @@ socket.on('replacemediaslot', function (msg) {
                 console.warn('=== RENDERER PROCESS: Layout not found in available layouts, updating current layout content only ===');
                 if (currentPlayLayoutID && isLayoutAvailableOffline(currentPlayLayoutID)) {
                     updateMediaSlotContent(currentPlayLayoutID);
+                    activateControlPanelLayoutFreeze(currentPlayLayoutID, msg && msg.freeze_timeout, 'control_panel_replace_media');
                 } else {
                     console.error('=== RENDERER PROCESS: No suitable layout found for media update ===');
                 }
@@ -3794,6 +3868,7 @@ socket.on('replacemediaslot', function (msg) {
         switchToLayoutTemporarilyInLoop(layoutid, function (success, message) {
             console.log('=== RENDERER PROCESS: replacemediaslot temporary switch completed:', success, message);
             updateMediaSlotContent(layoutid);
+            activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_media');
         });
 
         return; // Exit here for loop mode processing
@@ -3802,6 +3877,7 @@ socket.on('replacemediaslot', function (msg) {
     // Non-loop layout mode - update content directly
     console.log('=== RENDERER PROCESS: Non-loop layout mode - updating DOM directly (offline) ===');
     updateMediaSlotContent(layoutid);
+    activateControlPanelLayoutFreeze(layoutid, msg && msg.freeze_timeout, 'control_panel_replace_media');
 })
 
 // Helper function to create media object based on media type

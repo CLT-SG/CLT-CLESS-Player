@@ -378,6 +378,31 @@
                             <i class="bi bi-arrow-repeat"></i>
                             Switch Layout
                         </button>
+                        <button type="button" class="modern-btn btn-secondary btnResumeLayout"
+                                title="Resume the normal layout loop and clear Airport Display freeze (GET /api/resume-layout)"
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top">
+                            <i class="bi bi-play-circle"></i>
+                            Resume Layout Loop
+                        </button>
+                    </div>
+                    <div class="form-group mt-2">
+                        <label for="freezeTimeoutSelect" class="form-label text-muted" style="font-size:0.85rem;">
+                            Freeze timeout (after text/media replace)
+                        </label>
+                        <select id="freezeTimeoutSelect" class="select-modern"
+                                title="How long to freeze the layout loop after a Control Panel / API slot replace. Default: forever."
+                                data-bs-toggle="tooltip"
+                                data-bs-placement="top">
+                            <option value="forever" selected>forever (until Resume)</option>
+                            <option value="0">0 (no freeze)</option>
+                            <option value="30">30 seconds</option>
+                            <option value="60">60 seconds</option>
+                            <option value="120">120 seconds</option>
+                            <option value="300">300 seconds</option>
+                            <option value="600">600 seconds</option>
+                        </select>
+                        <div id="freezeStateHint" class="text-muted mt-1" style="font-size:0.8rem;">Freeze: inactive</div>
                     </div>
                 </div>
 
@@ -403,20 +428,20 @@
                         
                         <div class="api-endpoint-compact">
                             <span class="method-badge">GET</span>
-                            <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                            <code>/api/replace-text?slotname={slotName}&amp;text={textContent}&amp;freeze_timeout={forever|seconds}</code>
                         </div>
                         
                         <div class="help-examples">
                             <strong>Examples:</strong>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=title&amp;text=Welcome%20to%20eCLESS&amp;freeze_timeout=forever</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS&freeze_timeout=forever')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!')">
+                                <code class="example-url">https://localhost:9000/api/replace-text?slotname=news&amp;text=Breaking%20News!&amp;freeze_timeout=60</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=news&text=Breaking%20News!&freeze_timeout=60')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
@@ -424,7 +449,7 @@
                         
                         <div class="help-notes">
                             <i class="bi bi-lightbulb"></i>
-                            <strong>Tip:</strong> Text content must be URL encoded. Spaces become %20, special characters require encoding.
+                            <strong>Tip:</strong> <code>freeze_timeout</code> defaults to <code>forever</code> (layout loop stays on the triggered layout until <code>GET /api/resume-layout</code>). Use a number of seconds for automatic resume.
                         </div>
                     </div>
                 </div>
@@ -476,20 +501,20 @@
                         
                         <div class="api-endpoint-compact">
                             <span class="method-badge">GET</span>
-                            <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
+                            <code>/api/replace-media?slotname={slotName}&amp;filename={fileName}&amp;freeze_timeout={forever|seconds}</code>
                         </div>
                         
                         <div class="help-examples">
                             <strong>Examples:</strong>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=video1&amp;filename=promo.mp4&amp;freeze_timeout=forever</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4&freeze_timeout=forever')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
                             <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg')">
+                                <code class="example-url">https://localhost:9000/api/replace-media?slotname=bg&amp;filename=logo.jpg&amp;freeze_timeout=60</code>
+                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=bg&filename=logo.jpg&freeze_timeout=60')">
                                     <i class="bi bi-clipboard"></i>
                                 </button>
                             </div>
@@ -497,7 +522,7 @@
                         
                         <div class="help-notes">
                             <i class="bi bi-lightbulb"></i>
-                            <strong>Important:</strong> Media files must exist in <code>~/clessapp/res/</code> directory.
+                            <strong>Important:</strong> Media files must exist in <code>~/clessapp/res/</code>. <code>freeze_timeout</code> defaults to <code>forever</code>.
                         </div>
                     </div>
                 </div>
@@ -809,16 +834,16 @@
                         <div class="api-endpoint">
                             <div class="endpoint-method">GET</div>
                             <div class="endpoint-url">
-                                <code>/api/replace-text?slotname={slotName}&text={textContent}</code>
+                                <code>/api/replace-text?slotname={slotName}&amp;text={textContent}&amp;freeze_timeout={forever|seconds}</code>
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Replace text content in a specific text slot across all layouts.</p>
+                            <p>Replace text content in a specific text slot. Optional <code>freeze_timeout</code> freezes the layout loop after the update (default: <code>forever</code>).</p>
                             <div class="api-examples">
                                 <div class="code-example">
                                     <span class="example-label">Example:</span>
-                                    <code class="api-url">https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS</code>
-                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS')">
+                                    <code class="api-url">https://localhost:9000/api/replace-text?slotname=title&amp;text=Welcome%20to%20eCLESS&amp;freeze_timeout=forever</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-text?slotname=title&text=Welcome%20to%20eCLESS&freeze_timeout=forever')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
@@ -828,20 +853,74 @@
                         <div class="api-endpoint">
                             <div class="endpoint-method">GET</div>
                             <div class="endpoint-url">
-                                <code>/api/replace-media?slotname={slotName}&filename={fileName}</code>
+                                <code>/api/replace-media?slotname={slotName}&amp;filename={fileName}&amp;freeze_timeout={forever|seconds}</code>
                             </div>
                         </div>
                         <div class="api-description">
-                            <p>Replace media content in a specific media slot with a file from the resource folder.</p>
+                            <p>Replace media content in a specific media slot with a file from the resource folder. Optional <code>freeze_timeout</code> (default: <code>forever</code>).</p>
                             <div class="api-examples">
                                 <div class="code-example">
                                     <span class="example-label">Example:</span>
-                                    <code class="api-url">https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4</code>
-                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4')">
+                                    <code class="api-url">https://localhost:9000/api/replace-media?slotname=video1&amp;filename=promo.mp4&amp;freeze_timeout=60</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/replace-media?slotname=video1&filename=promo.mp4&freeze_timeout=60')">
                                         <i class="bi bi-clipboard"></i>
                                     </button>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+
+                    <!-- Airport Display Freeze APIs -->
+                    <div class="api-section">
+                        <h3 class="api-section-title">
+                            <i class="bi bi-snow"></i>
+                            Airport Display Freeze APIs
+                        </h3>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/airport-display/freeze</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Read current layout freeze state and <code>freeze_timeout</code> documentation.</p>
+                            <p><strong>Property:</strong> <code>freeze_timeout</code> — type <code>string|number</code> — default <code>forever</code>.</p>
+                            <p><strong>Values:</strong> <code>forever</code>, <code>0</code>, <code>30</code>, <code>60</code>, <code>120</code>, <code>300</code>, <code>600</code>, …</p>
+                            <p><strong>forever:</strong> Remain on the triggered layout until <code>GET /api/resume-layout</code>.</p>
+                            <p><strong>number:</strong> Remain frozen for N seconds after successful layout+slot update, then resume the normal layout loop.</p>
+                            <div class="api-examples">
+                                <div class="code-example">
+                                    <span class="example-label">Example request (Airport Display JSON):</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": "forever" }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Finite timeout:</span>
+                                    <code class="api-url">{ "layout_id": "12", "slot_id": "45", "slot_type": "media", "value": "boarding.jpg", "freeze_timeout": 60 }</code>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Status:</span>
+                                    <code class="api-url">https://localhost:9000/api/airport-display/freeze</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/airport-display/freeze')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                                <div class="code-example">
+                                    <span class="example-label">Resume loop:</span>
+                                    <code class="api-url">https://localhost:9000/api/resume-layout</code>
+                                    <button class="copy-btn" onclick="copyToClipboard('https://localhost:9000/api/resume-layout')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="api-endpoint">
+                            <div class="endpoint-method">GET</div>
+                            <div class="endpoint-url">
+                                <code>/api/resume-layout</code>
+                            </div>
+                        </div>
+                        <div class="api-description">
+                            <p>Clear Airport Display freeze and resume the normal layout loop (required when <code>freeze_timeout=forever</code>).</p>
                         </div>
                     </div>
 

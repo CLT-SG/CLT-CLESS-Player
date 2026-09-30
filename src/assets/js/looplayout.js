@@ -136,6 +136,17 @@ function getLoopTimeoutStatus() {
 }
 
 function loopNextLayout() {
+  // Airport Display / Control Panel freeze must block automatic advancement.
+  try {
+    if (typeof AirportDisplayPlayer !== 'undefined' &&
+        AirportDisplayPlayer &&
+        typeof AirportDisplayPlayer.isFrozen === 'function' &&
+        AirportDisplayPlayer.isFrozen()) {
+      console.log('=== LOOP: loopNextLayout blocked — layout freeze is active ===');
+      return;
+    }
+  } catch (e) { /* ignore */ }
+
   if (loopXMLCurIndex >= loopArr.length) {
     // if this is last loop layout then reset counter of current loop timeout
     loopXMLCurIndex = 0
