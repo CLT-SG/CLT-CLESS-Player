@@ -341,11 +341,17 @@ return (async function () {
             }
             var slotname = req.query.slotname
             var slottext = req.query.text
+            var freezeTimeout = req.query.freeze_timeout != null ? req.query.freeze_timeout : 'forever'
             electronID.emit("replacetextslot", {
                 "slotname": slotname,
-                "slottext": slottext
+                "slottext": slottext,
+                "freeze_timeout": freezeTimeout
             })
-            res.json({ status: 'success', message: 'Text replacement sent' })
+            res.json({
+                status: 'success',
+                message: 'Text replacement sent',
+                freeze_timeout: freezeTimeout
+            })
         } catch (error) {
             log.error('API: Replace text error:', error)
             if (!res.headersSent) {
@@ -368,12 +374,18 @@ return (async function () {
             }
             var slotname = req.query.slotname
             var slotfilename = req.query.filename
+            var freezeTimeout = req.query.freeze_timeout != null ? req.query.freeze_timeout : 'forever'
             electronID.emit("replacemediaslot", {
                 "slotname": slotname,
                 "slottext": slotfilename,
                 "resfolder": appdir + '/res',
+                "freeze_timeout": freezeTimeout
             })
-            res.json({ status: 'success', message: 'Media replacement sent' })
+            res.json({
+                status: 'success',
+                message: 'Media replacement sent',
+                freeze_timeout: freezeTimeout
+            })
         } catch (error) {
             log.error('API: Replace media error:', error)
             if (!res.headersSent) {
@@ -690,7 +702,7 @@ return (async function () {
             
             res.json({
                 status: 'success',
-                message: 'Layout resume request sent to renderer process'
+                message: 'Layout resume request sent to renderer process (clears Airport Display freeze)'
             })
         } catch (error) {
             log.error('API: Resume layout error:', error)
@@ -698,6 +710,89 @@ return (async function () {
                 status: 'error',
                 message: 'Internal server error: ' + error.message
             })
+        }
+    })
+
+    /**
+     * GET /api/airport-display/freeze
+     * Read current layout freeze state (Airport Display / Control Panel triggers).
+     */
+    app.get('/api/airport-display/freeze', function (req, res) {
+        try {
+            var electronID = io.sockets.sockets.get(userID['eCLESS'])
+            if (!electronID) {
+                return res.status(503).json({
+                    status: 'error',
+                    message: 'eCLESS renderer process not connected',
+                    freeze: { active: false }
+                })
+            }
+            var responded = false
+            var timeout = setTimeout(function () {
+                if (responded || res.headersSent) return
+                responded = true
+                res.status(504).json({
+                    status: 'error',
+                    message: 'Timeout waiting for freeze state',
+                    freeze: { active: false }
+                })
+            }, 4000)
+            var handler = function (state) {
+                if (responded || res.headersSent) return
+                responded = true
+                clearTimeout(timeout)
+                res.json({
+                    status: 'success',
+                    freeze: state || { active: false },
+                    docs: {
+                        property: 'freeze_timeout',
+                        type: 'string|number',
+                        default: 'forever',
+                        scope: 'layout_slot_update',
+                        values: ['forever', 0, 30, 60, 120, 300, 600],
+                        meaning: {
+                            forever: 'Remain on triggered layout until GET /api/resume-layout',
+                            number: 'Remain frozen for N seconds after successful layout+slot update, then resume loop'
+                        },
+                        note: 'freeze_timeout belongs to Layout + Slot Updates, not TTS Announcement',
+                        announcement_repeat: {
+                            property: 'announcement.repeat',
+                            type: 'number',
+                            default: 1,
+                            min: 1,
+                            max: 9,
+                            meaning: 'Total plays of the full multi-language announcement sequence (reuse same audio URLs)'
+                        },
+                        resume: 'GET /api/resume-layout',
+                        example_forever: {
+                            layout_id: '12',
+                            slot_id: '45',
+                            slot_type: 'media',
+                            value: 'boarding.jpg',
+                            freeze_timeout: 'forever',
+                            announcement: { enabled: true, repeat: 1 }
+                        },
+                        example_finite: {
+                            layout_id: '12',
+                            slot_id: '45',
+                            slot_type: 'media',
+                            value: 'boarding.jpg',
+                            freeze_timeout: 60,
+                            announcement: { enabled: true, repeat: 3 }
+                        }
+                    }
+                })
+            }
+            electronID.once('airport-display-freeze-state', handler)
+            electronID.emit('airport-display-get-freeze', { timestamp: new Date().toISOString() })
+        } catch (error) {
+            log.error('API: Airport Display freeze state error:', error)
+            if (!res.headersSent) {
+                res.status(500).json({
+                    status: 'error',
+                    message: error.message || 'Failed to read freeze state'
+                })
+            }
         }
     })
 
@@ -2340,7 +2435,8 @@ return (async function () {
                     var slottext = msg['text']
                     electronID.emit("replacetextslot", {
                         "slotname": slotname,
-                        "slottext": slottext
+                        "slottext": slottext,
+                        "freeze_timeout": msg['freeze_timeout'] != null ? msg['freeze_timeout'] : 'forever'
                     })
                 } else {
                     log.warn('eCLESS client not connected for replace-text')
@@ -2421,6 +2517,7 @@ return (async function () {
                         "slotname": slotname,
                         "slottext": slotfilename,
                         "resfolder": appdir + '/res',
+                        "freeze_timeout": msg['freeze_timeout'] != null ? msg['freeze_timeout'] : 'forever'
                     })
                 } else {
                     log.warn('eCLESS client not connected for replace-media')

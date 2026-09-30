@@ -422,6 +422,10 @@ $(document).ready(function () {
     
     // Enhanced API calls with error handling
     getAPILayout()
+    if (typeof refreshFreezeStateHint === 'function') {
+        refreshFreezeStateHint()
+        setInterval(refreshFreezeStateHint, 5000)
+    }
     getAPIText()  
     getAPIMedia()
     getAPITicker()
@@ -859,6 +863,19 @@ function setupEventHandlers() {
     $('.btnUpdateLyt').click(function () {
         var lytid = $('#updateLytInput').val()
         updateLyt(lytid)
+    })
+
+    $('.btnResumeLayout').click(function () {
+        throttledAction('resumeLayout', function () {
+            $.get(window.location.origin + '/api/resume-layout')
+                .done(function () {
+                    showAlert('success', 'Layout loop resume requested (clears Airport Display freeze)')
+                    refreshFreezeStateHint()
+                })
+                .fail(function (xhr) {
+                    showAlert('danger', 'Resume layout failed: ' + ((xhr && xhr.responseText) || 'unknown error'))
+                })
+        }, 2000)
     })
 
     $('.btnReplaceText').click(function () {
@@ -2505,6 +2522,32 @@ function refreshLayout() {
     })
 }
 
+function getSelectedFreezeTimeout() {
+    var val = ($('#freezeTimeoutSelect').val() || 'forever')
+    return val
+}
+
+function refreshFreezeStateHint() {
+    var $hint = $('#freezeStateHint')
+    if (!$hint.length) return
+    $.get(window.location.origin + '/api/airport-display/freeze')
+        .done(function (data) {
+            var freeze = (data && data.freeze) || {}
+            if (freeze.active) {
+                $hint.text(
+                    'Freeze: active · timeout=' + (freeze.freeze_timeout != null ? freeze.freeze_timeout : '?') +
+                    (freeze.layout_id ? (' · layout=' + freeze.layout_id) : '') +
+                    (freeze.triggered_by ? (' · by=' + freeze.triggered_by) : '')
+                )
+            } else {
+                $hint.text('Freeze: inactive')
+            }
+        })
+        .fail(function () {
+            $hint.text('Freeze: status unavailable')
+        })
+}
+
 function updateLyt(layoutid) {
     socket.emit('replace-layout', {"id": layoutid})
     showAlert('success', `Layout updated to ${layoutid}`)
@@ -2513,17 +2556,21 @@ function updateLyt(layoutid) {
 function replacetextslot(layoutid, slotname, slottext) {
     socket.emit('replace-text', {
         "slotname": slotname,
-        "text": slottext
+        "text": slottext,
+        "freeze_timeout": getSelectedFreezeTimeout()
     })
-    showAlert('success', `Text slot "${slotname}" updated`)
+    showAlert('success', `Text slot "${slotname}" updated (freeze: ${getSelectedFreezeTimeout()})`)
+    setTimeout(refreshFreezeStateHint, 800)
 }
 
 function replacemediaslot(layoutid, slotname, slottext) {
     socket.emit('replace-media', {
         "slotname": slotname,
-        "filename": slottext
+        "filename": slottext,
+        "freeze_timeout": getSelectedFreezeTimeout()
     })
-    showAlert('success', `Media slot "${slotname}" updated`)
+    showAlert('success', `Media slot "${slotname}" updated (freeze: ${getSelectedFreezeTimeout()})`)
+    setTimeout(refreshFreezeStateHint, 800)
 }
 
 function getAPILayout() {
