@@ -99,6 +99,9 @@
             case 'installing':
                 return 'Installing update and restarting...'
             case 'unsupported':
+                if (status && status.developmentMode) {
+                    return 'Development mode detected — automatic update disabled.'
+                }
                 return 'Auto-update is available only in packaged installs.'
             case 'error':
                 return 'Update check failed. The Player will continue running normally.'

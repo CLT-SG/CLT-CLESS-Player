@@ -2489,14 +2489,19 @@ try {
                         state: 'unavailable',
                         message: 'Update service is not initialized.',
                         currentVersion: app.getVersion(),
-                        packaged: app.isPackaged
+                        packaged: app.isPackaged,
+                        production: !!app.isPackaged,
+                        developmentMode: !app.isPackaged
                     }
                 } catch (error) {
                     return {
                         state: 'error',
                         message: 'Update failed.',
                         error: error.message,
-                        currentVersion: app.getVersion()
+                        currentVersion: app.getVersion(),
+                        packaged: app.isPackaged,
+                        production: !!app.isPackaged,
+                        developmentMode: !app.isPackaged
                     }
                 }
             })
@@ -2841,6 +2846,17 @@ app.on('before-quit', (event) => {
     if (displayCalculator) {
         displayCalculator.clearCache()
         safeLog.info('DisplayCalculator: Cache cleared for app shutdown')
+    }
+
+    // Stop update startup/periodic timers (never leave orphaned GitHub checks)
+    try {
+        if (updateManager && typeof updateManager.dispose === 'function') {
+            updateManager.dispose()
+        } else if (global.updateManager && typeof global.updateManager.dispose === 'function') {
+            global.updateManager.dispose()
+        }
+    } catch (disposeError) {
+        safeLog.warn('UpdateManager dispose failed:', disposeError.message)
     }
 })
 

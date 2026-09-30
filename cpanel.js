@@ -848,11 +848,14 @@ return (async function () {
         try {
             const manager = global.updateManager
             if (!manager) {
+                const packaged = require('electron').app.isPackaged
                 return res.json({
                     state: 'unavailable',
                     message: 'Update service is not initialized.',
                     currentVersion: require('electron').app.getVersion(),
-                    packaged: require('electron').app.isPackaged
+                    packaged: packaged,
+                    production: packaged,
+                    developmentMode: !packaged
                 })
             }
             res.json(manager.getStatus())

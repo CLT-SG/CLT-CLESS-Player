@@ -53,6 +53,9 @@ test('UpdateManager startup delay is under 30s and respects autoCheck', () => {
   assert.match(src, /_schedulePeriodicChecks/)
   assert.match(src, /source: 'startup'/)
   assert.match(src, /source: 'periodic'/)
+  // Automatic paths are production/packaged only
+  assert.match(src, /isProduction\(/)
+  assert.match(src, /Development mode detected/)
 })
 
 test('cpanel settings and configure share update field ids', () => {
