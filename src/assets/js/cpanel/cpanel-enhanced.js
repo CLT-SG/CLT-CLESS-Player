@@ -896,7 +896,11 @@ function setupEventHandlers() {
     })
 
     $('.btnUpdateLyt').click(function () {
-        var lytid = $('#updateLytInput').val()
+        var lytid = $('#updateLytInput').val() || $('#layoutSwitchSelect').val()
+        if ($('#layoutSwitchSelect').val() && !$('#updateLytInput').val()) {
+            $('#updateLytInput').val($('#layoutSwitchSelect').val())
+            lytid = $('#layoutSwitchSelect').val()
+        }
         updateLyt(lytid)
     })
 
@@ -2611,8 +2615,49 @@ function refreshFreezeStateHint() {
 }
 
 function updateLyt(layoutid) {
-    socket.emit('replace-layout', {"id": layoutid})
-    showAlert('success', `Layout updated to ${layoutid}`)
+    const id = (layoutid == null ? '' : String(layoutid)).trim()
+    const $btn = $('.btnUpdateLyt')
+    const $feedback = $('#layoutSwitchFeedback')
+    const originalHtml = $btn.html()
+
+    if (!id) {
+        if ($feedback.length) {
+            $feedback.removeAttr('hidden').removeClass('is-success').addClass('is-error')
+                .text('Select or enter a layout before switching.')
+        }
+        showAlert('warning', 'Please select a layout to switch to')
+        return
+    }
+
+    $btn.addClass('loading').prop('disabled', true)
+        .html('<i class="bi bi-arrow-repeat spinning"></i> Switching…')
+    if ($feedback.length) {
+        $feedback.removeAttr('hidden').removeClass('is-success is-error')
+            .text('Switching to layout "' + id + '"…')
+    }
+
+    try {
+        socket.emit('replace-layout', { id: id })
+        showAlert('success', `Layout updated to ${id}`)
+        if ($feedback.length) {
+            $feedback.removeClass('is-error').addClass('is-success')
+                .text('Switch requested for layout "' + id + '".')
+        }
+        setTimeout(function () {
+            if (typeof refreshLayoutDetails === 'function') refreshLayoutDetails()
+        }, 800)
+    } catch (err) {
+        console.error('Layout switch failed:', err)
+        showAlert('danger', 'Unable to switch layout')
+        if ($feedback.length) {
+            $feedback.removeClass('is-success').addClass('is-error')
+                .text('Unable to switch layout. Check Player connection.')
+        }
+    } finally {
+        setTimeout(function () {
+            $btn.removeClass('loading').prop('disabled', false).html(originalHtml)
+        }, 1200)
+    }
 }
 
 function replacetextslot(layoutid, slotname, slottext) {
@@ -2663,19 +2708,245 @@ function getDetailedLayoutInfo() {
     refreshLayoutDetails()
 }
 
+function escapeLayoutHtml(value) {
+    return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+}
+
+function setLayoutField(key, value) {
+    const text = (value == null || value === '') ? 'No data' : String(value)
+    document.querySelectorAll('[data-layout-field="' + key + '"]').forEach(function (el) {
+        el.textContent = text
+    })
+}
+
+function getLayoutFreezeLabel() {
+    const hint = document.getElementById('freezeStateHint')
+    const raw = hint ? (hint.textContent || '').trim() : ''
+    if (!raw) return { label: 'No data', kind: 'neutral' }
+    const active = /active/i.test(raw) && !/inactive/i.test(raw)
+    return {
+        label: raw.replace(/^Freeze:\s*/i, '') || 'No data',
+        kind: active ? 'warning' : 'neutral'
+    }
+}
+
+function statusDotHtml(label, kind) {
+    const cls = kind === 'success' ? 'status-dot-success'
+        : kind === 'warning' ? 'status-dot-warning'
+        : kind === 'danger' ? 'status-dot-danger'
+        : kind === 'info' ? 'status-dot-info'
+        : 'status-dot-neutral'
+    return '<span class="status-dot ' + cls + '"></span> ' + escapeLayoutHtml(label)
+}
+
+function findCurrentLayoutRecord(layoutData) {
+    if (!layoutData) return null
+    if (layoutData.currentLayout && layoutData.layouts && layoutData.layouts.length) {
+        const currentId = String(layoutData.currentLayout.id)
+        const match = layoutData.layouts.find(function (layout) {
+            return String(layout.id) === currentId
+        })
+        if (match) {
+            return Object.assign({}, match, layoutData.currentLayout)
+        }
+    }
+    if (layoutData.currentLayout) return layoutData.currentLayout
+    if (layoutData.layouts && layoutData.layouts[0]) return layoutData.layouts[0]
+    return null
+}
+
+function populateLayoutSwitchSelect(layouts, currentId) {
+    const select = document.getElementById('layoutSwitchSelect')
+    if (!select) return
+    window.__clessLayoutOptions = Array.isArray(layouts) ? layouts.slice() : []
+    const filter = document.getElementById('layoutSwitchFilter')
+    const query = filter ? String(filter.value || '').toLowerCase().trim() : ''
+    const previous = select.value
+    let html = '<option value="">Select a layout…</option>'
+    window.__clessLayoutOptions.forEach(function (layout) {
+        const id = layout && layout.id != null ? String(layout.id) : ''
+        const name = (layout && (layout.name || layout.id)) || 'Untitled'
+        const label = name + (id ? ' (' + id + ')' : '')
+        if (query && label.toLowerCase().indexOf(query) === -1 && id.toLowerCase().indexOf(query) === -1) {
+            return
+        }
+        const selected = previous ? previous === id : String(currentId || '') === id
+        html += '<option value="' + escapeLayoutHtml(id) + '"' + (selected ? ' selected' : '') + '>' +
+            escapeLayoutHtml(label) + '</option>'
+    })
+    select.innerHTML = html
+    if (!window.__clessLayoutSwitchBound) {
+        window.__clessLayoutSwitchBound = true
+        select.addEventListener('change', function () {
+            const input = document.getElementById('updateLytInput')
+            if (input) input.value = select.value || ''
+        })
+        if (filter) {
+            filter.addEventListener('input', function () {
+                var inputEl = document.getElementById('updateLytInput')
+                populateLayoutSwitchSelect(window.__clessLayoutOptions || [], inputEl ? inputEl.value : '')
+            })
+        }
+    }
+}
+
+function renderActiveSlots(layout) {
+    const host = document.getElementById('layoutActiveSlots')
+    if (!host) return
+    const slots = layout && Array.isArray(layout.slots) ? layout.slots : []
+    if (!slots.length) {
+        host.innerHTML = '<div class="status-loading">No active slots for the current layout.</div>'
+        return
+    }
+    let html = '<div class="layout-slot-grid">'
+    slots.forEach(function (slot) {
+        const name = slot.name || slot.id || 'Unnamed slot'
+        const type = slot.type || 'unknown'
+        const content = slot.content != null && String(slot.content).trim() !== ''
+            ? String(slot.content)
+            : (slot.contentType || '')
+        html += '<div class="layout-slot-card">' +
+            '<div class="layout-slot-card-head">' +
+            '<span class="layout-slot-name">' + escapeLayoutHtml(name) + '</span>' +
+            '<span class="layout-slot-type">' + escapeLayoutHtml(type) + '</span>' +
+            '</div>' +
+            (content
+                ? '<div class="layout-slot-content">' + escapeLayoutHtml(content) + '</div>'
+                : '<div class="layout-slot-content is-empty">No content preview</div>') +
+            '</div>'
+    })
+    html += '</div>'
+    host.innerHTML = html
+}
+
+function renderAvailableLayouts(layouts, currentId) {
+    const host = document.getElementById('layoutAvailableList')
+    if (!host) return
+    if (!layouts || !layouts.length) {
+        host.innerHTML = '<div class="status-loading">No layouts available.</div>'
+        return
+    }
+    let html = '<div class="layout-available-grid">'
+    layouts.forEach(function (layout, index) {
+        const id = layout.id != null ? String(layout.id) : ''
+        const active = String(currentId || '') === id
+        html += '<button type="button" class="layout-available-item' + (active ? ' is-active' : '') + '" data-layout-pick="' + escapeLayoutHtml(id) + '">' +
+            '<span class="layout-available-index">' + (index + 1) + '</span>' +
+            '<span class="layout-available-body">' +
+            '<span class="layout-available-name">' + escapeLayoutHtml(layout.name || id || 'Untitled') + '</span>' +
+            '<span class="layout-available-meta">ID ' + escapeLayoutHtml(id || '—') +
+            (layout.duration != null ? ' · ' + escapeLayoutHtml(layout.duration) + 's' : '') +
+            (layout.totalSlots != null ? ' · ' + escapeLayoutHtml(layout.totalSlots) + ' slots' : '') +
+            '</span></span>' +
+            (active ? '<span class="layout-available-badge">Active</span>' : '') +
+            '</button>'
+    })
+    html += '</div>'
+    host.innerHTML = html
+    host.querySelectorAll('[data-layout-pick]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = btn.getAttribute('data-layout-pick') || ''
+            const select = document.getElementById('layoutSwitchSelect')
+            const input = document.getElementById('updateLytInput')
+            if (select) select.value = id
+            if (input) input.value = id
+            const feedback = document.getElementById('layoutSwitchFeedback')
+            if (feedback) {
+                feedback.hidden = false
+                feedback.className = 'layout-switch-feedback'
+                feedback.textContent = 'Selected "' + id + '". Click Switch Layout to apply.'
+            }
+        })
+    })
+}
+
 // Function to display comprehensive layout information with enhanced loop support
 function displayDetailedLayoutInfo(layoutData) {
     const $element = $('#apiLayout')
-    
+    window.__clessLastLayoutData = layoutData || null
     debug('Displaying enhanced layout information:', layoutData)
-    
-    // Build the comprehensive layout information display
-    let html = `
+
+    const current = findCurrentLayoutRecord(layoutData)
+    const freeze = getLayoutFreezeLabel()
+    const hasCurrent = !!(current && (current.name || current.id))
+    const slotSummary = (current && current.slotSummary) || {}
+    const totalSlots = layoutData.totalSlots != null
+        ? layoutData.totalSlots
+        : (current && (current.totalSlots != null ? current.totalSlots : slotSummary.total))
+    const textSlots = layoutData.textSlots != null ? layoutData.textSlots : slotSummary.text
+    const mediaSlots = layoutData.mediaSlots != null ? layoutData.mediaSlots : slotSummary.media
+    const otherSlots = Math.max(0, (Number(totalSlots) || 0) - (Number(textSlots) || 0) - (Number(mediaSlots) || 0))
+
+    const nameEl = document.getElementById('layoutStatusName')
+    const metaEl = document.getElementById('layoutStatusMeta')
+    if (nameEl) nameEl.textContent = hasCurrent ? (current.name || current.id) : 'No Active Layout'
+    if (metaEl) {
+        metaEl.textContent = hasCurrent
+            ? ((layoutData.isLoop ? 'Loop mode' : 'Single mode') +
+                (layoutData.layoutCount != null ? ' · ' + layoutData.layoutCount + ' layouts available' : ''))
+            : 'Unable to load a current layout from the Player.'
+    }
+
+    const stateEl = document.getElementById('layoutStatusState')
+    if (stateEl) {
+        stateEl.innerHTML = hasCurrent
+            ? statusDotHtml('Active', 'success')
+            : statusDotHtml('No Active Layout', 'neutral')
+    }
+    const loopEl = document.getElementById('layoutStatusLoop')
+    if (loopEl) {
+        loopEl.textContent = layoutData.isLoop
+            ? ('Loop · ' + (layoutData.layoutCount != null ? layoutData.layoutCount : (layoutData.layouts || []).length))
+            : 'Single'
+    }
+    const durationEl = document.getElementById('layoutStatusDuration')
+    if (durationEl) {
+        durationEl.textContent = current && current.duration != null ? (current.duration + 's') : '—'
+    }
+    const slotsEl = document.getElementById('layoutStatusSlots')
+    if (slotsEl) slotsEl.textContent = totalSlots != null ? String(totalSlots) : '—'
+    const freezeEl = document.getElementById('layoutStatusFreeze')
+    if (freezeEl) freezeEl.innerHTML = statusDotHtml(freeze.label, freeze.kind)
+
+    const switchName = document.getElementById('layoutSwitchCurrentName')
+    const switchId = document.getElementById('layoutSwitchCurrentId')
+    if (switchName) switchName.textContent = hasCurrent ? (current.name || current.id) : 'No Active Layout'
+    if (switchId) switchId.textContent = hasCurrent && current.id != null ? ('ID ' + current.id) : '—'
+
+    populateLayoutSwitchSelect(layoutData.layouts || [], current && current.id)
+    renderActiveSlots(current)
+    renderAvailableLayouts(layoutData.layouts || [], current && current.id)
+
+    setLayoutField('name', hasCurrent ? (current.name || current.id) : 'No Active Layout')
+    setLayoutField('status', hasCurrent ? 'Active' : 'No Active Layout')
+    setLayoutField('duration', current && current.duration != null ? (current.duration + 's') : null)
+    setLayoutField('loopMode', layoutData.isLoop ? 'Loop' : 'Single')
+    setLayoutField('playbackState', hasCurrent ? 'Playing' : 'Idle')
+    setLayoutField('freezeState', freeze.label)
+    setLayoutField('loopCount', layoutData.layoutCount != null ? layoutData.layoutCount : (layoutData.layouts || []).length)
+    setLayoutField('availableCount', (layoutData.layouts || []).length)
+    setLayoutField('totalSlots', totalSlots)
+    setLayoutField('textSlots', textSlots)
+    setLayoutField('mediaSlots', mediaSlots)
+    setLayoutField('otherSlots', otherSlots)
+    setLayoutField('source', layoutData.source || (layoutData.isLoop ? 'Layout loop' : 'Direct layout'))
+    setLayoutField('layoutId', current && current.id != null ? current.id : null)
+    setLayoutField('type', current && current.type ? current.type : (layoutData.isLoop ? 'loop' : 'single'))
+    setLayoutField('updated', layoutData.timestamp
+        ? new Date(layoutData.timestamp).toLocaleString()
+        : null)
+
+    // Advanced technical details remain available but collapsed by default
+    let advancedHtml = `
         <div class="layout-info-container">
             <div class="layout-status-header">
-                <div class="status-indicator ${layoutData.currentLayout ? 'status-online' : 'status-offline'}">
+                <div class="status-indicator ${hasCurrent ? 'status-online' : 'status-offline'}">
                     <div class="status-dot"></div>
-                    <span>Layout System ${layoutData.currentLayout ? 'Active' : 'Inactive'}</span>
+                    <span>Layout System ${hasCurrent ? 'Active' : 'Inactive'}</span>
                 </div>
                 <div class="layout-mode-badge ${layoutData.isLoop ? 'loop-mode' : 'single-mode'}">
                     <i class="bi ${layoutData.isLoop ? 'bi-arrow-repeat' : 'bi-file-earmark'}"></i>
@@ -2684,40 +2955,15 @@ function displayDetailedLayoutInfo(layoutData) {
                 </div>
             </div>
     `
-    
-    // Current Layout Information (if available)
-    if (layoutData.currentLayout) {
-        html += `
-            <div class="current-layout-info">
-                <h4 class="layout-section-title">
-                    <i class="bi bi-play-circle"></i>
-                    Currently Active Layout
-                </h4>
-                <div class="current-layout-details">
-                    <div class="layout-basic-info">
-                        <strong>ID:</strong> ${layoutData.currentLayout.id} | 
-                        <strong>Name:</strong> ${layoutData.currentLayout.name}
-                        ${layoutData.currentLayout.duration ? ` | <strong>Duration:</strong> ${layoutData.currentLayout.duration}s` : ''}
-                    </div>
-                    ${layoutData.currentLayout.slotSummary ? createSlotSummaryDisplay(layoutData.currentLayout.slotSummary) : ''}
-                </div>
-            </div>
-        `
-    }
-    
-    // Layout Details Section
     if (layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
-        html += createLoopLayoutsDisplay(layoutData.layouts)
+        advancedHtml += createLoopLayoutsDisplay(layoutData.layouts)
     } else if (!layoutData.isLoop && layoutData.layouts && layoutData.layouts.length > 0) {
-        html += createSingleLayoutDisplay(layoutData.layouts[0])
+        advancedHtml += createSingleLayoutDisplay(layoutData.layouts[0])
     }
-    
-    // Summary Statistics
-    html += createSummaryStatistics(layoutData)
-    
-    html += `</div>`
-    
-    $element.html(html)
+    advancedHtml += createSummaryStatistics(layoutData)
+    advancedHtml += '</div>'
+    $element.removeClass('loading').html(advancedHtml)
+
     debug('Enhanced detailed layout information displayed successfully')
     if (window.ClessMonitorUI) {
         window.ClessMonitorUI.updatePlaybackFromLayout(layoutData)
@@ -3218,6 +3464,22 @@ function displayLayoutInfoError(errorMessage, errorDetails = null) {
     `
     
     $element.html(html)
+
+    // Keep the primary Layout Status card readable during errors
+    const nameEl = document.getElementById('layoutStatusName')
+    const metaEl = document.getElementById('layoutStatusMeta')
+    const stateEl = document.getElementById('layoutStatusState')
+    if (nameEl) nameEl.textContent = 'Unable to Load Layout Information'
+    if (metaEl) metaEl.textContent = errorMessage
+    if (stateEl) stateEl.innerHTML = statusDotHtml(errorType === 'connection' ? 'Offline' : 'Unavailable', 'danger')
+    const activeSlots = document.getElementById('layoutActiveSlots')
+    if (activeSlots) {
+        activeSlots.innerHTML = '<div class="status-loading">Unable to load active slots.</div>'
+    }
+    const available = document.getElementById('layoutAvailableList')
+    if (available) {
+        available.innerHTML = '<div class="status-loading">Unable to load available layouts.</div>'
+    }
     
     // Log error for debugging
     console.error('Layout Error Display:', {

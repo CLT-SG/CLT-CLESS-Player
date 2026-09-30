@@ -130,6 +130,14 @@
                 }
             }
         }
+
+        if (sectionId === 'layout') {
+            if (window.ClessMonitoringService) {
+                window.ClessMonitoringService.refreshNow(['playback']);
+            } else if (typeof window.getDetailedLayoutInfo === 'function') {
+                try { window.getDetailedLayoutInfo(); } catch (err) { /* ignore */ }
+            }
+        }
     }
 
     function parseHashSection() {
@@ -217,10 +225,12 @@
         var html = '<span class="status-dot ' + (active ? 'status-dot-warning' : 'status-dot-neutral') + '"></span> ' +
             label.replace(/^Freeze:\s*/i, '');
 
-        ['dashboardFreezeStatus', 'airportFreezeStatus'].forEach(function (id) {
+        ['dashboardFreezeStatus', 'airportFreezeStatus', 'layoutStatusFreeze'].forEach(function (id) {
             var el = document.getElementById(id);
             if (el) el.innerHTML = html;
         });
+        var freezeField = document.querySelector('[data-layout-field="freezeState"]');
+        if (freezeField) freezeField.textContent = label.replace(/^Freeze:\s*/i, '') || 'No data';
     }
 
     function patchFreezeHintObserver() {

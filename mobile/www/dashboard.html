@@ -305,114 +305,130 @@
         
 
         <section id="section-layout" class="spa-section" data-title="Layout" hidden>
-            <div class="section-stack">
+            <div class="section-stack layout-stack">
 
-            <div class="panel-card layout-management-card">
-<div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-diagram-3"></i>
-                    </div>
-                    <h2 class="card-title">Layout Information</h2>
-                    <div class="card-actions">
-                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="getDetailedLayoutInfo()">
-                            <i class="bi bi-arrow-clockwise"></i>
-                            Refresh
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Comprehensive Layout Information Display -->
-                <div id="apiLayout" class="layout-information-panel loading">
-                    <div class="loading-indicator">
-                        <i class="bi bi-arrow-clockwise spinning"></i>
-                        Loading comprehensive layout information...
-                    </div>
-                </div>
-            </div>
-            <div class="panel-card">
-<!-- Layout Switching Actions -->
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="bi bi-arrow-left-right"></i>
-                    </div>
-                    <h2 class="card-title">Layout Switching</h2>
-                    <div class="card-actions">
-                        <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleLayoutHelp()">
-                            <i class="bi bi-question-circle"></i>
-                            API Help
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Layout Switching Help Panel -->
-                <div id="layoutSwitchingHelp" class="api-help-panel" style="display: none;">
-                    <div class="help-content">
-                        <h4><i class="bi bi-info-circle"></i> Layout Switching API</h4>
-                        <p>Use the Update Layout API to programmatically switch between different layouts:</p>
-                        
-                        <div class="api-endpoint-compact">
-                            <span class="method-badge">GET</span>
-                            <code>/api/update-layout?id={layoutId}</code>
+                <!-- 1. Current Layout Status -->
+                <div class="panel-card overview-hero layout-status-card">
+                    <div class="overview-hero-main">
+                        <div>
+                            <div class="eyebrow">Current Layout</div>
+                            <h2 class="hero-title" id="layoutStatusName">No Active Layout</h2>
+                            <p class="hero-sub" id="layoutStatusMeta">Layout status appears when the Player is connected.</p>
                         </div>
-                        
-                        <div class="help-examples">
-                            <strong>Examples:</strong>
-                            <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/update-layout?id=1</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=1')">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
+                        <div class="hero-actions">
+                            <button type="button" class="modern-btn btn-secondary btn-sm" onclick="getDetailedLayoutInfo()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="status-grid overview-status-grid">
+                        <div class="status-tile">
+                            <div class="status-tile-label">Status</div>
+                            <div id="layoutStatusState" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Loop</div>
+                            <div id="layoutStatusLoop" class="status-tile-value">—</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Duration</div>
+                            <div id="layoutStatusDuration" class="status-tile-value">—</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Slots</div>
+                            <div id="layoutStatusSlots" class="status-tile-value">—</div>
+                        </div>
+                        <div class="status-tile">
+                            <div class="status-tile-label">Freeze</div>
+                            <div id="layoutStatusFreeze" class="status-tile-value"><span class="status-dot status-dot-neutral"></span> No data</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Layout Switching -->
+                <div class="panel-card layout-switch-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-arrow-left-right"></i></div>
+                        <div>
+                            <h2 class="card-title">Layout Switching</h2>
+                            <p class="dc-module-desc">Choose a target layout and switch playback.</p>
+                        </div>
+                        <div class="card-actions">
+                            <button type="button" class="modern-btn btn-secondary btn-sm" onclick="toggleLayoutHelp()">
+                                <i class="bi bi-question-circle"></i> API Help
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="layoutSwitchingHelp" class="api-help-panel" style="display: none;">
+                        <div class="help-content">
+                            <h4><i class="bi bi-info-circle"></i> Layout Switching API</h4>
+                            <p>Use the Update Layout API to programmatically switch between different layouts:</p>
+                            <div class="api-endpoint-compact">
+                                <span class="method-badge">GET</span>
+                                <code>/api/update-layout?id={layoutId}</code>
                             </div>
-                            <div class="example-item">
-                                <code class="example-url">https://localhost:9000/api/update-layout?id=main-layout</code>
-                                <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=main-layout')">
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
+                            <div class="help-examples">
+                                <strong>Examples:</strong>
+                                <div class="example-item">
+                                    <code class="example-url">https://localhost:9000/api/update-layout?id=1</code>
+                                    <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=1')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
+                                <div class="example-item">
+                                    <code class="example-url">https://localhost:9000/api/update-layout?id=main-layout</code>
+                                    <button class="copy-btn-small" onclick="copyToClipboard('https://localhost:9000/api/update-layout?id=main-layout')">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                        
-                        <div class="help-notes">
-                            <i class="bi bi-lightbulb"></i>
-                            <strong>Tip:</strong> Layout IDs are shown in the Layout Information section above.
+                    </div>
+
+                    <div class="layout-switch-board">
+                        <div class="layout-switch-pane">
+                            <div class="info-label">Current Layout</div>
+                            <div class="layout-switch-current" id="layoutSwitchCurrentName">No Active Layout</div>
+                            <div class="layout-switch-id" id="layoutSwitchCurrentId">—</div>
+                        </div>
+                        <div class="layout-switch-arrow" aria-hidden="true">
+                            <i class="bi bi-arrow-down"></i>
+                            <span>Switch To</span>
+                        </div>
+                        <div class="layout-switch-pane">
+                            <label class="info-label" for="layoutSwitchFilter">Target Layout</label>
+                            <input type="search" id="layoutSwitchFilter" class="form-control mb-2"
+                                   placeholder="Search layouts by name or ID…" autocomplete="off">
+                            <select id="layoutSwitchSelect" class="select-modern" title="Select a layout to switch to">
+                                <option value="">Select a layout…</option>
+                            </select>
+                            <input type="text" id="updateLytInput" class="form-control mt-2"
+                                   placeholder="Or enter Layout ID"
+                                   value=""
+                                   autocomplete="off"
+                                   title="Enter the layout ID you want to switch to">
                         </div>
                     </div>
-                </div>
-                
-                <div class="mb-3 loading">
-                    Enter a layout ID from the available layouts to switch to that layout
-                </div>
-                <div class="form-group">
-                    <div class="input-group layout-control-group">
-                        <input type="text" id="updateLytInput" class="form-control" 
-                               placeholder="Enter Layout ID to switch" 
-                               value=""
-                               autocomplete="off"
-                               title="Enter the layout ID you want to switch to. Layout IDs are displayed in the Layout Information section above."
-                               data-bs-toggle="tooltip" 
-                               data-bs-placement="top">
+
+                    <div class="control-grid mt-3">
                         <button type="button" class="modern-btn btnUpdateLyt"
-                                title="Switch to the specified layout using the /api/update-layout endpoint"
-                                data-bs-toggle="tooltip" 
-                                data-bs-placement="top">
-                            <i class="bi bi-arrow-repeat"></i>
-                            Switch Layout
+                                title="Switch to the selected layout">
+                            <i class="bi bi-arrow-repeat"></i> Switch Layout
                         </button>
                         <button type="button" class="modern-btn btn-secondary btnResumeLayout"
-                                title="Resume the normal layout loop and clear Airport Display freeze (GET /api/resume-layout)"
-                                data-bs-toggle="tooltip"
-                                data-bs-placement="top">
-                            <i class="bi bi-play-circle"></i>
-                            Resume Layout Loop
+                                title="Resume the normal layout loop and clear Airport Display freeze">
+                            <i class="bi bi-play-circle"></i> Resume Layout Loop
                         </button>
                     </div>
-                    <div class="form-group mt-2">
+                    <div id="layoutSwitchFeedback" class="layout-switch-feedback" hidden></div>
+
+                    <div class="form-group mt-3">
                         <label for="freezeTimeoutSelect" class="form-label text-muted" style="font-size:0.85rem;">
                             Freeze timeout (after text/media replace)
                         </label>
                         <select id="freezeTimeoutSelect" class="select-modern"
-                                title="How long to freeze the layout loop after a Control Panel / API slot replace. Default: forever."
-                                data-bs-toggle="tooltip"
-                                data-bs-placement="top">
+                                title="How long to freeze the layout loop after a Control Panel / API slot replace. Default: forever.">
                             <option value="forever" selected>forever (until Resume)</option>
                             <option value="0">0 (no freeze)</option>
                             <option value="30">30 seconds</option>
@@ -425,8 +441,87 @@
                     </div>
                 </div>
 
+                <!-- 3. Active Slots -->
+                <div class="panel-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-ui-checks-grid"></i></div>
+                        <div>
+                            <h2 class="card-title">Active Slots</h2>
+                            <p class="dc-module-desc">Slots in the currently playing layout.</p>
+                        </div>
+                    </div>
+                    <div id="layoutActiveSlots" class="layout-active-slots">
+                        <div class="status-loading">No active slot information yet.</div>
+                    </div>
+                </div>
 
-            </div>
+                <!-- 4. Layout Information -->
+                <div class="panel-card layout-management-card">
+                    <div class="card-header">
+                        <div class="card-icon"><i class="bi bi-diagram-3"></i></div>
+                        <div>
+                            <h2 class="card-title">Layout Information</h2>
+                            <p class="dc-module-desc">Overview, playback, content, and assignment details.</p>
+                        </div>
+                    </div>
+
+                    <div class="layout-info-groups">
+                        <div class="layout-info-group">
+                            <h3 class="subsection-title">Overview</h3>
+                            <div class="info-grid" id="layoutInfoOverview">
+                                <div class="info-item"><div class="info-label">Layout Name</div><div class="info-value" data-layout-field="name">No data</div></div>
+                                <div class="info-item"><div class="info-label">Status</div><div class="info-value" data-layout-field="status">No data</div></div>
+                                <div class="info-item"><div class="info-label">Duration</div><div class="info-value" data-layout-field="duration">No data</div></div>
+                                <div class="info-item"><div class="info-label">Loop Mode</div><div class="info-value" data-layout-field="loopMode">No data</div></div>
+                            </div>
+                        </div>
+                        <div class="layout-info-group">
+                            <h3 class="subsection-title">Playback</h3>
+                            <div class="info-grid" id="layoutInfoPlayback">
+                                <div class="info-item"><div class="info-label">Playback State</div><div class="info-value" data-layout-field="playbackState">No data</div></div>
+                                <div class="info-item"><div class="info-label">Freeze State</div><div class="info-value" data-layout-field="freezeState">No data</div></div>
+                                <div class="info-item"><div class="info-label">Loop Count</div><div class="info-value" data-layout-field="loopCount">No data</div></div>
+                                <div class="info-item"><div class="info-label">Available Layouts</div><div class="info-value" data-layout-field="availableCount">No data</div></div>
+                            </div>
+                        </div>
+                        <div class="layout-info-group">
+                            <h3 class="subsection-title">Content</h3>
+                            <div class="info-grid" id="layoutInfoContent">
+                                <div class="info-item"><div class="info-label">Total Slots</div><div class="info-value" data-layout-field="totalSlots">No data</div></div>
+                                <div class="info-item"><div class="info-label">Text Slots</div><div class="info-value" data-layout-field="textSlots">No data</div></div>
+                                <div class="info-item"><div class="info-label">Media Slots</div><div class="info-value" data-layout-field="mediaSlots">No data</div></div>
+                                <div class="info-item"><div class="info-label">Other Slots</div><div class="info-value" data-layout-field="otherSlots">No data</div></div>
+                            </div>
+                        </div>
+                        <div class="layout-info-group">
+                            <h3 class="subsection-title">Assignment</h3>
+                            <div class="info-grid" id="layoutInfoAssignment">
+                                <div class="info-item"><div class="info-label">Source</div><div class="info-value" data-layout-field="source">No data</div></div>
+                                <div class="info-item"><div class="info-label">Layout ID</div><div class="info-value" data-layout-field="layoutId">No data</div></div>
+                                <div class="info-item"><div class="info-label">Type</div><div class="info-value" data-layout-field="type">No data</div></div>
+                                <div class="info-item"><div class="info-label">Updated</div><div class="info-value" data-layout-field="updated">No data</div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-3">
+                        <h3 class="subsection-title">Available Layouts</h3>
+                        <div id="layoutAvailableList" class="layout-available-list">
+                            <div class="status-loading">Loading available layouts…</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. Advanced (collapsed) -->
+                <details class="panel-card layout-advanced-card">
+                    <summary class="layout-advanced-summary">
+                        <span><i class="bi bi-code-slash"></i> Advanced Layout Details</span>
+                        <span class="text-muted">Technical / debug information</span>
+                    </summary>
+                    <div id="apiLayout" class="layout-information-panel mt-3">
+                        <div class="status-loading">Technical layout details appear here when available.</div>
+                    </div>
+                </details>
 
             </div>
         </section>
