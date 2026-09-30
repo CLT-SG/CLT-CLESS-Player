@@ -1,13 +1,35 @@
 console.log('=== CONTROL PANEL: Starting initialization ===')
-var socket = io()
 var systemMonitoringInterval
 var configData = {}
 
-// Debug function for development-only logging  
-const debug = localStorage.getItem('ecless-debug') === 'true' ? console.log.bind(console) : () => {}
+// Debug function for development-only logging (function declaration avoids TDZ if init is interrupted)
+function debug() {
+    if (localStorage.getItem('ecless-debug') === 'true') {
+        console.log.apply(console, arguments)
+    }
+}
 
-console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
-socket.emit('save id', 'Controlpanel:')
+// Socket.IO may be unavailable outside the Electron/player host — keep the rest of the panel usable.
+var socket = null
+try {
+    if (typeof io === 'function') {
+        socket = io()
+        console.log('=== CONTROL PANEL: Socket created, emitting save id ===')
+        socket.emit('save id', 'Controlpanel:')
+    } else {
+        console.warn('=== CONTROL PANEL: Socket.IO client unavailable; realtime updates disabled ===')
+    }
+} catch (socketErr) {
+    console.warn('=== CONTROL PANEL: Socket.IO init failed ===', socketErr)
+}
+if (!socket) {
+    socket = {
+        connected: false,
+        on: function () { return this },
+        emit: function () { return this },
+        off: function () { return this }
+    }
+}
 
 // --- App update status (GitHub Releases / electron-updater) ---
 function renderAppUpdateStatus(status) {

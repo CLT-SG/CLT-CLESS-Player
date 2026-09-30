@@ -116,7 +116,11 @@
         }
 
         if (sectionId === 'device' && window.ClessMonitorUI && typeof window.ClessMonitorUI.refreshDeviceStatus === 'function') {
-            window.ClessMonitorUI.refreshDeviceStatus();
+            try {
+                window.ClessMonitorUI.refreshDeviceStatus();
+            } catch (err) {
+                console.warn('Device status refresh failed:', err);
+            }
         }
     }
 
@@ -473,13 +477,25 @@
             setSidebarCollapsed(true);
         }
 
+        // Expose modal/theme APIs before navigation side-effects so destructive
+        // confirms remain available even if monitoring refresh throws.
+        window.refreshAirportPanel = refreshAirportPanel;
+        window.clessNavigate = navigateTo;
+        window.clessOpenModal = openModal;
+        window.clessApplyTheme = applyTheme;
+
         bindNav();
         bindChrome();
         bindProxyClicks();
         patchNativeConfirm();
         patchFreezeHintObserver();
         relocateConnectionStatus();
-        navigateTo(parseHashSection(), { skipHash: true });
+
+        try {
+            navigateTo(parseHashSection(), { skipHash: true });
+        } catch (err) {
+            console.warn('Initial navigation failed:', err);
+        }
 
         // Periodic dashboard sync
         setInterval(syncDashboardMetrics, 2000);
@@ -494,11 +510,6 @@
                 relocateConnectionStatus();
             };
         }
-
-        window.refreshAirportPanel = refreshAirportPanel;
-        window.clessNavigate = navigateTo;
-        window.clessOpenModal = openModal;
-        window.clessApplyTheme = applyTheme;
     }
 
     if (document.readyState === 'loading') {

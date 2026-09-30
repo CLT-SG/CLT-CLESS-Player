@@ -307,11 +307,14 @@
 
     // Provide a cleaner refresh wrapper used by Device Status button
     function refreshDeviceStatus() {
-        if (typeof window.deviceinfo === 'function') window.deviceinfo();
-        if (typeof window.refreshSystemMonitoring === 'function') window.refreshSystemMonitoring();
-        if (typeof window.loadNetworkLicenseStatus === 'function') window.loadNetworkLicenseStatus();
-        if (typeof window.refreshLayoutDetails === 'function') window.refreshLayoutDetails();
-        else if (typeof window.getDetailedLayoutInfo === 'function') window.getDetailedLayoutInfo();
+        function safeCall(fn) {
+            try { fn(); } catch (err) { console.warn('Device status refresh step failed:', err); }
+        }
+        if (typeof window.deviceinfo === 'function') safeCall(window.deviceinfo);
+        if (typeof window.refreshSystemMonitoring === 'function') safeCall(window.refreshSystemMonitoring);
+        if (typeof window.loadNetworkLicenseStatus === 'function') safeCall(window.loadNetworkLicenseStatus);
+        if (typeof window.refreshLayoutDetails === 'function') safeCall(window.refreshLayoutDetails);
+        else if (typeof window.getDetailedLayoutInfo === 'function') safeCall(window.getDetailedLayoutInfo);
     }
 
     // Public API used by patched monitoring success handler
