@@ -272,9 +272,11 @@
       }
     }
 
-    function setStatusText(text, spinning) {
+    function setStatusText(text, spinning, headline) {
       $('#startupStatusText').text(text || '')
-      $('#startupHeadline').text(text || 'Starting Player…')
+      if (headline) {
+        $('#startupHeadline').text(headline)
+      }
       $('#startupSpinner').toggle(spinning !== false && !startupComplete)
     }
 
@@ -310,7 +312,7 @@
       $('body').addClass('is-offline').removeClass('is-error')
       $('#startupOfflinePanel').addClass('is-visible')
       $('#startupErrorPanel').removeClass('is-visible')
-      setStatusText(message || 'Offline Mode', false)
+      setStatusText(message || 'Offline Mode', false, 'Offline Mode')
     }
 
     function updateMeta() {
@@ -383,7 +385,7 @@
 
       if (serverOk) {
         markStep('connecting-server', 'done')
-        setStatusText('Server reachable', true)
+        setStatusText('Server reachable', true, 'Starting Player…')
       } else {
         markStep('connecting-server', 'warn')
         showOffline('Server unavailable. Continuing with local startup…')
