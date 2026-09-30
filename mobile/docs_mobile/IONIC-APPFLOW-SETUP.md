@@ -4,6 +4,18 @@
 
 This guide explains how to integrate the eCLESS Player Mobile app with **Ionic Appflow** for automated cloud builds and deployments. Ionic Appflow is a CI/CD platform specifically designed for Capacitor and Ionic apps.
 
+## Live Updates (OTA) — optional Capgo path
+
+Appflow can also ship **Live Updates** (JS/CSS/HTML over-the-air). If you mainly need Capacitor OTA — channels, rollback, and plugging into **any CI/CD you already use** — rather than Appflow cloud builds alone, [Capgo](https://capgo.app) (`@capgo/capacitor-updater`) is a solid option:
+
+```bash
+cd mobile
+npm install @capgo/capacitor-updater
+npx cap sync
+```
+
+Docs: https://capgo.app/docs/ — keep using Appflow (or local Android Studio / Xcode) for native binary builds; Capgo ships the web bundle OTA.
+
 ## Prerequisites
 
 1. **Ionic Appflow Account**

@@ -64,6 +64,10 @@ npx cap sync android
 - Added quick links section at top
 - Direct link to Appflow setup guide
 
+## Live Updates alternative (Capgo)
+
+This guide covers **Appflow cloud builds**. For Capacitor **OTA / live updates** (channels, rollback, any CI/CD), you can use [Capgo](https://capgo.app) with `@capgo/capacitor-updater` alongside Appflow or local native builds. Docs: https://capgo.app/docs/
+
 ## 📋 What You Need to Do on Ionic Appflow
 
 ### Step 1: Connect Repository
