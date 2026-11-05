@@ -451,6 +451,27 @@ describe('LayoutTransport negotiation', () => {
     expect(requestedUrl).toContain('v=4.0.0')
   })
 
+  it('identifies itself as the Vue renderer on every layout poll', async () => {
+    // The server records this on the display heartbeat. Without it, a Vue
+    // player that has fallen back to XML is indistinguishable from a legacy
+    // player, and the Phase 6 retirement report cannot tell them apart.
+    const seenHeaders: Array<Record<string, string>> = []
+    const fetchImpl = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      seenHeaders.push((init?.headers ?? {}) as Record<string, string>)
+      const target = String(url)
+      if (target.includes('ds.json')) return jsonResponse(jsonDocument())
+      if (target.includes('ds.xml')) return xmlResponse(SINGLE_LAYOUT_XML)
+      return new Response('not found', { status: 404 })
+    }) as unknown as typeof fetch
+
+    await makeTransport(fetchImpl, { transport: 'json' }).fetchDocument()
+    await makeTransport(fetchImpl, { transport: 'xml' }).fetchDocument()
+
+    expect(seenHeaders.length).toBeGreaterThanOrEqual(2)
+    expect(seenHeaders.every((headers) => headers['X-CLESS-Player-Renderer'] === 'vue')).toBe(true)
+    expect(seenHeaders.every((headers) => headers['X-CLESS-Player-Version'] === '4.0.0')).toBe(true)
+  })
+
   it('honours an explicit xml transport setting without probing JSON', async () => {
     const fetchImpl = stubFetch({ 'ds.xml': () => xmlResponse(SINGLE_LAYOUT_XML) })
     const transport = makeTransport(fetchImpl, { transport: 'xml' })

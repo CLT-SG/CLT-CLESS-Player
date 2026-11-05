@@ -116,40 +116,54 @@ Phase 8 of the original request (sync and caching) lands here too:
 coalesces concurrent syncs, backs off with full jitter, and never clears the
 cache on failure.
 
-## Phase 5 — Rollout · planned
+## Phase 5 — Rollout · ready (lab-validated)
 
-Ordered so that each step is individually reversible.
+Ordered so that each step is individually reversible. Lab validation against a
+seeded CLESS-Server is recorded in [PHASE-5-VALIDATION.md](PHASE-5-VALIDATION.md);
+fleet pilot and enable remain operator work.
 
-1. **Ship both renderers, legacy default.** `src/index.html` hands off to
-   `app-dist/index.html` only when `config.renderer === 'vue'`, with
-   `localStorage['cless:renderer']` for per-device trials and
-   `?renderer=legacy` as an unconditional escape hatch.
-2. **Pilot.** Enable on a small number of displays covering each content type
-   in production use — in particular table slots with live SQL data, playlists
-   with transitions, and at least one Airport Display zone.
-3. **Deploy the server JSON endpoint.** Pilot players negotiate to JSON;
-   everything else keeps receiving XML from the same `buildXML()` source.
+1. **Ship both renderers, legacy default.** **done.** `src/index.html` and
+   `mobile/www/index.html` hand off to `app-dist/index.html` only when
+   `config.renderer === 'vue'`, with `localStorage['cless:renderer']` for
+   per-device trials and `?renderer=legacy` as an unconditional escape hatch.
+2. **Pilot.** **ready.** Lab coverage includes table slots with spooled SQL
+   (all four cell encodings), playlists with fade transitions, Airport Display
+   zone triggers (text + media overrides, multilingual announcements), offline
+   cache survival and reconnect. Physical-display pilot is the next step.
+3. **Deploy the server JSON endpoint.** **done** on the layout-json-api branch;
+   ETag is content-keyed so conditional requests save work even for layouts
+   with table slots. Pilot players negotiate to JSON; everything else keeps
+   receiving XML from the same `buildXML()` source.
 4. **Fleet enable.** Flip the default in `config.json` at deployment scope,
    keeping the legacy renderer in the artifact for rollback.
 5. **Retire the legacy renderer.** Delete `src/assets/js/slot-*.js`,
    `layoutxml.js`, `looplayout.js` and the jQuery/video.js/DataTables bundle
-   once no deployment reports `renderer: legacy`.
+   once no deployment reports `renderer: legacy` on
+   `/player-transport.json`.
+
+Shared-core architecture, platform layer and Capacitor wiring:
+[SHARED-CORE.md](SHARED-CORE.md).
 
 ## Phase 6 — XML compatibility layer removal · planned
 
 Deferred deliberately: XML support is retained while customers depend on it.
+The full plan, inventory and exit criteria live in
+[XML-RETIREMENT.md](XML-RETIREMENT.md).
 
-Exit criteria, all of which must hold:
+Exit criteria, all of which must hold (read from
+`GET /player-transport.json`):
 
 - No deployment is served by a CLESS-Server without the JSON endpoint.
-- No player in the field reports `transport: xml` in its status heartbeat
-  (`DeviceService.buildReport`).
-- No cached document with `origin: 'xml-adapter'` remains, i.e. every device has
-  completed at least one JSON sync.
+- No display reports `transport: xml` or `transport: unknown`, and none are
+  stale for the agreed window.
+- No display reports `renderer: legacy` or `renderer: unknown`.
+- No cached document with `origin: 'xml-adapter'` remains as the sole offline
+  source on an active display.
 
-Removal is then confined to deleting `app/src/core/adapters/`, the `parseXml`
-host capability, the `transport: 'xml'` configuration branch and the
-`xml-js` dependency. Nothing else imports XML, by design.
+Removal is then confined to deleting the XML transport branch, `XmlLayoutAdapter`,
+the `parseXml` host capability, the `transport: 'xml'` configuration branch and
+the `xml-js` dependency. Nothing else imports XML, by design. The server XML
+routes stay one release longer than the player XML client.
 
 ---
 

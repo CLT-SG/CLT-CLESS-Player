@@ -545,6 +545,10 @@ function silentTableDataRefresh(tableid) {
         type: 'GET',
         dataType: 'xml',
         timeout: 5000,
+        // Same header the main poll in looplayout.js sends; table refresh is
+        // also a layout request and must not overwrite a vue heartbeat with a
+        // blank renderer.
+        headers: { 'X-CLESS-Player-Renderer': 'legacy' },
         success: function (data) {
             try {
                 if (!data || !data.documentElement) {

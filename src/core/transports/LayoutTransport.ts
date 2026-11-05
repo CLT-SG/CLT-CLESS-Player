@@ -100,11 +100,30 @@ export class LayoutTransport {
     return xmlOutcome
   }
 
+  /**
+   * Identity headers the server records on the display heartbeat.
+   *
+   * `X-CLESS-Player-Renderer` is what makes Phase 6 exit criteria measurable:
+   * the Vue renderer always sends `vue`, the legacy renderer always sends
+   * `legacy`, and the transport (json/xml) is inferred from the URL the
+   * request hit. Without this, a Vue player that has fallen back to XML looks
+   * identical to a legacy player, and the retirement report cannot tell them
+   * apart.
+   */
+  private identityHeaders(): Readonly<Record<string, string>> {
+    const headers: Record<string, string> = { 'X-CLESS-Player-Renderer': 'vue' }
+    if (this.configuration.playerVersion) {
+      headers['X-CLESS-Player-Version'] = this.configuration.playerVersion
+    }
+    return headers
+  }
+
   private async fetchViaJson(etag: string | null): Promise<FetchOutcome> {
     const url = this.buildUrl(`${this.configuration.displayId}/ds.json`)
     const response = await this.http.getJson<unknown>(url, {
       timeoutMs: this.configuration.requestTimeoutMs,
       etag,
+      headers: this.identityHeaders(),
     })
 
     if (response.status === 'not-modified') return { status: 'not-modified', transport: 'json' }
@@ -141,7 +160,10 @@ export class LayoutTransport {
     }
 
     const rootUrl = this.buildUrl(`${this.configuration.displayId}/ds.xml`)
-    const rootResponse = await this.http.getText(rootUrl, { timeoutMs: this.configuration.requestTimeoutMs })
+    const rootResponse = await this.http.getText(rootUrl, {
+      timeoutMs: this.configuration.requestTimeoutMs,
+      headers: this.identityHeaders(),
+    })
     if (rootResponse.status === 'not-modified') return { status: 'not-modified', transport: 'xml' }
     if (rootResponse.status === 'error') return { status: 'unreachable', message: rootResponse.message }
 
