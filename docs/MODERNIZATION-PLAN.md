@@ -122,20 +122,22 @@ Ordered so that each step is individually reversible. Lab validation against a
 seeded CLESS-Server is recorded in [PHASE-5-VALIDATION.md](PHASE-5-VALIDATION.md);
 fleet pilot and enable remain operator work.
 
-1. **Ship both renderers, legacy default.** **done.** `src/index.html` and
-   `mobile/www/index.html` hand off to `app-dist/index.html` only when
-   `config.renderer === 'vue'`, with `localStorage['cless:renderer']` for
-   per-device trials and `?renderer=legacy` as an unconditional escape hatch.
+1. **Ship both renderers.** **done.** Vue is the default: `src/index.html` and
+   `mobile/www/index.html` hand off to `app-dist/index.html` unless a
+   deployment asks for legacy via `"renderer": "legacy"` in `config.json`,
+   `localStorage['cless:renderer'] = 'legacy'`, or `?renderer=legacy` as an
+   unconditional escape hatch. Rollback remains a configuration change.
 2. **Pilot.** **ready.** Lab coverage includes table slots with spooled SQL
    (all four cell encodings), playlists with fade transitions, Airport Display
    zone triggers (text + media overrides, multilingual announcements), offline
    cache survival and reconnect. Physical-display pilot is the next step.
 3. **Deploy the server JSON endpoint.** **done** on the layout-json-api branch;
    ETag is content-keyed so conditional requests save work even for layouts
-   with table slots. Pilot players negotiate to JSON; everything else keeps
+   with table slots. Modern players negotiate to JSON; everything else keeps
    receiving XML from the same `buildXML()` source.
-4. **Fleet enable.** Flip the default in `config.json` at deployment scope,
-   keeping the legacy renderer in the artifact for rollback.
+4. **Fleet enable.** **done** as the player default. Deployments that need the
+   previous renderer set `"renderer": "legacy"`; the legacy artifact stays in
+   the build for that rollback.
 5. **Retire the legacy renderer.** Delete `src/assets/js/slot-*.js`,
    `layoutxml.js`, `looplayout.js` and the jQuery/video.js/DataTables bundle
    once no deployment reports `renderer: legacy` on

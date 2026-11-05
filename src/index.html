@@ -44,21 +44,59 @@
   <script src="assets/js/config-loader.js"></script>
 
   <!--
-    Opt-in hand-off to the Vue renderer in app-dist/.
+    Hand-off to the Vue renderer in app-dist/. Vue is the default.
 
-    The legacy renderer below stays the default: a deployment opts in with
-    "renderer": "vue" in config.json, or per-device via the
-    cless:renderer localStorage key. Appending ?renderer=legacy to the URL
-    always lands here, so a device can be recovered without editing config.
+    Rollback, highest precedence first:
+      ?renderer=legacy in the URL (unconditional escape hatch),
+      localStorage['cless:renderer'] = 'legacy' (per-device),
+      "renderer": "legacy" in config.json (fleet).
+    Config loads asynchronously, so the decision waits for `configLoaded`
+    (with a short timeout fallback) before navigating — otherwise a fleet
+    rollback via config.json would lose the race to the default.
   -->
   <script>
     (function () {
       try {
         if (/[?&]renderer=legacy/.test(location.search)) return
+
         var requested = null
         try { requested = window.localStorage.getItem('cless:renderer') } catch (_) {}
-        if (!requested && window.config) requested = window.config.renderer
-        if (requested === 'vue') location.replace('app-dist/index.html')
+        if (requested === 'legacy') return
+        if (requested === 'vue') {
+          location.replace('app-dist/index.html')
+          return
+        }
+
+        function configRenderer() {
+          try {
+            if (window.configLoader && window.configLoader.config) {
+              return window.configLoader.config.renderer
+            }
+            if (window.config) return window.config.renderer
+          } catch (_) {}
+          return null
+        }
+
+        function handoffUnlessLegacy() {
+          if (configRenderer() === 'legacy') return
+          location.replace('app-dist/index.html')
+        }
+
+        if (configRenderer() != null || (window.configLoader && window.configLoader.config)) {
+          handoffUnlessLegacy()
+          return
+        }
+
+        var settled = false
+        function once() {
+          if (settled) return
+          settled = true
+          handoffUnlessLegacy()
+        }
+        window.addEventListener('configLoaded', once, { once: true })
+        // Missing or broken config must not leave the device on the legacy
+        // page forever now that Vue is the default.
+        setTimeout(once, 2000)
       } catch (e) {
         console.warn('eCLESS: renderer switch skipped: ' + e)
       }

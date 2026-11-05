@@ -11,8 +11,10 @@ retirement plan; it is not permission to remove anything.
 - Server `ds.xml` / `layout/*/ds.xml` / `layoutloop/*/loop.xml` routes
 - The legacy renderer (`src/assets/js/slot-*.js`, `layoutxml.js`, `looplayout.js`)
 
-Rollback must remain a configuration change (`renderer: legacy` or
-`?renderer=legacy`), not a new release.
+Rollback must remain a configuration change (`"renderer": "legacy"`,
+`localStorage['cless:renderer'] = 'legacy'`, or `?renderer=legacy`), not a
+new release. Vue is the player default; those switches are the only way back
+onto the legacy renderer.
 
 ## Current XML usage (inventory)
 

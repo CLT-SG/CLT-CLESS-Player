@@ -55,6 +55,8 @@ class MobileConfigLoader {
             id: '206',
             mode: 'online',
             corsproxy: 'N',
+            // Vue is the default renderer; set to "legacy" only as a rollback.
+            renderer: 'vue',
             syncSettings: {
                 enabled: false,
                 role: 'none',

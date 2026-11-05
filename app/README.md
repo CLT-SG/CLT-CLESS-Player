@@ -2,10 +2,9 @@
 
 Vue 3 + Vite + TypeScript + Tailwind renderer for the eCLESS Player.
 
-This directory is additive. Nothing under `../src/assets/js` was modified, and
-the legacy renderer remains the default. `../src/index.html` hands off to this
-build only when a deployment opts in (see
-[Enabling it](#enabling-it-on-a-device)).
+This directory is additive. The Vue renderer is the default: `../src/index.html`
+hands off to this build unless a deployment explicitly asks for the legacy
+renderer (see [Rollback](#rollback-to-the-legacy-renderer)).
 
 ## Commands
 
@@ -20,16 +19,16 @@ build only when a deployment opts in (see
 The build writes to `../src/app-dist` with `base: './'` so the bundle loads
 over `file://` in Electron and from the Capacitor web root without a server.
 
-## Enabling it on a device
+## Rollback to the legacy renderer
 
 Precedence, highest first:
 
-1. `?renderer=legacy` in the URL — always returns to the legacy renderer, so a
-   device can be recovered without editing config.
-2. `localStorage['cless:renderer'] = 'vue'` — per-device opt-in for field trials.
-3. `"renderer": "vue"` in `config.json` — fleet or per-deployment opt-in.
+1. `?renderer=legacy` in the URL — unconditional escape hatch; recovers a
+   device without editing config.
+2. `localStorage['cless:renderer'] = 'legacy'` — per-device rollback.
+3. `"renderer": "legacy"` in `config.json` — fleet or per-deployment rollback.
 
-Absent all three, the legacy renderer runs. `"transport"` selects the wire
+Absent all three, the Vue renderer runs. `"transport"` selects the wire
 format: `auto` (default, probe JSON then fall back to XML), `json`, or `xml`.
 
 ## Layers
