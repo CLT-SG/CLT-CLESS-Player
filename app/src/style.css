@@ -1,0 +1,131 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+    margin: 0;
+    background-color: #000;
+    /* Signage screens are never interacted with; hiding the cursor and
+       disabling selection prevents stray UI artefacts on a public display. */
+    cursor: none;
+    user-select: none;
+    overflow: hidden;
+  }
+}
+
+@layer utilities {
+  /* Ticker/scroller tracks. Each track renders its message twice, so moving
+     by 50% lands the second copy exactly where the first started, producing a
+     seamless loop without measuring text width. */
+  @keyframes cless-ticker-left {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  @keyframes cless-ticker-right {
+    from {
+      transform: translateX(-50%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes cless-ticker-up {
+    from {
+      transform: translateY(0);
+    }
+    to {
+      transform: translateY(-50%);
+    }
+  }
+
+  @keyframes cless-ticker-down {
+    from {
+      transform: translateY(-50%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  /* Layout-loop transitions. Names match the server's `transition_style`
+     values so the mapping in PlaybackService stays a direct lookup. */
+  .cless-transition-fade {
+    animation-name: cless-fade-in;
+    animation-fill-mode: both;
+  }
+
+  .cless-transition-slide-left {
+    animation-name: cless-slide-in-left;
+    animation-fill-mode: both;
+  }
+
+  .cless-transition-slide-right {
+    animation-name: cless-slide-in-right;
+    animation-fill-mode: both;
+  }
+
+  .cless-transition-scroll-up {
+    animation-name: cless-slide-in-up;
+    animation-fill-mode: both;
+  }
+
+  .cless-transition-scroll-down {
+    animation-name: cless-slide-in-down;
+    animation-fill-mode: both;
+  }
+
+  @keyframes cless-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes cless-slide-in-left {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes cless-slide-in-right {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes cless-slide-in-up {
+    from {
+      transform: translateY(100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes cless-slide-in-down {
+    from {
+      transform: translateY(-100%);
+    }
+    to {
+      transform: translateY(0);
+    }
+  }
+}

@@ -529,6 +529,10 @@ async function layoutLoopUpdateXML() {
       type: 'GET', // Use the GET method
       dataType: 'xml', // IMPORTANT: Explicitly request XML dataType
       timeout: 5000, // Set a timeout of 5 seconds for the request
+      // Recorded by CLESS-Server on the display heartbeat so the Phase 6 XML
+      // retirement report can tell a legacy player from a Vue player that has
+      // fallen back to the XML transport.
+      headers: { 'X-CLESS-Player-Renderer': 'legacy' },
       success: function (dsData) {
         log.info('GET XML: OK'); // Log a successful XML retrieval
         

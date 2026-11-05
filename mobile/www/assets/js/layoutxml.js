@@ -545,6 +545,10 @@ function silentTableDataRefresh(tableid) {
         type: 'GET',
         dataType: 'xml',
         timeout: 5000,
+        // Same header the main poll in looplayout.js sends; table refresh is
+        // also a layout request and must not overwrite a vue heartbeat with a
+        // blank renderer.
+        headers: { 'X-CLESS-Player-Renderer': 'legacy' },
         success: function (data) {
             try {
                 if (!data || !data.documentElement) {
@@ -645,22 +649,8 @@ function silentTableDataRefresh(tableid) {
 
 
 //convert hex to rgb
+// Delegates to the shared core, as the desktop copy of this file does, so the
+// Android, iOS, Electron and Vue renderers all produce the same colour.
 function hexToRgbA(hex, transparent) {
-    if (transparent == "high") {
-        transparent = 0
-    } else if (transparent == "medium") {
-        transparent = 0.5
-    } else {
-        transparent = 1
-    }
-    var c;
-    if (/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)) {
-        c = hex.substring(1).split('');
-        if (c.length == 3) {
-            c = [c[0], c[0], c[1], c[1], c[2], c[2]];
-        }
-        c = '0x' + c.join('');
-        return 'rgba(' + [(c >> 16) & 255, (c >> 8) & 255, c & 255].join(',') + ',' + transparent + ')';
-    }
-    throw new Error('Bad Hex');
+    return ClessCore.hexToRgbA(hex, transparent);
 }

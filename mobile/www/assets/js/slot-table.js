@@ -692,10 +692,10 @@ async function tableRecord(slotitem, index, table) {
                 
                 var colFormat = col[1].substring(0, 6)
                 if (colFormat == 'image:') {
-                    var n = col[1].lastIndexOf(':')
-                    var colImageList = col[1].substring(n + 1)
-                    //console.log('colImageList:', colImageList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
-                    colImageList = colImageList.split(',') // split and create array
+                    // Shared with the Vue renderer: the file list follows the
+                    // *last* colon for image cells, and the *first* colon for
+                    // fader/transition cells below.
+                    var colImageList = ClessCore.decodeCellEntries(col[1])
                     $('.slot-tbody-' + tableid + ' tr:last .' + colNumber).html('<div class="imagecol-' + colRowIndex + '"></div>') //create image td
                     
                     // MOBILE: Preload images using media manager if available
@@ -778,9 +778,7 @@ async function tableRecord(slotitem, index, table) {
                         })
                     }
                 } else if (colFormat == 'fader:') { //create fader animation for this column (original scroll effect)
-                    var n = col[1].indexOf(":") // remove first string before : symbol
-                    var colTextFaderList = col[1].slice(n + 1) // combine all text when have ,
-                    colTextFaderList = colTextFaderList.split(',') // split and create array
+                    var colTextFaderList = ClessCore.decodeCellEntries(col[1])
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="fadercol-' + colRowIndex + '"></div>') //create td
                     colTextFaderList.forEach(function (ele, resId) { //create foreach to create fading animation
                         var coltext = ele.trim() // trim whitespace instead of removing all spaces
@@ -841,10 +839,11 @@ async function tableRecord(slotitem, index, table) {
                         })
                     }
                 } else if (colFormat.substring(0, 11) == 'transition:') { //create text transition animation for this column (new multi-style effects)
-                    var n = col[1].indexOf(":") // remove first string before : symbol
-                    var colTextTransitionList = col[1].slice(n + 1) // combine all text when have ,
-                    //console.log('colTextTransitionList:', colTextTransitionList, ' for cellKey:', cellKey, ' for row:', colRowIndex, ' column:', colNumber)
-                    colTextTransitionList = colTextTransitionList.split(',') // split and create array
+                    // NOTE: colFormat is only the first 6 characters, so this
+                    // branch is unreachable on mobile — the desktop copy tests
+                    // col[1]. Left as-is: correcting it would change what
+                    // shipped mobile players draw. See docs/SHARED-CORE.md.
+                    var colTextTransitionList = ClessCore.decodeCellEntries(col[1])
                     $('.slot-tbody-' + tableid + ' tr:last .' + col[0]).html('<div class="text-transition-col-' + colRowIndex + '"></div>') //create td
                     colTextTransitionList.forEach(function (ele, resId) { //create foreach to create transition animation
                         var coltext = ele.trim() // trim whitespace instead of removing all spaces

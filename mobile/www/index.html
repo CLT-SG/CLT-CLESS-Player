@@ -251,6 +251,67 @@
   <!-- 3. Mobile Config Loader (needs window.log from shim) -->
   <script src="assets/js/mobile/mobile-config.js"></script>
 
+  <!--
+    Hand-off to the Vue renderer in app-dist/, matching src/index.html.
+    Vue is the default.
+
+    Rollback, highest precedence first:
+      ?renderer=legacy in the URL (unconditional escape hatch),
+      localStorage['cless:renderer'] = 'legacy' (per-device),
+      "renderer": "legacy" in config.json (fleet).
+    Config loads asynchronously, so the decision waits for `configLoaded`
+    (with a short timeout fallback) before navigating.
+  -->
+  <script>
+    (function () {
+      try {
+        if (/[?&]renderer=legacy/.test(location.search)) return
+
+        var requested = null
+        try { requested = window.localStorage.getItem('cless:renderer') } catch (_) {}
+        if (requested === 'legacy') return
+        if (requested === 'vue') {
+          location.replace('app-dist/index.html')
+          return
+        }
+
+        function configRenderer() {
+          try {
+            if (window.mobileConfigLoader && window.mobileConfigLoader.config) {
+              return window.mobileConfigLoader.config.renderer
+            }
+            if (window.configLoader && window.configLoader.config) {
+              return window.configLoader.config.renderer
+            }
+            if (window.config) return window.config.renderer
+          } catch (_) {}
+          return null
+        }
+
+        function handoffUnlessLegacy() {
+          if (configRenderer() === 'legacy') return
+          location.replace('app-dist/index.html')
+        }
+
+        if (configRenderer() != null || (window.config && window.config.renderer != null)) {
+          handoffUnlessLegacy()
+          return
+        }
+
+        var settled = false
+        function once() {
+          if (settled) return
+          settled = true
+          handoffUnlessLegacy()
+        }
+        window.addEventListener('configLoaded', once, { once: true })
+        setTimeout(once, 2000)
+      } catch (e) {
+        console.warn('eCLESS: renderer switch skipped: ' + e)
+      }
+    })()
+  </script>
+
   <!-- CTRL+2 fallback to open the Offline Layout Manager (works with attached keyboards) -->
   <script>
     document.addEventListener('keydown', function (e) {
@@ -343,6 +404,10 @@
       console.warn('error loading configuration: ' + e)
     }
   </script>
+  <!-- Shared core (window.ClessCore): the same layout, colour, media and table
+       logic the Vue renderer uses. Copied from src/assets/js by the mobile
+       build; must load before any script that calls into it. -->
+  <script src="assets/js/cless-core.js"></script>
   <!-- https://github.com/videojs -->
   <script src="assets/js/jquery.min.js"></script>
   
