@@ -248,6 +248,32 @@ describe('NetworkUtils.backoffDelay', () => {
     expect(NetworkUtils.origin('/relative')).toBe('')
   })
 
+  it('rebases a stale media base onto the configured host', () => {
+    // Field failure: config.hostserver moved to cless4, cache still pointed at
+    // cless5, every airline logo 404'd on the old origin.
+    expect(
+      NetworkUtils.rebaseMediaBaseUrl(
+        'https://cless5.closed-loop.biz/media/uploads',
+        'https://cless4.closed-loop.biz/demo',
+      ),
+    ).toBe('https://cless4.closed-loop.biz/media/uploads')
+
+    expect(
+      NetworkUtils.rebaseMediaBaseUrl(
+        'https://cless4.closed-loop.biz/media/uploads',
+        'https://cless4.closed-loop.biz/demo',
+      ),
+    ).toBe('https://cless4.closed-loop.biz/media/uploads')
+
+    // An intentional CDN is left alone.
+    expect(
+      NetworkUtils.rebaseMediaBaseUrl(
+        'https://cdn.example.com/logos',
+        'https://cless4.closed-loop.biz/demo',
+      ),
+    ).toBe('https://cdn.example.com/logos')
+  })
+
   it('appends query parameters, respecting an existing query string', () => {
     expect(NetworkUtils.withQuery('https://h/a', { v: '1.2' })).toBe('https://h/a?v=1.2')
     expect(NetworkUtils.withQuery('https://h/a?b=1', { v: '2' })).toBe('https://h/a?b=1&v=2')

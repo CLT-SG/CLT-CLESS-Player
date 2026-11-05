@@ -35,6 +35,28 @@ export abstract class NetworkUtils {
   }
 
   /**
+   * Points a cached media base at the configured host when the two disagree.
+   *
+   * A player that changes `hostserver` (cless5 → cless4, or a lab URL → a
+   * production one) otherwise keeps requesting images from the origin baked
+   * into its layout cache, which is exactly the field failure mode where
+   * config says one host and every airline logo 404s on another. Intentional
+   * CDN hosts — anything whose path is not under `/media/` — are left alone.
+   */
+  static rebaseMediaBaseUrl(mediaBaseUrl: string, hostserver: string): string {
+    const hostOrigin = NetworkUtils.origin(hostserver)
+    if (!hostOrigin || !mediaBaseUrl) return mediaBaseUrl
+    try {
+      const media = new URL(mediaBaseUrl)
+      if (media.origin === hostOrigin) return mediaBaseUrl
+      if (!/\/media(\/|$)/i.test(media.pathname)) return mediaBaseUrl
+      return `${hostOrigin}${media.pathname}`.replace(/\/+$/, '') || hostOrigin
+    } catch {
+      return mediaBaseUrl
+    }
+  }
+
+  /**
    * Exponential backoff with full jitter.
    *
    * Jitter matters in this deployment: a site can have dozens of players that

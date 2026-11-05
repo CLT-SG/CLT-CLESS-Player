@@ -92,11 +92,21 @@ describe('ContentPluginRegistry', () => {
     expect(makeRegistry().validate(slotOfType('holovideo'))).toEqual([])
   })
 
-  it('surfaces plugin validation problems', () => {
+  it('treats an empty media slot as valid', () => {
+    // Placeholder slots are a normal CMS state; warning on them made the
+    // field console look like the renderer had crashed.
     const registry = makeRegistry()
-    const emptyMedia = slot({ type: 'media', id: 'm1', items: [] })
+    expect(registry.validate(slot({ type: 'media', id: 'm1', items: [] }))).toEqual([])
+  })
 
-    expect(registry.validate(emptyMedia)).toContain('slot has no playable media items')
+  it('surfaces media slots whose items are all unplayable', () => {
+    const registry = makeRegistry()
+    const broken = slot({
+      type: 'media',
+      id: 'm1',
+      items: [{ id: '1', text: 'none', duration: 0, order: 0, enabled: true, data: {} }],
+    })
+    expect(registry.validate(broken)).toContain('slot has no playable media items')
   })
 
   it('reports only the slots that have problems', () => {
@@ -107,7 +117,8 @@ describe('ContentPluginRegistry', () => {
       slot({ type: 'table', id: 't1', config: {} }),
     ])
 
-    expect(reports.map((report) => report.slotId)).toEqual(['m1', 't1'])
+    // Empty media is valid; the table with no columns is not.
+    expect(reports.map((report) => report.slotId)).toEqual(['t1'])
   })
 
   it('degrades to a placeholder when a plugin throws', () => {

@@ -94,7 +94,12 @@ export class LayoutTransport {
       return jsonOutcome
     }
 
-    logger.info('JSON endpoint unavailable; falling back to XML transport')
+    // The browser / electron-log will still show the ds.json 404 in red; that
+    // is the probe, not a failure. The player keeps going on XML until the
+    // server gains the JSON API.
+    logger.info(
+      `JSON Layout Definition API not present (${jsonOutcome.message}); falling back to XML transport`,
+    )
     const xmlOutcome = await this.fetchViaXml()
     if (xmlOutcome.status === 'updated') this.negotiated = 'xml'
     return xmlOutcome

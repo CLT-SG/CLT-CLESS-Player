@@ -30,12 +30,21 @@ export class LayoutService {
   ) {}
 
   prepare(definition: LayoutDefinition): PreparedLayout {
+    const mediaBaseUrl = NetworkUtils.rebaseMediaBaseUrl(definition.mediaBaseUrl, this.serverBaseUrl)
+    if (mediaBaseUrl !== definition.mediaBaseUrl) {
+      // A host change left the cache pointing at the previous origin; without
+      // this every image request 404s on the old host while the layout itself
+      // keeps playing, which is what the field console log showed.
+      logger.info(`Rebased media base ${definition.mediaBaseUrl} → ${mediaBaseUrl}`)
+      definition = { ...definition, mediaBaseUrl }
+    }
+
     const datasets = new Map<string, DatasetDefinition>()
     for (const dataset of definition.datasets) datasets.set(dataset.slotId, dataset)
 
     const context: ContentBuildContext = {
       layout: definition,
-      mediaBaseUrl: definition.mediaBaseUrl,
+      mediaBaseUrl,
       serverOrigin: NetworkUtils.origin(this.serverBaseUrl),
       datasetFor: (slotId) => datasets.get(slotId) ?? null,
     }

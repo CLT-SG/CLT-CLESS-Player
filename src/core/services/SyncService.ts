@@ -201,7 +201,11 @@ export class SyncService {
     const layouts = document.mode === 'playlist' ? document.layouts : document.layout ? [document.layout] : []
     for (const layout of layouts) {
       if (!layout.assets.length) continue
-      const summary = await this.assetCache.synchronize(layout.assets, layout.mediaBaseUrl)
+      const mediaBaseUrl = NetworkUtils.rebaseMediaBaseUrl(
+        layout.mediaBaseUrl,
+        this.configuration.hostserver,
+      )
+      const summary = await this.assetCache.synchronize(layout.assets, mediaBaseUrl)
       logger.debug(`Assets for layout ${layout.id}`, summary)
       for (const listener of this.assetListeners) {
         try {

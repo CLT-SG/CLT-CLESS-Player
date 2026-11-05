@@ -42,10 +42,12 @@ export const mediaPlugin: ContentPlugin<MediaContent> = {
     .passthrough(),
   create: (definition, context) => new MediaContent(definition, context.mediaBaseUrl),
   validate: (definition) => {
-    const issues: string[] = []
+    // An empty slot is a valid CMS state (placeholder / not yet filled). Warn
+    // only when the slot *claims* items but none of them can play — that is
+    // the case that used to look like a renderer crash in the field log.
+    if (!definition.items.length) return []
     const playable = definition.items.filter((item) => item.enabled && item.text.trim() && item.text !== 'none')
-    if (!playable.length) issues.push('slot has no playable media items')
-    return issues
+    return playable.length ? [] : ['slot has no playable media items']
   },
 }
 
